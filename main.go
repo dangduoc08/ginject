@@ -10,6 +10,11 @@ func main() {
 	r := router.Init()
 	var handler router.RequestHandler = r
 
+	handler.Get("/:rootId", func(req *router.Request, res router.ResponseExtender) {
+		var rootId string = req.Params["rootId"]
+		res.Send(rootId)
+	})
+
 	handler.Get("/users", func(req *router.Request, res router.ResponseExtender) {
 		res.Send(req.URL.Path)
 	})

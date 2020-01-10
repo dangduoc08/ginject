@@ -2,6 +2,7 @@ package router
 
 import "strings"
 
+// Insert route path and its data to tree
 func (t *tree) insert(word, method string, handleRequest func(req *Request, res ResponseExtender)) {
 	if handleRequest == nil {
 		panic("http: nil handler")
