@@ -16,17 +16,19 @@ func Init() *router {
 			instance = new(router)
 			var trie *tree = new(tree)
 			trie.node = make(map[string]*tree)
-			instance.RouterTree = trie
+			instance.routerTree = trie
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				params := make(map[string]string)
-				matched, handleRequest := instance.RouterTree.match(r.URL.Path, r.Method, &params)
+				matched, handleRequest := instance.routerTree.match(r.URL.Path, r.Method, &params)
 				if matched {
 					req := Request{
 						Request: r,
 						Params:  params,
 					}
-					var res Response = w
-					handleRequest(&req, res)
+					res := response{w}
+					var resExt ResponseExtender = &res
+
+					handleRequest(&req, resExt)
 				} else {
 					fmt.Fprintf(w, "<!DOCTYPE html>"+
 						"<html lang='en'>"+

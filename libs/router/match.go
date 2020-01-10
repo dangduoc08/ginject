@@ -2,12 +2,12 @@ package router
 
 import "strings"
 
-func (t *tree) match(word, method string, params *map[string]string) (bool, func(req *Request, res Response)) {
+func (t *tree) match(word, method string, params *map[string]string) (bool, func(req *Request, res ResponseExtender)) {
 	var lastIndex int = len(word) - 1
 	var remainStr string
 	var prefixParam string = ":"
 	var matched bool
-	var handleRequest func(req *Request, res Response)
+	var handleRequest func(req *Request, res ResponseExtender)
 
 	// Remove "/" at last index in URL
 	if string(word[lastIndex]) == "/" {
