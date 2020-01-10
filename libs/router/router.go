@@ -16,7 +16,7 @@ type tree struct {
 	node          map[string]*tree
 	params        map[string]string
 	httpMethod    map[string]bool
-	handleRequest func(req *Request, res Response)
+	handleRequest func(req *Request, res ResponseExtender)
 	isEnd         bool
 }
 
@@ -25,17 +25,22 @@ type Request struct {
 	Params map[string]string
 }
 
-type Response interface {
+type ResponseExtender interface {
+	http.ResponseWriter
+	Send(content string, arguments ...interface{})
+}
+
+type response struct {
 	http.ResponseWriter
 }
 
 type RequestHandler interface {
-	Get(path string, handleRequest func(req *Request, res Response))
-	Post(path string, handleRequest func(req *Request, res Response))
-	Put(path string, handleRequest func(req *Request, res Response))
-	Delete(path string, handleRequest func(req *Request, res Response))
+	Get(path string, handleRequest func(req *Request, res ResponseExtender))
+	Post(path string, handleRequest func(req *Request, res ResponseExtender))
+	Put(path string, handleRequest func(req *Request, res ResponseExtender))
+	Delete(path string, handleRequest func(req *Request, res ResponseExtender))
 }
 
 type router struct {
-	RouterTree *tree
+	routerTree *tree
 }

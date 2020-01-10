@@ -2,7 +2,10 @@ package router
 
 import "strings"
 
-func (t *tree) insert(word, method string, handleRequest func(req *Request, res Response)) {
+func (t *tree) insert(word, method string, handleRequest func(req *Request, res ResponseExtender)) {
+	if handleRequest == nil {
+		panic("http: nil handler")
+	}
 	var lastIndex int = len(word) - 1
 	var prefixParam string = ":"
 	for currentIndex, runeStr := range word {
