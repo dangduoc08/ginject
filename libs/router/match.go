@@ -2,6 +2,7 @@ package router
 
 import "strings"
 
+// Check client send URL if match in tree
 func (t *tree) match(word, method string, params *map[string]string) (bool, func(req *Request, res ResponseExtender)) {
 	var lastIndex int = len(word) - 1
 	var remainStr string
@@ -10,7 +11,7 @@ func (t *tree) match(word, method string, params *map[string]string) (bool, func
 	var handleRequest func(req *Request, res ResponseExtender)
 
 	// Remove "/" at last index in URL
-	if string(word[lastIndex]) == "/" {
+	if word != "/" && string(word[lastIndex]) == "/" {
 		word = word[0:lastIndex]
 		lastIndex--
 	}
