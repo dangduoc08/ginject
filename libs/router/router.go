@@ -35,8 +35,10 @@ type router struct {
 
 type ResponseExtender interface {
 	http.ResponseWriter
-	Send(content string, arguments ...interface{}) ResponseExtender
-	Status(statusCode int) ResponseExtender
+	Status(statusCode int) ResponseExtender                         // Set status code
+	Type(contentType string) ResponseExtender                       // Set header content-type
+	Send(content string, arguments ...interface{}) ResponseExtender // Response text or HTML
+	JSON(datas ...interface{}) ResponseExtender                     // Response JSON
 }
 
 type RequestHandler interface {

@@ -31,6 +31,7 @@ func Init() *router {
 					handleRequest(&req, resExt)
 				} else {
 					w.WriteHeader(404)
+					w.Header().Set("Content-Type", "text/html")
 					fmt.Fprintf(w, "<!DOCTYPE html>"+
 						"<html lang='en'>"+
 						"<head>"+
