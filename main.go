@@ -1,33 +1,24 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/dangduoc08/api-crud/libs/router"
+	"net/http"
 )
+
+func handleRoot(req *router.Request, res router.ResponseExtender) {
+	res.Status(200).Send("This is root path")
+}
+
+func getUser(req *router.Request, res router.ResponseExtender) {
+	var userId string = req.Params["userId"]
+	res.Status(500).Send("User ID: %v", userId)
+}
 
 func main() {
 	r := router.Init()
 	var handler router.RequestHandler = r
 
-	handler.Get("/:rootId", func(req *router.Request, res router.ResponseExtender) {
-		var rootId string = req.Params["rootId"]
-		res.Send(rootId)
-	})
-
-	handler.Get("/users", func(req *router.Request, res router.ResponseExtender) {
-		res.Send(req.URL.Path)
-	})
-
-	handler.Get("/users/:userId", func(req *router.Request, res router.ResponseExtender) {
-		var userId string = req.Params["userId"]
-		res.Send(userId)
-	})
-
-	handler.Post("/products/:productId", func(req *router.Request, res router.ResponseExtender) {
-		var productId string = req.Params["productId"]
-		res.Send(productId)
-	})
+	handler.Get("/", handleRoot).Get("/users/:userId", getUser)
 
 	http.ListenAndServe(":8080", nil)
 }
