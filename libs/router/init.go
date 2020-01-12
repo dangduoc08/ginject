@@ -30,6 +30,7 @@ func Init() *router {
 
 					handleRequest(&req, resExt)
 				} else {
+					w.WriteHeader(404)
 					fmt.Fprintf(w, "<!DOCTYPE html>"+
 						"<html lang='en'>"+
 						"<head>"+
