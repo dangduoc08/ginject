@@ -3,17 +3,17 @@ package express
 import "strings"
 
 type trie struct {
-	node          map[string]*trie
-	params        map[string]string
-	httpMethod    map[string]bool
-	handleRequest func(req *Request, res ResponseExtender)
-	isEnd         bool
+	node       map[string]*trie
+	params     map[string]string
+	httpMethod map[string]bool
+	handlers   []Handler
+	isEnd      bool
 }
 
 // Insert route path and its data to tree
-func (t *trie) insert(word, method string, handleRequest func(req *Request, res ResponseExtender)) {
-	if handleRequest == nil {
-		panic("http: nil handler")
+func (t *trie) insert(word, method string, handlers ...Handler) {
+	if len(handlers) <= 0 {
+		panic("Error: nil handler")
 	}
 	var lastIndex int = len(word) - 1
 	var prefixParam string = ":"
@@ -53,7 +53,7 @@ func (t *trie) insert(word, method string, handleRequest func(req *Request, res 
 		// add handle request function to map
 		if currentIndex == lastIndex {
 			t.node[str].isEnd = true
-			t.node[str].handleRequest = handleRequest
+			t.node[str].handlers = handlers
 			// If http method map didnt created
 			// create new one
 			if t.node[str].httpMethod == nil {
@@ -66,12 +66,12 @@ func (t *trie) insert(word, method string, handleRequest func(req *Request, res 
 }
 
 // Check client send URL if match in tree
-func (t *trie) match(word, method string, params *map[string]string) (bool, func(req *Request, res ResponseExtender)) {
+func (t *trie) match(word, method string, params *map[string]string) (bool, []Handler) {
 	var lastIndex int = len(word) - 1
 	var remainStr string
 	var prefixParam string = ":"
 	var matched bool
-	var handleRequest func(req *Request, res ResponseExtender)
+	var handlers []Handler
 
 	// Remove "/" at last index in URL
 	if word != "/" && string(word[lastIndex]) == "/" {
@@ -89,7 +89,7 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, func
 			// return handle request function is matched with route which client sent
 			if currentIndex == lastIndex && t.node[str].isEnd && t.node[str].httpMethod[method] {
 				matched = true
-				handleRequest = t.node[str].handleRequest
+				handlers = t.node[str].handlers
 			}
 			t = t.node[str]
 		} else {
@@ -117,8 +117,8 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, func
 			remainStr = prefixParam + t.params[method]
 		}
 		(*params)[t.params[method]] = paramVal
-		matched, handleRequest = t.match(remainStr, method, params)
+		matched, handlers = t.match(remainStr, method, params)
 	}
 
-	return matched, handleRequest
+	return matched, handlers
 }
