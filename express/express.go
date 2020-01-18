@@ -22,13 +22,6 @@ type Express struct {
 
 type Handler func(req *Request, res ResponseExtender, next func()) // Function handles middlewares and request
 
-type Router interface {
-	Get(path string, handlers ...Handler) Router
-	Post(path string, handlers ...Handler) Router
-	Put(path string, handlers ...Handler) Router
-	Delete(path string, handlers ...Handler) Router
-}
-
 var instance *Express
 var once sync.Once
 
@@ -49,10 +42,15 @@ func Init() *Express {
 				matched, handlers := instance.routerTree.match(r.URL.Path, r.Method, &params)
 				// Router existed in trie
 				if matched {
+
+					// Create middleware map
+					middleware := make(map[string]interface{})
+
 					// Add http.Request and params to req
 					req := Request{
-						Request: r,
-						Params:  params,
+						Request:    r,
+						Params:     params,
+						Middleware: middleware,
 					}
 					// Override http.Responsewritter
 					res := response{w}
@@ -99,24 +97,4 @@ func Init() *Express {
 		})
 	}
 	return instance
-}
-
-func (express *Express) Get(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, get, handlers...)
-	return express
-}
-
-func (express *Express) Post(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, post, handlers...)
-	return express
-}
-
-func (express *Express) Put(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, put, handlers...)
-	return express
-}
-
-func (express *Express) Delete(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, delete, handlers...)
-	return express
 }
