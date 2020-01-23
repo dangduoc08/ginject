@@ -2,6 +2,8 @@ package express
 
 import "strings"
 
+import "fmt"
+
 type trie struct {
 	node       map[string]*trie
 	params     map[string]string
@@ -12,11 +14,18 @@ type trie struct {
 
 // Insert route path and its data to tree
 func (t *trie) insert(word, method string, handlers ...Handler) {
+	fmt.Println(word)
 	if len(handlers) <= 0 {
 		panic("Error: nil handler")
 	}
 	var lastIndex int = len(word) - 1
 	var prefixParam string = ":"
+
+	// Remove "/" at last index in URL
+	if word != "/" && string(word[lastIndex]) == "/" {
+		word = word[0:lastIndex]
+		lastIndex--
+	}
 	for currentIndex, runeStr := range word {
 		var str string = string(runeStr)
 

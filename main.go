@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"unicode"
 
@@ -36,47 +35,18 @@ func validateGetUser(req *expr.Request, res expr.ResponseExtender, next func()) 
 }
 
 func getUser(req *expr.Request, res expr.ResponseExtender, next func()) {
-	fmt.Println("Users", req.Middleware)
 	res.JSON(http.StatusOK, `{
 		"message": "Success",
 		"code": %v
 	}`, http.StatusOK)
 }
 
-func validateGetProduct(req *expr.Request, res expr.ResponseExtender, next func()) {
-	defer res.Error(func(rec interface{}) {
-		err := rec.(ServerError)
-		res.JSON(err.Code, err)
-	})
-
-	var productId string = req.Params["productId"]
-
-	for _, runeStr := range productId {
-		if !unicode.IsDigit(runeStr) {
-			panic(ServerError{
-				Message: "Error: Ivalid product ID",
-				Code:    http.StatusUnprocessableEntity,
-			})
-		}
-	}
-
-	req.Middleware["isProductIdValid"] = true
-
-	next()
+func all(req *expr.Request, res expr.ResponseExtender, next func()) {
+	res.Send(200, "Matched all URL")
 }
 
-func serveST(req *expr.Request, res expr.ResponseExtender, next func()) {
-	req.Middleware["S.T"] = "Served"
-
-	next()
-}
-
-func getProduct(req *expr.Request, res expr.ResponseExtender, next func()) {
-	fmt.Println("Products", req.Middleware)
-	res.JSON(http.StatusOK, `{
-		"message": "Success",
-		"code": %v
-	}`, http.StatusOK)
+func slash(req *expr.Request, res expr.ResponseExtender, next func()) {
+	res.Send(200, "You accessed root")
 }
 
 func main() {
@@ -84,7 +54,9 @@ func main() {
 	var router expr.Router = app
 
 	router.Get("/users/:userId", validateGetUser, getUser)
-	router.Get("/products/:productId", validateGetProduct, serveST, getProduct)
+	router.Get("*", all)
+	router.Get("/*", all)
+	router.Get("/", slash)
 
 	http.ListenAndServe(":8080", nil)
 }
