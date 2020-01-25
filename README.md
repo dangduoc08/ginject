@@ -1,2 +1,2 @@
-# api-crud
-API for testing CRUD applications
+# Go web framework inspired by Express JS
+Current main features: Routing, middleware, res.JSON
