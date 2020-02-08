@@ -6,16 +6,6 @@ import (
 	"sync"
 )
 
-const (
-	get     = "GET"
-	post    = "POST"
-	put     = "PUT"
-	delete  = "DELETE"
-	options = "OPTIONS"
-	patch   = "PATCH"
-	head    = "HEAD"
-)
-
 type Express struct {
 	routerTree *trie
 }
