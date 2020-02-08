@@ -1,11 +1,14 @@
 package express
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type trie struct {
 	node       map[string]*trie  // Node key is a word of route
-	params     map[string]string // URL params
-	suffix     []string          // URL string after "*"
+	params     map[string]string // Route params from ":" to first "/"
+	suffix     []string          // Route string from "*" to first "/"
 	httpMethod map[string]bool   // Router method
 	handlers   []Handler         // All middleware and endpoint handler
 	isEnd      bool              // If end route, isEnd will set true
@@ -187,10 +190,11 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 			}
 		}
 
-		// 3 conditional statements below
-		// solve 3 cases:
+		// 4 conditional statements below
+		// solve 4 cases:
 		// - "/before_*_after" => _after is suffix
 		// - "/before_*/after" => no suffix but * not placed at last index
+		// - "/before_*/:after" => no suffix but after * is a param
 		// - "/before_*" => no suffix and * placed at last
 
 		// After "*" has suffix
@@ -203,13 +207,18 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 
 			// "*" not placed at last index
 			if slashIndex > -1 {
-				remainStr = allPattern + remainStr[slashIndex:]
+				if t.node[allPattern].node[slash].node[prefixParam] != nil {
+					remainStr = allPattern + remainStr[slashIndex+6:]
+				} else {
+					remainStr = allPattern + remainStr[slashIndex:]
+				}
 
 				// "*" placed at last index
 			} else {
 				remainStr = allPattern
 			}
 		}
+		fmt.Println(remainStr)
 		matched, handlers = t.match(remainStr, method, params) // Recursive
 	}
 

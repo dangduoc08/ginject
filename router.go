@@ -1,5 +1,7 @@
 package express
 
+import "net/http"
+
 type Router interface {
 	Get(path string, handlers ...Handler) Router
 	Post(path string, handlers ...Handler) Router
@@ -8,21 +10,21 @@ type Router interface {
 }
 
 func (express *Express) Get(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, get, handlers...)
+	express.routerTree.insert(path, http.MethodGet, handlers...)
 	return express
 }
 
 func (express *Express) Post(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, post, handlers...)
+	express.routerTree.insert(path, http.MethodPost, handlers...)
 	return express
 }
 
 func (express *Express) Put(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, put, handlers...)
+	express.routerTree.insert(path, http.MethodPut, handlers...)
 	return express
 }
 
 func (express *Express) Delete(path string, handlers ...Handler) Router {
-	express.routerTree.insert(path, delete, handlers...)
+	express.routerTree.insert(path, http.MethodDelete, handlers...)
 	return express
 }
