@@ -1,74 +1,85 @@
-package express
+package gogo
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
 )
 
-type Express struct {
+// GoGo struct holds
+// prefix-tree data structure
+// with prefix-tree, the time complex
+// when iterable trie to match router
+// will be n = len(route)
+type GoGo struct {
 	routerTree *trie
 }
 
-type Handler func(req *Request, res ResponseExtender, next func()) // Function handles middlewares and request
+// Handler handle request and response
+// with third param is a next function,
+// we can use as a middleware function
+// by pass many handler arguments
+// and invoke next function
+type Handler func(req *Request, res ResponseExtender, next func())
 
-var instance *Express
+var instance *GoGo
 var once sync.Once
 
-// Init Express by implement thread safe singleton
-func Init() *Express {
+// Init app by implement thread safe singleton
+func Init() *GoGo {
 	if instance == nil {
-		// This function only call once time
 		once.Do(func() {
-			instance = new(Express)
+			instance = new(GoGo)
+
 			// Create a nil trie to insert routers
 			var newTrie *trie = new(trie)
 			newTrie.node = make(map[string]*trie)
-			// Add trie to router tree
 			instance.routerTree = newTrie
-			// All request will be accept to this handle function
+
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				params := make(map[string]string)
 				matched, handlers := instance.routerTree.match(r.URL.Path, r.Method, &params)
+
 				// Router existed in trie
 				if matched {
 
-					// Create middleware map
-					middleware := make(map[string]interface{})
-
-					// Add http.Request and params to req
+					// Add http.Request, params and context to *http.Request
 					req := Request{
-						Request:    r,
-						Params:     params,
-						Middleware: middleware,
+						Request: r,
+						Params:  params,
+						ctx:     context.Background(),
 					}
-					// Override http.Responsewritter
+
+					// Override http.Responsewritter interface
 					res := response{w}
-					var resExt ResponseExtender = &res
-					// Handle middleware
-					// treat the last handler is handle request function
-					// any handlers not the last is middleware function
+					var resExternder ResponseExtender = &res
+
+					// Rule to handles middleware functions:
+					// other handlers are middleware handlers
+					// last handler is main response handler
 					var handleRequestIndex int = len(handlers) - 1
-					var isNextCalled bool
 					for index, handlerFn := range handlers {
-						// Handle middleware
 						if index != handleRequestIndex {
-							isNextCalled = false
+							var isNextCalled bool
+
 							// Because it is middleware function
-							// therefore pass next function
+							// it's will pass next function to third argument
 							// if next function was invoked in router
-							// handler will move to the next handler function
-							handlerFn(&req, resExt, func() { isNextCalled = true })
+							// handler will move to the next functions
+							handlerFn(&req, resExternder, func() { isNextCalled = true })
 							if !isNextCalled {
 								break
 							}
 						} else {
-							// Because it is the last handle request function
-							// therefore did not pass the next function
-							handlerFn(&req, resExt, nil)
+
+							// Because it is the last handler
+							// it's won't pass the next function
+							handlerFn(&req, resExternder, nil)
 						}
 					}
 				} else {
+
 					// If no route matched, it's will send HTML 404 page
 					w.WriteHeader(404)
 					fmt.Fprintf(w, "<!DOCTYPE html>"+
