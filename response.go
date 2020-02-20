@@ -1,4 +1,4 @@
-package express
+package gogo
 
 import (
 	"encoding/json"
@@ -10,6 +10,10 @@ type response struct {
 	http.ResponseWriter
 }
 
+// ResponseExtender embed
+// http.ResponseWriter interface
+// extend
+// more build-in methods
 type ResponseExtender interface {
 	http.ResponseWriter
 	Set(fields map[string]string) ResponseExtender                                  // Set HTTP header field to value
@@ -35,29 +39,35 @@ func (res *response) Type(contentType string) ResponseExtender {
 	return res
 }
 
-// Send can response string of number
+// Send string or HTML string
+// second params are variable value
 func (res *response) Send(statusCode int, content string, arguments ...interface{}) ResponseExtender {
 	res.WriteHeader(statusCode)
 	fmt.Fprintf(res.ResponseWriter, content, arguments...)
 	return res
 }
 
-// Response JSON
+// JSON to reponse JSON type
 func (res *response) JSON(statusCode int, datas ...interface{}) ResponseExtender {
+
 	// Datas can be string, struct or map[string]interface{}
 	data := datas[0]
 	switch data.(type) {
+
 	// Handle case datas are string
 	case string:
+
 		// Format string with params
 		fStr := fmt.Sprintf(data.(string), datas[1:]...)
+
 		// Parse string to raw JSON
 		data = json.RawMessage(fStr)
 	default:
+
 		// If datas are not string
 		// only accept one argument
 		if len(datas) > 1 {
-			panic("Error: Too many arguments")
+			panic("Too many arguments")
 		}
 	}
 
@@ -72,7 +82,7 @@ func (res *response) JSON(statusCode int, datas ...interface{}) ResponseExtender
 	return res
 }
 
-// Handle Error by invoke recover function
+// Error invoke recover function
 // Should be use with defer, place at the begin of handler
 // ex: defer res.Error
 func (res *response) Error(callback func(interface{})) {
