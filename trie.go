@@ -1,7 +1,6 @@
-package express
+package gogo
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -14,15 +13,15 @@ type trie struct {
 	isEnd      bool              // If end route, isEnd will set true
 }
 
-// Insert route path and its data to tree
+// Insert route path and its relate datas to tree
 func (t *trie) insert(word, method string, handlers ...Handler) {
 	if len(handlers) <= 0 {
-		panic("Error: nil handler")
+		panic("Nil handler")
 	}
 	var lastIndex int = len(word) - 1
 	var prefixParam string = ":"
 	var slash string = "/"
-	var allPattern string = "*"
+	var any string = "*"
 
 	// Remove "/" at last route
 	if word != slash && string(word[lastIndex]) == slash {
@@ -49,7 +48,7 @@ func (t *trie) insert(word, method string, handlers ...Handler) {
 
 		// Pass URL route after "*"
 		// to help we know whether has suffix or not
-		if str == allPattern {
+		if str == any {
 			var remainStr string = word[currentIndex+1:]
 			var slashIndex int = strings.Index(remainStr, slash)
 			var suffixKey string
@@ -61,7 +60,6 @@ func (t *trie) insert(word, method string, handlers ...Handler) {
 			} else {
 				suffixKey = remainStr
 			}
-
 			if suffixKey != "" {
 				t.suffix = append(t.suffix, suffixKey)
 			}
@@ -110,7 +108,7 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 	var remainStr string
 	var prefixParam string = ":"
 	var slash string = "/"
-	var allPattern string = "*"
+	var any string = "*"
 	var matched bool
 	var handlers []Handler
 
@@ -133,16 +131,8 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 			}
 			t = t.node[str]
 
-			// If route has "*"
-			// placed at last index
-			// it mean all URL after "*" will be matched
-		} else if t.node[allPattern] != nil && t.node[allPattern].isEnd {
-			matched = true
-			handlers = t.node[allPattern].handlers
-
 			// If route didn't matched
-			// "*" not placed ai last index
-			// keep the remain URL to check once more time with below recursive
+			// keep the remain URL to check once more time with below logic
 		} else {
 			remainStr = word[currentIndex:]
 			break
@@ -150,7 +140,7 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 	}
 
 	// With remain URL, divide into 2 cases
-	// #CASE_1 router includes params
+	// #CASE_1 router includes params with matched HTTP method
 	// so remain URL start with ":"
 	// check whether URL variables existed
 	if !matched && t.node[prefixParam] != nil && t.params[method] != "" {
@@ -177,29 +167,35 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 		matched, handlers = t.match(remainStr, method, params) // Recursive
 
 		// #CASE_2 router includes "*"
-		// check whether match all pattern existed
-	} else if !matched && t.node[allPattern] != nil {
+		// check whether any string pattern existed
+	} else if !matched && t.node[any] != nil {
 
 		// Suffix is an string array
 		// check whether any suffix match with URL client send
 		var suffixIndex int = -1
-		for _, suffix := range t.suffix {
-			suffixIndex = strings.Index(remainStr, suffix)
-			if suffixIndex > -1 {
-				break
+		if len(t.suffix) > 0 {
+			var slashIndex int = strings.Index(remainStr, slash)
+			var tempStr string = remainStr
+			if slashIndex > -1 {
+				tempStr = remainStr[:slashIndex]
+			}
+			for _, suffix := range t.suffix {
+				suffixIndex = strings.Index(tempStr, suffix)
+				if suffixIndex > -1 {
+					break
+				}
 			}
 		}
 
-		// 4 conditional statements below
-		// solve 4 cases:
+		// 3 conditional statements below
+		// solve 3 cases:
 		// - "/before_*_after" => _after is suffix
 		// - "/before_*/after" => no suffix but * not placed at last index
-		// - "/before_*/:after" => no suffix but after * is a param
-		// - "/before_*" => no suffix and * placed at last
+		// - "/before_*" => no suffix but * placed at last index
 
 		// After "*" has suffix
 		if suffixIndex > -1 {
-			remainStr = allPattern + remainStr[suffixIndex:]
+			remainStr = any + remainStr[suffixIndex:]
 
 			// After "*" has no suffix
 		} else {
@@ -207,20 +203,15 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 
 			// "*" not placed at last index
 			if slashIndex > -1 {
-				if t.node[allPattern].node[slash].node[prefixParam] != nil {
-					remainStr = allPattern + remainStr[slashIndex+6:]
-				} else {
-					remainStr = allPattern + remainStr[slashIndex:]
-				}
+				remainStr = any + remainStr[slashIndex:]
 
 				// "*" placed at last index
 			} else {
-				remainStr = allPattern
+				remainStr = any
 			}
 		}
-		fmt.Println(remainStr)
+
 		matched, handlers = t.match(remainStr, method, params) // Recursive
 	}
-
 	return matched, handlers
 }

@@ -1,5 +1,6 @@
-package express
+package gogo
 
+// ExecWorkerPool func
 func ExecWorkerPool(worker int, middlewares ...Handler) Handler {
 	return func(req *Request, res ResponseExtender, next func()) {
 		var totalMiddleware int = len(middlewares)
@@ -30,7 +31,7 @@ func ExecWorkerPool(worker int, middlewares ...Handler) Handler {
 
 		var isAllNextCalled bool = true
 		// Receive result from queue channel
-		for mwIndex, _ := range middlewares {
+		for mwIndex := range middlewares {
 			isNextCalled := <-receiver
 			if !isNextCalled {
 				isAllNextCalled = false
