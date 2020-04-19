@@ -1,6 +1,8 @@
 package gogo
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -13,74 +15,123 @@ type trie struct {
 	isEnd      bool              // If end route, isEnd will set true
 }
 
-// Insert route path and its relate datas to tree
-func (t *trie) insert(word, method string, handlers ...Handler) {
+const (
+	paramPrefix string = ":"
+	slash       string = "/"
+	any         string = "*"
+	empty       string = ""
+)
+
+func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
+	var nextIndex int = currentIndex + 1
+	var remainRoute string = route[nextIndex:]
+	var afterSlashWord string = string(remainRoute[0])
+	var e error
+	var node map[string]*trie = t.node
+
+	// #CASE 1: Insert absolute path first
+	// then insert param or any
+	var isInsertAbsolutePathFirst bool = afterSlashWord == paramPrefix || afterSlashWord == any
+
+	// #CASE 2: Insert param or any first
+	// then insert absolute path
+	var isInsertParamOrAnyFirst bool = node[slash].node[paramPrefix] != nil || node[slash].node[any] != nil
+
+	if isInsertAbsolutePathFirst || isInsertParamOrAnyFirst {
+		var slashIndex int = strings.Index(remainRoute, slash)
+		var conflictWord string
+
+		if slashIndex > -1 {
+			conflictWord = remainRoute[0:slashIndex]
+		} else {
+			conflictWord = remainRoute[0:]
+		}
+
+		var message string = fmt.Sprintf(
+			"wildcard '%s' in new path '%s' conflicts with existing prefix in trie",
+			conflictWord,
+			route,
+		)
+
+		e = errors.New(message)
+	}
+
+	return e
+}
+
+// Insert route into trie
+func (t *trie) insert(route, method string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
-	var lastIndex int = len(word) - 1
-	var prefixParam string = ":"
-	var slash string = "/"
-	var any string = "*"
+	var lastIndex int = len(route) - 1
 
 	// Remove "/" at last route
-	if word != slash && string(word[lastIndex]) == slash {
-		word = word[0:lastIndex]
+	if route != slash && string(route[lastIndex]) == slash {
+		route = route[0:lastIndex]
 		lastIndex--
 	}
 
 	// Add "/" at first route
-	if string(word[0]) != slash {
-		word = slash + word
+	if string(route[0]) != slash {
+		route = slash + route
 		lastIndex++
 	}
 
-	for currentIndex, runeStr := range word {
-		var str string = string(runeStr)
+	for currentIndex, runeStr := range route {
+		var word string = string(runeStr)
+		var node map[string]*trie = t.node
 
-		// If key haven't existed in map
+		// If key haven't existed
+		// in node map
 		// create new one
-		if t.node[str] == nil {
+		if node[word] == nil {
 			var newTrie *trie = new(trie)
 			newTrie.node = make(map[string]*trie)
-			t.node[str] = newTrie
+			node[word] = newTrie
+		} else if node[slash] != nil && !node[slash].isEnd {
+			err := t.checkConflictWildcard(route, currentIndex)
+			if err != nil {
+				panic(err)
+			}
 		}
 
-		// Pass URL route after "*"
+		// Pass route route after "*"
 		// to help we know whether has suffix or not
-		if str == any {
-			var remainStr string = word[currentIndex+1:]
-			var slashIndex int = strings.Index(remainStr, slash)
+		if word == any {
+			var remainRoute string = route[currentIndex+1:]
+			var slashIndex int = strings.Index(remainRoute, slash)
 			var suffixKey string
 
 			// Treating the string from "*" to "/" is suffix
 			// therefore one router can have many suffix
 			if slashIndex > -1 {
-				suffixKey = remainStr[:slashIndex]
+				suffixKey = remainRoute[:slashIndex]
 			} else {
-				suffixKey = remainStr
+				suffixKey = remainRoute
 			}
-			if suffixKey != "" {
+			if suffixKey != empty {
 				t.suffix = append(t.suffix, suffixKey)
 			}
 		}
 
 		// Pass params and method to node has key = ":"
 		// to easy to access params
-		if str == prefixParam {
+		if word == paramPrefix {
 			if t.params == nil {
 				params := make(map[string]string)
 				t.params = params
 			}
+
 			// Handle case has many params
 			// get param from first index to slash index
-			var remainStr string = word[currentIndex+1:]
-			var slashIndex int = strings.Index(remainStr, slash)
+			var remainRoute string = route[currentIndex+1:]
+			var slashIndex int = strings.Index(remainRoute, slash)
 
 			if slashIndex > -1 {
-				t.params[method] = remainStr[:slashIndex]
+				t.params[method] = remainRoute[:slashIndex]
 			} else {
-				t.params[method] = remainStr
+				t.params[method] = remainRoute
 			}
 		}
 
@@ -89,98 +140,97 @@ func (t *trie) insert(word, method string, handlers ...Handler) {
 		// add http method to map
 		// add handle request function to map
 		if currentIndex == lastIndex {
-			t.node[str].isEnd = true
-			t.node[str].handlers = handlers
-			// If http method map didnt created
+			node[word].isEnd = true
+			node[word].handlers = handlers
+
+			// If http method map hanven't created
 			// create new one
-			if t.node[str].httpMethod == nil {
-				t.node[str].httpMethod = make(map[string]bool)
+			if node[word].httpMethod == nil {
+				node[word].httpMethod = make(map[string]bool)
 			}
-			t.node[str].httpMethod[method] = true
+			node[word].httpMethod[method] = true
 		}
-		t = t.node[str]
+		t = node[word]
 	}
 }
 
-// Check client send URL if match in tree
-func (t *trie) match(word, method string, params *map[string]string) (bool, []Handler) {
-	var lastIndex int = len(word) - 1
-	var remainStr string
-	var prefixParam string = ":"
-	var slash string = "/"
-	var any string = "*"
+// Check client send path if match in trie
+func (t *trie) match(path, method string, params *map[string]string) (bool, []Handler) {
+	var lastIndex int = len(path) - 1
+	var remainPath string
 	var matched bool
 	var handlers []Handler
+	var node map[string]*trie = t.node
 
-	// Remove "/" at last index in URL
-	if word != slash && string(word[lastIndex]) == slash {
-		word = word[0:lastIndex]
+	// Remove "/" at last index in path
+	if path != slash && string(path[lastIndex]) == slash {
+		path = path[0:lastIndex]
 		lastIndex--
 	}
 
-	for currentIndex, runeStr := range word {
-		var str string = string(runeStr)
-		if t.node[str] != nil {
+	for currentIndex, runeStr := range path {
+		var word string = string(runeStr)
+		if node[word] != nil {
 
-			// If match whole word (loop no break and isEnd = true)
+			// If match whole path (loop no break and isEnd = true)
 			// http method matched
 			// return handler functions is matched
-			if currentIndex == lastIndex && t.node[str].isEnd && t.node[str].httpMethod[method] {
+			if currentIndex == lastIndex && node[word].isEnd && node[word].httpMethod[method] {
 				matched = true
-				handlers = t.node[str].handlers
+				handlers = node[word].handlers
 			}
-			t = t.node[str]
+			t = node[word]
 
-			// If route didn't matched
-			// keep the remain URL to check once more time with below logic
+			// If route haven't matched
+			// keep the remain path to check once more time with below logic
 		} else {
-			remainStr = word[currentIndex:]
+			remainPath = path[currentIndex:]
 			break
 		}
 	}
 
-	// With remain URL, divide into 2 cases
-	// #CASE_1 router includes params with matched HTTP method
-	// so remain URL start with ":"
-	// check whether URL variables existed
-	if !matched && t.node[prefixParam] != nil && t.params[method] != "" {
+	// With remain path, divide into 2 cases:
+	// #CASE 1 router includes params with matched HTTP method
+	// so remain path start with ":"
+	// check whether path variables existed
+	if !matched && node[paramPrefix] != nil && t.params[method] != empty {
 		var paramVal string
 
 		// A param consider from ":" to first "/"
-		// after get param, remain string will
-		// replace params with ":<key_params>"
+		// after get param, remain path will
+		// replaced params with ":<key_params>"
 		// then run recursively with remain
 		// till remain string matched or unmatched both case
-		var slashIndex int = strings.Index(remainStr, slash)
+		var slashIndex int = strings.Index(remainPath, slash)
 
-		// If slash index > -1 mean URL maybe have more than 1 params
+		// If slash index > -1 mean path maybe have more than 1 params
 		if slashIndex > -1 {
-			paramVal = remainStr[0:slashIndex]
-			remainStr = prefixParam + t.params[method] + remainStr[slashIndex:]
+			paramVal = remainPath[0:slashIndex]
+			remainPath = paramPrefix + t.params[method] + remainPath[slashIndex:]
 		} else {
-			paramVal = remainStr[0:]
-			remainStr = prefixParam + t.params[method]
+			paramVal = remainPath[0:]
+			remainPath = paramPrefix + t.params[method]
 		}
 
 		// Put param value to req.Params
 		(*params)[t.params[method]] = paramVal
-		matched, handlers = t.match(remainStr, method, params) // Recursive
+		matched, handlers = t.match(remainPath, method, params) // Recursive
 
-		// #CASE_2 router includes "*"
+		// #CASE 2 router includes "*"
 		// check whether any string pattern existed
-	} else if !matched && t.node[any] != nil {
+	} else if !matched && node[any] != nil {
 
 		// Suffix is an string array
-		// check whether any suffix match with URL client send
+		// check whether any suffix match with path client send
 		var suffixIndex int = -1
 		if len(t.suffix) > 0 {
-			var slashIndex int = strings.Index(remainStr, slash)
-			var tempStr string = remainStr
+			var slashIndex int = strings.Index(remainPath, slash)
+			var tempPath string = remainPath
 			if slashIndex > -1 {
-				tempStr = remainStr[:slashIndex]
+				tempPath = remainPath[:slashIndex]
 			}
 			for _, suffix := range t.suffix {
-				suffixIndex = strings.Index(tempStr, suffix)
+				suffixIndex = strings.Index(tempPath, suffix)
 				if suffixIndex > -1 {
 					break
 				}
@@ -189,29 +239,29 @@ func (t *trie) match(word, method string, params *map[string]string) (bool, []Ha
 
 		// 3 conditional statements below
 		// solve 3 cases:
-		// - "/before_*_after" => _after is suffix
-		// - "/before_*/after" => no suffix but * not placed at last index
-		// - "/before_*" => no suffix but * placed at last index
+		// 1 "/before_*_after" => _after "*" is suffix
+		// 2 "/before_*/after" => hasn't suffix but "*" not placed at last index
+		// 3 "/before_*" => hasn't suffix but "*" placed at last index
 
 		// After "*" has suffix
 		if suffixIndex > -1 {
-			remainStr = any + remainStr[suffixIndex:]
+			remainPath = any + remainPath[suffixIndex:]
 
-			// After "*" has no suffix
+			// After "*" hasn't suffix
 		} else {
-			var slashIndex int = strings.Index(remainStr, slash)
+			var slashIndex int = strings.Index(remainPath, slash)
 
 			// "*" not placed at last index
 			if slashIndex > -1 {
-				remainStr = any + remainStr[slashIndex:]
+				remainPath = any + remainPath[slashIndex:]
 
 				// "*" placed at last index
 			} else {
-				remainStr = any
+				remainPath = any
 			}
 		}
 
-		matched, handlers = t.match(remainStr, method, params) // Recursive
+		matched, handlers = t.match(remainPath, method, params) // Recursive
 	}
 	return matched, handlers
 }
