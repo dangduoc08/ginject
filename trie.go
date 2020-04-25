@@ -7,12 +7,11 @@ import (
 )
 
 type trie struct {
-	node       map[string]*trie  // Node key is a word of route
-	params     map[string]string // Route params from ":" to first "/"
-	suffix     []string          // Route string from "*" to first "/"
-	httpMethod map[string]bool   // Router method
-	handlers   []Handler         // All middleware and endpoint handler
-	isEnd      bool              // If end route, isEnd will set true
+	node     map[string]*trie  // Node key is a word of route
+	params   map[string]string // Route params from ":" to first "/"
+	suffix   []string          // Route string from "*" to first "/"
+	handlers []Handler         // All middleware and endpoint handler
+	isEnd    bool              // If end route, isEnd will set true
 }
 
 const (
@@ -38,19 +37,25 @@ func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
 	var isInsertParamOrAnyFirst bool = node[slash].node[paramPrefix] != nil || node[slash].node[any] != nil
 
 	if isInsertAbsolutePathFirst || isInsertParamOrAnyFirst {
-		var slashIndex int = strings.Index(remainRoute, slash)
+		var remainRouteSlashIndex int = strings.Index(remainRoute, slash)
 		var conflictWord string
 
-		if slashIndex > -1 {
-			conflictWord = remainRoute[0:slashIndex]
+		if remainRouteSlashIndex > -1 {
+			conflictWord = remainRoute[0:remainRouteSlashIndex]
 		} else {
 			conflictWord = remainRoute[0:]
 		}
 
+		// Generate error message
+		var routeSlashIndex int = strings.Index(route, slash)
+		var method string = route[0:routeSlashIndex]
+		var pattern string = route[routeSlashIndex:]
+
 		var message string = fmt.Sprintf(
-			"wildcard '%s' in new path '%s' conflicts with existing prefix in trie",
+			"wildcard '%s' in route %s('%s') conflicts with existing prefix in trie",
 			conflictWord,
-			route,
+			method,
+			pattern,
 		)
 
 		e = errors.New(message)
@@ -77,6 +82,9 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 		route = slash + route
 		lastIndex++
 	}
+
+	// Add method to route, to seperate routes base on http methods
+	route = method + route
 
 	for currentIndex, runeStr := range route {
 		var word string = string(runeStr)
@@ -142,13 +150,6 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 		if currentIndex == lastIndex {
 			node[word].isEnd = true
 			node[word].handlers = handlers
-
-			// If http method map hanven't created
-			// create new one
-			if node[word].httpMethod == nil {
-				node[word].httpMethod = make(map[string]bool)
-			}
-			node[word].httpMethod[method] = true
 		}
 		t = node[word]
 	}
@@ -168,14 +169,16 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 		lastIndex--
 	}
 
+	// Add method to path, to seperate paths base on http methods
+	path = method + path
+
 	for currentIndex, runeStr := range path {
 		var word string = string(runeStr)
 		if node[word] != nil {
 
 			// If match whole path (loop no break and isEnd = true)
-			// http method matched
 			// return handler functions is matched
-			if currentIndex == lastIndex && node[word].isEnd && node[word].httpMethod[method] {
+			if currentIndex == lastIndex && node[word].isEnd {
 				matched = true
 				handlers = node[word].handlers
 			}
