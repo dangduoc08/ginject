@@ -7,12 +7,12 @@ import (
 	"sync"
 )
 
-// GoGo struct holds
+// G struct holds
 // prefix-tree data structure
 // with prefix-tree, the time complex
 // when iterable trie to match router
 // will be n = len(route)
-type GoGo struct {
+type G struct {
 	routerTree *trie
 }
 
@@ -23,14 +23,14 @@ type GoGo struct {
 // and invoke next function
 type Handler func(req *Request, res ResponseExtender, next func())
 
-var instance *GoGo
+var instance *G
 var once sync.Once
 
-// Init app by implement thread safe singleton
-func Init() *GoGo {
+// GoGo init app by implement thread safe singleton
+func GoGo() *G {
 	if instance == nil {
 		once.Do(func() {
-			instance = new(GoGo)
+			instance = new(G)
 
 			// Create a nil trie to insert routers
 			var newTrie *trie = new(trie)
@@ -98,4 +98,28 @@ func Init() *GoGo {
 		})
 	}
 	return instance
+}
+
+// GET method
+func (gg *G) GET(route string, handlers ...Handler) *G {
+	gg.routerTree.insert(route, http.MethodGet, handlers...)
+	return gg
+}
+
+// POST method
+func (gg *G) POST(route string, handlers ...Handler) *G {
+	gg.routerTree.insert(route, http.MethodPost, handlers...)
+	return gg
+}
+
+// PUT method
+func (gg *G) PUT(route string, handlers ...Handler) *G {
+	gg.routerTree.insert(route, http.MethodPut, handlers...)
+	return gg
+}
+
+// DELETE method
+func (gg *G) DELETE(route string, handlers ...Handler) *G {
+	gg.routerTree.insert(route, http.MethodDelete, handlers...)
+	return gg
 }
