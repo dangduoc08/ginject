@@ -66,24 +66,9 @@ func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
 // Insert route into trie
 func (t *trie) insert(route, method string, handlers ...Handler) {
 	if len(handlers) <= 0 {
-		panic("Nil handler")
+		panic("Insert need atleast a handler")
 	}
 	var lastIndex int = len(route) - 1
-
-	// Remove "/" at last route
-	if route != slash && string(route[lastIndex]) == slash {
-		route = route[0:lastIndex]
-		lastIndex--
-	}
-
-	// Add "/" at first route
-	if string(route[0]) != slash {
-		route = slash + route
-		lastIndex++
-	}
-
-	// Add method to route, to seperate routes base on http methods
-	route = method + route
 
 	for currentIndex, runeStr := range route {
 		var word string = string(runeStr)
@@ -159,15 +144,6 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 	var remainPath string
 	var matched bool
 	var handlers []Handler
-
-	// Remove "/" at last index in path
-	if path != slash && string(path[lastIndex]) == slash {
-		path = path[0:lastIndex]
-		lastIndex--
-	}
-
-	// Add method to path, to seperate paths base on http methods
-	path = method + path
 
 	for currentIndex, runeStr := range path {
 		var word string = string(runeStr)

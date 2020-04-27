@@ -67,7 +67,7 @@ func (res *response) JSON(statusCode int, datas ...interface{}) ResponseExtender
 		// If datas are not string
 		// only accept one argument
 		if len(datas) > 1 {
-			panic("Too many arguments")
+			panic("JSON use map or struct type only accepts a agrument")
 		}
 	}
 

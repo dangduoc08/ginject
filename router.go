@@ -4,22 +4,10 @@ import (
 	"net/http"
 )
 
-var httpMethods []string = []string{
-	http.MethodGet,
-	http.MethodPost,
-	http.MethodPut,
-	http.MethodDelete,
-}
-
-const (
-	routeKey    = "route"
-	handlersKey = "handlers"
-)
-
-// R holds struct:
+// router map holds struct:
 //	{
-//		'GET': [
-//			{
+//		'GET': [ <routeAndHandlerArray>
+//			{ <routeAndHandlerMap>
 //				route: '/get'
 //				handlers: [
 //					1st_Handler,
@@ -31,60 +19,126 @@ const (
 //		]
 //		...
 //	}
-type R map[string][]map[string]interface{}
+type router map[string][]map[string]interface{}
 
-type router interface {
-	GET(route string, handlers ...Handler) *R
-	POST(route string, handlers ...Handler) *R
-	PUT(route string, handlers ...Handler) *R
-	DELETE(route string, handlers ...Handler) *R
+var httpMethods []string = []string{
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodHead,
+	http.MethodOptions,
+	http.MethodDelete,
 }
 
-// Router init router struct
-func Router() *R {
-	var routers R = make(map[string][]map[string]interface{})
-	var routeAndHandlerArray []map[string]interface{} = []map[string]interface{}{}
+const (
+	routeKey    = "route"
+	handlersKey = "handlers"
+)
 
-	for _, method := range httpMethods {
-		routers[method] = routeAndHandlerArray
+// Router inits router map
+// includes method arrays
+func Router() Controller {
+	var r router = make(map[string][]map[string]interface{})
+	routeAndHandlerArray := []map[string]interface{}{}
+
+	for _, httpMethod := range httpMethods {
+		r[httpMethod] = routeAndHandlerArray
 	}
 
-	return &routers
+	return &r
 }
 
-// Insert helps push routes, handlers to router
-func (r *R) insertRouter(method, route string, handlers ...Handler) {
+// Push routes, handlers to router
+func (r *router) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
-	route = handleSlash(route)
-	routers := *r
-	var routeAndHandlerMap map[string]interface{} = make(map[string]interface{})
+	router := *r
+	routeAndHandlerMap := make(map[string]interface{})
 	routeAndHandlerMap[routeKey] = route
 	routeAndHandlerMap[handlersKey] = handlers
-	routers[method] = append(routers[method], routeAndHandlerMap)
+	router[httpMethod] = append(router[httpMethod], routeAndHandlerMap)
 }
 
-// GET method
-func (r *R) GET(route string, handlers ...Handler) *R {
-	r.insertRouter(http.MethodGet, route, handlers...)
+// Iterable each router
+func (r *router) forEach(callback func(httpMethod string, routeAndHandlerMap map[string]interface{})) {
+	for httpMethod := range *r {
+		routeAndHandlerArray := (*r)[httpMethod]
+		if len(routeAndHandlerArray) > 0 {
+			for _, routeAndHandlerMap := range routeAndHandlerArray {
+				callback(httpMethod, routeAndHandlerMap)
+			}
+		}
+	}
+}
+
+func (r *router) GET(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodGet, handlers...)
 	return r
 }
 
-// POST method
-func (r *R) POST(route string, handlers ...Handler) *R {
-	r.insertRouter(http.MethodPost, route, handlers...)
+func (r *router) POST(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodPost, handlers...)
 	return r
 }
 
-// PUT method
-func (r *R) PUT(route string, handlers ...Handler) *R {
-	r.insertRouter(http.MethodPut, route, handlers...)
+func (r *router) PUT(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodPut, handlers...)
 	return r
 }
 
-// DELETE method
-func (r *R) DELETE(route string, handlers ...Handler) *R {
-	r.insertRouter(http.MethodDelete, route, handlers...)
+func (r *router) PATCH(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodPatch, handlers...)
+	return r
+}
+
+func (r *router) HEAD(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodHead, handlers...)
+	return r
+}
+
+func (r *router) OPTIONS(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodOptions, handlers...)
+	return r
+}
+
+func (r *router) DELETE(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	r.insert(route, http.MethodDelete, handlers...)
+	return r
+}
+
+func (r *router) UseRouter(args ...interface{}) Controller {
+	parentRoute, sourceRouters := useRouter(args...)
+	mergeRouterWithRouter(parentRoute, r, sourceRouters...)
+	return r
+}
+
+// Use method implements Controller interface
+func (r *router) UseMiddleware(args ...interface{}) Controller {
+	if len(args) == 0 {
+		panic("Missing arguments")
+	}
+
+	// for index, arg := range args {
+	// 	var isFirstArg bool = index == 0
+	// 	if isFirstArg {
+	// 		switch arg.(type) {
+	// 		case string:
+	// 			var parentRoute = arg.(string)
+	// 			var sourceRouter []*router = args[1:].(*router)
+	// 			r.mergeRouterWithRouter(parentRoute, sourceRouter...)
+	// 			break
+	// 		}
+	// 	}
+	// }
+
 	return r
 }
