@@ -7,30 +7,23 @@ import (
 	"sync"
 )
 
-// G struct holds
+// app struct holds
 // prefix-tree data structure
 // with prefix-tree, the time complex
 // when iterable trie to match router
 // will be n = len(route)
-type G struct {
+type app struct {
 	routerTree *trie
 }
 
-// Handler handle request and response
-// with third param is a next function,
-// we can use as a middleware function
-// by pass many handler arguments
-// and invoke next function
-type Handler func(req *Request, res ResponseExtender, next func())
-
-var instance *G
+var instance *app
 var once sync.Once
 
-// GoGo init app by implement thread safe singleton
-func GoGo() *G {
+// GoGo inits app by implement thread safe singleton
+func GoGo() Controller {
 	if instance == nil {
 		once.Do(func() {
-			instance = new(G)
+			instance = new(app)
 
 			// Create a nil trie to insert routers
 			var newTrie *trie = new(trie)
@@ -39,7 +32,10 @@ func GoGo() *G {
 
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 				params := make(map[string]string)
-				matched, handlers := instance.routerTree.match(r.URL.Path, r.Method, &params)
+
+				// Format route before find in trie
+				var path string = r.Method + formatRoute(r.URL.Path)
+				matched, handlers := instance.routerTree.match(path, r.Method, &params)
 
 				// Router existed in trie
 				if matched {
@@ -100,26 +96,56 @@ func GoGo() *G {
 	return instance
 }
 
-// GET method
-func (gg *G) GET(route string, handlers ...Handler) *G {
+func (gg *app) GET(route string, handlers ...Handler) Controller {
+	route = http.MethodGet + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodGet, handlers...)
 	return gg
 }
 
-// POST method
-func (gg *G) POST(route string, handlers ...Handler) *G {
+func (gg *app) POST(route string, handlers ...Handler) Controller {
+	route = http.MethodPost + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodPost, handlers...)
 	return gg
 }
 
-// PUT method
-func (gg *G) PUT(route string, handlers ...Handler) *G {
+func (gg *app) PUT(route string, handlers ...Handler) Controller {
+	route = http.MethodPut + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodPut, handlers...)
 	return gg
 }
 
-// DELETE method
-func (gg *G) DELETE(route string, handlers ...Handler) *G {
+func (gg *app) PATCH(route string, handlers ...Handler) Controller {
+	route = http.MethodPatch + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodPatch, handlers...)
+	return gg
+}
+
+func (gg *app) HEAD(route string, handlers ...Handler) Controller {
+	route = http.MethodHead + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodHead, handlers...)
+	return gg
+}
+
+func (gg *app) OPTIONS(route string, handlers ...Handler) Controller {
+	route = http.MethodOptions + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodOptions, handlers...)
+	return gg
+}
+
+func (gg *app) DELETE(route string, handlers ...Handler) Controller {
+	route = http.MethodDelete + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodDelete, handlers...)
+	return gg
+}
+
+func (gg *app) UseRouter(args ...interface{}) Controller {
+	parentRoute, sourceRouters := useRouter(args...)
+	mergeRouterWithApp(parentRoute, gg, sourceRouters...)
+	return gg
+}
+
+// Use middlewares or routers
+func (gg *app) UseMiddleware(args ...interface{}) Controller {
+
 	return gg
 }
