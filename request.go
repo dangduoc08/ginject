@@ -17,21 +17,21 @@ type Request struct {
 	ctx    context.Context
 }
 
-// WithMiddleware helps pass params between middlewares
+// WithMiddleware pass params between middlewares
 func (r *Request) WithMiddleware(args ...interface{}) (interface{}, error) {
-	var argsLength int = len(args)
+	var totalArg int = len(args)
 
-	if argsLength == 0 {
-		return nil, errors.New("Nil argument")
+	if totalArg == 0 {
+		return nil, errors.New("WithMiddleware must pass arguments")
 	}
 
-	if argsLength > 2 {
-		return nil, errors.New("Too many arguments")
+	if totalArg > 2 {
+		return nil, errors.New("WithMiddleware only accepts 2 arguments")
 	}
 
 	key := args[0]
 
-	if argsLength == 2 {
+	if totalArg == 2 {
 		value := args[1]
 		r.ctx = context.WithValue(r.ctx, key, value)
 		return nil, nil
