@@ -1,6 +1,7 @@
 package gogo
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -18,8 +19,14 @@ import (
 //			}
 //		]
 //		...
+//		'DELETE': [ ... ]
 //	}
 type router map[string][]map[string]interface{}
+
+type routerGroup struct {
+	router      router
+	middlewares []Handler // global middlewares
+}
 
 var httpMethods []string = []string{
 	http.MethodGet,
@@ -39,26 +46,20 @@ const (
 // Router inits router map
 // includes method arrays
 func Router() Controller {
-	var r router = make(map[string][]map[string]interface{})
+	router := make(map[string][]map[string]interface{})
+	var middlewares []Handler
 	routeAndHandlerArray := []map[string]interface{}{}
 
 	for _, httpMethod := range httpMethods {
-		r[httpMethod] = routeAndHandlerArray
+		router[httpMethod] = routeAndHandlerArray
+	}
+
+	var r routerGroup = routerGroup{
+		router:      router,
+		middlewares: middlewares,
 	}
 
 	return &r
-}
-
-// Push routes, handlers to router
-func (r *router) insert(route, httpMethod string, handlers ...Handler) {
-	if len(handlers) <= 0 {
-		panic("Nil handler")
-	}
-	router := *r
-	routeAndHandlerMap := make(map[string]interface{})
-	routeAndHandlerMap[routeKey] = route
-	routeAndHandlerMap[handlersKey] = handlers
-	router[httpMethod] = append(router[httpMethod], routeAndHandlerMap)
 }
 
 // Iterable each router
@@ -73,72 +74,97 @@ func (r *router) forEach(callback func(httpMethod string, routeAndHandlerMap map
 	}
 }
 
-func (r *router) GET(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
-	r.insert(route, http.MethodGet, handlers...)
-	return r
+// Push routes, handlers to router group
+func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
+	if len(handlers) <= 0 {
+		panic("Nil handler")
+	}
+	router := gr.router
+	routeAndHandlerMap := make(map[string]interface{})
+	routeAndHandlerMap[routeKey] = route
+	routeAndHandlerMap[handlersKey] = handlers
+	router[httpMethod] = append(router[httpMethod], routeAndHandlerMap)
 }
 
-func (r *router) POST(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) GET(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodPost, handlers...)
-	return r
+	gr.insert(route, http.MethodGet, handlers...)
+	return gr
 }
 
-func (r *router) PUT(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) POST(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodPut, handlers...)
-	return r
+	gr.insert(route, http.MethodPost, handlers...)
+	return gr
 }
 
-func (r *router) PATCH(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) PUT(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodPatch, handlers...)
-	return r
+	gr.insert(route, http.MethodPut, handlers...)
+	return gr
 }
 
-func (r *router) HEAD(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) PATCH(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodHead, handlers...)
-	return r
+	gr.insert(route, http.MethodPatch, handlers...)
+	return gr
 }
 
-func (r *router) OPTIONS(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) HEAD(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodOptions, handlers...)
-	return r
+	gr.insert(route, http.MethodHead, handlers...)
+	return gr
 }
 
-func (r *router) DELETE(route string, handlers ...Handler) Controller {
+func (gr *routerGroup) OPTIONS(route string, handlers ...Handler) Controller {
 	route = formatRoute(route)
-	r.insert(route, http.MethodDelete, handlers...)
-	return r
+	gr.insert(route, http.MethodOptions, handlers...)
+	return gr
 }
 
-func (r *router) UseRouter(args ...interface{}) Controller {
+func (gr *routerGroup) DELETE(route string, handlers ...Handler) Controller {
+	route = formatRoute(route)
+	gr.insert(route, http.MethodDelete, handlers...)
+	return gr
+}
+
+func (gr *routerGroup) UseRouter(args ...interface{}) Controller {
 	parentRoute, sourceRouters := useRouter(args...)
-	mergeRouterWithRouter(parentRoute, r, sourceRouters...)
-	return r
+	mergeRouterWithRouter(parentRoute, &gr.router, sourceRouters...)
+	return gr
 }
 
-// Use method implements Controller interface
-func (r *router) UseMiddleware(args ...interface{}) Controller {
-	if len(args) == 0 {
-		panic("Missing arguments")
+func (gr *routerGroup) UseMiddleware(args ...interface{}) Controller {
+	var totalArg int = len(args)
+
+	if totalArg == 0 {
+		panic("UseMiddleware must pass arguments")
 	}
 
-	// for index, arg := range args {
-	// 	var isFirstArg bool = index == 0
-	// 	if isFirstArg {
-	// 		switch arg.(type) {
-	// 		case string:
-	// 			var parentRoute = arg.(string)
-	// 			var sourceRouter []*router = args[1:].(*router)
-	// 			r.mergeRouterWithRouter(parentRoute, sourceRouter...)
-	// 			break
-	// 		}
-	// 	}
-	// }
+	var parentRoute string
 
-	return r
+	for index, arg := range args {
+		var isFirstArg bool = index == 0
+
+		switch arg.(type) {
+		case string:
+			if isFirstArg {
+				if totalArg <= 1 {
+					panic("UseMiddleware need atleast a handler")
+				}
+				parentRoute = formatRoute(arg.(string))
+			} else {
+				panic("UseMiddleware only accepts string as first argument")
+			}
+			break
+
+		case Handler:
+
+			break
+		}
+	}
+
+	fmt.Println(parentRoute)
+
+	return gr
 }
