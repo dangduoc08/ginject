@@ -43,11 +43,11 @@ func useRouter(args ...interface{}) (string, []*router) {
 			}
 			break
 
-		case *router:
+		case *routerGroup:
 
 			// Push all source router to an router array
 			// prepare to merge
-			var sourceRouter *router = arg.(*router)
+			var sourceRouter *router = &(arg.(*routerGroup).router)
 			sourceRouters = append(sourceRouters, sourceRouter)
 			break
 		}

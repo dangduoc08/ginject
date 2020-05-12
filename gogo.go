@@ -13,13 +13,15 @@ import (
 // when iterable trie to match router
 // will be n = len(route)
 type app struct {
-	routerTree *trie
+	routerTree  *trie
+	middlewares []Handler // global middlewares
 }
 
 var instance *app
 var once sync.Once
 
 // GoGo inits app by implement thread safe singleton
+// https://refactoring.guru/design-patterns/singleton
 func GoGo() Controller {
 	if instance == nil {
 		once.Do(func() {
@@ -144,8 +146,37 @@ func (gg *app) UseRouter(args ...interface{}) Controller {
 	return gg
 }
 
-// Use middlewares or routers
 func (gg *app) UseMiddleware(args ...interface{}) Controller {
+	var totalArg int = len(args)
+
+	if totalArg == 0 {
+		panic("UseMiddleware must pass arguments")
+	}
+
+	var parentRoute string
+
+	for index, arg := range args {
+		var isFirstArg bool = index == 0
+
+		switch arg.(type) {
+		case string:
+			if isFirstArg {
+				if totalArg <= 1 {
+					panic("UseMiddleware need atleast a handler")
+				}
+				parentRoute = formatRoute(arg.(string))
+			} else {
+				panic("UseMiddleware only accepts string as first argument")
+			}
+			break
+
+		case Handler:
+
+			break
+		}
+	}
+
+	fmt.Println(parentRoute)
 
 	return gg
 }
