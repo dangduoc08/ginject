@@ -69,7 +69,7 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 		panic("Insert need atleast a handler")
 	}
 	var lastIndex int = len(route) - 1
-
+	// fmt.Println(route)
 	for currentIndex, runeStr := range route {
 		var word string = string(runeStr)
 

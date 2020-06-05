@@ -7,14 +7,16 @@ import (
 	"sync"
 )
 
-// app struct holds
+// App struct holds
 // prefix-tree data structure
 // with prefix-tree, the time complex
 // when iterable trie to match router
 // will be n = len(route)
 type app struct {
-	routerTree  *trie
-	middlewares []Handler // global middlewares
+	routerTree *trie
+
+	// Global middlewares
+	middlewares []Handler
 }
 
 var instance *app
@@ -33,6 +35,28 @@ func GoGo() Controller {
 			instance.routerTree = newTrie
 
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+				// Override http.Responsewritter interface
+				res := response{w}
+				var resExternder ResponseExtender = &res
+
+				// Add http.Request, params and context to *http.Request
+				req := Request{
+					Request: r,
+					ctx:     context.Background(),
+				}
+
+				var isNextCalled bool
+
+				// Invoke global middlewares
+				// before run main handlers
+				for _, middleware := range instance.middlewares {
+					isNextCalled = false
+					middleware(&req, resExternder, func() { isNextCalled = true })
+					if !isNextCalled {
+						break
+					}
+				}
 				params := make(map[string]string)
 
 				// Format route before find in trie
@@ -41,17 +65,7 @@ func GoGo() Controller {
 
 				// Router existed in trie
 				if matched {
-
-					// Add http.Request, params and context to *http.Request
-					req := Request{
-						Request: r,
-						Params:  params,
-						ctx:     context.Background(),
-					}
-
-					// Override http.Responsewritter interface
-					res := response{w}
-					var resExternder ResponseExtender = &res
+					req.Params = params
 
 					// Rule to handles middleware functions:
 					// other handlers are middleware handlers
@@ -59,7 +73,7 @@ func GoGo() Controller {
 					var handleRequestIndex int = len(handlers) - 1
 					for index, handlerFn := range handlers {
 						if index != handleRequestIndex {
-							var isNextCalled bool
+							isNextCalled = false
 
 							// Because it is middleware function
 							// it's will pass next function to third argument
@@ -72,8 +86,10 @@ func GoGo() Controller {
 						} else {
 
 							// Because it is the last handler
-							// it's won't pass the next function
-							handlerFn(&req, resExternder, nil)
+							// next function is not neccesery
+							// but we still pass it to avoid point to nil error
+							// when try to invoke its
+							handlerFn(&req, resExternder, func() { isNextCalled = true })
 						}
 					}
 				} else {
@@ -98,51 +114,51 @@ func GoGo() Controller {
 	return instance
 }
 
-func (gg *app) GET(route string, handlers ...Handler) Controller {
+func (gg *app) Get(route string, handlers ...Handler) Controller {
 	route = http.MethodGet + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodGet, handlers...)
 	return gg
 }
 
-func (gg *app) POST(route string, handlers ...Handler) Controller {
+func (gg *app) Post(route string, handlers ...Handler) Controller {
 	route = http.MethodPost + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodPost, handlers...)
 	return gg
 }
 
-func (gg *app) PUT(route string, handlers ...Handler) Controller {
+func (gg *app) Put(route string, handlers ...Handler) Controller {
 	route = http.MethodPut + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodPut, handlers...)
 	return gg
 }
 
-func (gg *app) PATCH(route string, handlers ...Handler) Controller {
-	route = http.MethodPatch + formatRoute(route)
-	gg.routerTree.insert(route, http.MethodPatch, handlers...)
-	return gg
-}
-
-func (gg *app) HEAD(route string, handlers ...Handler) Controller {
-	route = http.MethodHead + formatRoute(route)
-	gg.routerTree.insert(route, http.MethodHead, handlers...)
-	return gg
-}
-
-func (gg *app) OPTIONS(route string, handlers ...Handler) Controller {
-	route = http.MethodOptions + formatRoute(route)
-	gg.routerTree.insert(route, http.MethodOptions, handlers...)
-	return gg
-}
-
-func (gg *app) DELETE(route string, handlers ...Handler) Controller {
+func (gg *app) Delete(route string, handlers ...Handler) Controller {
 	route = http.MethodDelete + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodDelete, handlers...)
 	return gg
 }
 
+func (gg *app) Patch(route string, handlers ...Handler) Controller {
+	route = http.MethodPatch + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodPatch, handlers...)
+	return gg
+}
+
+func (gg *app) Head(route string, handlers ...Handler) Controller {
+	route = http.MethodHead + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodHead, handlers...)
+	return gg
+}
+
+func (gg *app) Options(route string, handlers ...Handler) Controller {
+	route = http.MethodOptions + formatRoute(route)
+	gg.routerTree.insert(route, http.MethodOptions, handlers...)
+	return gg
+}
+
 func (gg *app) UseRouter(args ...interface{}) Controller {
-	parentRoute, sourceRouters := useRouter(args...)
-	mergeRouterWithApp(parentRoute, gg, sourceRouters...)
+	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
+	mergeRouterWithApp(parentRoute, gg, sourceRouterGroups)
 	return gg
 }
 
@@ -176,7 +192,7 @@ func (gg *app) UseMiddleware(args ...interface{}) Controller {
 		}
 	}
 
-	fmt.Println(parentRoute)
+	fmt.Println("app parentRoute", parentRoute)
 
 	return gg
 }
