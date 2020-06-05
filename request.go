@@ -8,7 +8,7 @@ import (
 
 // Request embed
 // *http.Request struct
-// extend
+// extend:
 // Params to hold params from URL
 // ctx to create context.WithValue
 type Request struct {

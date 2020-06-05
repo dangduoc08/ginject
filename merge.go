@@ -1,12 +1,20 @@
 package gogo
 
-// Merge source routers into target router
+// Merge source router groups into target router group
 func mergeRouterWithRouter(
 	parentRoute string,
-	targetRouter *router,
-	sourceRouters ...*router,
+	targetRouterGroup *routerGroup,
+	sourceRouterGroups []*routerGroup,
 ) {
-	for _, sourceRouter := range sourceRouters {
+	for _, sourceRouterGroup := range sourceRouterGroups {
+		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares
+		var sourceRouter router = sourceRouterGroup.router
+
+		// Push each source middleware
+		// into target router group middlewares
+		targetRouterGroup.middlewares = append(targetRouterGroup.middlewares, sourceMiddlewares...)
+
+		// Iterable source router map
 		sourceRouter.forEach(func(httpMethod string, routeAndHandlerMap map[string]interface{}) {
 
 			// Clone router and handler map
@@ -16,20 +24,26 @@ func mergeRouterWithRouter(
 			routeAndHandlerMapClone[routeKey] = parentRoute + routeAndHandlerMap[routeKey].(string)
 			routeAndHandlerMapClone[handlersKey] = routeAndHandlerMap[handlersKey]
 
-			// Push router and handler map
-			// to target router
-			(*targetRouter)[httpMethod] = append((*targetRouter)[httpMethod], routeAndHandlerMapClone)
+			targetRouterGroup.router[httpMethod] = append(targetRouterGroup.router[httpMethod], routeAndHandlerMapClone)
 		})
 	}
 }
 
-// Merge source routers into application
+// Merge source router groups routers into application
 func mergeRouterWithApp(
 	parentRoute string,
 	gg *app,
-	sourceRouters ...*router,
+	sourceRouterGroups []*routerGroup,
 ) {
-	for _, sourceRouter := range sourceRouters {
+	for _, sourceRouterGroup := range sourceRouterGroups {
+		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares
+		var sourceRouter router = sourceRouterGroup.router
+
+		// Push each source middleware
+		// into global application middlewares
+		gg.middlewares = append(gg.middlewares, sourceMiddlewares...)
+
+		// Iterable source router map
 		sourceRouter.forEach(func(httpMethod string, routeAndHandlerMap map[string]interface{}) {
 			var route string = parentRoute + routeAndHandlerMap[routeKey].(string)
 
