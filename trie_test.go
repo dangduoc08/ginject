@@ -20,7 +20,7 @@ func init() {
 
 func TestAbsoluteURL(test *testing.T) {
 	params := make(map[string]string)
-	matched, _ := t.match("/path_1", http.MethodGet, &params)
+	matched, _ := t.match("/path_1", http.MethodGet, params)
 
 	if matched != true {
 		test.Errorf("Test absolute URL couldn't matched")
@@ -29,7 +29,7 @@ func TestAbsoluteURL(test *testing.T) {
 
 func TestURLWithParams(test *testing.T) {
 	params := make(map[string]string)
-	matched, _ := t.match("/path_1/foo/path_2/bar", http.MethodGet, &params)
+	matched, _ := t.match("/path_1/foo/path_2/bar", http.MethodGet, params)
 	var err string = "Test URL with params "
 
 	if matched != true {
@@ -45,7 +45,7 @@ func TestURLWithParams(test *testing.T) {
 
 func TestURLWithAnyPatternAndParams(test *testing.T) {
 	params := make(map[string]string)
-	matched, _ := t.match("/any_1/foo/any_2/path_1/bar", http.MethodGet, &params)
+	matched, _ := t.match("/any_1/foo/any_2/path_1/bar", http.MethodGet, params)
 	var err string = "Test URL with any pattern and params "
 
 	if matched != true {
@@ -61,7 +61,7 @@ func TestURLWithAnyPatternAndParams(test *testing.T) {
 
 func TestURLWithAnyAnyAny(test *testing.T) {
 	params := make(map[string]string)
-	matched, _ := t.match("/any_1/any_2/any_3", http.MethodGet, &params)
+	matched, _ := t.match("/any_1/any_2/any_3", http.MethodGet, params)
 	var err string = "Test URL with any any any pattern "
 
 	if matched != true {

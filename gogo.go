@@ -7,6 +7,16 @@ import (
 	"sync"
 )
 
+var httpMethods []string = []string{
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodHead,
+	http.MethodOptions,
+	http.MethodDelete,
+}
+
 // App struct holds
 // prefix-tree data structure
 // with prefix-tree, the time complex
@@ -61,7 +71,7 @@ func GoGo() Controller {
 
 				// Format route before find in trie
 				var path string = r.Method + formatRoute(r.URL.Path)
-				matched, handlers := instance.routerTree.match(path, r.Method, &params)
+				matched, handlers := instance.routerTree.match(path, r.Method, params)
 
 				// Router existed in trie
 				if matched {
@@ -114,6 +124,32 @@ func GoGo() Controller {
 	return instance
 }
 
+// Merge source router groups routers into application
+func (gg *app) merge(parentRoute string, sourceRouterGroups []*routerGroup) {
+
+	var routerTree *trie = gg.routerTree                // router tree of app
+	var globalAppMiddlewares []Handler = gg.middlewares // global app middlewares
+
+	for _, sourceRouterGroup := range sourceRouterGroups {
+		var sourceRouter router = sourceRouterGroup.router              // router of source router group
+		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares // global source middlewares
+
+		// Push each source middleware
+		// into global app middlewares
+		if len(sourceMiddlewares) > 0 {
+			globalAppMiddlewares = append(globalAppMiddlewares, sourceMiddlewares...)
+		}
+
+		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
+			for _, sourceRouteAndHandlerMap := range sourceRouteAndHandlerMapSlice {
+				var mergedRoute string = httpMethod + parentRoute + sourceRouteAndHandlerMap[routeKey].(string)
+				var handlers []Handler = sourceRouteAndHandlerMap[handlersKey].([]Handler)
+				routerTree.insert(mergedRoute, httpMethod, handlers...)
+			}
+		}
+	}
+}
+
 func (gg *app) Get(route string, handlers ...Handler) Controller {
 	route = http.MethodGet + formatRoute(route)
 	gg.routerTree.insert(route, http.MethodGet, handlers...)
@@ -158,41 +194,42 @@ func (gg *app) Options(route string, handlers ...Handler) Controller {
 
 func (gg *app) UseRouter(args ...interface{}) Controller {
 	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
-	mergeRouterWithApp(parentRoute, gg, sourceRouterGroups)
+	parentRoute = formatRoute(parentRoute)
+	gg.merge(parentRoute, sourceRouterGroups)
 	return gg
 }
 
 func (gg *app) UseMiddleware(args ...interface{}) Controller {
-	var totalArg int = len(args)
+	// var totalArg int = len(args)
 
-	if totalArg == 0 {
-		panic("UseMiddleware must pass arguments")
-	}
+	// if totalArg == 0 {
+	// 	panic("UseMiddleware must pass arguments")
+	// }
 
-	var parentRoute string
+	// var parentRoute string
 
-	for index, arg := range args {
-		var isFirstArg bool = index == 0
+	// for index, arg := range args {
+	// 	var isFirstArg bool = index == 0
 
-		switch arg.(type) {
-		case string:
-			if isFirstArg {
-				if totalArg <= 1 {
-					panic("UseMiddleware need atleast a handler")
-				}
-				parentRoute = formatRoute(arg.(string))
-			} else {
-				panic("UseMiddleware only accepts string as first argument")
-			}
-			break
+	// 	switch arg.(type) {
+	// 	case string:
+	// 		if isFirstArg {
+	// 			if totalArg <= 1 {
+	// 				panic("UseMiddleware need atleast a handler")
+	// 			}
+	// 			parentRoute = formatRoute(arg.(string))
+	// 		} else {
+	// 			panic("UseMiddleware only accepts string as first argument")
+	// 		}
+	// 		break
 
-		case Handler:
+	// 	case Handler:
 
-			break
-		}
-	}
+	// 		break
+	// 	}
+	// }
 
-	fmt.Println("app parentRoute", parentRoute)
+	// fmt.Println("app parentRoute", parentRoute)
 
 	return gg
 }
