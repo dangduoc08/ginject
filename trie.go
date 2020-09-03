@@ -15,10 +15,10 @@ type trie struct {
 }
 
 const (
-	paramPrefix string = ":"
-	slash       string = "/"
-	any         string = "*"
-	empty       string = ""
+	param    string = ":"
+	slash    string = "/"
+	wildcard string = "*"
+	empty    string = ""
 )
 
 func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
@@ -29,11 +29,11 @@ func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
 
 	// #CASE 1: Insert absolute path first
 	// then insert param or any
-	var isInsertAbsolutePathFirst bool = afterSlashWord == paramPrefix || afterSlashWord == any
+	var isInsertAbsolutePathFirst bool = afterSlashWord == param || afterSlashWord == wildcard
 
 	// #CASE 2: Insert param or any first
 	// then insert absolute path
-	var isInsertParamOrAnyFirst bool = t.node[slash].node[paramPrefix] != nil || t.node[slash].node[any] != nil
+	var isInsertParamOrAnyFirst bool = t.node[slash].node[param] != nil || t.node[slash].node[wildcard] != nil
 
 	if isInsertAbsolutePathFirst || isInsertParamOrAnyFirst {
 		var remainRouteSlashIndex int = strings.Index(remainRoute, slash)
@@ -64,12 +64,21 @@ func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
 }
 
 // Insert route into trie
-func (t *trie) insert(route, method string, handlers ...Handler) {
+func (t *trie) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
-		panic("Insert need atleast a handler")
+		panic("Nil handler")
 	}
 	var lastIndex int = len(route) - 1
-	// fmt.Println(route)
+
+	// If not match, matched handlers always return empty slice
+	isExistedInTrie, matchedHandlers := t.match(route, httpMethod, make(map[string]string))
+
+	// Route has existed in trie
+	// append new handlers into existing handlers
+	if isExistedInTrie && len(matchedHandlers) > 0 {
+		handlers = append(matchedHandlers, handlers...)
+	}
+
 	for currentIndex, runeStr := range route {
 		var word string = string(runeStr)
 
@@ -89,7 +98,7 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 
 		// Pass route route after "*"
 		// to help we know whether has suffix or not
-		if word == any {
+		if word == wildcard {
 			var remainRoute string = route[currentIndex+1:]
 			var slashIndex int = strings.Index(remainRoute, slash)
 			var suffixKey string
@@ -108,7 +117,7 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 
 		// Pass params and method to node has key = ":"
 		// to easy to access params
-		if word == paramPrefix {
+		if word == param {
 			if t.params == nil {
 				params := make(map[string]string)
 				t.params = params
@@ -120,9 +129,9 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 			var slashIndex int = strings.Index(remainRoute, slash)
 
 			if slashIndex > -1 {
-				t.params[method] = remainRoute[:slashIndex]
+				t.params[httpMethod] = remainRoute[:slashIndex]
 			} else {
-				t.params[method] = remainRoute
+				t.params[httpMethod] = remainRoute
 			}
 		}
 
@@ -139,7 +148,7 @@ func (t *trie) insert(route, method string, handlers ...Handler) {
 }
 
 // Check client send path if match in trie
-func (t *trie) match(path, method string, params *map[string]string) (bool, []Handler) {
+func (t *trie) match(path, httpMethod string, params map[string]string) (bool, []Handler) {
 	var lastIndex int = len(path) - 1
 	var remainPath string
 	var matched bool
@@ -169,8 +178,8 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 	// #CASE 1 router includes params with matched HTTP method
 	// so remain path start with ":"
 	// check whether path variables existed
-	if !matched && t.node[paramPrefix] != nil && t.params[method] != empty {
-		var paramVal string
+	if !matched && t.node[param] != nil && t.params[httpMethod] != empty {
+		var paramValue string
 
 		// A param consider from ":" to first "/"
 		// after get param, remain path will
@@ -181,20 +190,20 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 
 		// If slash index > -1 mean path maybe have more than 1 params
 		if slashIndex > -1 {
-			paramVal = remainPath[0:slashIndex]
-			remainPath = paramPrefix + t.params[method] + remainPath[slashIndex:]
+			paramValue = remainPath[0:slashIndex]
+			remainPath = param + t.params[httpMethod] + remainPath[slashIndex:]
 		} else {
-			paramVal = remainPath[0:]
-			remainPath = paramPrefix + t.params[method]
+			paramValue = remainPath[0:]
+			remainPath = param + t.params[httpMethod]
 		}
 
 		// Put param value to req.Params
-		(*params)[t.params[method]] = paramVal
-		matched, handlers = t.match(remainPath, method, params) // Recursive
+		params[t.params[httpMethod]] = paramValue
+		matched, handlers = t.match(remainPath, httpMethod, params) // Recursive
 
 		// #CASE 2 router includes "*"
 		// check whether any string pattern existed
-	} else if !matched && t.node[any] != nil {
+	} else if !matched && t.node[wildcard] != nil {
 
 		// Suffix is an string array
 		// check whether any suffix match with path client send
@@ -221,7 +230,7 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 
 		// After "*" has suffix
 		if suffixIndex > -1 {
-			remainPath = any + remainPath[suffixIndex:]
+			remainPath = wildcard + remainPath[suffixIndex:]
 
 			// After "*" hasn't suffix
 		} else {
@@ -229,15 +238,15 @@ func (t *trie) match(path, method string, params *map[string]string) (bool, []Ha
 
 			// "*" not placed at last index
 			if slashIndex > -1 {
-				remainPath = any + remainPath[slashIndex:]
+				remainPath = wildcard + remainPath[slashIndex:]
 
 				// "*" placed at last index
 			} else {
-				remainPath = any
+				remainPath = wildcard
 			}
 		}
 
-		matched, handlers = t.match(remainPath, method, params) // Recursive
+		matched, handlers = t.match(remainPath, httpMethod, params) // Recursive
 	}
 	return matched, handlers
 }

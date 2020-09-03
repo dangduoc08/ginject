@@ -6,7 +6,7 @@ import (
 
 // router map holds struct:
 //	{
-//		'GET': [ <routeAndHandlerArray>
+//		'GET': [ <routeAndHandlerMapSlice>
 //			{ <routeAndHandlerMap>
 //				route: '/get'
 //				handlers: [
@@ -44,95 +44,110 @@ import (
 //			}
 //		],
 //	}
-type router map[string][]map[string]interface{}
+type router map[string][]map[int]interface{}
 
 type routerGroup struct {
 	router      router
 	middlewares []Handler // router global middlewares
 }
 
-var httpMethods []string = []string{
-	http.MethodGet,
-	http.MethodPost,
-	http.MethodPut,
-	http.MethodPatch,
-	http.MethodHead,
-	http.MethodOptions,
-	http.MethodDelete,
-}
-
 const (
-	routeKey    = "route"
-	handlersKey = "handlers"
+	routeKey = iota
+	handlersKey
 )
 
-// Router inits router map
-// includes method arrays
+// Router inits router group
+// generate all route and handler map slice
 func Router() Controller {
-	router := make(map[string][]map[string]interface{})
+	router := make(map[string][]map[int]interface{})
+	var routeAndHandlerMapSlice []map[int]interface{}
 	var middlewares []Handler
-	routeAndHandlerArray := []map[string]interface{}{}
 
+	// Append empty route and handler map slice
+	// into router
 	for _, httpMethod := range httpMethods {
-		router[httpMethod] = routeAndHandlerArray
+		router[httpMethod] = routeAndHandlerMapSlice
 	}
 
-	var r routerGroup = routerGroup{
+	var gr *routerGroup = &routerGroup{
 		router:      router,
 		middlewares: middlewares,
 	}
 
-	return &r
+	return gr
 }
 
-// Iterable each router
-func (r *router) forEach(callback func(httpMethod string, routeAndHandlerMap map[string]interface{})) {
-	for httpMethod := range *r {
-		routeAndHandlerArray := (*r)[httpMethod]
-		if len(routeAndHandlerArray) > 0 {
-			for _, routeAndHandlerMap := range routeAndHandlerArray {
-				callback(httpMethod, routeAndHandlerMap)
-			}
+// Check route whethere existed in router group
+// return isMatch and position
+// in route and handler map slice
+func (gr *routerGroup) match(route, httpMethod string) (bool, int) {
+	router := gr.router
+	routeAndHandlerMapSlice := router[httpMethod]
+	var isMatch bool
+	var position int = -1
+
+	for index, routeAndHandlerMap := range routeAndHandlerMapSlice {
+		if route == routeAndHandlerMap[routeKey] {
+			isMatch = true
+			position = index
+			break
 		}
 	}
+
+	return isMatch, position
 }
 
 // Push routes, handlers to router group
 // if route was inited before, we will append handler
+// else append new route and handler map
 func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
 	router := gr.router
-	routeAndHandlerArray := router[httpMethod]
-	var hasRouteInsertedBefore bool
-	var tmpRouteAndHandlerMap map[string]interface{}
+	routeAndHandlerMapSlice := router[httpMethod]
+	isExistedInRouterGroup, position := gr.match(route, httpMethod)
 
-	// Check whether route has inserted before ?
-	for _, routeAndHandlerMap := range routeAndHandlerArray {
-		if route == routeAndHandlerMap[routeKey] {
-			hasRouteInsertedBefore = true
-			tmpRouteAndHandlerMap = routeAndHandlerMap
-			break
-		}
-	}
-
-	if hasRouteInsertedBefore {
+	if isExistedInRouterGroup {
 
 		// Route was inserted before
 		// therefore just need appending handlers
-		tmpRouteAndHandlerMap[handlersKey] = append(
-			tmpRouteAndHandlerMap[handlersKey].([]func(*Request, ResponseExtender, func())),
+		routeAndHandlerMapSlice[position][handlersKey] = append(
+			routeAndHandlerMapSlice[position][handlersKey].([]Handler),
 			handlers...,
 		)
 	} else {
 
 		// Init new map
 		// and append new route and handler map
-		tmpRouteAndHandlerMap = make(map[string]interface{})
-		tmpRouteAndHandlerMap[routeKey] = route
-		tmpRouteAndHandlerMap[handlersKey] = handlers
-		router[httpMethod] = append(router[httpMethod], tmpRouteAndHandlerMap)
+		newRouteAndHandlerMap := make(map[int]interface{})
+		newRouteAndHandlerMap[routeKey] = route
+		newRouteAndHandlerMap[handlersKey] = handlers
+		router[httpMethod] = append(router[httpMethod], newRouteAndHandlerMap)
+	}
+}
+
+// Merge source router groups into target router group
+func (gr *routerGroup) merge(parentRoute string, sourceRouterGroups []*routerGroup) {
+	var targetMiddlewares []Handler = gr.middlewares // global target middlewares
+
+	for _, sourceRouterGroup := range sourceRouterGroups {
+		var sourceRouter router = sourceRouterGroup.router              // router of source router group
+		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares // global source middlewares
+
+		// Push each source middleware
+		// into global target router group middlewares
+		if len(sourceMiddlewares) > 0 {
+			targetMiddlewares = append(targetMiddlewares, sourceMiddlewares...)
+		}
+
+		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
+			for _, sourceRouteAndHandlerMap := range sourceRouteAndHandlerMapSlice {
+				var mergedRoute string = parentRoute + sourceRouteAndHandlerMap[routeKey].(string)
+				var handlers []Handler = sourceRouteAndHandlerMap[handlersKey].([]Handler)
+				gr.insert(mergedRoute, httpMethod, handlers...)
+			}
+		}
 	}
 }
 
@@ -181,46 +196,46 @@ func (gr *routerGroup) Delete(route string, handlers ...Handler) Controller {
 func (gr *routerGroup) UseRouter(args ...interface{}) Controller {
 	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
 	parentRoute = formatRoute(parentRoute)
-	mergeRouterWithRouter(parentRoute, gr, sourceRouterGroups)
+	gr.merge(parentRoute, sourceRouterGroups)
 	return gr
 }
 
 func (gr *routerGroup) UseMiddleware(args ...interface{}) Controller {
-	parentRoute, sourceHandlers := resolveMiddlewares(args...)
-	parentRoute = formatRoute(parentRoute)
+	// parentRoute, sourceHandlers := resolveMiddlewares(args...)
+	// parentRoute = formatRoute(parentRoute)
 
-	// To check whether route of HTTP method exists or not
-	// if exist this HTTP method will set to map
-	// if not, will create all router http method routers
-	var tmpInitializedHTTPMethods = make(map[string]bool)
+	// // To check whether route of HTTP method exists or not
+	// // if exist this HTTP method will set to map
+	// // if not, will create all router http method routers
+	// var tmpInitializedHTTPMethods = make(map[string]bool)
 
-	if parentRoute != "" {
+	// if parentRoute != "" {
 
-		// Middlewares will add to each router
-		for httpMethod, routeAndHandlerArray := range gr.router {
-			for _, routeAndHandlerMap := range routeAndHandlerArray {
-				var route string = routeAndHandlerMap[routeKey].(string)
+	// 	// Middlewares will add to each router
+	// 	for httpMethod, routeAndHandlerArray := range gr.router {
+	// 		for _, routeAndHandlerMap := range routeAndHandlerArray {
+	// 			var route string = routeAndHandlerMap[routeKey].(string)
 
-				// Router has inited this route
-				// therefore middlewares will add to its handler
-				if route == parentRoute {
-					var targetHandlers []Handler = routeAndHandlerMap[handlersKey].([]Handler)
-					routeAndHandlerMap[handlersKey] = append(sourceHandlers, targetHandlers...)
-					tmpInitializedHTTPMethods[httpMethod] = true
-				}
-			}
-		}
+	// 			// Router has inited this route
+	// 			// therefore middlewares will add to its handler
+	// 			if route == parentRoute {
+	// 				var targetHandlers []Handler = routeAndHandlerMap[handlersKey].([]Handler)
+	// 				routeAndHandlerMap[handlersKey] = append(sourceHandlers, targetHandlers...)
+	// 				tmpInitializedHTTPMethods[httpMethod] = true
+	// 			}
+	// 		}
+	// 	}
 
-		// Create remain http methods router
-		for _, httpMethod := range httpMethods {
-			if !tmpInitializedHTTPMethods[httpMethod] {
-				gr.insert(parentRoute, httpMethod, sourceHandlers...)
-			}
-		}
-	} else {
+	// 	// Create remain http methods router
+	// 	for _, httpMethod := range httpMethods {
+	// 		if !tmpInitializedHTTPMethods[httpMethod] {
+	// 			gr.insert(parentRoute, httpMethod, sourceHandlers...)
+	// 		}
+	// 	}
+	// } else {
 
-		// Middlewares will add to router global middlewares
-		gr.middlewares = append(gr.middlewares, sourceHandlers...)
-	}
+	// 	// Middlewares will add to router global middlewares
+	// 	gr.middlewares = append(gr.middlewares, sourceHandlers...)
+	// }
 	return gr
 }
