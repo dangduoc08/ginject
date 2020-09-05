@@ -68,6 +68,11 @@ func (t *trie) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
+
+	// Concat http method to route
+	// to define what incoming request method is
+	route = httpMethod + route
+
 	var lastIndex int = len(route) - 1
 
 	// If not match, matched handlers always return empty slice
