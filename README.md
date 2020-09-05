@@ -9,3 +9,7 @@ Refactor file:
 controller.go => done
 router.go => done
 merge.go ( remove forEach, add match ) => xong merge router con merge global middleware
+
+
+
+Check lai ham format route vs route == ""

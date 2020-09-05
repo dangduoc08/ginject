@@ -48,7 +48,7 @@ type router map[string][]map[int]interface{}
 
 type routerGroup struct {
 	router      router
-	middlewares []Handler // router global middlewares
+	middlewares []Handler // Router global middlewares
 }
 
 const (
@@ -128,8 +128,8 @@ func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
 }
 
 // Merge source router groups into target router group
-func (gr *routerGroup) merge(parentRoute string, sourceRouterGroups []*routerGroup) {
-	var targetMiddlewares []Handler = gr.middlewares // global target middlewares
+func (gr *routerGroup) mergeRouterGroup(parentRoute string, sourceRouterGroups []*routerGroup) {
+	var targetMiddlewares *[]Handler = &gr.middlewares // global target middlewares
 
 	for _, sourceRouterGroup := range sourceRouterGroups {
 		var sourceRouter router = sourceRouterGroup.router              // router of source router group
@@ -138,7 +138,7 @@ func (gr *routerGroup) merge(parentRoute string, sourceRouterGroups []*routerGro
 		// Push each source middleware
 		// into global target router group middlewares
 		if len(sourceMiddlewares) > 0 {
-			targetMiddlewares = append(targetMiddlewares, sourceMiddlewares...)
+			*targetMiddlewares = append(*targetMiddlewares, sourceMiddlewares...)
 		}
 
 		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
@@ -151,91 +151,75 @@ func (gr *routerGroup) merge(parentRoute string, sourceRouterGroups []*routerGro
 	}
 }
 
+// Merge source middlewares to target router group middlewares
+// there are 2 cases when merge
+// if no route, will merge to global middleware
+// else will merge to matched route
+func (gr *routerGroup) mergeMiddleware(parentRoute string, sourceHandlers []Handler) {
+
+	if parentRoute != empty {
+		for _, httpMethod := range httpMethods {
+			gr.insert(parentRoute, httpMethod, sourceHandlers...)
+		}
+	} else {
+
+		// Router group will append source middlewares into global middlewares
+		gr.middlewares = append(gr.middlewares, sourceHandlers...)
+	}
+}
+
 func (gr *routerGroup) Get(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodGet, handlers...)
 	return gr
 }
 
 func (gr *routerGroup) Post(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodPost, handlers...)
 	return gr
 }
 
 func (gr *routerGroup) Put(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodPut, handlers...)
 	return gr
 }
 
+func (gr *routerGroup) Delete(route string, handlers ...Handler) Controller {
+	route = handleSlash(route)
+	gr.insert(route, http.MethodDelete, handlers...)
+	return gr
+}
+
 func (gr *routerGroup) Patch(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodPatch, handlers...)
 	return gr
 }
 
 func (gr *routerGroup) Head(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodHead, handlers...)
 	return gr
 }
 
 func (gr *routerGroup) Options(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
+	route = handleSlash(route)
 	gr.insert(route, http.MethodOptions, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Delete(route string, handlers ...Handler) Controller {
-	route = formatRoute(route)
-	gr.insert(route, http.MethodDelete, handlers...)
 	return gr
 }
 
 func (gr *routerGroup) UseRouter(args ...interface{}) Controller {
 	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
-	parentRoute = formatRoute(parentRoute)
-	gr.merge(parentRoute, sourceRouterGroups)
+	parentRoute = handleSlash(parentRoute)
+	gr.mergeRouterGroup(parentRoute, sourceRouterGroups)
 	return gr
 }
 
 func (gr *routerGroup) UseMiddleware(args ...interface{}) Controller {
-	// parentRoute, sourceHandlers := resolveMiddlewares(args...)
-	// parentRoute = formatRoute(parentRoute)
-
-	// // To check whether route of HTTP method exists or not
-	// // if exist this HTTP method will set to map
-	// // if not, will create all router http method routers
-	// var tmpInitializedHTTPMethods = make(map[string]bool)
-
-	// if parentRoute != "" {
-
-	// 	// Middlewares will add to each router
-	// 	for httpMethod, routeAndHandlerArray := range gr.router {
-	// 		for _, routeAndHandlerMap := range routeAndHandlerArray {
-	// 			var route string = routeAndHandlerMap[routeKey].(string)
-
-	// 			// Router has inited this route
-	// 			// therefore middlewares will add to its handler
-	// 			if route == parentRoute {
-	// 				var targetHandlers []Handler = routeAndHandlerMap[handlersKey].([]Handler)
-	// 				routeAndHandlerMap[handlersKey] = append(sourceHandlers, targetHandlers...)
-	// 				tmpInitializedHTTPMethods[httpMethod] = true
-	// 			}
-	// 		}
-	// 	}
-
-	// 	// Create remain http methods router
-	// 	for _, httpMethod := range httpMethods {
-	// 		if !tmpInitializedHTTPMethods[httpMethod] {
-	// 			gr.insert(parentRoute, httpMethod, sourceHandlers...)
-	// 		}
-	// 	}
-	// } else {
-
-	// 	// Middlewares will add to router global middlewares
-	// 	gr.middlewares = append(gr.middlewares, sourceHandlers...)
-	// }
+	parentRoute, sourceHandlers := resolveMiddlewares(args...)
+	parentRoute = handleSlash(parentRoute)
+	gr.mergeMiddleware(parentRoute, sourceHandlers)
 	return gr
 }
