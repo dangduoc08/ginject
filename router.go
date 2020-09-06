@@ -127,47 +127,6 @@ func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
 	}
 }
 
-// Merge source router groups into target router group
-func (gr *routerGroup) mergeRouterGroup(parentRoute string, sourceRouterGroups []*routerGroup) {
-	var targetMiddlewares *[]Handler = &gr.middlewares // global target middlewares
-
-	for _, sourceRouterGroup := range sourceRouterGroups {
-		var sourceRouter router = sourceRouterGroup.router              // router of source router group
-		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares // global source middlewares
-
-		// Push each source middleware
-		// into global target router group middlewares
-		if len(sourceMiddlewares) > 0 {
-			*targetMiddlewares = append(*targetMiddlewares, sourceMiddlewares...)
-		}
-
-		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
-			for _, sourceRouteAndHandlerMap := range sourceRouteAndHandlerMapSlice {
-				var mergedRoute string = parentRoute + sourceRouteAndHandlerMap[routeKey].(string)
-				var handlers []Handler = sourceRouteAndHandlerMap[handlersKey].([]Handler)
-				gr.insert(mergedRoute, httpMethod, handlers...)
-			}
-		}
-	}
-}
-
-// Merge source middlewares to target router group middlewares
-// there are 2 cases when merge
-// if no route, will merge to global middleware
-// else will merge to matched route
-func (gr *routerGroup) mergeMiddleware(parentRoute string, sourceHandlers []Handler) {
-
-	if parentRoute != empty {
-		for _, httpMethod := range httpMethods {
-			gr.insert(parentRoute, httpMethod, sourceHandlers...)
-		}
-	} else {
-
-		// Router group will append source middlewares into global middlewares
-		gr.middlewares = append(gr.middlewares, sourceHandlers...)
-	}
-}
-
 func (gr *routerGroup) Get(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
 	gr.insert(route, http.MethodGet, handlers...)
@@ -210,16 +169,16 @@ func (gr *routerGroup) Options(route string, handlers ...Handler) Controller {
 	return gr
 }
 
-func (gr *routerGroup) UseRouter(args ...interface{}) Controller {
+func (gr *routerGroup) Group(args ...interface{}) Controller {
 	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
 	parentRoute = handleSlash(parentRoute)
-	gr.mergeRouterGroup(parentRoute, sourceRouterGroups)
+	mergeRouterGroup(gr, parentRoute, sourceRouterGroups)
 	return gr
 }
 
-func (gr *routerGroup) UseMiddleware(args ...interface{}) Controller {
+func (gr *routerGroup) Use(args ...interface{}) Controller {
 	parentRoute, sourceHandlers := resolveMiddlewares(args...)
 	parentRoute = handleSlash(parentRoute)
-	gr.mergeMiddleware(parentRoute, sourceHandlers)
+	mergeMiddleware(gr, parentRoute, sourceHandlers)
 	return gr
 }

@@ -96,3 +96,75 @@ func resolveMiddlewares(args ...interface{}) (string, []Handler) {
 
 	return parentRoute, sourceHandlers
 }
+
+// Merge source router groups into target
+// can be router group
+// or can be app
+func mergeRouterGroup(target interface{}, parentRoute string, sourceRouterGroups []*routerGroup) {
+	var targetMiddlewares *[]Handler
+	var insert func(route, httpMethod string, handlers ...Handler)
+
+	switch target.(type) {
+	case *app:
+		gg := target.(*app)
+		targetMiddlewares = &gg.middlewares
+		insert = gg.routerTree.insert
+		break
+	case *routerGroup:
+		gr := target.(*routerGroup)
+		targetMiddlewares = &gr.middlewares
+		insert = gr.insert
+		break
+	}
+
+	for _, sourceRouterGroup := range sourceRouterGroups {
+		var sourceRouter router = sourceRouterGroup.router              // router of source router group
+		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares // global source middlewares
+
+		// Push each source middleware
+		// into global target router group middlewares
+		if len(sourceMiddlewares) > 0 {
+			*targetMiddlewares = append(*targetMiddlewares, sourceMiddlewares...)
+		}
+
+		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
+			for _, sourceRouteAndHandlerMap := range sourceRouteAndHandlerMapSlice {
+				var mergedRoute string = parentRoute + sourceRouteAndHandlerMap[routeKey].(string)
+				var handlers []Handler = sourceRouteAndHandlerMap[handlersKey].([]Handler)
+				insert(mergedRoute, httpMethod, handlers...)
+			}
+		}
+	}
+}
+
+// Merge source middlewares to target
+// there are 2 cases when merge
+// if no route, will merge to global middleware
+// else will merge to matched route
+func mergeMiddleware(target interface{}, parentRoute string, sourceHandlers []Handler) {
+	var targetMiddlewares *[]Handler
+	var insert func(route, httpMethod string, handlers ...Handler)
+
+	switch target.(type) {
+	case *app:
+		gg := target.(*app)
+		targetMiddlewares = &gg.middlewares
+		insert = gg.routerTree.insert
+		break
+	case *routerGroup:
+		gr := target.(*routerGroup)
+		targetMiddlewares = &gr.middlewares
+		insert = gr.insert
+		break
+	}
+
+	if parentRoute != empty {
+		for _, httpMethod := range httpMethods {
+			insert(parentRoute, httpMethod, sourceHandlers...)
+		}
+	} else {
+
+		// Append source middlewares into global middlewares
+		*targetMiddlewares = append(*targetMiddlewares, sourceHandlers...)
+	}
+}
