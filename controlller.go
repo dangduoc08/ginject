@@ -20,6 +20,6 @@ type Controller interface {
 	Patch(route string, handlers ...Handler) Controller
 	Head(route string, handlers ...Handler) Controller
 	Options(route string, handlers ...Handler) Controller
-	UseRouter(args ...interface{}) Controller
-	UseMiddleware(args ...interface{}) Controller
+	Group(args ...interface{}) Controller
+	Use(args ...interface{}) Controller
 }
