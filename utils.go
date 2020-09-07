@@ -129,8 +129,18 @@ func mergeRouterGroup(target interface{}, parentRoute string, sourceRouterGroups
 
 		for httpMethod, sourceRouteAndHandlerMapSlice := range sourceRouter {
 			for _, sourceRouteAndHandlerMap := range sourceRouteAndHandlerMapSlice {
-				var mergedRoute string = parentRoute + sourceRouteAndHandlerMap[routeKey].(string)
+				var sourceRoute string = sourceRouteAndHandlerMap[routeKey].(string)
+				var mergedRoute string = parentRoute
+
+				// To make sure remove slash at the last route
+				if sourceRoute != slash {
+					mergedRoute += sourceRoute
+				}
 				var handlers []Handler = sourceRouteAndHandlerMap[handlersKey].([]Handler)
+
+				// Append group route to existed group
+				// or create the new once
+				// this will be handled inside insert function
 				insert(mergedRoute, httpMethod, handlers...)
 			}
 		}
@@ -159,6 +169,10 @@ func mergeMiddleware(target interface{}, parentRoute string, sourceHandlers []Ha
 	}
 
 	if parentRoute != empty {
+
+		// Append handler to existing route controller
+		// or create the new once
+		// this will be handled inside insert function
 		for _, httpMethod := range httpMethods {
 			insert(parentRoute, httpMethod, sourceHandlers...)
 		}
