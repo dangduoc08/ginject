@@ -26,16 +26,16 @@ func (t *trie) checkConflictWildcard(route string, currentIndex int) error {
 	var remainRoute string = route[nextIndex:]
 	var afterSlashWord string = string(remainRoute[0])
 	var e error
-
+	fmt.Printf("hihi")
 	// #CASE 1: Insert absolute path first
 	// then insert param or any
 	var isInsertAbsolutePathFirst bool = afterSlashWord == param || afterSlashWord == wildcard
 
 	// #CASE 2: Insert param or any first
 	// then insert absolute path
-	var isInsertParamOrAnyFirst bool = t.node[slash].node[param] != nil || t.node[slash].node[wildcard] != nil
+	var isInsertParamOrWildcardFirst bool = t.node[slash].node[param] != nil || t.node[slash].node[wildcard] != nil
 
-	if isInsertAbsolutePathFirst || isInsertParamOrAnyFirst {
+	if isInsertAbsolutePathFirst || isInsertParamOrWildcardFirst {
 		var remainRouteSlashIndex int = strings.Index(remainRoute, slash)
 		var conflictWord string
 
@@ -68,7 +68,7 @@ func (t *trie) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
-	fmt.Printf("[%v] %v\n", httpMethod, route)
+	// fmt.Printf("[%v] %v\n", httpMethod, route)
 	// Concat http method to route
 	// to define what incoming request method is
 	route = httpMethod + route
@@ -87,18 +87,24 @@ func (t *trie) insert(route, httpMethod string, handlers ...Handler) {
 	for currentIndex, runeStr := range route {
 		var word string = string(runeStr)
 
-		// If key haven't existed
-		// in node map
-		// create new one
 		if t.node[word] == nil {
+
+			// If key haven't existed
+			// in node map
+			// create new one
 			var newTrie *trie = new(trie)
 			newTrie.node = make(map[string]*trie)
 			t.node[word] = newTrie
-		} else if t.node[slash] != nil && !t.node[slash].isEnd {
-			err := t.checkConflictWildcard(route, currentIndex)
-			if err != nil {
-				panic(err)
-			}
+		} else if t.node[slash] != nil {
+			// fmt.Println(len(t.node[slash].params))
+			// fmt.Println(route[currentIndex:])
+			// fmt.Println(word)
+			// If after slash still have word
+			// then check conflict
+			// err := t.checkConflictWildcard(route, currentIndex)
+			// if err != nil {
+			// 	panic(err)
+			// }
 		}
 
 		// Pass route route after "*"
