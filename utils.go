@@ -113,12 +113,12 @@ func mergeRouterGroup(target interface{}, parentRoute string, sourceRouterGroups
 	case *routerGroup:
 		gr := target.(*routerGroup)
 		targetMiddlewares = &gr.middlewares
-		insert = gr.insert
+		insert = gr.routerMap.insert
 		break
 	}
 
 	for _, sourceRouterGroup := range sourceRouterGroups {
-		var sourceRouter router = sourceRouterGroup.router              // router of source router group
+		var sourceRouter router = sourceRouterGroup.routerMap           // router of source router group
 		var sourceMiddlewares []Handler = sourceRouterGroup.middlewares // global source middlewares
 
 		// Push each source middleware
@@ -164,7 +164,7 @@ func mergeMiddleware(target interface{}, parentRoute string, sourceHandlers []Ha
 	case *routerGroup:
 		gr := target.(*routerGroup)
 		targetMiddlewares = &gr.middlewares
-		insert = gr.insert
+		insert = gr.routerMap.insert
 		break
 	}
 
