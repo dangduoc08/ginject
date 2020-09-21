@@ -1,7 +1,8 @@
 package gogo
 
 import (
-	"net/http"
+	"fmt"
+	"strings"
 )
 
 // router map holds struct:
@@ -24,7 +25,7 @@ import (
 //
 // **********************Example**********************
 //
-// 	routerGroup := {
+// 	router := {
 //		"GET": [
 //			{
 //				route: "/test"
@@ -46,69 +47,45 @@ import (
 //	}
 type router map[string][]map[int]interface{}
 
-type routerGroup struct {
-	router      router
-	middlewares []Handler // Router global middlewares
-}
-
-const (
-	routeKey = iota
-	handlersKey
-)
-
-// Router inits router group
-// generate all route and handler map slice
-func Router() Controller {
-	router := make(map[string][]map[int]interface{})
+// Create a router
+// init empty slice base on
+// HTTP methods
+func newRouter() router {
+	var r router = make(map[string][]map[int]interface{})
 	var routeAndHandlerMapSlice []map[int]interface{}
-	var middlewares []Handler
-
-	// Append empty route and handler map slice
-	// into router
 	for _, httpMethod := range httpMethods {
-		router[httpMethod] = routeAndHandlerMapSlice
+		r[httpMethod] = routeAndHandlerMapSlice
 	}
-
-	var gr *routerGroup = &routerGroup{
-		router:      router,
-		middlewares: middlewares,
-	}
-
-	return gr
+	return r
 }
 
-// Check route whethere existed in router group
-// return isMatch and position
-// in route and handler map slice
-func (gr *routerGroup) match(route, httpMethod string) (bool, int) {
-	router := gr.router
-	routeAndHandlerMapSlice := router[httpMethod]
-	var isMatch bool
+// Find index of existing route
+// base on HTTP methods and route
+func (r router) match(httpMethod, route string) int {
+	routeAndHandlerMapSlice := r[httpMethod]
 	var position int = -1
 
 	for index, routeAndHandlerMap := range routeAndHandlerMapSlice {
 		if route == routeAndHandlerMap[routeKey] {
-			isMatch = true
 			position = index
 			break
 		}
 	}
 
-	return isMatch, position
+	return position
 }
 
 // Push routes, handlers to router group
 // if route was inited before, we will append handler
 // else append new route and handler map
-func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
+func (r router) insert(route, httpMethod string, handlers ...Handler) {
 	if len(handlers) <= 0 {
 		panic("Nil handler")
 	}
-	router := gr.router
-	routeAndHandlerMapSlice := router[httpMethod]
-	isExistedInRouterGroup, position := gr.match(route, httpMethod)
+	routeAndHandlerMapSlice := r[httpMethod]
+	position := r.match(route, httpMethod)
 
-	if isExistedInRouterGroup {
+	if position > -1 {
 
 		// Route was inserted before
 		// therefore just need appending handlers
@@ -123,62 +100,20 @@ func (gr *routerGroup) insert(route, httpMethod string, handlers ...Handler) {
 		newRouteAndHandlerMap := make(map[int]interface{})
 		newRouteAndHandlerMap[routeKey] = route
 		newRouteAndHandlerMap[handlersKey] = handlers
-		router[httpMethod] = append(router[httpMethod], newRouteAndHandlerMap)
+		r[httpMethod] = append(r[httpMethod], newRouteAndHandlerMap)
 	}
 }
 
-func (gr *routerGroup) Get(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodGet, handlers...)
-	return gr
-}
+func (r router) generate(route, httpMethod string) string {
+	routeAndHandlerMapSlice := r[httpMethod]
 
-func (gr *routerGroup) Post(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodPost, handlers...)
-	return gr
-}
+	for _, routeAndHandlerMap := range routeAndHandlerMapSlice {
+		var existingRoute string = routeAndHandlerMap[routeKey].(string)
+		fmt.Println("Pushed", existingRoute[1:])
+		fmt.Println("Pushed after split", strings.Split(existingRoute[1:], "/"))
+		fmt.Println("Will push", route)
+		fmt.Println("Will push after split", strings.Split(route, "/"))
+	}
 
-func (gr *routerGroup) Put(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodPut, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Delete(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodDelete, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Patch(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodPatch, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Head(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodHead, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Options(route string, handlers ...Handler) Controller {
-	route = handleSlash(route)
-	gr.insert(route, http.MethodOptions, handlers...)
-	return gr
-}
-
-func (gr *routerGroup) Group(args ...interface{}) Controller {
-	parentRoute, sourceRouterGroups := resolveRouterGroup(args...)
-	parentRoute = handleSlash(parentRoute)
-	mergeRouterGroup(gr, parentRoute, sourceRouterGroups)
-	return gr
-}
-
-func (gr *routerGroup) Use(args ...interface{}) Controller {
-	parentRoute, sourceHandlers := resolveMiddlewares(args...)
-	parentRoute = handleSlash(parentRoute)
-	mergeMiddleware(gr, parentRoute, sourceHandlers)
-	return gr
+	return ""
 }

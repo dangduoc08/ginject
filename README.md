@@ -13,3 +13,8 @@ merge.go ( remove forEach, add match ) => xong merge router con merge global mid
 
 
 Check lai ham format route vs route == ""
+
+Quy luật đẩy route vào trie:
+
+Route sẽ conflict nếu ký tự bi trùng của node là wildcard
+Khi đẩy vào trie nếu vị trí trùng giựa đường dẫn tuyệt đối và wildcard, tại vị trí trùng sẽ tự tao 1 đường dẫn tuyệt đối

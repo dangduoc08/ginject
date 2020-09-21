@@ -24,6 +24,7 @@ var httpMethods []string = []string{
 // will be n = len(route)
 type app struct {
 	routerTree  *trie
+	routerMap   router    // Store router and its handler to calc to generate route
 	middlewares []Handler // Global middlewares
 }
 
@@ -37,10 +38,13 @@ func GoGo() Controller {
 		once.Do(func() {
 			instance = new(app)
 
-			// Create a nil trie to insert routers
+			// Create a nil trie to insert router tree
 			var newTrie *trie = new(trie)
 			newTrie.node = make(map[string]*trie)
 			instance.routerTree = newTrie
+
+			// Create an empty router
+			instance.routerMap = newRouter()
 
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -124,42 +128,50 @@ func GoGo() Controller {
 
 func (gg *app) Get(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.generate(route, http.MethodGet)
+	gg.routerMap.insert(route, http.MethodGet, handlers...)
 	gg.routerTree.insert(route, http.MethodGet, handlers...)
 	return gg
 }
 
 func (gg *app) Post(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodPost, handlers...)
 	gg.routerTree.insert(route, http.MethodPost, handlers...)
 	return gg
 }
 
 func (gg *app) Put(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodPut, handlers...)
 	gg.routerTree.insert(route, http.MethodPut, handlers...)
 	return gg
 }
 
 func (gg *app) Delete(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodDelete, handlers...)
 	gg.routerTree.insert(route, http.MethodDelete, handlers...)
 	return gg
 }
 
 func (gg *app) Patch(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodPatch, handlers...)
 	gg.routerTree.insert(route, http.MethodPatch, handlers...)
 	return gg
 }
 
 func (gg *app) Head(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodHead, handlers...)
 	gg.routerTree.insert(route, http.MethodHead, handlers...)
 	return gg
 }
 
 func (gg *app) Options(route string, handlers ...Handler) Controller {
 	route = handleSlash(route)
+	gg.routerMap.insert(route, http.MethodOptions, handlers...)
 	gg.routerTree.insert(route, http.MethodOptions, handlers...)
 	return gg
 }
