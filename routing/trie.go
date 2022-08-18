@@ -1,18 +1,19 @@
 package routing
 
-type trie struct {
-	node  map[string]*trie
-	isEnd bool
+type trie[T any] struct {
+	node       map[string]*trie[T]
+	isEnd      bool
+	routerData T
 }
 
-func new() *trie {
-	return &trie{
-		node:  make(map[string]*trie),
+func newTrie[T any]() *trie[T] {
+	return &trie[T]{
+		node:  make(map[string]*trie[T]),
 		isEnd: false,
 	}
 }
 
-func (tr *trie) insert(chars string) *trie {
+func (tr *trie[T]) insert(chars string, routerData T) *trie[T] {
 	l := len(chars) - 1
 	shadowTrie := tr
 
@@ -21,9 +22,10 @@ func (tr *trie) insert(chars string) *trie {
 		isCharExistInNode := shadowTrie.node[char] != nil
 
 		if !isCharExistInNode {
-			shadowTrie.node[char] = new()
+			shadowTrie.node[char] = newTrie[T]()
 			if i == l {
 				shadowTrie.node[char].isEnd = true
+				shadowTrie.node[char].routerData = routerData
 			}
 		}
 		shadowTrie = shadowTrie.node[char]
@@ -32,7 +34,7 @@ func (tr *trie) insert(chars string) *trie {
 	return tr
 }
 
-func (tr *trie) len() uint {
+func (tr *trie[T]) len() uint {
 	var counter uint = 0
 
 	for k, v := range tr.node {
@@ -47,7 +49,7 @@ func (tr *trie) len() uint {
 	return counter
 }
 
-func (tr *trie) search(chars string) bool {
+func (tr *trie[T]) search(chars string) bool {
 	l := len(chars) - 1
 	shadowTrie := tr
 	isFound := false

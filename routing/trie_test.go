@@ -13,10 +13,10 @@ const (
 )
 
 func TestInsert(test *testing.T) {
-	tr := new()
-	tr.insert(normalText1)
-	tr.insert(normalText2)
-	tr.insert(diffFirstCharText1)
+	tr := newTrie[any]()
+	tr.insert(normalText1, nil)
+	tr.insert(normalText2, nil)
+	tr.insert(diffFirstCharText1, nil)
 
 	// Test tnsert logic
 	output1 := tr.node["/"]
@@ -57,10 +57,10 @@ func TestInsert(test *testing.T) {
 }
 
 func TestLen(test *testing.T) {
-	tr := new()
-	tr.insert(normalText1)
-	tr.insert(normalText2)
-	tr.insert(diffFirstCharText1)
+	tr := newTrie[any]()
+	tr.insert(normalText1, nil)
+	tr.insert(normalText2, nil)
+	tr.insert(diffFirstCharText1, nil)
 
 	var expect uint = 6
 	output1 := tr.len()
@@ -70,10 +70,10 @@ func TestLen(test *testing.T) {
 }
 
 func TestSearch(test *testing.T) {
-	tr := new()
-	tr.insert(normalText1)
-	tr.insert(normalText2)
-	tr.insert(diffFirstCharText1)
+	tr := newTrie[any]()
+	tr.insert(normalText1, nil)
+	tr.insert(normalText2, nil)
+	tr.insert(diffFirstCharText1, nil)
 
 	// Test search logic
 	output1 := tr.search(normalText1)
