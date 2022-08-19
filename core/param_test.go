@@ -1,13 +1,14 @@
 package core
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestNewParam(test *testing.T) {
-	newParamStruct := NewParam("/foo/:param1/:param2/baz/:param3/")
+	routeWithP, newParamStruct := NewParam("/foo/:param1/:param2/baz/:param3/")
 	params := []string{}
-	for k, _ := range newParamStruct.KeyValue {
+	for k := range newParamStruct.KeyValue {
 		params = append(params, k)
 	}
 
@@ -32,5 +33,10 @@ func TestNewParam(test *testing.T) {
 	expect4 := "param3"
 	if output4 != expect4 {
 		test.Errorf("params[0] = %v; expect = %v", output4, expect4)
+	}
+
+	expect5 := fmt.Sprintf("/foo/%v/%v/baz/%v/", PARAM_SYMBOL, PARAM_SYMBOL, PARAM_SYMBOL)
+	if routeWithP != expect5 {
+		test.Errorf("routeWithParamSymbol = %v; expect = %v", routeWithP, expect5)
 	}
 }
