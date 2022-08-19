@@ -5,23 +5,45 @@ import (
 )
 
 func TestRemoveSpace(test *testing.T) {
-	r1 := RemoveSpace("A B CDE")
+	output1 := RemoveSpace("A B CDE")
 	expect := "ABCDE"
-	if r1 != expect {
-		test.Errorf("RemoveSpace(\"A B CDE\") = %v; expect = %v", r1, expect)
+	if output1 != expect {
+		test.Errorf("RemoveSpace(\"A B CDE\") = %v; expect = %v", output1, expect)
 	}
 }
 
-func TestAddSlash(test *testing.T) {
+func TestAddFirstSlash(test *testing.T) {
 	expect := "/foo/bar/baz/"
 
-	r1 := AddSlash("foo/bar/baz")
-	if r1 != expect {
-		test.Errorf("AddSlash(\"/foo/bar/baz\") = %v; expect = %v", r1, expect)
+	output1 := AddFirstSlash("foo/bar/baz/")
+	if output1 != expect {
+		test.Errorf("AddFirstSlash(\"foo/bar/baz/\") = %v; expect = %v", output1, expect)
 	}
+}
 
-	r2 := AddSlash("/foo/bar/baz/")
-	if r2 != expect {
-		test.Errorf("AddSlash(\"/foo/bar/baz/\") = %v; expect = %v", r2, expect)
+func TestAddLastSlash(test *testing.T) {
+	expect := "/foo/bar/baz/"
+
+	output1 := AddLastSlash("/foo/bar/baz")
+	if output1 != expect {
+		test.Errorf("AddLastSlash(\"/foo/bar/baz\") = %v; expect = %v", output1, expect)
+	}
+}
+
+func TestRemoveLastSlash(test *testing.T) {
+	expect := "/foo/bar/baz"
+
+	output1 := RemoveLastSlash("/foo/bar/baz/")
+	if output1 != expect {
+		test.Errorf("RemoveLastSlash(\"/foo/bar/baz/\") = %v; expect = %v", output1, expect)
+	}
+}
+
+func TestRemoveFirstColon(test *testing.T) {
+	expect := "foo/bar/baz/"
+
+	output1 := RemoveFirstColon(":foo/bar/baz/")
+	if output1 != expect {
+		test.Errorf("RemoveFirstColon(\":foo/bar/baz/\") = %v; expect = %v", output1, expect)
 	}
 }
