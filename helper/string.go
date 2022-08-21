@@ -10,7 +10,8 @@ const (
 	COLON               = ":"
 	UNDERSCORE          = "_"
 	SLASH               = "/"
-	WILDCART            = "*"
+	WILDCARD            = "*"
+	DOLLAR_SIGN         = "$"
 	OPEN_CURLY_BRACKET  = "{"
 	CLOSE_CURLY_BRACKET = "}"
 )

@@ -69,30 +69,30 @@ func TestLen(test *testing.T) {
 	}
 }
 
-func TestSearch(test *testing.T) {
+func TestFind(test *testing.T) {
 	tr := newTrie[any]()
 	tr.insert(normalText1, nil)
 	tr.insert(normalText2, nil)
 	tr.insert(diffFirstCharText1, nil)
 
-	// Test search logic
-	output1 := tr.search(normalText1)
+	// Test find logic
+	output1, _, _ := tr.find(normalText1)
 	if !output1 {
-		test.Errorf("tr.search(normalText1) = %v; expect = true", output1)
+		test.Errorf("tr.find(normalText1) = %v; expect = true", output1)
 	}
 
-	output2 := tr.search(normalText2)
+	output2, _, _ := tr.find(normalText2)
 	if !output2 {
-		test.Errorf("tr.search(normalText2) = %v; expect = true", output2)
+		test.Errorf("tr.find(normalText2) = %v; expect = true", output2)
 	}
 
-	output3 := tr.search(diffFirstCharText1)
+	output3, _, _ := tr.find(diffFirstCharText1)
 	if !output3 {
-		test.Errorf("tr.search(diffFirstCharText1) = %v; expect = true", output3)
+		test.Errorf("tr.find(diffFirstCharText1) = %v; expect = true", output3)
 	}
 
-	output4 := tr.search(strconv.Itoa(rand.Intn(100)))
+	output4, _, _ := tr.find(strconv.Itoa(rand.Intn(100)))
 	if output4 {
-		test.Errorf("tr.search(tr.search(strconv.Itoa(rand.Intn(100)))) = %v; expect = false", output4)
+		test.Errorf("tr.find(tr.find(strconv.Itoa(rand.Intn(100)))) = %v; expect = false", output4)
 	}
 }
