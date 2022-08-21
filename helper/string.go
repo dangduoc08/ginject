@@ -6,11 +6,13 @@ import (
 )
 
 const (
-	COLON      = ":"
-	UNDERSCORE = "_"
-	SLASH      = "/"
-	WILDCART   = "*"
-	EMPTY      = ""
+	EMPTY               = ""
+	COLON               = ":"
+	UNDERSCORE          = "_"
+	SLASH               = "/"
+	WILDCART            = "*"
+	OPEN_CURLY_BRACKET  = "{"
+	CLOSE_CURLY_BRACKET = "}"
 )
 
 func RemoveSpace(s string) string {
@@ -18,35 +20,38 @@ func RemoveSpace(s string) string {
 	return noSpcReg.ReplaceAllString(s, "")
 }
 
-func AddFirstSlash(s string) string {
-	if string(s[0]) != SLASH {
-		s = SLASH + s
+func AddAtBegin(s, sub string) string {
+	if s[:len(sub)] != sub {
+		return sub + s
 	}
 
 	return s
 }
 
-func AddLastSlash(s string) string {
-	if strings.LastIndex(s, SLASH) != len(s)-1 {
-		s = s + SLASH
+func RemoveAtBegin(s, sub string) string {
+	lSub := len(sub)
+	if s[:lSub] == sub {
+		return s[lSub:]
 	}
 
 	return s
 }
 
-func RemoveLastSlash(s string) string {
-	l := len(s)
-	if string(s[l-1]) == SLASH {
-		s = s[0 : l-1]
+func AddAtEnd(s, sub string) string {
+	lastMatchedIdx := strings.LastIndex(s, sub)
+	isAtEnd := lastMatchedIdx+len(sub) == len(s)
+	if !isAtEnd {
+		return s + sub
 	}
 
 	return s
 }
 
-func RemoveFirstColon(s string) string {
-	l := len(s)
-	if string(s[0]) == COLON {
-		s = s[1:l]
+func RemoveAtEnd(s, sub string) string {
+	lastMatchedIdx := strings.LastIndex(s, sub)
+	isAtEnd := lastMatchedIdx+len(sub) == len(s)
+	if isAtEnd {
+		return s[:lastMatchedIdx]
 	}
 
 	return s
