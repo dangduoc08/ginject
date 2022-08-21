@@ -6,5 +6,5 @@ import (
 
 type Request struct {
 	*http.Request
-	Params Param[interface{}]
+	Vars Var[interface{}]
 }
