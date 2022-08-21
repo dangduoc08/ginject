@@ -12,38 +12,58 @@ func TestRemoveSpace(test *testing.T) {
 	}
 }
 
-func TestAddFirstSlash(test *testing.T) {
-	expect := "/foo/bar/baz/"
+func TestAddAtBegin(test *testing.T) {
+	expect1 := "_foo/bar/baz/"
+	output1 := AddAtBegin("foo/bar/baz/", UNDERSCORE)
+	if output1 != expect1 {
+		test.Errorf("AddAtBegin(\"foo/bar/baz/\", UNDERSCORE) = %v; expect = %v", output1, expect1)
+	}
 
-	output1 := AddFirstSlash("foo/bar/baz/")
-	if output1 != expect {
-		test.Errorf("AddFirstSlash(\"foo/bar/baz/\") = %v; expect = %v", output1, expect)
+	unexpect2 := "**foo/bar/baz/"
+	output2 := AddAtBegin("*foo/bar/baz/", WILDCART)
+	if output2 == unexpect2 {
+		test.Errorf("AddAtBegin(\"*foo/bar/baz/\", WILDCART) = %v; expect ≠ %v", output2, unexpect2)
 	}
 }
 
-func TestAddLastSlash(test *testing.T) {
-	expect := "/foo/bar/baz/"
+func TestRemoveAtBegin(test *testing.T) {
+	expect1 := "foo/bar/baz"
+	output1 := RemoveAtBegin("{foo/bar/baz", OPEN_CURLY_BRACKET)
+	if output1 != expect1 {
+		test.Errorf("RemoveAtBegin(\"{foo/bar/baz\", OPEN_CURLY_BRACKET) = %v; expect = %v", output1, expect1)
+	}
 
-	output1 := AddLastSlash("/foo/bar/baz")
-	if output1 != expect {
-		test.Errorf("AddLastSlash(\"/foo/bar/baz\") = %v; expect = %v", output1, expect)
+	expect2 := "foo/*/bar/baz/"
+	output2 := RemoveAtBegin("/*/foo/*/bar/baz/", SLASH+WILDCART+SLASH)
+	if output2 != expect2 {
+		test.Errorf("RemoveAtBegin(\"foo/*/bar/baz/\", SLASH+WILDCART+SLASH) = %v; expect = %v", output2, expect2)
 	}
 }
 
-func TestRemoveLastSlash(test *testing.T) {
-	expect := "/foo/bar/baz"
+func TestAddAtEnd(test *testing.T) {
+	expect1 := "/foo/bar/baz/{}"
+	output1 := AddAtEnd("/foo/bar/baz/", OPEN_CURLY_BRACKET+CLOSE_CURLY_BRACKET)
+	if output1 != expect1 {
+		test.Errorf("AddAtEnd(\"/foo/bar/baz/\", OPEN_CURLY_BRACKET+CLOSE_CURLY_BRACKET) = %v; expect = %v", output1, expect1)
+	}
 
-	output1 := RemoveLastSlash("/foo/bar/baz/")
-	if output1 != expect {
-		test.Errorf("RemoveLastSlash(\"/foo/bar/baz/\") = %v; expect = %v", output1, expect)
+	unexpect2 := "/foo/bar/baz/****"
+	output2 := AddAtEnd("/foo/bar/baz/**", WILDCART+WILDCART)
+	if output2 == unexpect2 {
+		test.Errorf("AddAtEnd(\"/foo/bar/baz/**\", WILDCART+WILDCART) = %v; expect = %v", output2, unexpect2)
 	}
 }
 
-func TestRemoveFirstColon(test *testing.T) {
-	expect := "foo/bar/baz/"
+func TestRemoveAtEnd(test *testing.T) {
+	expect1 := "/foo/{}bar/baz/"
+	output1 := RemoveAtEnd("/foo/{}bar/baz/{}", OPEN_CURLY_BRACKET+CLOSE_CURLY_BRACKET)
+	if output1 != expect1 {
+		test.Errorf("RemoveAtEnd(\"/foo/{}bar/baz/{}\", OPEN_CURLY_BRACKET+CLOSE_CURLY_BRACKET) = %v; expect = %v", output1, expect1)
+	}
 
-	output1 := RemoveFirstColon(":foo/bar/baz/")
-	if output1 != expect {
-		test.Errorf("RemoveFirstColon(\":foo/bar/baz/\") = %v; expect = %v", output1, expect)
+	expect2 := "/foo/*bar/baz"
+	output2 := RemoveAtEnd("/foo/*bar/baz///", SLASH+SLASH+SLASH)
+	if output2 != expect2 {
+		test.Errorf("RemoveAtEnd(\"/foo/*bar/baz///\", SLASH+SLASH+SLASH) = %v; expect = %v", output2, expect2)
 	}
 }
