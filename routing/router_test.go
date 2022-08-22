@@ -103,6 +103,40 @@ func TestMatch(test *testing.T) {
 	}
 }
 
+func TestGroup(test *testing.T) {
+	ro1 := NewRouter()
+	for _, r1 := range []string{
+		"/users/get",
+		"/users/get/{userId}",
+	} {
+		ro1.Add(r1, func(req *core.Request, res core.ResponseExtender, next func()) {})
+	}
+
+	ro2 := NewRouter()
+	for _, r2 := range []string{
+		"/users/update/{userId}",
+		"/users/delete/{userId}",
+	} {
+		ro2.Add(r2, func(req *core.Request, res core.ResponseExtender, next func()) {})
+	}
+
+	gr := NewRouter()
+	gr.Group("/v1", ro1, ro2).Group("/duoc", gr)
+
+	for _, r := range gr.array {
+		for route := range r {
+			fmt.Println(route)
+		}
+	}
+
+	jsonStr, err := gr.visualize()
+	if err != nil {
+		fmt.Printf("Error: %s", err.Error())
+	} else {
+		fmt.Println(string(jsonStr))
+	}
+}
+
 func TestV(test *testing.T) {
 	if os.Getenv("V") == "true" {
 		ro := NewRouter()

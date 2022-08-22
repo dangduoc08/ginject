@@ -14,9 +14,9 @@ const (
 
 func TestInsert(test *testing.T) {
 	tr := newTrie[any]()
-	tr.insert(normalText1, nil)
-	tr.insert(normalText2, nil)
-	tr.insert(diffFirstCharText1, nil)
+	tr.insert(normalText1, -1, nil)
+	tr.insert(normalText2, -1, nil)
+	tr.insert(diffFirstCharText1, -1, nil)
 
 	// Test tnsert logic
 	output1 := tr.node["/"]
@@ -58,9 +58,9 @@ func TestInsert(test *testing.T) {
 
 func TestLen(test *testing.T) {
 	tr := newTrie[any]()
-	tr.insert(normalText1, nil)
-	tr.insert(normalText2, nil)
-	tr.insert(diffFirstCharText1, nil)
+	tr.insert(normalText1, -1, nil)
+	tr.insert(normalText2, -1, nil)
+	tr.insert(diffFirstCharText1, -1, nil)
 
 	var expect uint = 6
 	output1 := tr.len()
@@ -71,27 +71,27 @@ func TestLen(test *testing.T) {
 
 func TestFind(test *testing.T) {
 	tr := newTrie[any]()
-	tr.insert(normalText1, nil)
-	tr.insert(normalText2, nil)
-	tr.insert(diffFirstCharText1, nil)
+	tr.insert(normalText1, -1, nil)
+	tr.insert(normalText2, -1, nil)
+	tr.insert(diffFirstCharText1, -1, nil)
 
 	// Test find logic
-	output1, _, _ := tr.find(normalText1)
+	output1, _, _, _ := tr.find(normalText1)
 	if !output1 {
 		test.Errorf("tr.find(normalText1) = %v; expect = true", output1)
 	}
 
-	output2, _, _ := tr.find(normalText2)
+	output2, _, _, _ := tr.find(normalText2)
 	if !output2 {
 		test.Errorf("tr.find(normalText2) = %v; expect = true", output2)
 	}
 
-	output3, _, _ := tr.find(diffFirstCharText1)
+	output3, _, _, _ := tr.find(diffFirstCharText1)
 	if !output3 {
 		test.Errorf("tr.find(diffFirstCharText1) = %v; expect = true", output3)
 	}
 
-	output4, _, _ := tr.find(strconv.Itoa(rand.Intn(100)))
+	output4, _, _, _ := tr.find(strconv.Itoa(rand.Intn(100)))
 	if output4 {
 		test.Errorf("tr.find(tr.find(strconv.Itoa(rand.Intn(100)))) = %v; expect = false", output4)
 	}
