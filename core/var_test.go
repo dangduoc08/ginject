@@ -12,6 +12,11 @@ func TestNewVar(test *testing.T) {
 		vars = append(vars, k)
 	}
 
+	for k, v := range newVarStruct.KeyValue {
+		i := v.(int)
+		vars[i] = k
+	}
+
 	output1 := len(vars)
 	if len(vars) != 3 {
 		test.Errorf("len(vars) = %v; expect = 3", output1)
