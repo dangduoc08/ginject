@@ -14,6 +14,7 @@ const (
 	DOLLAR_SIGN         = "$"
 	OPEN_CURLY_BRACKET  = "{"
 	CLOSE_CURLY_BRACKET = "}"
+	DOT                 = "."
 )
 
 func RemoveSpace(s string) string {

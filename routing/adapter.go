@@ -16,10 +16,14 @@ func handleRoute(route string) string {
 func (a *adapter) insert(route string, handlers ...core.Handler) *adapter {
 	handledRoute := handleRoute(route)
 	routeWithVar, vars := core.NewVar(handledRoute)
-
-	a.trie.insert(routeWithVar, &routerData{
+	rd := &routerData{
 		Handlers: &handlers,
 		Vars:     vars,
+	}
+
+	a.trie.insert(routeWithVar, len(a.array), rd)
+	a.array = append(a.array, map[string]*routerData{
+		handledRoute: rd,
 	})
 
 	return a
@@ -28,10 +32,10 @@ func (a *adapter) insert(route string, handlers ...core.Handler) *adapter {
 func (a *adapter) find(route string) (bool, *routerData) {
 	handledRoute := handleRoute(route)
 	shadowRd := new(routerData)
-	_, shadowRd.Vars = core.NewVar("")
+	_, shadowRd.Vars = core.NewVar(helper.EMPTY)
 	shadowRd.Handlers = &[]core.Handler{}
 
-	if isFound, varParams, rD := a.trie.find(handledRoute); isFound &&
+	if isFound, _, varParams, rD := a.trie.find(handledRoute); isFound &&
 		rD != nil &&
 		rD.Vars != nil &&
 		rD.Vars.KeyValue != nil {
@@ -40,7 +44,7 @@ func (a *adapter) find(route string) (bool, *routerData) {
 		shadowRd.Handlers = rD.Handlers
 		for k, v := range rD.Vars.KeyValue {
 			i := v.(int)
-			if varParams[i] != "" {
+			if varParams[i] != helper.EMPTY {
 
 				// bind value to vars
 				shadowRd.Vars.Set(k, varParams[i])

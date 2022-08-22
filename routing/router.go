@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/go-go/core"
+	"github.com/dangduoc08/go-go/helper"
 )
 
 type routerData struct {
@@ -22,6 +23,7 @@ type IRoutable interface {
 
 type Router struct {
 	*trie[*routerData]
+	array []map[string]*routerData
 }
 
 func NewRouter() *Router {
@@ -29,7 +31,8 @@ func NewRouter() *Router {
 	tr.data = new(routerData)
 
 	return &Router{
-		trie: tr,
+		trie:  tr,
+		array: []map[string]*routerData{},
 	}
 }
 
@@ -50,6 +53,25 @@ func (r *Router) Match(route string) (bool, *routerData) {
 	return trieAdapter.find(route)
 }
 
+func (r *Router) Group(route string, subRs ...*Router) *Router {
+	if route == helper.EMPTY {
+		route = helper.SLASH
+	}
+	route = helper.RemoveAtEnd(route, helper.SLASH)
+	for _, subR := range subRs {
+		trieAdapter := adapter{
+			r,
+		}
+		for _, rdMap := range subR.array {
+			for subRoute, rd := range rdMap {
+				trieAdapter.insert(route+subRoute, *rd.Handlers...)
+			}
+		}
+	}
+
+	return r
+}
+
 func (r *Router) genTrieMap(c string) map[string]interface{} {
 	tr := r.trie
 	params := []string{}
@@ -66,11 +88,11 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 			for _, v := range *tr.data.Handlers {
 				handlerName := runtime.FuncForPC(reflect.ValueOf(v).Pointer()).Name()
 
-				if handlerName == "" {
+				if handlerName == helper.EMPTY {
 					handlers = append(handlers, nil)
 					break
 				} else {
-					lastDotIndex := strings.LastIndex(handlerName, ".")
+					lastDotIndex := strings.LastIndex(handlerName, helper.DOT)
 					if lastDotIndex > -1 {
 						handlerName = handlerName[lastDotIndex+1:]
 					}
@@ -82,13 +104,14 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 
 	nodes := []interface{}{}
 	for k, v := range tr.node {
-		newR := Router{v}
+		newR := Router{v, nil}
 		nodes = append(nodes, newR.genTrieMap(k))
 	}
 
 	visualizationMap := map[string]interface{}{
 		"char":     c,
 		"isEnd":    tr.isEnd,
+		"index":    tr.index,
 		"params":   params,
 		"handlers": handlers,
 		"nodes":    nodes,
