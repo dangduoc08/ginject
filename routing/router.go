@@ -22,13 +22,12 @@ type IRoutable interface {
 }
 
 type Router struct {
-	*trie[*routerData]
+	*trie
 	array []map[string]*routerData
 }
 
 func NewRouter() *Router {
-	tr := newTrie[*routerData]()
-	tr.data = new(routerData)
+	tr := newTrie()
 
 	return &Router{
 		trie:  tr,
@@ -45,7 +44,7 @@ func (r *Router) Add(route string, handlers ...core.Handler) *Router {
 	return r
 }
 
-func (r *Router) Match(route string) (bool, *routerData) {
+func (r *Router) Match(route string) (bool, string, *routerData) {
 	trieAdapter := adapter{
 		r,
 	}
@@ -54,7 +53,7 @@ func (r *Router) Match(route string) (bool, *routerData) {
 }
 
 func (r *Router) Group(route string, subRs ...*Router) *Router {
-	if route == helper.EMPTY {
+	if route == "" {
 		route = helper.SLASH
 	}
 	route = helper.RemoveAtEnd(route, helper.SLASH)
@@ -77,26 +76,32 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 	params := []string{}
 	handlers := []interface{}{}
 
-	if tr.data != nil {
-		if tr.data.Vars != nil {
-			for k := range tr.data.Vars.KeyValue {
-				params = append(params, k)
-			}
+	if tr.index > -1 {
+		var data *routerData
+		for _, routerData := range r.array[tr.index] {
+			data = routerData
 		}
+		if data != nil {
+			if data.Vars != nil {
+				for k := range data.Vars.KeyValue {
+					params = append(params, k)
+				}
+			}
 
-		if tr.data.Handlers != nil {
-			for _, v := range *tr.data.Handlers {
-				handlerName := runtime.FuncForPC(reflect.ValueOf(v).Pointer()).Name()
+			if data.Handlers != nil {
+				for _, v := range *data.Handlers {
+					handlerName := runtime.FuncForPC(reflect.ValueOf(v).Pointer()).Name()
 
-				if handlerName == helper.EMPTY {
-					handlers = append(handlers, nil)
-					break
-				} else {
-					lastDotIndex := strings.LastIndex(handlerName, helper.DOT)
-					if lastDotIndex > -1 {
-						handlerName = handlerName[lastDotIndex+1:]
+					if handlerName == "" {
+						handlers = append(handlers, nil)
+						break
+					} else {
+						lastDotIndex := strings.LastIndex(handlerName, helper.DOT)
+						if lastDotIndex > -1 {
+							handlerName = handlerName[lastDotIndex+1:]
+						}
+						handlers = append(handlers, handlerName)
 					}
-					handlers = append(handlers, handlerName)
 				}
 			}
 		}
@@ -104,7 +109,7 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 
 	nodes := []interface{}{}
 	for k, v := range tr.node {
-		newR := Router{v, nil}
+		newR := Router{v, r.array}
 		nodes = append(nodes, newR.genTrieMap(k))
 	}
 

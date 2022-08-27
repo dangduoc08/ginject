@@ -5,24 +5,23 @@ import (
 	"github.com/dangduoc08/go-go/helper"
 )
 
-type node[T any] map[string]*trie[T]
+type node map[string]*trie
 
-type trie[T any] struct {
-	node  node[T]
+type trie struct {
+	node  node
 	isEnd bool
 	index int
-	data  T
 }
 
-func newTrie[T any]() *trie[T] {
-	return &trie[T]{
-		node:  make(node[T]),
+func newTrie() *trie {
+	return &trie{
+		node:  make(node),
 		isEnd: false,
 		index: -1,
 	}
 }
 
-func (tr *trie[T]) len() uint {
+func (tr *trie) len() uint {
 	var counter uint = 0
 
 	for k, v := range tr.node {
@@ -37,7 +36,7 @@ func (tr *trie[T]) len() uint {
 	return counter
 }
 
-func (tr *trie[T]) insert(chars string, index int, data T) *trie[T] {
+func (tr *trie) insert(chars string, index int) *trie {
 	l := len(chars) - 1
 	shadowTrie := tr
 
@@ -46,11 +45,10 @@ func (tr *trie[T]) insert(chars string, index int, data T) *trie[T] {
 		isCharExistInNode := shadowTrie.node[char] != nil
 
 		if !isCharExistInNode {
-			shadowTrie.node[char] = newTrie[T]()
+			shadowTrie.node[char] = newTrie()
 			if i == l {
 				shadowTrie.node[char].isEnd = true
 				shadowTrie.node[char].index = index
-				shadowTrie.node[char].data = data
 			}
 		}
 		shadowTrie = shadowTrie.node[char]
@@ -59,16 +57,15 @@ func (tr *trie[T]) insert(chars string, index int, data T) *trie[T] {
 	return tr
 }
 
-func (tr *trie[T]) find(chars string) (bool, int, []string, T) {
+func (tr *trie) find(chars string) (bool, int, []string) {
 	l := len(chars)
 	isFound := false
 	isHasParam := false
 	isHasWildcard := false
 	var index int
 	varValues := make([]string, 0)
-	varValue := helper.EMPTY
+	varValue := ""
 	shadowTrie := tr
-	var rD T
 
 	for i, rune := range chars {
 		char := string(rune)
@@ -76,9 +73,9 @@ func (tr *trie[T]) find(chars string) (bool, int, []string, T) {
 		if char == helper.SLASH {
 			isHasParam = false
 			isHasWildcard = false
-			if varValue != helper.EMPTY {
+			if varValue != "" {
 				varValues = append(varValues, varValue)
-				varValue = helper.EMPTY
+				varValue = ""
 			}
 		}
 
@@ -111,12 +108,11 @@ func (tr *trie[T]) find(chars string) (bool, int, []string, T) {
 		if i == l-1 {
 			isFound = shadowTrie.node[char].isEnd
 			index = shadowTrie.node[char].index
-			rD = shadowTrie.node[char].data
 			break
 		}
 
 		shadowTrie = shadowTrie.node[char]
 	}
 
-	return isFound, index, varValues, rD
+	return isFound, index, varValues
 }

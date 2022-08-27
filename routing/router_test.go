@@ -41,7 +41,7 @@ func TestMatch(test *testing.T) {
 		ro.Add(r, func(req *core.Request, res core.ResponseExtender, next func()) {})
 	}
 
-	isFound1, rD1 := ro.Match("/v1/users/get/jobs/get")
+	isFound1, _, rD1 := ro.Match("/v1/users/get/jobs/get")
 	var expect1Rd1Var interface{}
 	if !isFound1 {
 		test.Errorf("ro.Match(\"/v1/users/get/jobs/get\") = %v; expect = %v", isFound1, true)
@@ -50,7 +50,7 @@ func TestMatch(test *testing.T) {
 		test.Errorf("rD1.Vars.Get(\"any\") = %v; expect = %v", rD1.Vars.Get("any"), expect1Rd1Var)
 	}
 
-	isFound2, rD2 := ro.Match("/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get")
+	isFound2, _, rD2 := ro.Match("/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get")
 	expect2UserId := "63029905408d8ed70d411662"
 	output2UserId := rD2.Vars.Get("userId")
 	expect2JobId := "63029924b2584a856cbb8baf"
@@ -65,7 +65,7 @@ func TestMatch(test *testing.T) {
 		test.Errorf("rD2.Vars.Get(\"jobId\") = %v; expect = %v", output2JobId, expect2JobId)
 	}
 
-	isFound3, rD3 := ro.Match("/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete")
+	isFound3, _, rD3 := ro.Match("/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete")
 	expect3UserId := "63029c3246fd350a3ffc276c"
 	output3UserId := rD3.Vars.Get("userId")
 	expect3JobId := "63029c3bb998dabb261d99a1"
@@ -81,7 +81,7 @@ func TestMatch(test *testing.T) {
 		test.Errorf("rD3.Vars.Get(\"jobId\") = %v; expect = %v", output3JobId, expect3JobId)
 	}
 
-	isFound4, rD4 := ro.Match("/v2/users/63029e1271f0bfaab1697c01/delete/jobs/63029e20f75076f6e6b8fdee/move")
+	isFound4, _, rD4 := ro.Match("/v2/users/63029e1271f0bfaab1697c01/delete/jobs/63029e20f75076f6e6b8fdee/move")
 	expect4UserId := "63029e1271f0bfaab1697c01"
 	output4UserId := rD4.Vars.Get("userId")
 	expect4JobId := "63029e20f75076f6e6b8fdee"
@@ -97,7 +97,7 @@ func TestMatch(test *testing.T) {
 	}
 
 	// nagative test
-	isFound5, _ := ro.Match("/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get")
+	isFound5, _, _ := ro.Match("/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get")
 	if isFound5 {
 		test.Errorf("ro.Match(\"/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get\") = %v; expect = %v", isFound5, false)
 	}
@@ -121,19 +121,12 @@ func TestGroup(test *testing.T) {
 	}
 
 	gr := NewRouter()
-	gr.Group("/v1", ro1, ro2).Group("/duoc", gr)
+	gr.Group("/v1", ro1, ro2)
 
-	for _, r := range gr.array {
-		for route := range r {
-			fmt.Println(route)
-		}
-	}
-
-	jsonStr, err := gr.visualize()
-	if err != nil {
-		fmt.Printf("Error: %s", err.Error())
-	} else {
-		fmt.Println(string(jsonStr))
+	_, matchedRoute, _ := gr.Match("/v1/users/update/123")
+	expectMatchedRoute := "/v1/users/update/{userId}/"
+	if matchedRoute != expectMatchedRoute {
+		test.Errorf("gr.Match(\"/v1/users/update/123\") = %v; expect = %v", matchedRoute, expectMatchedRoute)
 	}
 }
 
