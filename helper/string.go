@@ -6,7 +6,6 @@ import (
 )
 
 const (
-	EMPTY               = ""
 	COLON               = ":"
 	UNDERSCORE          = "_"
 	SLASH               = "/"
