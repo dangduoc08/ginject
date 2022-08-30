@@ -12,7 +12,7 @@ func TestFind(test *testing.T) {
 	}
 
 	expect1 := "Jane Doe"
-	output1 := Find(arr, func(elem string, index int, arr []string) bool {
+	output1 := Find(arr, func(elem string, index int) bool {
 		return elem == expect1
 	})
 
@@ -33,7 +33,7 @@ func TestMap(test *testing.T) {
 		2,
 		3,
 	}
-	output1 := Map(arr, func(elem string, index int, arr []string) int {
+	output1 := Map(arr, func(elem string, index int) int {
 		index++
 		return index
 	})
