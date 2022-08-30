@@ -2,24 +2,18 @@ package routing
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
 
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/core"
 	dataStructure "github.com/dangduoc08/gooh/data-structure"
 )
 
 type routerData struct {
 	Handlers *[]core.Handler
-	Vars     *core.Var[interface{}]
-}
-
-type IRoutable interface {
-	NewRouter() *IRoutable
-	Add(path string) *IRoutable
-	Match(path string) *IRoutable
+	Params   *context.Param[interface{}]
 }
 
 type Router struct {
@@ -28,104 +22,102 @@ type Router struct {
 }
 
 func NewRouter() *Router {
-	tr := dataStructure.NewTrie()
+	trieInstance := dataStructure.NewTrie()
 
 	return &Router{
-		Trie:  tr,
+		Trie:  trieInstance,
 		array: []map[string]*routerData{},
 	}
 }
 
-func (r *Router) Add(route string, handlers ...core.Handler) *Router {
-	trieAdapter := adapter{
-		r,
+func (routerInstance *Router) Add(route string, handlers ...core.Handler) *Router {
+	routerAdapter := adapter{
+		routerInstance,
 	}
-	trieAdapter.insert(route, handlers...)
+	routerAdapter.insert(route, handlers...)
 
-	return r
+	return routerInstance
 }
 
-func (r *Router) Match(route string) (bool, string, *routerData) {
-	trieAdapter := adapter{
-		r,
+func (routerInstance *Router) Match(route string) (bool, string, *routerData) {
+	routerAdapter := adapter{
+		routerInstance,
 	}
 
-	return trieAdapter.find(route)
+	return routerAdapter.find(route)
 }
 
-func (r *Router) Group(route string, subRs ...*Router) *Router {
-	if route == "" {
-		route = dataStructure.SLASH
+func (routerInstance *Router) Group(prefixRoute string, subRouters ...*Router) *Router {
+	if prefixRoute == "" {
+		prefixRoute = dataStructure.SLASH
 	}
-	route = dataStructure.RemoveAtEnd(route, dataStructure.SLASH)
-	for _, subR := range subRs {
-		trieAdapter := adapter{
-			r,
+	prefixRoute = dataStructure.RemoveAtEnd(prefixRoute, dataStructure.SLASH)
+	for _, subRouter := range subRouters {
+		routerAdapter := adapter{
+			routerInstance,
 		}
-		for _, rdMap := range subR.array {
-			for subRoute, rd := range rdMap {
-				trieAdapter.insert(route+subRoute, *rd.Handlers...)
+		for _, subRouterDataMappedByRoute := range subRouter.array {
+			for subRoute, subRouterData := range subRouterDataMappedByRoute {
+				routerAdapter.insert(prefixRoute+subRoute, *subRouterData.Handlers...)
 			}
 		}
 	}
 
-	return r
+	return routerInstance
 }
 
-func (r *Router) Use(args ...interface{}) {
-	var route string
-	for i, arg := range args {
-		switch arg.(type) {
-		case string:
-			if i == 0 {
-				route = handleRoute(arg.(string))
-				matchedMap := dataStructure.Find(r.array, func(m map[string]*routerData, index int, arr []map[string]*routerData) bool {
-					for k := range m {
-						return k == route
-					}
-					return false
-				})
-				fmt.Println(matchedMap)
-			}
+// func (r *Router) Use(args ...interface{}) {
+// 	var route string
+// 	for i, arg := range args {
+// 		switch arg.(type) {
+// 		case string:
+// 			if i == 0 {
+// 				route = handleRoute(arg.(string))
+// 				matchedMap := dataStructure.Find(r.array, func(m map[string]*routerData, index int, arr []map[string]*routerData) bool {
+// 					for k := range m {
+// 						return k == route
+// 					}
+// 					return false
+// 				})
+// 				fmt.Println(matchedMap)
+// 			}
 
-		case core.Handler:
-			fmt.Printf("heheh %T\n", arg)
-		}
+// 		case core.Handler:
+// 			fmt.Printf("heheh %T\n", arg)
+// 		}
 
-	}
+// 	}
 
-}
+// }
 
-func (r *Router) genTrieMap(c string) map[string]interface{} {
-	tr := r.Trie
+func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
+	routerTrie := routerInstance.Trie
 	params := []string{}
 	handlers := []interface{}{}
 
-	if tr.Index > -1 {
-		var data *routerData
-		for _, routerData := range r.array[tr.Index] {
-			data = routerData
+	if routerTrie.Index > -1 {
+		var routerData *routerData
+		for _, routerDataPt := range routerInstance.array[routerTrie.Index] {
+			routerData = routerDataPt
 		}
-		if data != nil {
-			if data.Vars != nil {
-				for k := range data.Vars.KeyValue {
-					params = append(params, k)
-				}
+		if routerData != nil {
+			if routerData.Params != nil {
+				params = append(params, routerData.Params.Keys()...)
 			}
 
-			if data.Handlers != nil {
-				for _, v := range *data.Handlers {
-					handlerName := runtime.FuncForPC(reflect.ValueOf(v).Pointer()).Name()
+			if routerData.Handlers != nil {
+				for _, handler := range *routerData.Handlers {
+					handlerFuncName := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
 
-					if handlerName == "" {
+					if handlerFuncName == "" {
 						handlers = append(handlers, nil)
 						break
 					} else {
-						lastDotIndex := strings.LastIndex(handlerName, dataStructure.DOT)
+						lastDotIndex := strings.LastIndex(handlerFuncName, dataStructure.DOT)
 						if lastDotIndex > -1 {
-							handlerName = handlerName[lastDotIndex+1:]
+							handlerFuncName = handlerFuncName[lastDotIndex+1:]
 						}
-						handlers = append(handlers, handlerName)
+						handlers = append(handlers, handlerFuncName)
 					}
 				}
 			}
@@ -133,15 +125,14 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 	}
 
 	nodes := []interface{}{}
-	for k, v := range tr.Node {
-		newR := Router{v, r.array}
-		nodes = append(nodes, newR.genTrieMap(k))
+	for nextWord, nextNode := range routerTrie.Root {
+		newRouterInstance := Router{nextNode, routerInstance.array}
+		nodes = append(nodes, newRouterInstance.genTrieMap(nextWord))
 	}
 
 	visualizationMap := map[string]interface{}{
-		"char":     c,
-		"isEnd":    tr.IsEnd,
-		"index":    tr.Index,
+		"word":     word,
+		"index":    routerTrie.Index,
 		"params":   params,
 		"handlers": handlers,
 		"nodes":    nodes,
@@ -150,7 +141,7 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 	return visualizationMap
 }
 
-func (r *Router) visualize() ([]byte, error) {
-	vM := r.genTrieMap("root")
-	return json.Marshal(vM)
+func (routerInstance *Router) visualize() ([]byte, error) {
+	visualizationMap := routerInstance.genTrieMap("root")
+	return json.Marshal(visualizationMap)
 }

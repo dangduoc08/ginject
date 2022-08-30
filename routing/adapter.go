@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/core"
 	dataStructure "github.com/dangduoc08/gooh/data-structure"
 )
@@ -13,61 +14,63 @@ func handleRoute(route string) string {
 	return dataStructure.AddAtEnd(dataStructure.AddAtBegin(dataStructure.RemoveSpace(route), dataStructure.SLASH), dataStructure.SLASH)
 }
 
-func (a *adapter) insertMiddleware(route string, handlers ...core.Handler) *adapter {
+// func (adapterInstance *adapter) insertMiddleware(route string, handlers ...core.Handler) *adapter {
+// 	handledRoute := handleRoute(route)
+// 	routeWithParams, params := context.NewParam(handledRoute)
+// 	routerDataInstance := &routerData{
+// 		Handlers: &handlers,
+// 		Params:   params,
+// 	}
+
+// 	adapterInstance.Trie.Insert(routeWithParams, len(adapterInstance.array))
+// 	adapterInstance.array = append(adapterInstance.array, map[string]*routerData{
+// 		handledRoute: routerDataInstance,
+// 	})
+
+// 	return adapterInstance
+// }
+
+func (adapterInstance *adapter) insert(route string, handlers ...core.Handler) *adapter {
 	handledRoute := handleRoute(route)
-	routeWithVar, vars := core.NewVar(handledRoute)
-	rd := &routerData{
+	routeWithParams, params := context.NewParam(handledRoute)
+	routerDataInstance := &routerData{
 		Handlers: &handlers,
-		Vars:     vars,
+		Params:   params,
 	}
 
-	a.Trie.Insert(routeWithVar, len(a.array))
-	a.array = append(a.array, map[string]*routerData{
-		handledRoute: rd,
+	adapterInstance.Trie.Insert(routeWithParams, len(adapterInstance.array))
+	adapterInstance.array = append(adapterInstance.array, map[string]*routerData{
+		handledRoute: routerDataInstance,
 	})
 
-	return a
+	return adapterInstance
 }
 
-func (a *adapter) insert(route string, handlers ...core.Handler) *adapter {
+func (adapterInstance *adapter) find(route string) (bool, string, *routerData) {
 	handledRoute := handleRoute(route)
-	routeWithVar, vars := core.NewVar(handledRoute)
-	rd := &routerData{
-		Handlers: &handlers,
-		Vars:     vars,
-	}
+	shadowOfRouterData := new(routerData)
+	_, shadowOfRouterData.Params = context.NewParam("")
+	shadowOfRouterData.Handlers = &[]core.Handler{}
 
-	a.Trie.Insert(routeWithVar, len(a.array))
-	a.array = append(a.array, map[string]*routerData{
-		handledRoute: rd,
-	})
-
-	return a
-}
-
-func (a *adapter) find(route string) (bool, string, *routerData) {
-	handledRoute := handleRoute(route)
-	shadowRd := new(routerData)
-	_, shadowRd.Vars = core.NewVar("")
-	shadowRd.Handlers = &[]core.Handler{}
-
-	if isFound, index, varParams := a.Trie.Find(handledRoute); isFound &&
+	if isEnd, index, paramValues := adapterInstance.Trie.Find(handledRoute); isEnd &&
 		index > -1 {
-		for route, routerData := range a.array[index] {
+		for route, routerData := range adapterInstance.array[index] {
 
 			// bind handler functions
-			shadowRd.Handlers = routerData.Handlers
-			for k, v := range routerData.Vars.KeyValue {
-				i := v.(int)
-				if varParams[i] != "" {
+			shadowOfRouterData.Handlers = routerData.Handlers
 
-					// bind value to vars
-					shadowRd.Vars.Set(k, varParams[i])
+			routerData.Params.ForEach(func(value interface{}, key string) {
+				paramValue := paramValues[value.(int)]
+				if paramValue != "" {
+
+					// bind value to params
+					shadowOfRouterData.Params.Set(key, paramValue)
 				}
-			}
-			return isFound, route, shadowRd
+			})
+
+			return isEnd, route, shadowOfRouterData
 		}
 	}
 
-	return false, "", shadowRd
+	return false, "", shadowOfRouterData
 }
