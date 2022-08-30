@@ -1,25 +1,27 @@
 package data_structure
 
-func forEach[T any](arr []T, cb func(elem T, index int, arr []T)) {
-	for i, v := range arr {
-		cb(v, i, arr)
+func forEach[T any](arr []T, callback func(elem T, index int)) {
+	for index, elem := range arr {
+		callback(elem, index)
 	}
 }
 
-func Find[T any](arr []T, cb func(elem T, index int, arr []T) bool) T {
-	for i, v := range arr {
-		if cb(v, i, arr) {
-			return v
+func Find[T any](arr []T, callback func(elem T, index int) bool) T {
+	for index, elem := range arr {
+		if callback(elem, index) {
+			return elem
 		}
 	}
-	var v T
-	return v
+
+	var nilVal T
+	return nilVal
 }
 
-func Map[T, U any](arr []T, cb func(elem T, index int, arr []T) U) []U {
+func Map[T, U any](arr []T, callback func(elem T, index int) U) []U {
 	newArr := make([]U, 0)
-	forEach(arr, func(elem T, index int, arr []T) {
-		newArr = append(newArr, cb(elem, index, arr))
+	forEach(arr, func(elem T, index int) {
+		newArr = append(newArr, callback(elem, index))
 	})
+
 	return newArr
 }
