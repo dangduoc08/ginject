@@ -21,6 +21,23 @@ func TestFind(test *testing.T) {
 	}
 }
 
+func TestFindIndex(test *testing.T) {
+	arr := []string{
+		"John Doe",
+		"Jane Doe",
+		"The Rock",
+	}
+
+	expect1 := 1
+	output1 := FindIndex(arr, func(elem string, index int) bool {
+		return elem == "Jane Doe"
+	})
+
+	if output1 != expect1 {
+		test.Errorf("FindIndex = %v; expect = %v", output1, expect1)
+	}
+}
+
 func TestMap(test *testing.T) {
 	arr := []string{
 		"John Doe",
