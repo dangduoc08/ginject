@@ -16,44 +16,44 @@ const (
 	DOT                 = "."
 )
 
-func RemoveSpace(s string) string {
+func RemoveSpace(str string) string {
 	noSpcReg := regexp.MustCompile(`\s`)
-	return noSpcReg.ReplaceAllString(s, "")
+	return noSpcReg.ReplaceAllString(str, "")
 }
 
-func AddAtBegin(s, sub string) string {
-	if s[:len(sub)] != sub {
-		return sub + s
+func AddAtBegin(str, subStr string) string {
+	if str[:len(subStr)] != subStr {
+		return subStr + str
 	}
 
-	return s
+	return str
 }
 
-func RemoveAtBegin(s, sub string) string {
-	lSub := len(sub)
-	if s[:lSub] == sub {
-		return s[lSub:]
+func RemoveAtBegin(str, subStr string) string {
+	subStrLength := len(subStr)
+	if str[:subStrLength] == subStr {
+		return str[subStrLength:]
 	}
 
-	return s
+	return str
 }
 
-func AddAtEnd(s, sub string) string {
-	lastMatchedIdx := strings.LastIndex(s, sub)
-	isAtEnd := lastMatchedIdx+len(sub) == len(s)
+func AddAtEnd(str, subStr string) string {
+	lastMatchedIndex := strings.LastIndex(str, subStr)
+	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
 	if !isAtEnd {
-		return s + sub
+		return str + subStr
 	}
 
-	return s
+	return str
 }
 
-func RemoveAtEnd(s, sub string) string {
-	lastMatchedIdx := strings.LastIndex(s, sub)
-	isAtEnd := lastMatchedIdx+len(sub) == len(s)
+func RemoveAtEnd(str, subStr string) string {
+	lastMatchedIndex := strings.LastIndex(str, subStr)
+	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
 	if isAtEnd {
-		return s[:lastMatchedIdx]
+		return str[:lastMatchedIndex]
 	}
 
-	return s
+	return str
 }
