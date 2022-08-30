@@ -30,7 +30,7 @@ func (trieInstance *Trie) Len() uint {
 	return counter
 }
 
-func (trieInstance *Trie) Insert(words string, Index int) *Trie {
+func (trieInstance *Trie) Insert(words string, index int) *Trie {
 	wordLength := len(words)
 	shadowOfTrie := trieInstance
 
@@ -40,10 +40,11 @@ func (trieInstance *Trie) Insert(words string, Index int) *Trie {
 
 		if !isLetterExistInRoot {
 			shadowOfTrie.Root[letter] = NewTrie()
-			if i == wordLength-1 {
-				shadowOfTrie.Root[letter].isEnd = true
-				shadowOfTrie.Root[letter].Index = Index
-			}
+		}
+
+		if i == wordLength-1 {
+			shadowOfTrie.Root[letter].isEnd = true
+			shadowOfTrie.Root[letter].Index = index
 		}
 		shadowOfTrie = shadowOfTrie.Root[letter]
 	}
