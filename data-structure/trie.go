@@ -3,27 +3,26 @@ package data_structure
 type Node map[string]*Trie
 
 type Trie struct {
-	Node  Node
-	IsEnd bool
+	Root  Node
 	Index int
+	isEnd bool
 }
 
 func NewTrie() *Trie {
 	return &Trie{
-		Node:  make(Node),
-		IsEnd: false,
+		Root:  make(Node),
+		isEnd: false,
 		Index: -1,
 	}
 }
 
-func (tr *Trie) Len() uint {
+func (trieInstance *Trie) Len() uint {
 	var counter uint = 0
-
-	for k, v := range tr.Node {
-		if k != "" {
+	for word, node := range trieInstance.Root {
+		if word != "" {
 			counter += 1
-			if v != nil {
-				counter += v.Len()
+			if node != nil {
+				counter += node.Len()
 			}
 		}
 	}
@@ -31,65 +30,65 @@ func (tr *Trie) Len() uint {
 	return counter
 }
 
-func (tr *Trie) Insert(chars string, Index int) *Trie {
-	l := len(chars) - 1
-	shadowTrie := tr
+func (trieInstance *Trie) Insert(words string, Index int) *Trie {
+	wordLength := len(words)
+	shadowOfTrie := trieInstance
 
-	for i, rune := range chars {
-		char := string(rune)
-		isCharExistInNode := shadowTrie.Node[char] != nil
+	for i, rune := range words {
+		letter := string(rune)
+		isLetterExistInRoot := shadowOfTrie.Root[letter] != nil
 
-		if !isCharExistInNode {
-			shadowTrie.Node[char] = NewTrie()
-			if i == l {
-				shadowTrie.Node[char].IsEnd = true
-				shadowTrie.Node[char].Index = Index
+		if !isLetterExistInRoot {
+			shadowOfTrie.Root[letter] = NewTrie()
+			if i == wordLength-1 {
+				shadowOfTrie.Root[letter].isEnd = true
+				shadowOfTrie.Root[letter].Index = Index
 			}
 		}
-		shadowTrie = shadowTrie.Node[char]
+		shadowOfTrie = shadowOfTrie.Root[letter]
 	}
 
-	return tr
+	return trieInstance
 }
 
-func (tr *Trie) Find(chars string) (bool, int, []string) {
-	l := len(chars)
-	isFound := false
+func (trieInstance *Trie) Find(words string) (bool, int, []string) {
+	wordLength := len(words)
+	var Index int = -1
+	paramValues := make([]string, 0)
+	paramsValue := ""
+	isEnd := false
 	isHasParam := false
 	isHasWildcard := false
-	var Index int
-	varValues := make([]string, 0)
-	varValue := ""
-	shadowTrie := tr
+	shadowOfTrie := trieInstance
 
-	for i, rune := range chars {
-		char := string(rune)
+	for i, rune := range words {
+		letter := string(rune)
 
-		if char == SLASH {
+		if letter == SLASH {
 			isHasParam = false
 			isHasWildcard = false
-			if varValue != "" {
-				varValues = append(varValues, varValue)
-				varValue = ""
+			if paramsValue != "" {
+				paramValues = append(paramValues, paramsValue)
+				paramsValue = ""
 			}
 		}
 
-		if shadowTrie.Node[char] == nil {
+		if shadowOfTrie.Root[letter] == nil {
 
 			// Handle routes have params
 			// param have higher priority than wildcard
-			if shadowTrie.Node[DOLLAR_SIGN] != nil {
-				shadowTrie = shadowTrie.Node[DOLLAR_SIGN]
+			if shadowOfTrie.Root[DOLLAR_SIGN] != nil {
+				shadowOfTrie = shadowOfTrie.Root[DOLLAR_SIGN]
 				isHasParam = true
 			}
 
 			if isHasParam {
-				varValue += char
+				paramsValue += letter
 				continue
 			}
 
-			if shadowTrie.Node[WILDCARD] != nil {
-				shadowTrie = shadowTrie.Node[WILDCARD]
+			if shadowOfTrie.Root[WILDCARD] != nil {
+				shadowOfTrie = shadowOfTrie.Root[WILDCARD]
 				isHasWildcard = true
 			}
 
@@ -100,14 +99,14 @@ func (tr *Trie) Find(chars string) (bool, int, []string) {
 			break
 		}
 
-		if i == l-1 {
-			isFound = shadowTrie.Node[char].IsEnd
-			Index = shadowTrie.Node[char].Index
+		if i == wordLength-1 {
+			isEnd = shadowOfTrie.Root[letter].isEnd
+			Index = shadowOfTrie.Root[letter].Index
 			break
 		}
 
-		shadowTrie = shadowTrie.Node[char]
+		shadowOfTrie = shadowOfTrie.Root[letter]
 	}
 
-	return isFound, Index, varValues
+	return isEnd, Index, paramValues
 }
