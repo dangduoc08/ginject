@@ -1,10 +1,6 @@
-package core
+package context
 
 import "net/http"
-
-type response struct {
-	http.ResponseWriter
-}
 
 type ResponseExtender interface {
 	http.ResponseWriter
