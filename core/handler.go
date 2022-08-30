@@ -1,3 +1,3 @@
 package core
 
-type Handler func(*Request, ResponseExtender, func())
+type Handler = func(*Request, ResponseExtender, func())

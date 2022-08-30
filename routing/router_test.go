@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dangduoc08/go-go/core"
+	"github.com/dangduoc08/gooh/core"
 )
 
 func TestAdd(test *testing.T) {
@@ -22,7 +22,7 @@ func TestAdd(test *testing.T) {
 
 	})
 
-	actualTotalNode := ro.len()
+	actualTotalNode := ro.Trie.Len()
 	output1 := actualTotalNode == uint(expectTotalNode)
 	if !output1 {
 		test.Errorf("ro.len() = %v; expect = %v", actualTotalNode, expectTotalNode)
@@ -128,6 +128,12 @@ func TestGroup(test *testing.T) {
 	if matchedRoute != expectMatchedRoute {
 		test.Errorf("gr.Match(\"/v1/users/update/123\") = %v; expect = %v", matchedRoute, expectMatchedRoute)
 	}
+}
+
+func TestUse(test *testing.T) {
+	ro1 := NewRouter()
+	ro1.Use("as", func(req *core.Request, res core.ResponseExtender, next func()) {})
+	ro1.Add("/as", nil)
 }
 
 func TestV(test *testing.T) {

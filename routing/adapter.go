@@ -1,8 +1,8 @@
 package routing
 
 import (
-	"github.com/dangduoc08/go-go/core"
-	"github.com/dangduoc08/go-go/helper"
+	"github.com/dangduoc08/gooh/core"
+	dataStructure "github.com/dangduoc08/gooh/data-structure"
 )
 
 type adapter struct {
@@ -10,7 +10,23 @@ type adapter struct {
 }
 
 func handleRoute(route string) string {
-	return helper.AddAtEnd(helper.AddAtBegin(helper.RemoveSpace(route), helper.SLASH), helper.SLASH)
+	return dataStructure.AddAtEnd(dataStructure.AddAtBegin(dataStructure.RemoveSpace(route), dataStructure.SLASH), dataStructure.SLASH)
+}
+
+func (a *adapter) insertMiddleware(route string, handlers ...core.Handler) *adapter {
+	handledRoute := handleRoute(route)
+	routeWithVar, vars := core.NewVar(handledRoute)
+	rd := &routerData{
+		Handlers: &handlers,
+		Vars:     vars,
+	}
+
+	a.Trie.Insert(routeWithVar, len(a.array))
+	a.array = append(a.array, map[string]*routerData{
+		handledRoute: rd,
+	})
+
+	return a
 }
 
 func (a *adapter) insert(route string, handlers ...core.Handler) *adapter {
@@ -21,7 +37,7 @@ func (a *adapter) insert(route string, handlers ...core.Handler) *adapter {
 		Vars:     vars,
 	}
 
-	a.trie.insert(routeWithVar, len(a.array))
+	a.Trie.Insert(routeWithVar, len(a.array))
 	a.array = append(a.array, map[string]*routerData{
 		handledRoute: rd,
 	})
@@ -35,7 +51,7 @@ func (a *adapter) find(route string) (bool, string, *routerData) {
 	_, shadowRd.Vars = core.NewVar("")
 	shadowRd.Handlers = &[]core.Handler{}
 
-	if isFound, index, varParams := a.trie.find(handledRoute); isFound &&
+	if isFound, index, varParams := a.Trie.Find(handledRoute); isFound &&
 		index > -1 {
 		for route, routerData := range a.array[index] {
 

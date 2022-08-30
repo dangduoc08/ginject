@@ -2,12 +2,13 @@ package routing
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/go-go/core"
-	"github.com/dangduoc08/go-go/helper"
+	"github.com/dangduoc08/gooh/core"
+	dataStructure "github.com/dangduoc08/gooh/data-structure"
 )
 
 type routerData struct {
@@ -22,15 +23,15 @@ type IRoutable interface {
 }
 
 type Router struct {
-	*trie
+	*dataStructure.Trie
 	array []map[string]*routerData
 }
 
 func NewRouter() *Router {
-	tr := newTrie()
+	tr := dataStructure.NewTrie()
 
 	return &Router{
-		trie:  tr,
+		Trie:  tr,
 		array: []map[string]*routerData{},
 	}
 }
@@ -54,9 +55,9 @@ func (r *Router) Match(route string) (bool, string, *routerData) {
 
 func (r *Router) Group(route string, subRs ...*Router) *Router {
 	if route == "" {
-		route = helper.SLASH
+		route = dataStructure.SLASH
 	}
-	route = helper.RemoveAtEnd(route, helper.SLASH)
+	route = dataStructure.RemoveAtEnd(route, dataStructure.SLASH)
 	for _, subR := range subRs {
 		trieAdapter := adapter{
 			r,
@@ -71,14 +72,38 @@ func (r *Router) Group(route string, subRs ...*Router) *Router {
 	return r
 }
 
+func (r *Router) Use(args ...interface{}) {
+	var route string
+	for i, arg := range args {
+		switch arg.(type) {
+		case string:
+			if i == 0 {
+				route = handleRoute(arg.(string))
+				matchedMap := dataStructure.Find(r.array, func(m map[string]*routerData, index int, arr []map[string]*routerData) bool {
+					for k := range m {
+						return k == route
+					}
+					return false
+				})
+				fmt.Println(matchedMap)
+			}
+
+		case core.Handler:
+			fmt.Printf("heheh %T\n", arg)
+		}
+
+	}
+
+}
+
 func (r *Router) genTrieMap(c string) map[string]interface{} {
-	tr := r.trie
+	tr := r.Trie
 	params := []string{}
 	handlers := []interface{}{}
 
-	if tr.index > -1 {
+	if tr.Index > -1 {
 		var data *routerData
-		for _, routerData := range r.array[tr.index] {
+		for _, routerData := range r.array[tr.Index] {
 			data = routerData
 		}
 		if data != nil {
@@ -96,7 +121,7 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 						handlers = append(handlers, nil)
 						break
 					} else {
-						lastDotIndex := strings.LastIndex(handlerName, helper.DOT)
+						lastDotIndex := strings.LastIndex(handlerName, dataStructure.DOT)
 						if lastDotIndex > -1 {
 							handlerName = handlerName[lastDotIndex+1:]
 						}
@@ -108,15 +133,15 @@ func (r *Router) genTrieMap(c string) map[string]interface{} {
 	}
 
 	nodes := []interface{}{}
-	for k, v := range tr.node {
+	for k, v := range tr.Node {
 		newR := Router{v, r.array}
 		nodes = append(nodes, newR.genTrieMap(k))
 	}
 
 	visualizationMap := map[string]interface{}{
 		"char":     c,
-		"isEnd":    tr.isEnd,
-		"index":    tr.index,
+		"isEnd":    tr.IsEnd,
+		"index":    tr.Index,
 		"params":   params,
 		"handlers": handlers,
 		"nodes":    nodes,

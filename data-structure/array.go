@@ -1,6 +1,6 @@
-package ds
+package data_structure
 
-func ForEach[T any](arr []T, cb func(elem T, index int, arr []T)) {
+func forEach[T any](arr []T, cb func(elem T, index int, arr []T)) {
 	for i, v := range arr {
 		cb(v, i, arr)
 	}
@@ -18,7 +18,7 @@ func Find[T any](arr []T, cb func(elem T, index int, arr []T) bool) T {
 
 func Map[T, U any](arr []T, cb func(elem T, index int, arr []T) U) []U {
 	newArr := make([]U, 0)
-	ForEach(arr, func(elem T, index int, arr []T) {
+	forEach(arr, func(elem T, index int, arr []T) {
 		newArr = append(newArr, cb(elem, index, arr))
 	})
 	return newArr
