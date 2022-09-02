@@ -1,17 +1,15 @@
 package routing
 
-import (
-	"github.com/dangduoc08/gooh/core"
-)
+import "github.com/dangduoc08/gooh/context"
 
-type middleware []map[string]*[]core.Handler
+type middleware []map[string]*[]context.Handler
 
 func newMiddleware() middleware {
-	return make([]map[string]*([]core.Handler), 0)
+	return make([]map[string]*([]context.Handler), 0)
 }
 
-func (middlewareInstance *middleware) cache(route string, handlers ...core.Handler) {
-	middlewareMapRouteToHandler := map[string]*[]core.Handler{
+func (middlewareInstance *middleware) cache(route string, handlers ...context.Handler) {
+	middlewareMapRouteToHandler := map[string]*[]context.Handler{
 		route: &handlers,
 	}
 

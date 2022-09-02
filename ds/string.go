@@ -1,4 +1,4 @@
-package data_structure
+package ds
 
 import (
 	"regexp"
@@ -6,14 +6,17 @@ import (
 )
 
 const (
-	COLON               = ":"
-	UNDERSCORE          = "_"
-	SLASH               = "/"
-	WILDCARD            = "*"
-	DOLLAR_SIGN         = "$"
-	OPEN_CURLY_BRACKET  = "{"
-	CLOSE_CURLY_BRACKET = "}"
-	DOT                 = "."
+	COLON                = ":"
+	UNDERSCORE           = "_"
+	SLASH                = "/"
+	BACKSLASH            = "\\"
+	WILDCARD             = "*"
+	DOLLAR_SIGN          = "$"
+	OPEN_CURLY_BRACKET   = "{"
+	CLOSE_CURLY_BRACKET  = "}"
+	OPEN_SQUARE_BRACKET  = "["
+	CLOSE_SQUARE_BRACKET = "]"
+	DOT                  = "."
 )
 
 func RemoveSpace(str string) string {

@@ -1,8 +1,6 @@
 package routing
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -18,8 +16,8 @@ func TestAdd(test *testing.T) {
 	expectTotalNode := len("/foo/$/$/baz/$/") + len("param3/")
 
 	routerInstance := NewRouter()
-	routerInstance.Add(routeParams1, nil)
-	routerInstance.Add(routeParams2, nil)
+	routerInstance.add(routeParams1, nil)
+	routerInstance.add(routeParams2, nil)
 
 	actualTotalNode := routerInstance.Trie.Len()
 	output1 := actualTotalNode == uint(expectTotalNode)
@@ -37,7 +35,7 @@ func TestMatch(test *testing.T) {
 		"/v1/users/{userId}/*/jobs/{jobId}/delete",
 		"/v2/users/{userId}/*/jobs/{jobId}/*",
 	} {
-		routerInstance.Add(route, nil)
+		routerInstance.add(route, nil)
 	}
 
 	isFound1, _, routerData1 := routerInstance.Match("/v1/users/get/jobs/get")
@@ -108,7 +106,7 @@ func TestGroup(test *testing.T) {
 		"/users/get",
 		"/users/get/{userId}",
 	} {
-		routerInstance1.Add(route1, nil)
+		routerInstance1.add(route1, nil)
 	}
 
 	routerInstance2 := NewRouter()
@@ -116,7 +114,7 @@ func TestGroup(test *testing.T) {
 		"/users/update/{userId}",
 		"/users/delete/{userId}",
 	} {
-		routerInstance2.Add(route2, nil)
+		routerInstance2.add(route2, nil)
 	}
 
 	routerGr := NewRouter()
@@ -154,13 +152,13 @@ func TestMiddleware(test *testing.T) {
 	routerInstance1 := NewRouter()
 	routerInstance1.Use(middleware1)
 	routerInstance1.For("/users/{userId}")(middleware2, middleware3)
-	routerInstance1.Add("/users/{userId}", handler1)
+	routerInstance1.add("/[POST]/users/{userId}", handler1)
 	routerInstance1.For("/users/{userId}")(middleware3, middleware1)
 	routerInstance1.Use(middleware4, middleware2)
 
 	routerInstance1.Use(middleware1)
 	routerInstance1.For("/products")(middleware2, middleware3)
-	routerInstance1.Add("/products", handler1)
+	routerInstance1.add("/[TRACE]/products", handler1)
 	routerInstance1.For("/products")(middleware3, middleware1)
 	routerInstance1.Use(middleware4, middleware2)
 
@@ -168,9 +166,9 @@ func TestMiddleware(test *testing.T) {
 	routerGr.Group("/v1", routerInstance1)
 	routerGr.Use(middleware2)
 
-	_, matchedRoute, routerData := routerGr.Match("/v1/users/631253712bf56df421c80977")
+	_, matchedRoute, routerData := routerGr.Match("/[POST]/v1/users/631253712bf56df421c80977")
 
-	expectMatchedRoute := "/v1/users/{userId}/"
+	expectMatchedRoute := "/[POST]/v1/users/{userId}/"
 	expectUserId := "631253712bf56df421c80977"
 
 	if matchedRoute != expectMatchedRoute {
@@ -189,28 +187,35 @@ func TestMiddleware(test *testing.T) {
 	actualMiddlewareExecutedOrder := strings.Join(holdValueFromMiddleware[:], ", ")
 
 	if expectMiddlewareExecutedOrder != actualMiddlewareExecutedOrder {
-		test.Errorf("expectMiddlewareExecutedOrder = %v; expect = %v", expectMiddlewareExecutedOrder, actualMiddlewareExecutedOrder)
+		test.Errorf("actualMiddlewareExecutedOrder = %v; expect = %v", actualMiddlewareExecutedOrder, expectMiddlewareExecutedOrder)
 	}
 }
 
-func TestVisualize(test *testing.T) {
-	if os.Getenv("v") == "true" {
-		routerInstance := NewRouter()
-		for _, route := range []string{
-			"/v1/users/get/jobs/get",
-			"/v2/users/{userId}/*/jobs/{jobId}/get",
-			"/v1/users/{userId}/*/jobs/{jobId}/delete",
-			"/v2/users/{userId}/*/jobs/{jobId}/*",
-		} {
-			routerInstance.Add(route, func(ctx *context.Context) {})
-		}
-		jsonStr, err := routerInstance.visualize()
-		if err != nil {
-			fmt.Printf("Error: %s", err.Error())
-		} else {
-			fmt.Println(string(jsonStr))
-		}
-	} else {
-		test.Skip()
-	}
+func TestRoutable(test *testing.T) {
+	userRouter := NewRouter()
+	userRouter.Use(middleware1)
+	userRouter.For("/users")(middleware2, middleware3)
+	userRouter.Get("/users/get", handler1)
+	userRouter.Get("/users/{userId}", handler1)
+	userRouter.Post("/users", handler1)
+	userRouter.Put("/users/{userId}", handler1)
+	userRouter.Delete("/users/{userId}", handler1)
+	userRouter.For("/users/{userId}")(middleware2, middleware3)
+
+	productRouter := NewRouter()
+	productRouter.Get("/products", handler1)
+	productRouter.Get("/products/{productId}", handler1)
+	productRouter.Post("/products", handler1)
+	productRouter.Put("/products/{productId}", handler1)
+	productRouter.Delete("/products/{productId}", handler1)
+
+	v1 := NewRouter()
+	v1.Group("/v1/", userRouter, productRouter)
+
+	v2 := NewRouter()
+	v2.Group("/v2", userRouter, productRouter)
+
+	all := NewRouter()
+	all.Group("/all", v1, v2)
+
 }

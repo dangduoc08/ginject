@@ -1,4 +1,4 @@
-package data_structure
+package ds
 
 type Node map[string]*Trie
 
