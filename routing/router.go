@@ -18,15 +18,18 @@ type routerData struct {
 
 type Router struct {
 	*dataStructure.Trie
-	array []map[string]*routerData
+	array       []map[string]*routerData
+	middlewares middleware
 }
 
 func NewRouter() *Router {
 	trieInstance := dataStructure.NewTrie()
+	middlewareInstance := newMiddleware()
 
 	return &Router{
-		Trie:  trieInstance,
-		array: []map[string]*routerData{},
+		Trie:        trieInstance,
+		array:       []map[string]*routerData{},
+		middlewares: middlewareInstance,
 	}
 }
 
@@ -35,6 +38,7 @@ func (routerInstance *Router) Add(route string, handlers ...core.Handler) *Route
 		routerInstance,
 	}
 	routerAdapter.insert(route, handlers...)
+	routerAdapter.serve(route, ADD)
 
 	return routerInstance
 }
@@ -66,29 +70,28 @@ func (routerInstance *Router) Group(prefixRoute string, subRouters ...*Router) *
 	return routerInstance
 }
 
-// func (r *Router) Use(args ...interface{}) {
-// 	var route string
-// 	for i, arg := range args {
-// 		switch arg.(type) {
-// 		case string:
-// 			if i == 0 {
-// 				route = handleRoute(arg.(string))
-// 				matchedMap := dataStructure.Find(r.array, func(m map[string]*routerData, index int, arr []map[string]*routerData) bool {
-// 					for k := range m {
-// 						return k == route
-// 					}
-// 					return false
-// 				})
-// 				fmt.Println(matchedMap)
-// 			}
+func (routerInstance *Router) Use(handlers ...core.Handler) *Router {
+	routerInstance.middlewares.cache(dataStructure.WILDCARD, handlers...)
+	routerAdapter := adapter{
+		routerInstance,
+	}
+	routerAdapter.serve(dataStructure.WILDCARD, USE, handlers...)
 
-// 		case core.Handler:
-// 			fmt.Printf("heheh %T\n", arg)
-// 		}
+	return routerInstance
+}
 
-// 	}
+func (routerInstance *Router) For(route string) func(handlers ...core.Handler) *Router {
+	routerAdapter := adapter{
+		routerInstance,
+	}
 
-// }
+	return func(handlers ...core.Handler) *Router {
+		routerInstance.middlewares.cache(handleRoute(route), handlers...)
+		routerAdapter.serve(route, USE, handlers...)
+
+		return routerInstance
+	}
+}
 
 func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
 	routerTrie := routerInstance.Trie
@@ -126,7 +129,7 @@ func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
 
 	nodes := []interface{}{}
 	for nextWord, nextNode := range routerTrie.Root {
-		newRouterInstance := Router{nextNode, routerInstance.array}
+		newRouterInstance := Router{nextNode, routerInstance.array, newMiddleware()}
 		nodes = append(nodes, newRouterInstance.genTrieMap(nextWord))
 	}
 
