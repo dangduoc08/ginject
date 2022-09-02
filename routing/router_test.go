@@ -3,6 +3,7 @@ package routing
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/dangduoc08/gooh/context"
@@ -128,11 +129,69 @@ func TestGroup(test *testing.T) {
 	}
 }
 
-// func TestUse(test *testing.T) {
-// 	routerInstance1 := NewRouter()
-// 	routerInstance1.Use("as", nil)
-// 	routerInstance1.Add("/as", nil)
-// }
+var holdValueFromMiddleware = make([]string, 0)
+
+func middleware1(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
+}
+func middleware2(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
+}
+func handler1(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
+}
+func handler2(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
+}
+func middleware3(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
+}
+func middleware4(ctx *context.Context) {
+	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
+}
+
+func TestMiddleware(test *testing.T) {
+	routerInstance1 := NewRouter()
+	routerInstance1.Use(middleware1)
+	routerInstance1.For("/users/{userId}")(middleware2, middleware3)
+	routerInstance1.Add("/users/{userId}", handler1)
+	routerInstance1.For("/users/{userId}")(middleware3, middleware1)
+	routerInstance1.Use(middleware4, middleware2)
+
+	routerInstance1.Use(middleware1)
+	routerInstance1.For("/products")(middleware2, middleware3)
+	routerInstance1.Add("/products", handler1)
+	routerInstance1.For("/products")(middleware3, middleware1)
+	routerInstance1.Use(middleware4, middleware2)
+
+	routerGr := NewRouter()
+	routerGr.Group("/v1", routerInstance1)
+	routerGr.Use(middleware2)
+
+	_, matchedRoute, routerData := routerGr.Match("/v1/users/631253712bf56df421c80977")
+
+	expectMatchedRoute := "/v1/users/{userId}/"
+	expectUserId := "631253712bf56df421c80977"
+
+	if matchedRoute != expectMatchedRoute {
+		test.Errorf("matchedRoute = %v; expect = %v", matchedRoute, expectMatchedRoute)
+	}
+
+	if routerData.Params.Get("userId") != expectUserId {
+		test.Errorf("routerData.Params.Get(\"userId\") = %v; expect = %v", routerData.Params.Get("userId"), expectUserId)
+	}
+
+	for _, handlers := range *routerData.Handlers {
+		handlers(&context.Context{})
+	}
+
+	expectMiddlewareExecutedOrder := "middleware1, middleware2, middleware3, handler1, middleware3, middleware1, middleware4, middleware2, middleware1, middleware4, middleware2, middleware2"
+	actualMiddlewareExecutedOrder := strings.Join(holdValueFromMiddleware[:], ", ")
+
+	if expectMiddlewareExecutedOrder != actualMiddlewareExecutedOrder {
+		test.Errorf("expectMiddlewareExecutedOrder = %v; expect = %v", expectMiddlewareExecutedOrder, actualMiddlewareExecutedOrder)
+	}
+}
 
 func TestVisualize(test *testing.T) {
 	if os.Getenv("v") == "true" {
