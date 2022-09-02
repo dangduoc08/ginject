@@ -5,10 +5,10 @@ import (
 	"regexp"
 	"strings"
 
-	dataStructure "github.com/dangduoc08/gooh/data-structure"
+	"github.com/dangduoc08/gooh/ds"
 )
 
-const PARAM_SYMBOL = dataStructure.DOLLAR_SIGN
+const PARAM_SYMBOL = ds.DOLLAR_SIGN
 
 type Param[T interface{}] struct{ keyValue (map[string]T) }
 
@@ -18,12 +18,12 @@ func NewParam(str string) (string, *Param[interface{}]) {
 	}
 
 	if str != "" {
-		matchParamPatternReg := regexp.MustCompile(fmt.Sprintf(`\%v(.*?)\%v`, dataStructure.OPEN_CURLY_BRACKET, dataStructure.CLOSE_CURLY_BRACKET))
+		matchParamPatternReg := regexp.MustCompile(fmt.Sprintf(`\%v(.*?)\%v`, ds.OPEN_CURLY_BRACKET, ds.CLOSE_CURLY_BRACKET))
 
 		for paramOrder, byte := range matchParamPatternReg.FindAll([]byte(str), -1) {
 			paramNameWithCurlyBracket := string(byte)
 			str = strings.Replace(str, paramNameWithCurlyBracket, PARAM_SYMBOL, 1)
-			paramName := dataStructure.RemoveAtEnd(dataStructure.RemoveAtBegin(paramNameWithCurlyBracket, dataStructure.OPEN_CURLY_BRACKET), dataStructure.CLOSE_CURLY_BRACKET)
+			paramName := ds.RemoveAtEnd(ds.RemoveAtBegin(paramNameWithCurlyBracket, ds.OPEN_CURLY_BRACKET), ds.CLOSE_CURLY_BRACKET)
 			paramInstance.Set(paramName, paramOrder)
 		}
 	}
