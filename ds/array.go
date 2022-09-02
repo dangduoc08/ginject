@@ -1,4 +1,4 @@
-package data_structure
+package ds
 
 func forEach[T any](arr []T, callback func(elem T, index int)) {
 	for index, elem := range arr {
