@@ -1,19 +1,19 @@
 package routing
 
 import (
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/ds"
 )
 
 type routerData struct {
-	Handlers *[]context.Handler
-	Params   *context.Param[interface{}]
+	Handlers *[]ctx.Handler
+	Params   *ctx.Param[interface{}]
 }
 
 type Router struct {
 	*ds.Trie
-	array       []map[string]*routerData
-	middlewares middleware
+	RouteMapDataArr []map[string]*routerData
+	middlewares     middleware
 }
 
 func NewRouter() *Router {
@@ -21,13 +21,13 @@ func NewRouter() *Router {
 	middlewareInstance := newMiddleware()
 
 	return &Router{
-		Trie:        trieInstance,
-		array:       []map[string]*routerData{},
-		middlewares: middlewareInstance,
+		Trie:            trieInstance,
+		RouteMapDataArr: []map[string]*routerData{},
+		middlewares:     middlewareInstance,
 	}
 }
 
-func (routerInstance *Router) add(route string, handlers ...context.Handler) *Router {
+func (routerInstance *Router) add(route string, handlers ...ctx.Handler) *Router {
 	routerAdapter := adapter{
 		routerInstance,
 	}
@@ -37,7 +37,7 @@ func (routerInstance *Router) add(route string, handlers ...context.Handler) *Ro
 	return routerInstance
 }
 
-func (routerInstance *Router) Match(route string) (bool, string, *routerData) {
+func (routerInstance *Router) match(route string) (bool, string, *routerData) {
 	routerAdapter := adapter{
 		routerInstance,
 	}

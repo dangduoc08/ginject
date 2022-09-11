@@ -1,13 +1,13 @@
-package context
+package ctx
 
 import (
-	goCtx "context"
+	"context"
 	"net/http"
 )
 
 type Context struct {
-	goCtx.Context
+	context.Context
 	Req    *http.Request
-	Res    ResponseExtender
+	Res    http.ResponseWriter
 	Params Param[interface{}]
 }

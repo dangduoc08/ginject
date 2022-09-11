@@ -16,7 +16,7 @@ func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
 
 	if routerTrie.Index > -1 {
 		var routerData *routerData
-		for _, routerDataPt := range routerInstance.array[routerTrie.Index] {
+		for _, routerDataPt := range routerInstance.RouteMapDataArr[routerTrie.Index] {
 			routerData = routerDataPt
 		}
 		if routerData != nil {
@@ -45,7 +45,7 @@ func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
 
 	nodes := []interface{}{}
 	for nextWord, nextNode := range routerTrie.Root {
-		newRouterInstance := Router{nextNode, routerInstance.array, newMiddleware()}
+		newRouterInstance := Router{nextNode, routerInstance.RouteMapDataArr, newMiddleware()}
 		nodes = append(nodes, newRouterInstance.genTrieMap(nextWord))
 	}
 
