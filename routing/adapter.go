@@ -1,7 +1,7 @@
 package routing
 
 import (
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/ds"
 )
 
@@ -14,7 +14,7 @@ type adapter struct {
 	*Router
 }
 
-func (adapterInstance *adapter) serve(route string, whichMethodInvoke int, handlers ...context.Handler) *adapter {
+func (adapterInstance *adapter) serve(route string, whichMethodInvoke int, handlers ...ctx.Handler) *adapter {
 	pushedHandledRoute := handlePath(route)
 
 	if whichMethodInvoke == USE {
@@ -23,7 +23,7 @@ func (adapterInstance *adapter) serve(route string, whichMethodInvoke int, handl
 		// iterate all handlers array
 		// if route matched or wildcard
 		// append middlewares to handlers
-		for _, routerDataMap := range adapterInstance.array {
+		for _, routerDataMap := range adapterInstance.RouteMapDataArr {
 			for cachedRoute, routerDataPt := range routerDataMap {
 				if cachedRoute == pushedHandledRoute || isServeForAllRoutes {
 
@@ -41,7 +41,7 @@ func (adapterInstance *adapter) serve(route string, whichMethodInvoke int, handl
 		for index >= 0 {
 			for middlewareCachedRoute, cachedMiddlewareArr := range adapterInstance.middlewares[index] {
 				isServeForAllRoutes := middlewareCachedRoute == ds.WILDCARD
-				for _, routerDataMap := range adapterInstance.array {
+				for _, routerDataMap := range adapterInstance.RouteMapDataArr {
 					for cachedRoute, routerDataPt := range routerDataMap {
 						if cachedRoute == pushedHandledRoute && (cachedRoute == middlewareCachedRoute || isServeForAllRoutes) {
 
@@ -58,26 +58,26 @@ func (adapterInstance *adapter) serve(route string, whichMethodInvoke int, handl
 	return adapterInstance
 }
 
-func (adapterInstance *adapter) insert(route string, handlers ...context.Handler) *adapter {
+func (adapterInstance *adapter) insert(route string, handlers ...ctx.Handler) *adapter {
 	handledRoute := handlePath(route)
-	routeWithParams, params := context.NewParam(handledRoute)
+	routeWithParams, params := ctx.NewParam(handledRoute)
 	routerDataInstance := &routerData{
 		Handlers: &handlers,
 		Params:   params,
 	}
 
-	existingRouteIndex := ds.FindIndex(adapterInstance.array, func(elem map[string]*routerData, index int) bool {
+	existingRouteIndex := ds.FindIndex(adapterInstance.RouteMapDataArr, func(elem map[string]*routerData, index int) bool {
 		return elem[handledRoute] != nil
 	})
 
 	if existingRouteIndex > -1 {
 		adapterInstance.Trie.Insert(routeWithParams, existingRouteIndex)
-		adapterInstance.array[existingRouteIndex] = map[string]*routerData{
+		adapterInstance.RouteMapDataArr[existingRouteIndex] = map[string]*routerData{
 			handledRoute: routerDataInstance,
 		}
 	} else {
-		adapterInstance.Trie.Insert(routeWithParams, len(adapterInstance.array))
-		adapterInstance.array = append(adapterInstance.array, map[string]*routerData{
+		adapterInstance.Trie.Insert(routeWithParams, len(adapterInstance.RouteMapDataArr))
+		adapterInstance.RouteMapDataArr = append(adapterInstance.RouteMapDataArr, map[string]*routerData{
 			handledRoute: routerDataInstance,
 		})
 	}
@@ -88,12 +88,12 @@ func (adapterInstance *adapter) insert(route string, handlers ...context.Handler
 func (adapterInstance *adapter) find(route string) (bool, string, *routerData) {
 	handledRoute := handlePath(route)
 	shadowOfRouterData := new(routerData)
-	_, shadowOfRouterData.Params = context.NewParam("")
-	shadowOfRouterData.Handlers = &[]context.Handler{}
+	_, shadowOfRouterData.Params = ctx.NewParam("")
+	shadowOfRouterData.Handlers = &[]ctx.Handler{}
 
 	if isEnd, index, paramValues := adapterInstance.Trie.Find(handledRoute); isEnd &&
 		index > -1 {
-		for route, routerData := range adapterInstance.array[index] {
+		for route, routerData := range adapterInstance.RouteMapDataArr[index] {
 
 			// bind handler functions
 			shadowOfRouterData.Handlers = routerData.Handlers
