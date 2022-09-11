@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 )
 
 func TestVisualize(test *testing.T) {
@@ -17,7 +17,7 @@ func TestVisualize(test *testing.T) {
 			"/v1/users/{userId}/*/jobs/{jobId}/delete",
 			"/v2/users/{userId}/*/jobs/{jobId}/*",
 		} {
-			routerInstance.add(route, func(ctx *context.Context) {})
+			routerInstance.add(route, func(ctx *ctx.Context) {})
 		}
 		jsonStr, err := routerInstance.visualize()
 		if err != nil {
