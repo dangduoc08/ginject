@@ -35,6 +35,10 @@ func (paramInstance *Param[T]) Get(key string) T {
 	return paramInstance.keyValue[key]
 }
 
+func (paramInstance *Param[T]) Add(key string, value T) {
+	paramInstance.keyValue[key] = value
+}
+
 func (paramInstance *Param[T]) Set(key string, value T) {
 	paramInstance.keyValue[key] = value
 }

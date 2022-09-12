@@ -61,7 +61,7 @@ func (routerInstance *Router) genTrieMap(word string) map[string]interface{} {
 }
 
 // Support to debug router easier
-func (routerInstance *Router) visualize() ([]byte, error) {
+func (routerInstance *Router) Visualize() ([]byte, error) {
 	visualizationMap := routerInstance.genTrieMap("root")
 	return json.Marshal(visualizationMap)
 }

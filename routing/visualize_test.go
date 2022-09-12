@@ -19,7 +19,7 @@ func TestVisualize(test *testing.T) {
 		} {
 			routerInstance.add(route, func(ctx *ctx.Context) {})
 		}
-		jsonStr, err := routerInstance.visualize()
+		jsonStr, err := routerInstance.Visualize()
 		if err != nil {
 			fmt.Printf("Error: %s", err.Error())
 		} else {

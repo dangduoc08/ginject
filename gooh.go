@@ -1,7 +1,6 @@
 package gooh
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -18,23 +17,33 @@ func Default() *application {
 		routing.NewRouter(),
 	}
 
-	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/", func(writer http.ResponseWriter, req *http.Request) {
 		isMatched, matchedRoute, routerData := appInstance.router.Match(req.Method, req.URL.Path)
+		isNext := true
+		next := func() {
+			isNext = true
+		}
+
 		ctx := ctx.Context{
-			Params: *routerData.Params,
 			Req:    req,
-			Res:    res,
+			Res:    writer,
+			Params: *routerData.Params,
+			Event:  ctx.NewEvent(),
+			Route: &ctx.Route{
+				Path: matchedRoute,
+			},
+			Next: next,
 		}
 
 		if isMatched {
-			fmt.Println(matchedRoute)
-			fmt.Println(routerData.Params.Values()...)
-
 			for _, handler := range *routerData.Handlers {
-				handler(&ctx)
+				if isNext {
+					isNext = false
+					handler(&ctx)
+				}
 			}
 		} else {
-			http.NotFound(res, req)
+			http.NotFound(writer, req)
 		}
 	})
 
@@ -51,6 +60,7 @@ func (appInstance *application) ListenAndServe(addr string, handler http.Handler
 			log.Default().Println("RouteExplorer", route)
 		}
 	}
+
 	return http.ListenAndServe(addr, handler)
 }
 
