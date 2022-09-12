@@ -1,49 +1,26 @@
 package gooh
 
 import (
-	"fmt"
 	"log"
 	"testing"
 
 	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/middlewares"
 )
 
-func middleware1(ctx *ctx.Context) {
-	fmt.Println("middleware1")
-}
-func middleware2(ctx *ctx.Context) {
-	fmt.Println("middleware2")
-}
 func handler1(ctx *ctx.Context) {
-	fmt.Println("handler1")
-}
-func handler2(ctx *ctx.Context) {
-	fmt.Println("handler2")
-}
-func middleware3(ctx *ctx.Context) {
-	fmt.Println("middleware3")
-}
-func middleware4(ctx *ctx.Context) {
-	fmt.Println("middleware4")
+	ctx.JSON(201, "{\"problems\":[{\"Diabetes\":[{\"medications\":[{\"medicationsClasses\":[{\"className\":[{\"associatedDrug\":[{\"name\":\"asprin\",\"dose\":\"\",\"strength\":\"500 mg\"}],\"associatedDrug#2\":[{\"name\":\"somethingElse\",\"dose\":\"\",\"strength\":\"500 mg\"}]}],\"className2\":[{\"associatedDrug\":[{\"name\":\"asprin\",\"dose\":\"\",\"strength\":\"500 mg\"}],\"associatedDrug#2\":[{\"name\":\"somethingElse\",\"dose\":\"\",\"strength\":\"500 mg\"}]}]}]}],\"labs\":[{\"missing_field\":\"missing_value\"}]}],\"Asthma\":[{}]}]}")
 }
 
 func TestApplication(test *testing.T) {
 	app := Default()
+	app.Use(middlewares.RequestLogger)
 
 	userRouter := Router()
-	userRouter.Put("/users/{userId}", handler1)
+	userRouter.Get("/{userId}", handler1)
 
-	v1 := Router()
-	v1.Group("/v1/", userRouter)
-
-	app.Group("/", v1)
-
-	for _, el := range app.router.RouteMapDataArr {
-		for route, _ := range el {
-			log.SetPrefix("RouteExplorer")
-			log.Default().Println(route)
-		}
-	}
+	app.Group("/users", userRouter)
+	app.Use(middlewares.RequestLogger)
 
 	log.Fatal(app.ListenAndServe(":3000", nil))
 }

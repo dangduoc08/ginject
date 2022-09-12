@@ -1,10 +1,12 @@
 package routing
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/ds"
 )
 
 func TestAdd(test *testing.T) {
@@ -127,38 +129,43 @@ func TestGroup(test *testing.T) {
 	}
 }
 
-var holdValueFromMiddleware = make([]string, 0)
-
-func middleware1(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
-}
-func middleware2(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
-}
-func handler1(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
-}
-func handler2(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
-}
-func middleware3(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
-}
-func middleware4(ctx *ctx.Context) {
-	holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
-}
-
 func TestMiddleware(test *testing.T) {
+	var holdValueFromMiddleware = make([]string, 0)
+
+	middleware1 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
+	}
+
+	middleware2 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
+	}
+
+	handler1 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
+	}
+
+	handler2 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
+	}
+
+	middleware3 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
+	}
+
+	middleware4 := func(ctx *ctx.Context) {
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
+	}
+
 	routerInstance1 := NewRouter()
 	routerInstance1.Use(middleware1)
 	routerInstance1.For("/users/{userId}")(middleware2, middleware3)
-	routerInstance1.add("/[POST]/users/{userId}", handler1)
+	routerInstance1.Post("/users/{userId}", handler1)
 	routerInstance1.For("/users/{userId}")(middleware3, middleware1)
 	routerInstance1.Use(middleware4, middleware2)
 
 	routerInstance1.Use(middleware1)
 	routerInstance1.For("/products")(middleware2, middleware3)
-	routerInstance1.add("/[TRACE]/products", handler1)
+	routerInstance1.Trace("/products", handler1, handler2)
 	routerInstance1.For("/products")(middleware3, middleware1)
 	routerInstance1.Use(middleware4, middleware2)
 
@@ -166,7 +173,13 @@ func TestMiddleware(test *testing.T) {
 	routerGr.Group("/v1", routerInstance1)
 	routerGr.Use(middleware2)
 
-	_, matchedRoute, routerData := routerGr.match("/[POST]/v1/users/631253712bf56df421c80977")
+	for _, midMap := range routerGr.middlewares {
+		for route := range midMap {
+			fmt.Println(route)
+		}
+	}
+
+	_, matchedRoute, routerData := routerGr.match("/[POST]/v1/users/631253712bf56df421c80977/")
 
 	expectMatchedRoute := "/[POST]/v1/users/{userId}/"
 	expectUserId := "631253712bf56df421c80977"
@@ -182,7 +195,7 @@ func TestMiddleware(test *testing.T) {
 	for _, handlers := range *routerData.Handlers {
 		handlers(&ctx.Context{})
 	}
-
+	// middleware1, middleware2, middleware3, middleware3, middleware1, middleware4, middleware2, middleware1, middleware4, middleware2, handler1, middleware2
 	expectMiddlewareExecutedOrder := "middleware1, middleware2, middleware3, handler1, middleware3, middleware1, middleware4, middleware2, middleware1, middleware4, middleware2, middleware2"
 	actualMiddlewareExecutedOrder := strings.Join(holdValueFromMiddleware[:], ", ")
 
@@ -192,30 +205,83 @@ func TestMiddleware(test *testing.T) {
 }
 
 func TestRoutable(test *testing.T) {
+	var holdValueFromMiddleware = make([]string, 0)
+
+	middleware1 := func(ctx *ctx.Context) {
+		fmt.Println("middleware1")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
+	}
+
+	middleware2 := func(ctx *ctx.Context) {
+		fmt.Println("middleware2")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
+	}
+
+	middleware3 := func(ctx *ctx.Context) {
+		fmt.Println("middleware3")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
+	}
+
+	middleware4 := func(ctx *ctx.Context) {
+		fmt.Println("middleware4")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
+	}
+
+	middleware5 := func(ctx *ctx.Context) {
+		fmt.Println("middleware5")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware5")
+	}
+
+	handler1 := func(ctx *ctx.Context) {
+		fmt.Println("handler1")
+		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
+	}
+
+	// handler2 := func(ctx *ctx.Context) {
+	// 	fmt.Println("handler2")
+	// 	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
+	// }
+
 	userRouter := NewRouter()
-	userRouter.Use(middleware1)
-	userRouter.For("/users")(middleware2, middleware3)
-	userRouter.Get("/users/get", handler1)
-	userRouter.Get("/users/{userId}", handler1)
-	userRouter.Post("/users", handler1)
-	userRouter.Put("/users/{userId}", handler1)
-	userRouter.Delete("/users/{userId}", handler1)
-	userRouter.For("/users/{userId}")(middleware2, middleware3)
-
 	productRouter := NewRouter()
+	mainRouter := NewRouter()
+
+	userRouter.For("/users")(middleware4)
+	userRouter.Use(middleware5)
+	userRouter.For("/users")(middleware2)
+	// userRouter.Get("/users", handler1)
+	userRouter.For("/users")(middleware1)
+
+	productRouter.For("/products")(middleware4)
+	productRouter.Use(middleware5)
+	productRouter.For("/products")(middleware2)
 	productRouter.Get("/products", handler1)
-	productRouter.Get("/products/{productId}", handler1)
-	productRouter.Post("/products", handler1)
-	productRouter.Put("/products/{productId}", handler1)
-	productRouter.Delete("/products/{productId}", handler1)
+	productRouter.For("/products")(middleware1)
 
-	v1 := NewRouter()
-	v1.Group("/v1/", userRouter, productRouter)
+	mainRouter.Use(middleware1)
+	mainRouter.For("/gr1/users")(middleware3, middleware4)
+	mainRouter.For("/gr1/users")(middleware5)
 
-	v2 := NewRouter()
-	v2.Group("/v2", userRouter, productRouter)
+	mainRouter.Group("/gr1", userRouter, productRouter)
+	mainRouter.For("/gr1/users")(middleware5)
+	// mainRouter.Get("/gr1/users", handler1)
 
-	all := NewRouter()
-	all.Group("/all", v1, v2)
+	testRoute := "/[GET]/gr1/products/"
+	isMatched, _, routerData := mainRouter.match(testRoute)
 
+	if isMatched {
+		for _, handler := range *routerData.Handlers {
+			handler(&ctx.Context{})
+		}
+	} else {
+		for _, middlewareMap := range mainRouter.middlewares {
+			for route, middlewareHandlers := range middlewareMap {
+				if route == ds.WILDCARD || route == testRoute {
+					for _, handler := range *middlewareHandlers {
+						handler(&ctx.Context{})
+					}
+				}
+			}
+		}
+	}
 }

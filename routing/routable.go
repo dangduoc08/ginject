@@ -65,16 +65,33 @@ func (routerInstance *Router) Group(prefixRoute string, subRouters ...*Router) R
 
 	// prevent add prefix include slash at last
 	prefixRoute = ds.RemoveAtEnd(prefixRoute, ds.SLASH)
-
 	for _, subRouter := range subRouters {
 		routerAdapter := adapter{
 			routerInstance,
 		}
+
+		// Add sub middlewares to main router
+		// incase sub routers has no handlers
+		if len(subRouter.RouteMapDataArr) <= 0 {
+			for _, subMiddlewaresMap := range subRouter.middlewares {
+				for subRoute, subMiddlewares := range subMiddlewaresMap {
+					if subRoute == ds.WILDCARD {
+						routerInstance.middlewares.cache(subRoute, *subMiddlewares...)
+					} else {
+						method := matchMethodReg.FindString(subRoute)
+						subRouteWithoutMethod := matchMethodReg.ReplaceAllString(subRoute, "")
+						routerInstance.middlewares.cache(method+prefixRoute+subRouteWithoutMethod, *subMiddlewares...)
+					}
+				}
+			}
+		}
+
 		for _, subRouterDataMappedByRoute := range subRouter.RouteMapDataArr {
 			for subRoute, subRouterData := range subRouterDataMappedByRoute {
 				method := matchMethodReg.FindString(subRoute)
 				subRouteWithoutMethod := matchMethodReg.ReplaceAllString(subRoute, "")
 				routerAdapter.insert(method+prefixRoute+subRouteWithoutMethod, *subRouterData.Handlers...)
+				routerAdapter.serve(method+prefixRoute+subRouteWithoutMethod, ADD)
 			}
 		}
 	}
