@@ -4,88 +4,94 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"time"
 )
 
-type Response interface {
-	Set(fields map[string]string) Response // Set HTTP header field to value
-	Type(contentType string) Response      // Set HTTP header content-type
-	// Send(statusCode int, content string, arguments ...interface{}) // Response text or HTML
-	JSON(statusCode int, datas ...interface{}) // Response JSON
-	// JSONP(statusCode int, datas ...interface{})                    // Response JSONP
-	// Error(callback func(interface{}))                              // Response Error
+type Handler func(c *Context)
+
+type Responser interface {
+	Set(pair map[string]string) Responser
+	Status(code int) Responser
+	Text(content string, args ...interface{})
+	JSON(args ...interface{})
+	Param() Values
+	// JSONP(args ...interface{})
+	// Error(callback func(interface{}))
 }
 
 type Context struct {
-	Req    *http.Request
-	Res    http.ResponseWriter
-	Event  *Event
-	Route  *Route
-	Params Param[interface{}]
-	Next   func()
+	req    *http.Request
+	writer http.ResponseWriter
+
+	Query     func() url.Values
+	URL       *url.URL
+	UserAgent func() string
+	Method    string
+
+	Next      func()
+	Event     *event
+	Code      int
+	Timestamp time.Time
+	ParamKeys map[string][]int
+	ParamVals []string
 }
 
-// Set response HTTP headers
-// by implement Header.().Add() method of http.ResponseWriter interface
-func (ctx *Context) Set(fields map[string]string) Response {
-	for field, value := range fields {
-		ctx.Res.Header().Add(field, value)
+func NewContext() *Context {
+	return &Context{
+		Code:      http.StatusOK,
+		Timestamp: time.Now(),
+		Event:     newEvent(),
+	}
+}
+
+func SetReq(c *Context, req *http.Request) {
+	c.req = req
+}
+
+func SetRes(c *Context, writer http.ResponseWriter) {
+	c.writer = writer
+}
+
+func (c *Context) Set(pair map[string]string) Responser {
+	for key, value := range pair {
+		c.writer.Header().Set(key, value)
 	}
 
-	return ctx
+	return c
 }
 
-// Set content-type header
-// by implement Header.().Set() method of http.ResponseWriter interface
-func (ctx *Context) Type(contentType string) Response {
-	ctx.Res.Header().Set("Content-Type", contentType)
+func (c *Context) Status(code int) Responser {
+	c.Code = code
 
-	return ctx
+	return c
 }
 
-// JSON to reponse JSON type
-func (ctx *Context) JSON(statusCode int, datas ...interface{}) {
+func (c *Context) Text(content string, args ...interface{}) {
+	c.writer.WriteHeader(c.Code)
+	fmt.Fprintf(c.writer, content, args...)
+	c.Event.Emit(REQUEST_FINISHED)
+}
 
-	// Datas can be string, struct or map[string]interface{}
-	data := datas[0]
+func (c *Context) JSON(args ...interface{}) {
+	data := args[0]
 
-	switch data.(type) {
-
-	// Handle case datas are string
+	switch args[0].(type) {
 	case string:
-
-		// Format string with params
-		fStr := fmt.Sprintf(data.(string), datas[1:]...)
-
-		// Parse string to raw JSON
-		data = json.RawMessage(fStr)
-	default:
-
-		// If datas are not string
-		// only accept one argument
-		if len(datas) > 1 {
-			panic("JSON use map or struct type only accepts a agrument")
-		}
+		str := fmt.Sprintf(data.(string), args[1:]...)
+		data = json.RawMessage(str)
 	}
 
-	// Parse to JSON
-	buffer, err := json.Marshal(&data)
+	buf, err := json.Marshal(&data)
 
 	if err != nil {
 		panic(err.Error())
 	}
 
-	ctx.Type("application/json")
-	ctx.Res.WriteHeader(statusCode)
-	ctx.Res.Write(buffer)
-	ctx.Event.Emit("finish")
-	ctx.Next()
-}
-
-// Send string or HTML string
-// second params are variable value
-func (ctx *Context) Send(statusCode int, content string, arguments ...interface{}) {
-	ctx.Res.WriteHeader(statusCode)
-	fmt.Fprintf(ctx.Res, content, arguments...)
-	ctx.Event.Emit("finish")
-	ctx.Next()
+	c.Set(map[string]string{
+		"Content-Type": "application/json",
+	})
+	c.writer.WriteHeader(c.Code)
+	c.writer.Write(buf)
+	c.Event.Emit(REQUEST_FINISHED)
 }

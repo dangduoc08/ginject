@@ -1,17 +1,17 @@
 package middlewares
 
 import (
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/dangduoc08/gooh/ctx"
 )
 
-func RequestLogger(ctx *ctx.Context) {
-	nano := time.Now().Nanosecond()
-	ctx.Event.On("finish", func(args ...interface{}) {
-		fmt.Println("log-request", time.Now().Nanosecond()-nano)
+func RequestLogger(c *ctx.Context) {
+	c.Event.On(ctx.REQUEST_FINISHED, func(args ...interface{}) {
+		responseTime := time.Now().UnixMilli() - c.Timestamp.UnixMilli()
+		log.Printf("%v %v %v %v %v ms", c.Method, c.UserAgent(), c.URL, c.Code, responseTime)
 	})
 
-	ctx.Next()
+	c.Next()
 }

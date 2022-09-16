@@ -9,105 +9,117 @@ import (
 )
 
 type application struct {
-	router *routing.Router
+	router *routing.Route
 }
 
+type Map map[string]interface{}
+
 func Default() *application {
-	appInstance := application{
-		routing.NewRouter(),
+	app := application{
+		routing.NewRoute(),
 	}
 
-	http.HandleFunc("/", func(writer http.ResponseWriter, req *http.Request) {
-		isMatched, matchedRoute, routerData := appInstance.router.Match(req.Method, req.URL.Path)
+	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		c := ctx.NewContext()
+		isMatched, _, paramKeys, paramVals, handlers := app.router.Match(req.URL.Path, req.Method)
 		isNext := true
 		next := func() {
 			isNext = true
 		}
 
-		ctx := ctx.Context{
-			Req:    req,
-			Res:    writer,
-			Params: *routerData.Params,
-			Event:  ctx.NewEvent(),
-			Route: &ctx.Route{
-				Path: matchedRoute,
-			},
-			Next: next,
-		}
+		ctx.SetReq(c, req)
+		ctx.SetRes(c, w)
+		c.Next = next
+		c.Query = req.URL.Query
+		c.Method = req.Method
+		c.UserAgent = req.UserAgent
+		c.URL = req.URL
 
 		if isMatched {
-			for _, handler := range *routerData.Handlers {
+			c.ParamVals = paramVals
+			c.ParamKeys = paramKeys
+			for _, handler := range handlers {
 				if isNext {
 					isNext = false
-					handler(&ctx)
+					handler(c)
 				}
 			}
 		} else {
-			http.NotFound(writer, req)
+			// Invoke middlewares
+			for _, middleware := range app.router.Middlewares {
+				if isNext {
+					isNext = false
+					middleware(c)
+				}
+			}
+
+			if isNext {
+				c.Event.Emit(ctx.REQUEST_FINISHED)
+				c.Status(http.StatusNotFound)
+				http.NotFound(w, req)
+			}
 		}
 	})
 
-	return &appInstance
+	return &app
 }
 
-func Router() *routing.Router {
-	return routing.NewRouter()
+func Router() *routing.Route {
+	return routing.NewRoute()
 }
 
-func (appInstance *application) ListenAndServe(addr string, handler http.Handler) error {
-	for _, el := range appInstance.router.RouteMapDataArr {
-		for route := range el {
-			log.Default().Println("RouteExplorer", route)
-		}
-	}
+func (app *application) ListenAndServe(addr string, handler http.Handler) error {
+	app.router.Range(func(method, route string) {
+		log.Default().Println("RouteExplorer", method, route)
+	})
 
 	return http.ListenAndServe(addr, handler)
 }
 
-func (appInstance *application) Get(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Get(route, handlers...)
+func (app *application) Get(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Get(path, handlers...)
 }
 
-func (appInstance *application) Head(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Head(route, handlers...)
+func (app *application) Head(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Head(path, handlers...)
 }
 
-func (appInstance *application) Post(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Post(route, handlers...)
+func (app *application) Post(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Post(path, handlers...)
 }
 
-func (appInstance *application) Put(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Put(route, handlers...)
+func (app *application) Put(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Put(path, handlers...)
 }
 
-func (appInstance *application) Patch(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Patch(route, handlers...)
+func (app *application) Patch(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Patch(path, handlers...)
 }
 
-func (appInstance *application) Delete(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Delete(route, handlers...)
+func (app *application) Delete(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Delete(path, handlers...)
 }
 
-func (appInstance *application) Connect(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Connect(route, handlers...)
+func (app *application) Connect(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Connect(path, handlers...)
 }
 
-func (appInstance *application) Options(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Options(route, handlers...)
+func (app *application) Options(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Options(path, handlers...)
 }
 
-func (appInstance *application) Trace(route string, handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Trace(route, handlers...)
+func (app *application) Trace(path string, handlers ...ctx.Handler) routing.Router {
+	return app.router.Trace(path, handlers...)
 }
 
-func (appInstance *application) Group(prefixRoute string, subRouters ...*routing.Router) routing.Routable {
-	return appInstance.router.Group(prefixRoute, subRouters...)
+func (app *application) Group(prePath string, subRouters ...*routing.Route) routing.Router {
+	return app.router.Group(prePath, subRouters...)
 }
 
-func (appInstance *application) Use(handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.Use(handlers...)
+func (app *application) Use(handlers ...ctx.Handler) routing.Router {
+	return app.router.Use(handlers...)
 }
 
-func (appInstance *application) For(route string) func(handlers ...ctx.Handler) routing.Routable {
-	return appInstance.router.For(route)
+func (app *application) For(path string) func(handlers ...ctx.Handler) routing.Router {
+	return app.router.For(path)
 }

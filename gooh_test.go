@@ -2,25 +2,27 @@ package gooh
 
 import (
 	"log"
+	"net/http"
 	"testing"
 
 	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/middlewares"
 )
 
-func handler1(ctx *ctx.Context) {
-	ctx.JSON(201, "{\"problems\":[{\"Diabetes\":[{\"medications\":[{\"medicationsClasses\":[{\"className\":[{\"associatedDrug\":[{\"name\":\"asprin\",\"dose\":\"\",\"strength\":\"500 mg\"}],\"associatedDrug#2\":[{\"name\":\"somethingElse\",\"dose\":\"\",\"strength\":\"500 mg\"}]}],\"className2\":[{\"associatedDrug\":[{\"name\":\"asprin\",\"dose\":\"\",\"strength\":\"500 mg\"}],\"associatedDrug#2\":[{\"name\":\"somethingElse\",\"dose\":\"\",\"strength\":\"500 mg\"}]}]}]}],\"labs\":[{\"missing_field\":\"missing_value\"}]}],\"Asthma\":[{}]}]}")
+func handler1(c *ctx.Context) {
+	c.Status(http.StatusCreated).JSON(Map{
+		"name": "Hello World!",
+	})
 }
 
 func TestApplication(test *testing.T) {
 	app := Default()
-	app.Use(middlewares.RequestLogger)
+	// app.Use(middlewares.RequestLogger)
 
-	userRouter := Router()
-	userRouter.Get("/{userId}", handler1)
+	// userRouter := Router()
+	// userRouter.Get("/{userId}/all", handler1)
 
-	app.Group("/users", userRouter)
-	app.Use(middlewares.RequestLogger)
+	app.Get("/users/{userId}/all", handler1)
+	// app.Get("/users/{userId}/*", handler1)
 
-	log.Fatal(app.ListenAndServe(":3000", nil))
+	log.Fatal(app.ListenAndServe(":8080", nil))
 }
