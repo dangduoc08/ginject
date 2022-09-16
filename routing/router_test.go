@@ -2,34 +2,53 @@ package routing
 
 import (
 	"fmt"
-	"strings"
+	"net/http"
+	"os"
 	"testing"
 
 	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/ds"
+	"github.com/dangduoc08/gooh/middlewares"
 )
 
-func TestAdd(test *testing.T) {
-	const (
-		routeParams1 = "foo/{param1}/{param2}/baz/{param3}"
-		routeParams2 = "/foo/{param1}/{param2}/baz/param3/"
-	)
+func TestRouteAdd(t *testing.T) {
+	paths := []string{
+		"/users/{userId}/",
+		"/feeds/all/",
+		"/users/{userId}/friends/all/",
+		"/schools/{schoolId}/subjects/{subjectId}/{schoolId}",
+	}
+	r := NewRoute()
 
-	expectTotalNode := len("/foo/$/$/baz/$/") + len("param3/")
+	for _, path := range paths {
+		r.add(path, nil)
+	}
 
-	routerInstance := NewRouter()
-	routerInstance.add(routeParams1, nil)
-	routerInstance.add(routeParams2, nil)
+	expect1 := 11
+	output1 := r.Trie.len()
+	if output1 != expect1 {
+		t.Errorf("r.Trie.Len() = %v; expect = %v", expect1, output1)
+	}
 
-	actualTotalNode := routerInstance.Trie.Len()
-	output1 := actualTotalNode == uint(expectTotalNode)
-	if !output1 {
-		test.Errorf("ro.len() = %v; expect = %v", actualTotalNode, expectTotalNode)
+	expect2 := map[string][]int{
+		"schoolId":  {0, 2},
+		"subjectId": {1},
+	}
+	output2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].ParamKeys
+	for key, indexs := range expect2 {
+		if output2[key] == nil {
+			t.Errorf("ParamKey[%v] = %v; expect ≠ %v", key, output2[key], nil)
+		}
+
+		for i, index := range indexs {
+			if output2[key][i] != index {
+				t.Errorf("ParamKey[%v][%v] = %v; expect = %v", key, i, output2[key][i], index)
+			}
+		}
 	}
 }
 
-func TestMatch(test *testing.T) {
-	routerInstance := NewRouter()
+func TestRouterMatch(t *testing.T) {
+	r := NewRoute()
 	for _, route := range []string{
 		"/v1/users/get/jobs/get",
 		"/v2/users/get/*/jobs/{jobId}get",
@@ -37,251 +56,115 @@ func TestMatch(test *testing.T) {
 		"/v1/users/{userId}/*/jobs/{jobId}/delete",
 		"/v2/users/{userId}/*/jobs/{jobId}/*",
 	} {
-		routerInstance.add(route, nil)
+		r.Post(route)
+		r.Put(route)
+		r.Get(route)
 	}
 
-	isFound1, _, routerData1 := routerInstance.match("/v1/users/get/jobs/get")
-	var expect1Rd1Var interface{}
-	if !isFound1 {
-		test.Errorf("routerInstance.match(\"/v1/users/get/jobs/get\") = %v; expect = %v", isFound1, true)
-	}
-	if routerData1.Params.Get("any") != expect1Rd1Var {
-		test.Errorf("routerData1.Params.Get(\"any\") = %v; expect = %v", routerData1.Params.Get("any"), expect1Rd1Var)
+	isMatched1, _, _, _, _ := r.Match("/v1/users/get/jobs/get", http.MethodPost)
+	if !isMatched1 {
+		t.Errorf("r.Match(\"/v1/users/get/jobs/get\", http.MethodPost) = %v; expect = %v", isMatched1, true)
 	}
 
-	isFound2, _, routerData2 := routerInstance.match("/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get")
-	expect2UserId := "63029905408d8ed70d411662"
-	output2UserId := routerData2.Params.Get("userId")
-	expect2JobId := "63029924b2584a856cbb8baf"
-	output2JobId := routerData2.Params.Get("jobId")
-	if !isFound2 {
-		test.Errorf("routerInstance.match(\"/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get\") = %v; expect = %v", isFound2, true)
-	}
-	if output2UserId != expect2UserId {
-		test.Errorf("routerData2.Params.Get(\"userId\") = %v; expect = %v", output2UserId, expect2UserId)
-	}
-	if output2JobId != expect2JobId {
-		test.Errorf("routerData2.Params.Get(\"jobId\") = %v; expect = %v", output2JobId, expect2JobId)
+	isMatched2, _, _, _, _ := r.Match("/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get", http.MethodPut)
+	if !isMatched2 {
+		t.Errorf("r.Match(\"/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get\", http.MethodPut) = %v; expect = %v", isMatched2, true)
 	}
 
-	isFound3, _, routerData3 := routerInstance.match("/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete")
-	expect3UserId := "63029c3246fd350a3ffc276c"
-	output3UserId := routerData3.Params.Get("userId")
-	expect3JobId := "63029c3bb998dabb261d99a1"
-	output3JobId := routerData3.Params.Get("jobId")
-
-	if !isFound3 {
-		test.Errorf("routerInstance.match(\"/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete\") = %v; expect = %v", isFound3, true)
-	}
-	if expect3UserId != output3UserId {
-		test.Errorf("routerData3.Params.Get(\"userId\") = %v; expect = %v", output3UserId, expect3UserId)
-	}
-	if expect3JobId != output3JobId {
-		test.Errorf("routerData3.Params.Get(\"jobId\") = %v; expect = %v", output3JobId, expect3JobId)
+	isMatched3, _, _, _, _ := r.Match("/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete", http.MethodGet)
+	if !isMatched3 {
+		t.Errorf("r.Match(\"/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete\", http.MethodGet) = %v; expect = %v", isMatched3, true)
 	}
 
-	isFound4, _, routerData4 := routerInstance.match("/v2/users/63029e1271f0bfaab1697c01/delete/jobs/63029e20f75076f6e6b8fdee/move")
-	expect4UserId := "63029e1271f0bfaab1697c01"
-	output4UserId := routerData4.Params.Get("userId")
-	expect4JobId := "63029e20f75076f6e6b8fdee"
-	output4JobId := routerData4.Params.Get("jobId")
-	if !isFound4 {
-		test.Errorf("routerInstance.match(\"/v2/users/63029e1271f0bfaab1697c01/update/jobs/63029e20f75076f6e6b8fdee/move\") = %v; expect = %v", isFound4, true)
-	}
-	if expect4UserId != output4UserId {
-		test.Errorf("routerData4.Params.Get(\"userId\") = %v; expect = %v", output4UserId, expect4UserId)
-	}
-	if expect4JobId != output4JobId {
-		test.Errorf("routerData4.Params.Get(\"jobId\") = %v; expect = %v", output4JobId, expect4JobId)
-	}
-
-	// nagative test
-	isFound5, _, _ := routerInstance.match("/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get")
-	if isFound5 {
-		test.Errorf("routerInstance.match(\"/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get\") = %v; expect = %v", isFound5, false)
+	isMatched4, _, _, _, _ := r.Match("/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get", http.MethodHead)
+	if isMatched4 {
+		t.Errorf("r.Match(\"/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get\", http.MethodHead) = %v; expect = %v", isMatched4, false)
 	}
 }
 
-func TestGroup(test *testing.T) {
-	routerInstance1 := NewRouter()
-	for _, route1 := range []string{
+func TestRouterGroup(test *testing.T) {
+	r1 := NewRoute()
+	for _, route := range []string{
 		"/users/get",
 		"/users/get/{userId}",
 	} {
-		routerInstance1.add(route1, nil)
+		r1.Delete(route)
+		r1.Post(route)
+		r1.Put(route)
+		r1.Get(route)
+		r1.Patch(route)
+		r1.Head(route)
+		r1.Options(route)
+		r1.Head(route)
 	}
 
-	routerInstance2 := NewRouter()
-	for _, route2 := range []string{
+	r2 := NewRoute()
+	for _, route := range []string{
 		"/users/update/{userId}",
 		"/users/delete/{userId}",
 	} {
-		routerInstance2.add(route2, nil)
+		r2.Delete(route)
+		r2.Post(route)
+		r2.Put(route)
+		r2.Get(route)
+		r2.Patch(route)
+		r2.Head(route)
+		r2.Options(route)
+		r2.Head(route)
 	}
 
-	routerGr := NewRouter()
-	routerGr.Group("/v1", routerInstance1, routerInstance2)
+	gr := NewRoute()
+	gr.Group("/v1", r1, r2)
 
-	_, matchedRoute, _ := routerGr.match("/v1/users/update/123")
-	expectMatchedRoute := "/v1/users/update/{userId}/"
-	if matchedRoute != expectMatchedRoute {
-		test.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", matchedRoute, expectMatchedRoute)
-	}
-}
-
-func TestMiddleware(test *testing.T) {
-	var holdValueFromMiddleware = make([]string, 0)
-
-	middleware1 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
-	}
-
-	middleware2 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
-	}
-
-	handler1 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
-	}
-
-	handler2 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
-	}
-
-	middleware3 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
-	}
-
-	middleware4 := func(ctx *ctx.Context) {
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
-	}
-
-	routerInstance1 := NewRouter()
-	routerInstance1.Use(middleware1)
-	routerInstance1.For("/users/{userId}")(middleware2, middleware3)
-	routerInstance1.Post("/users/{userId}", handler1)
-	routerInstance1.For("/users/{userId}")(middleware3, middleware1)
-	routerInstance1.Use(middleware4, middleware2)
-
-	routerInstance1.Use(middleware1)
-	routerInstance1.For("/products")(middleware2, middleware3)
-	routerInstance1.Trace("/products", handler1, handler2)
-	routerInstance1.For("/products")(middleware3, middleware1)
-	routerInstance1.Use(middleware4, middleware2)
-
-	routerGr := NewRouter()
-	routerGr.Group("/v1", routerInstance1)
-	routerGr.Use(middleware2)
-
-	for _, midMap := range routerGr.middlewares {
-		for route := range midMap {
-			fmt.Println(route)
-		}
-	}
-
-	_, matchedRoute, routerData := routerGr.match("/[POST]/v1/users/631253712bf56df421c80977/")
-
-	expectMatchedRoute := "/[POST]/v1/users/{userId}/"
-	expectUserId := "631253712bf56df421c80977"
-
-	if matchedRoute != expectMatchedRoute {
-		test.Errorf("matchedRoute = %v; expect = %v", matchedRoute, expectMatchedRoute)
-	}
-
-	if routerData.Params.Get("userId") != expectUserId {
-		test.Errorf("routerData.Params.Get(\"userId\") = %v; expect = %v", routerData.Params.Get("userId"), expectUserId)
-	}
-
-	for _, handlers := range *routerData.Handlers {
-		handlers(&ctx.Context{})
-	}
-	// middleware1, middleware2, middleware3, middleware3, middleware1, middleware4, middleware2, middleware1, middleware4, middleware2, handler1, middleware2
-	expectMiddlewareExecutedOrder := "middleware1, middleware2, middleware3, handler1, middleware3, middleware1, middleware4, middleware2, middleware1, middleware4, middleware2, middleware2"
-	actualMiddlewareExecutedOrder := strings.Join(holdValueFromMiddleware[:], ", ")
-
-	if expectMiddlewareExecutedOrder != actualMiddlewareExecutedOrder {
-		test.Errorf("actualMiddlewareExecutedOrder = %v; expect = %v", actualMiddlewareExecutedOrder, expectMiddlewareExecutedOrder)
+	_, outputMatchedRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
+	expectMatchedRoute1 := addMethodToRoute("/v1/users/update/{userId}/", http.MethodPatch)
+	if outputMatchedRoute1 != expectMatchedRoute1 {
+		test.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", outputMatchedRoute1, expectMatchedRoute1)
 	}
 }
 
-func TestRoutable(test *testing.T) {
-	var holdValueFromMiddleware = make([]string, 0)
-
-	middleware1 := func(ctx *ctx.Context) {
-		fmt.Println("middleware1")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware1")
-	}
-
-	middleware2 := func(ctx *ctx.Context) {
-		fmt.Println("middleware2")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware2")
-	}
-
-	middleware3 := func(ctx *ctx.Context) {
-		fmt.Println("middleware3")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware3")
-	}
-
-	middleware4 := func(ctx *ctx.Context) {
-		fmt.Println("middleware4")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware4")
-	}
-
-	middleware5 := func(ctx *ctx.Context) {
-		fmt.Println("middleware5")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "middleware5")
-	}
-
+func TestRouterMiddleware(t *testing.T) {
 	handler1 := func(ctx *ctx.Context) {
 		fmt.Println("handler1")
-		holdValueFromMiddleware = append(holdValueFromMiddleware, "handler1")
 	}
 
-	// handler2 := func(ctx *ctx.Context) {
-	// 	fmt.Println("handler2")
-	// 	holdValueFromMiddleware = append(holdValueFromMiddleware, "handler2")
-	// }
+	r1 := NewRoute()
+	r1.Get("/test", handler1)
+	r1.For("/test")(middlewares.RequestLogger)
 
-	userRouter := NewRouter()
-	productRouter := NewRouter()
-	mainRouter := NewRouter()
+	r1.Get("/test", handler1)
+	r1.Use(middlewares.RequestLogger)
 
-	userRouter.For("/users")(middleware4)
-	userRouter.Use(middleware5)
-	userRouter.For("/users")(middleware2)
-	// userRouter.Get("/users", handler1)
-	userRouter.For("/users")(middleware1)
+	r2 := NewRoute()
+	r2.Use(middlewares.RequestLogger)
+	r2.Get("/test", handler1)
+	r2.For("/test")(middlewares.RequestLogger)
+}
 
-	productRouter.For("/products")(middleware4)
-	productRouter.Use(middleware5)
-	productRouter.For("/products")(middleware2)
-	productRouter.Get("/products", handler1)
-	productRouter.For("/products")(middleware1)
+func TestRouteToJSON(t *testing.T) {
+	if os.Getenv("v") == "true" {
+		paths := []string{
+			"/users/{userId}",
+			"/feeds/all",
+			"/users/{userId}/friends/{friendId}",
+			"/schools/{schoolId}/subjects/{subjectId}/{subjectId}",
+			"/schools/*",
+			"/*/feeds/{feed***Id}/**/files/*.html/***",
+		}
+		r := NewRoute()
 
-	mainRouter.Use(middleware1)
-	mainRouter.For("/gr1/users")(middleware3, middleware4)
-	mainRouter.For("/gr1/users")(middleware5)
+		for _, path := range paths {
+			r.add(path, func(c *ctx.Context) {}, func(c *ctx.Context) {})
+		}
 
-	mainRouter.Group("/gr1", userRouter, productRouter)
-	mainRouter.For("/gr1/users")(middleware5)
-	// mainRouter.Get("/gr1/users", handler1)
-
-	testRoute := "/[GET]/gr1/products/"
-	isMatched, _, routerData := mainRouter.match(testRoute)
-
-	if isMatched {
-		for _, handler := range *routerData.Handlers {
-			handler(&ctx.Context{})
+		json, err := r.toJSON()
+		if err != nil {
+			fmt.Printf("Error: %s", err.Error())
+		} else {
+			fmt.Println(json)
 		}
 	} else {
-		for _, middlewareMap := range mainRouter.middlewares {
-			for route, middlewareHandlers := range middlewareMap {
-				if route == ds.WILDCARD || route == testRoute {
-					for _, handler := range *middlewareHandlers {
-						handler(&ctx.Context{})
-					}
-				}
-			}
-		}
+		t.Skip()
 	}
+
 }
