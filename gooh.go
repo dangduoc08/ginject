@@ -8,13 +8,11 @@ import (
 	"github.com/dangduoc08/gooh/routing"
 )
 
-type Map map[string]interface{}
-
 type application struct {
 	router *routing.Route
 }
 
-func Default() *application {
+func New() *application {
 	app := application{
 		routing.NewRoute(),
 	}
@@ -67,7 +65,7 @@ func Default() *application {
 	return &app
 }
 
-func Route() *routing.Route {
+func CreateRouter() Router {
 	return routing.NewRoute()
 }
 
@@ -79,50 +77,50 @@ func (app *application) ListenAndServe(addr string, handler http.Handler) error 
 	return http.ListenAndServe(addr, handler)
 }
 
-func (app *application) Get(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Get(path string, handlers ...ctx.Handler) Router {
 	return app.router.Get(path, handlers...)
 }
 
-func (app *application) Head(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Head(path string, handlers ...ctx.Handler) Router {
 	return app.router.Head(path, handlers...)
 }
 
-func (app *application) Post(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Post(path string, handlers ...ctx.Handler) Router {
 	return app.router.Post(path, handlers...)
 }
 
-func (app *application) Put(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Put(path string, handlers ...ctx.Handler) Router {
 	return app.router.Put(path, handlers...)
 }
 
-func (app *application) Patch(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Patch(path string, handlers ...ctx.Handler) Router {
 	return app.router.Patch(path, handlers...)
 }
 
-func (app *application) Delete(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Delete(path string, handlers ...ctx.Handler) Router {
 	return app.router.Delete(path, handlers...)
 }
 
-func (app *application) Connect(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Connect(path string, handlers ...ctx.Handler) Router {
 	return app.router.Connect(path, handlers...)
 }
 
-func (app *application) Options(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Options(path string, handlers ...ctx.Handler) Router {
 	return app.router.Options(path, handlers...)
 }
 
-func (app *application) Trace(path string, handlers ...ctx.Handler) routing.Router {
+func (app *application) Trace(path string, handlers ...ctx.Handler) Router {
 	return app.router.Trace(path, handlers...)
 }
 
-func (app *application) Group(prePath string, subRouters ...*routing.Route) routing.Router {
+func (app *application) Group(prePath string, subRouters ...*routing.Route) Router {
 	return app.router.Group(prePath, subRouters...)
 }
 
-func (app *application) Use(handlers ...ctx.Handler) routing.Router {
+func (app *application) Use(handlers ...ctx.Handler) Router {
 	return app.router.Use(handlers...)
 }
 
-func (app *application) For(path string) func(handlers ...ctx.Handler) routing.Router {
+func (app *application) For(path string) func(handlers ...ctx.Handler) Router {
 	return app.router.For(path)
 }
