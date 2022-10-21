@@ -8,8 +8,11 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
-type Handler func(c *Context)
-type ErrFn func(error)
+type (
+	Map     map[string]interface{}
+	ErrFn   func(error)
+	Handler func(c *Context)
+)
 
 type Responser interface {
 	Set(map[string]string) Responser
