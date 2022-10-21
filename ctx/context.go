@@ -8,7 +8,7 @@ import (
 )
 
 type Handler func(c *Context)
-type ErrFn func(interface{})
+type ErrFn func(error)
 
 type Responser interface {
 	Set(pair map[string]string) Responser
@@ -17,7 +17,7 @@ type Responser interface {
 	JSON(args ...interface{})
 	Param() Values
 	// JSONP(args ...interface{})
-	// Error(ErrFn)
+	Error(ErrFn)
 }
 
 type Context struct {
@@ -91,4 +91,12 @@ func (c *Context) JSON(args ...interface{}) {
 	c.WriteHeader(c.Code)
 	c.ResponseWriter.Write(buf)
 	c.Event.Emit(REQUEST_FINISHED)
+}
+
+func (c *Context) Error(cb ErrFn) {
+	if rec := recover(); rec != nil {
+		c.Status(http.StatusInternalServerError)
+		cb(rec.(error))
+		c.Event.Emit(REQUEST_FINISHED)
+	}
 }

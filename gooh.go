@@ -21,6 +21,14 @@ func Default() *application {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		c := ctx.NewContext()
+		defer func() {
+			if rec := recover(); rec != nil {
+				c.Status(http.StatusInternalServerError)
+				c.Event.Emit(ctx.REQUEST_FINISHED)
+				http.Error(w, rec.(error).Error(), http.StatusInternalServerError)
+			}
+		}()
+
 		isMatched, _, paramKeys, paramVals, handlers := app.router.Match(req.URL.Path, req.Method)
 		isNext := true
 		next := func() {
