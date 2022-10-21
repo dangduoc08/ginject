@@ -1,22 +1,23 @@
 package ctx
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/dangduoc08/gooh/utils"
 )
 
 type Handler func(c *Context)
 type ErrFn func(error)
 
 type Responser interface {
-	Set(pair map[string]string) Responser
-	Status(code int) Responser
-	Text(content string, args ...interface{})
-	JSON(args ...interface{})
+	Set(map[string]string) Responser
+	Status(int) Responser
+	Text(string, ...interface{})
+	JSONP(...interface{})
+	JSON(...interface{})
 	Param() Values
-	// JSONP(args ...interface{})
 	Error(ErrFn)
 }
 
@@ -71,16 +72,7 @@ func (c *Context) Text(content string, args ...interface{}) {
 }
 
 func (c *Context) JSON(args ...interface{}) {
-	data := args[0]
-
-	switch args[0].(type) {
-	case string:
-		str := fmt.Sprintf(data.(string), args[1:]...)
-		data = json.RawMessage(str)
-	}
-
-	buf, err := json.Marshal(&data)
-
+	buf, err := handleJSON(args...)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -91,6 +83,23 @@ func (c *Context) JSON(args ...interface{}) {
 	c.WriteHeader(c.Code)
 	c.ResponseWriter.Write(buf)
 	c.Event.Emit(REQUEST_FINISHED)
+}
+
+func (c *Context) JSONP(args ...interface{}) {
+	cb := utils.StrRemoveSpace(c.URL.Query().Get("callback"))
+	if cb == "" {
+		c.JSON(args...)
+		return
+	}
+
+	buf, err := handleJSON(args...)
+	if err != nil {
+		panic(err.Error())
+	}
+	c.Set(map[string]string{
+		"Content-Type": "text/javascript; charset=utf-8",
+	})
+	c.Text(buildJSONP(string(buf), cb))
 }
 
 func (c *Context) Error(cb ErrFn) {
