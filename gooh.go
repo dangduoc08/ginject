@@ -26,18 +26,13 @@ func Default() *application {
 		next := func() {
 			isNext = true
 		}
-
-		ctx.SetReq(c, req)
-		ctx.SetRes(c, w)
+		c.ResponseWriter = w
+		c.Request = req
 		c.Next = next
-		c.Query = req.URL.Query
-		c.Method = req.Method
-		c.UserAgent = req.UserAgent
-		c.URL = req.URL
 
 		if isMatched {
-			c.ParamVals = paramVals
-			c.ParamKeys = paramKeys
+			ctx.SetParamKeys(c, paramKeys)
+			ctx.SetParamVals(c, paramVals)
 			for _, handler := range handlers {
 				if isNext {
 					isNext = false
@@ -54,8 +49,8 @@ func Default() *application {
 			}
 
 			if isNext {
-				c.Event.Emit(ctx.REQUEST_FINISHED)
 				c.Status(http.StatusNotFound)
+				c.Event.Emit(ctx.REQUEST_FINISHED)
 				http.NotFound(w, req)
 			}
 		}
@@ -64,7 +59,7 @@ func Default() *application {
 	return &app
 }
 
-func Router() *routing.Route {
+func Route() *routing.Route {
 	return routing.NewRoute()
 }
 

@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 )
 
 type Handler func(c *Context)
+type ErrFn func(interface{})
 
 type Responser interface {
 	Set(pair map[string]string) Responser
@@ -17,24 +17,21 @@ type Responser interface {
 	JSON(args ...interface{})
 	Param() Values
 	// JSONP(args ...interface{})
-	// Error(callback func(interface{}))
+	// Error(ErrFn)
 }
 
 type Context struct {
-	req    *http.Request
-	writer http.ResponseWriter
+	*http.Request
+	http.ResponseWriter
 
-	Query     func() url.Values
-	URL       *url.URL
-	UserAgent func() string
-	Method    string
+	param     Values
+	paramKeys map[string][]int
+	paramVals []string
 
 	Next      func()
 	Event     *event
 	Code      int
 	Timestamp time.Time
-	ParamKeys map[string][]int
-	ParamVals []string
 }
 
 func NewContext() *Context {
@@ -45,17 +42,17 @@ func NewContext() *Context {
 	}
 }
 
-func SetReq(c *Context, req *http.Request) {
-	c.req = req
+func SetParamKeys(c *Context, paramKeys map[string][]int) {
+	c.paramKeys = paramKeys
 }
 
-func SetRes(c *Context, writer http.ResponseWriter) {
-	c.writer = writer
+func SetParamVals(c *Context, paramVals []string) {
+	c.paramVals = paramVals
 }
 
 func (c *Context) Set(pair map[string]string) Responser {
 	for key, value := range pair {
-		c.writer.Header().Set(key, value)
+		c.ResponseWriter.Header().Set(key, value)
 	}
 
 	return c
@@ -68,8 +65,8 @@ func (c *Context) Status(code int) Responser {
 }
 
 func (c *Context) Text(content string, args ...interface{}) {
-	c.writer.WriteHeader(c.Code)
-	fmt.Fprintf(c.writer, content, args...)
+	c.WriteHeader(c.Code)
+	fmt.Fprintf(c.ResponseWriter, content, args...)
 	c.Event.Emit(REQUEST_FINISHED)
 }
 
@@ -91,7 +88,7 @@ func (c *Context) JSON(args ...interface{}) {
 	c.Set(map[string]string{
 		"Content-Type": "application/json",
 	})
-	c.writer.WriteHeader(c.Code)
-	c.writer.Write(buf)
+	c.WriteHeader(c.Code)
+	c.ResponseWriter.Write(buf)
 	c.Event.Emit(REQUEST_FINISHED)
 }
