@@ -10,9 +10,10 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
-type Node map[string]*Trie
-
-type ScanFn func(*Trie)
+type (
+	Node   map[string]*Trie
+	ScanFn func(*Trie)
+)
 
 type Trie struct {
 	Children  Node
