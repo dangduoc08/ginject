@@ -8,11 +8,11 @@ import (
 	"github.com/dangduoc08/gooh/routing"
 )
 
+type Map map[string]interface{}
+
 type application struct {
 	router *routing.Route
 }
-
-type Map map[string]interface{}
 
 func Default() *application {
 	app := application{
