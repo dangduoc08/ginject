@@ -20,7 +20,7 @@ func TestRouteAdd(t *testing.T) {
 	r := NewRoute()
 
 	for _, path := range paths {
-		r.add(path, nil)
+		r.Add(path, nil)
 	}
 
 	expect1 := 11
@@ -154,10 +154,10 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRoute()
 
 		for _, path := range paths {
-			r.add(path, func(c *ctx.Context) {}, func(c *ctx.Context) {})
+			r.Add(path, func(c *ctx.Context) {}, func(c *ctx.Context) {})
 		}
 
-		json, err := r.toJSON()
+		json, err := r.ToJSON()
 		if err != nil {
 			fmt.Printf("Error: %s", err.Error())
 		} else {

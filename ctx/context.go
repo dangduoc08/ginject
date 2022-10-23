@@ -11,7 +11,7 @@ import (
 type (
 	Map     map[string]interface{}
 	ErrFn   func(error)
-	Handler func(c *Context)
+	Handler = func(c *Context)
 )
 
 type Responser interface {
