@@ -27,7 +27,7 @@ type Trier interface {
 	insert(string, byte, int, map[string][]int, []ctx.Handler) Trier
 	find(string, byte) (int, map[string][]int, []string, []ctx.Handler)
 	scan(cb ScanFn)
-	toJSON() (string, error)
+	ToJSON() (string, error)
 }
 
 func NewTrie() *Trie {
@@ -123,7 +123,7 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 	return i, paramKeys, paramVals, handlers
 }
 
-func (tr *Trie) toJSON() (string, error) {
+func (tr *Trie) ToJSON() (string, error) {
 	nodeMap := tr.genTrieMap("")
 	b, err := json.Marshal(nodeMap)
 	if err != nil {

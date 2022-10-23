@@ -1,12 +1,15 @@
 package gooh
 
 import (
+	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 )
 
 type (
-	Map     ctx.Map
 	Context = *ctx.Context
-	Router  = *routing.Route
+	App     = *core.App
+	Map     ctx.Map
+	Route   *routing.Route
+	Handler ctx.Handler
 )

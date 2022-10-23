@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -93,4 +94,49 @@ func matchWildcard(str, route string) bool {
 	}
 
 	return len(str) == 0
+}
+
+func Get(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodGet)
+}
+
+func Head(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodHead)
+}
+
+func Post(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodPost)
+}
+
+func Put(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodPut)
+}
+
+func Patch(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodPatch)
+}
+
+func Delete(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodDelete)
+}
+
+func Connect(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodConnect)
+}
+
+func Options(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodOptions)
+}
+
+func Trace(path string) string {
+	path = toEndpoint(path)
+	return fmt.Sprintf("%v[%v]/", path, http.MethodTrace)
 }
