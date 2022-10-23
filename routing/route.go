@@ -22,7 +22,7 @@ func NewRoute() *Route {
 	}
 }
 
-func (r *Route) add(route string, handlers ...ctx.Handler) *Route {
+func (r *Route) Add(route string, handlers ...ctx.Handler) *Route {
 	endpoint := utils.StrRemoveDup(toEndpoint(route), "*")
 	i := utils.ArrFindIndex(r.List, func(route string, i int) bool {
 		return route == endpoint

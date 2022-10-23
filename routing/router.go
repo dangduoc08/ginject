@@ -20,44 +20,42 @@ type Router interface {
 	Group(prefix string, subRouters ...*Route) *Route
 	Use(...ctx.Handler) *Route
 	For(string) func(...ctx.Handler) *Route
-	Range(func(string, string))
-	Match(string, string) (bool, string, map[string][]int, []string, []ctx.Handler)
 }
 
 func (r *Route) Get(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodGet), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodGet), handlers...)
 }
 
 func (r *Route) Head(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodHead), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodHead), handlers...)
 }
 
 func (r *Route) Post(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodPost), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodPost), handlers...)
 }
 
 func (r *Route) Put(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodPut), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodPut), handlers...)
 }
 
 func (r *Route) Patch(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodPatch), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodPatch), handlers...)
 }
 
 func (r *Route) Delete(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodDelete), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodDelete), handlers...)
 }
 
 func (r *Route) Connect(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodConnect), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodConnect), handlers...)
 }
 
 func (r *Route) Options(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodOptions), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodOptions), handlers...)
 }
 
 func (r *Route) Trace(path string, handlers ...ctx.Handler) *Route {
-	return r.add(addMethodToRoute(path, http.MethodTrace), handlers...)
+	return r.Add(addMethodToRoute(path, http.MethodTrace), handlers...)
 }
 
 func (r *Route) Group(prePath string, subRouters ...*Route) *Route {
@@ -70,7 +68,7 @@ func (r *Route) Group(prePath string, subRouters ...*Route) *Route {
 
 	for _, subRouter := range subRouters {
 		subRouter.scan(func(node *Trie) {
-			r.add(prePath+subRouter.List[node.Index], node.Handlers...)
+			r.Add(prePath+subRouter.List[node.Index], node.Handlers...)
 		})
 	}
 
@@ -80,7 +78,7 @@ func (r *Route) Group(prePath string, subRouters ...*Route) *Route {
 func (r *Route) Use(handlers ...ctx.Handler) *Route {
 	r.Middlewares = append(r.Middlewares, handlers...)
 	r.scan(func(node *Trie) {
-		r.add(r.List[node.Index], handlers...)
+		r.Add(r.List[node.Index], handlers...)
 	})
 
 	return r
@@ -89,7 +87,7 @@ func (r *Route) Use(handlers ...ctx.Handler) *Route {
 func (r *Route) For(path string) func(handlers ...ctx.Handler) *Route {
 	return func(handlers ...ctx.Handler) *Route {
 		for _, method := range HTTP_METHODS {
-			r.add(addMethodToRoute(path, method), handlers...)
+			r.Add(addMethodToRoute(path, method), handlers...)
 		}
 
 		return r
