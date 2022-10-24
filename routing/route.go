@@ -23,7 +23,7 @@ func NewRoute() *Route {
 }
 
 func (r *Route) Add(route string, handlers ...ctx.Handler) *Route {
-	endpoint := utils.StrRemoveDup(toEndpoint(route), "*")
+	endpoint := utils.StrRemoveDup(ToEndpoint(route), "*")
 	i := utils.ArrFindIndex(r.List, func(route string, i int) bool {
 		return route == endpoint
 	})
@@ -47,7 +47,7 @@ func (r *Route) match(route string) (bool, string, map[string][]int, []string, [
 	// 	return true, cached.matchedRoute, cached.paramKeys, cached.paramVals, cached.handlers
 	// }
 
-	i, paramKeys, paramVals, handlers := r.Trie.find(toEndpoint(route), '/')
+	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {

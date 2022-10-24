@@ -1,7 +1,6 @@
 package routing
 
 import (
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -31,12 +30,12 @@ func splitRoute(str string) (string, string) {
 	return method[2 : len(method)-1], noMethodRoute[:len(noMethodRoute)-1]
 }
 
-func toEndpoint(str string) string {
+func ToEndpoint(str string) string {
 	return utils.StrAddEnd(utils.StrAddBegin(utils.StrRemoveSpace(str), "/"), "/")
 }
 
-func addMethodToRoute(str, method string) string {
-	return toEndpoint(str) + "[" + method + "]" + "/"
+func AddMethodToRoute(str, method string) string {
+	return ToEndpoint(str) + "[" + method + "]" + "/"
 }
 
 func parseToParamKey(str string) (string, map[string][]int) {
@@ -94,49 +93,4 @@ func matchWildcard(str, route string) bool {
 	}
 
 	return len(str) == 0
-}
-
-func Get(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodGet)
-}
-
-func Head(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodHead)
-}
-
-func Post(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodPost)
-}
-
-func Put(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodPut)
-}
-
-func Patch(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodPatch)
-}
-
-func Delete(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodDelete)
-}
-
-func Connect(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodConnect)
-}
-
-func Options(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodOptions)
-}
-
-func Trace(path string) string {
-	path = toEndpoint(path)
-	return fmt.Sprintf("%v[%v]/", path, http.MethodTrace)
 }
