@@ -46,3 +46,13 @@ func ArrFilter[T any](arr []T, cb func(el T, i int) bool) []T {
 
 	return newArr
 }
+
+func ArrIncludes[T comparable](arr []T, v T) bool {
+	for _, el := range arr {
+		if el == v {
+			return true
+		}
+	}
+
+	return false
+}
