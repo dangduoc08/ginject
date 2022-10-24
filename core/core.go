@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 )
@@ -66,8 +67,9 @@ func New() *App {
 	return &a
 }
 
-func CreateRoute() *routing.Route {
-	return routing.NewRoute()
+func (a *App) Create(m *common.Module) {
+	mainModule := m.GetInstance()
+	a.Group("/", mainModule.ModuleRouter)
 }
 
 func (a *App) ListenAndServe(addr string, handler http.Handler) error {
