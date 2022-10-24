@@ -117,7 +117,7 @@ func TestRouterGroup(test *testing.T) {
 	gr.Group("/v1", r1, r2)
 
 	_, outputMatchedRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
-	expectMatchedRoute1 := addMethodToRoute("/v1/users/update/{userId}/", http.MethodPatch)
+	expectMatchedRoute1 := AddMethodToRoute("/v1/users/update/{userId}/", http.MethodPatch)
 	if outputMatchedRoute1 != expectMatchedRoute1 {
 		test.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", outputMatchedRoute1, expectMatchedRoute1)
 	}
