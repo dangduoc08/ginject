@@ -11,5 +11,4 @@ type (
 	App     = *core.App
 	Map     ctx.Map
 	Route   *routing.Route
-	Handler ctx.Handler
 )
