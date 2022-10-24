@@ -84,3 +84,25 @@ func TestArrFilter(t *testing.T) {
 		t.Errorf("ArrFilter = %v; expect = %v", output1, expect1)
 	}
 }
+
+func TestArrIncludes(t *testing.T) {
+	arr := []string{
+		"John Doe",
+		"Jane Doe",
+		"The Rock",
+	}
+
+	expect1 := true
+	output1 := ArrIncludes(arr, arr[0])
+
+	if output1 != expect1 {
+		t.Errorf("ArrIncludes = %v; expect = %v", output1, expect1)
+	}
+
+	expect2 := false
+	output2 := ArrIncludes(arr, arr[1]+"Foz")
+
+	if output2 != expect2 {
+		t.Errorf("ArrIncludes = %v; expect = %v", output2, expect2)
+	}
+}
