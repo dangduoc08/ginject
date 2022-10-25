@@ -94,3 +94,35 @@ func TestStrRemoveDup(t *testing.T) {
 		t.Errorf("StrRemoveDup(\"/**/school**/***/***/{subjectId}/***, *\") = %v; expect = %v", output1, expect1)
 	}
 }
+
+func TestStrIsLower(t *testing.T) {
+	expect1 := true
+	output1 := StrIsLower("foo")[0]
+
+	if expect1 != output1 {
+		t.Errorf("StrIsLower(\"foo\") = %v; expect = %v", output1, expect1)
+	}
+
+	expect2 := false
+	output2 := StrIsLower("Baz")[0]
+
+	if expect2 != output2 {
+		t.Errorf("StrIsLower(\"Baz\") = %v; expect = %v", output2, expect2)
+	}
+}
+
+func TestStrIsUpper(t *testing.T) {
+	expect1 := true
+	output1 := StrIsUpper("foO")[2]
+
+	if expect1 != output1 {
+		t.Errorf("StrIsUpper(\"foO\") = %v; expect = %v", output1, expect1)
+	}
+
+	expect2 := false
+	output2 := StrIsUpper("baZ")[0]
+
+	if expect2 != output2 {
+		t.Errorf("StrIsUpper(\"baZ\") = %v; expect = %v", output2, expect2)
+	}
+}
