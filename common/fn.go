@@ -9,12 +9,12 @@ import (
 )
 
 func (c *Control) addToRouters(path, method string, handlers ...ctx.Handler) {
-	if reflect.ValueOf(c.routers).IsNil() {
-		c.routers = make(map[string][]ctx.Handler)
+	if reflect.ValueOf(c.routerMap).IsNil() {
+		c.routerMap = make(map[string][]ctx.Handler)
 	}
 	prefix := ""
 	for _, str := range c.prefixes {
 		prefix += utils.StrAddBegin(utils.StrRemoveEnd(str, "/"), "/")
 	}
-	c.routers[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = handlers
+	c.routerMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = handlers
 }

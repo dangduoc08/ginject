@@ -3,59 +3,106 @@ package common
 import (
 	"fmt"
 	"reflect"
-	"strings"
+	"sync"
 
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
 
-type Module struct {
-	// sync.Mutex
-	singleInstance *Module
-
-	Imports      []Module
-	Providers    []Provider
-	Exports      []Provider
-	Controllers  []Controller
-	ModuleRouter *routing.Route
+type moduleBuilder struct {
+	imports     []*Module
+	providers   []Provider
+	exports     []Provider
+	controllers []Controller
 }
 
-func (module *Module) GetInstance() *Module {
-	if module.singleInstance == nil {
-		// module.Mutex.Lock()
-		// defer module.Mutex.Unlock()
+func ModuleBuilder() *moduleBuilder {
+	return &moduleBuilder{
+		imports:     []*Module{},
+		providers:   []Provider{},
+		exports:     []Provider{},
+		controllers: []Controller{},
+	}
+}
 
-		module.ModuleRouter = routing.NewRoute()
+func (m *moduleBuilder) Imports(modules ...*Module) *moduleBuilder {
+	m.imports = append(m.imports, modules...)
+	return m
+}
+
+func (m *moduleBuilder) Exports(providers ...Provider) *moduleBuilder {
+	m.exports = append(m.exports, providers...)
+	return m
+}
+
+func (m *moduleBuilder) Providers(providers ...Provider) *moduleBuilder {
+	m.providers = append(m.providers, providers...)
+	return m
+}
+
+func (m *moduleBuilder) Controllers(controllers ...Controller) *moduleBuilder {
+	m.controllers = append(m.controllers, controllers...)
+	return m
+}
+
+func (m *moduleBuilder) Build() *Module {
+	return &Module{
+		Mutex:       &sync.Mutex{},
+		Imports:     m.imports,
+		Exports:     m.exports,
+		Providers:   m.providers,
+		Controllers: m.controllers,
+		Router:      routing.NewRoute(),
+	}
+}
+
+type Module struct {
+	*sync.Mutex
+	singleInstance *Module
+	Imports        []*Module
+	Providers      []Provider
+	Exports        []Provider
+	Controllers    []Controller
+	Router         *routing.Route
+}
+
+func (m *Module) Inject() *Module {
+	m.Mutex.Lock()
+	defer m.Mutex.Unlock()
+
+	if m.singleInstance == nil {
+		m.singleInstance = m
+
 		noInjectedFields := []string{
 			"Control",
 			"common.Control",
 		}
 
-		for _, subModule := range module.Imports {
-			injectModule := subModule.GetInstance()
+		for _, subModule := range m.Imports {
+			injectModule := subModule.Inject()
 
 			if len(injectModule.Exports) > 0 {
-				module.Providers = append(module.Providers, injectModule.Exports...)
+				m.Providers = append(m.Providers, injectModule.Exports...)
 			}
 
-			module.ModuleRouter.Group("/", injectModule.ModuleRouter)
+			m.Router.Group("/", injectModule.Router)
 		}
 
 		providerMap := map[string]Provider{}
-		for i, provider := range module.Providers {
+		for i, provider := range m.Providers {
 			providerKey := reflect.TypeOf(provider).String()
-			module.Providers = append(module.Providers, provider.NewProvider())
-			providerMap[providerKey] = module.Providers[i]
+			m.Providers = append(m.Providers, provider.New())
+			providerMap[providerKey] = m.Providers[i]
 		}
 
-		for i, controller := range module.Controllers {
+		for i, controller := range m.Controllers {
 			controllerType := reflect.TypeOf(controller)
 			copyController := reflect.New(controllerType)
 
 			for j := 0; j < controllerType.NumField(); j++ {
 				injectProviderKey := controllerType.Field(j).Type.String()
 				fieldName := controllerType.Field(j).Name
-				if fieldName[0:1] == strings.ToLower(fieldName[0:1]) {
+				if utils.StrIsLower(fieldName[0:1])[0] {
 					panic(fmt.Errorf("can't set value to unexported %v field of the %v controller", fieldName, controllerType.Name()))
 				}
 
@@ -71,15 +118,13 @@ func (module *Module) GetInstance() *Module {
 				}
 			}
 
-			module.Controllers[i] = copyController.Interface().(Controller).NewController()
+			m.Controllers[i] = copyController.Interface().(Controller).New()
 
-			for pattern, handlers := range reflect.ValueOf(module.Controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Control).routers {
-				module.ModuleRouter.Add(pattern, handlers...)
+			for pattern, handlers := range reflect.ValueOf(m.Controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Control).routerMap {
+				m.Router.Add(pattern, handlers...)
 			}
 		}
-
-		module.singleInstance = module
 	}
 
-	return module
+	return m
 }
