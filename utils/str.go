@@ -90,3 +90,23 @@ func StrRemoveDup(str, pattern string) string {
 
 	return resp
 }
+
+func StrIsLower(str string) []bool {
+	res := []bool{}
+	for _, r := range str {
+		s := string(r)
+		res = append(res, s == strings.ToLower(s))
+	}
+
+	return res
+}
+
+func StrIsUpper(str string) []bool {
+	res := []bool{}
+	for _, r := range str {
+		s := string(r)
+		res = append(res, s == strings.ToUpper(s))
+	}
+
+	return res
+}
