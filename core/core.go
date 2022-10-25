@@ -68,8 +68,8 @@ func New() *App {
 }
 
 func (a *App) Create(m *common.Module) {
-	mainModule := m.GetInstance()
-	a.Group("/", mainModule.ModuleRouter)
+	mainModule := m.Inject()
+	a.Group("/", mainModule.Router)
 }
 
 func (a *App) ListenAndServe(addr string, handler http.Handler) error {
