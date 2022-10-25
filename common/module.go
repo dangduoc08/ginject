@@ -9,53 +9,6 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
-type moduleBuilder struct {
-	imports     []*Module
-	providers   []Provider
-	exports     []Provider
-	controllers []Controller
-}
-
-func ModuleBuilder() *moduleBuilder {
-	return &moduleBuilder{
-		imports:     []*Module{},
-		providers:   []Provider{},
-		exports:     []Provider{},
-		controllers: []Controller{},
-	}
-}
-
-func (m *moduleBuilder) Imports(modules ...*Module) *moduleBuilder {
-	m.imports = append(m.imports, modules...)
-	return m
-}
-
-func (m *moduleBuilder) Exports(providers ...Provider) *moduleBuilder {
-	m.exports = append(m.exports, providers...)
-	return m
-}
-
-func (m *moduleBuilder) Providers(providers ...Provider) *moduleBuilder {
-	m.providers = append(m.providers, providers...)
-	return m
-}
-
-func (m *moduleBuilder) Controllers(controllers ...Controller) *moduleBuilder {
-	m.controllers = append(m.controllers, controllers...)
-	return m
-}
-
-func (m *moduleBuilder) Build() *Module {
-	return &Module{
-		Mutex:       &sync.Mutex{},
-		Imports:     m.imports,
-		Exports:     m.exports,
-		Providers:   m.providers,
-		Controllers: m.controllers,
-		Router:      routing.NewRoute(),
-	}
-}
-
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
@@ -64,6 +17,7 @@ type Module struct {
 	Exports        []Provider
 	Controllers    []Controller
 	Router         *routing.Route
+	OnInit         func()
 }
 
 func (m *Module) Inject() *Module {
@@ -72,6 +26,9 @@ func (m *Module) Inject() *Module {
 
 	if m.singleInstance == nil {
 		m.singleInstance = m
+		if m.OnInit != nil {
+			m.OnInit()
+		}
 
 		noInjectedFields := []string{
 			"Control",
@@ -114,7 +71,7 @@ func (m *Module) Inject() *Module {
 					if isUnneededInject {
 						continue
 					}
-					panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller of context module", injectProviderKey, j, controllerType.Name()))
+					panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller", injectProviderKey, j, controllerType.Name()))
 				}
 			}
 
