@@ -7,12 +7,12 @@ import (
 )
 
 type Controller interface {
-	NewController() Controller
+	New() Controller
 }
 
 type Control struct {
-	prefixes []string
-	routers  map[string][]ctx.Handler
+	prefixes  []string
+	routerMap map[string][]ctx.Handler
 }
 
 func (c *Control) Prefix(prefix string) *Control {
