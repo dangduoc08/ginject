@@ -15,11 +15,11 @@ type AuthProvider struct {
 	Password string
 }
 
-func (userProvider AuthProvider) NewProvider() common.Provider {
+func (userProvider AuthProvider) New() common.Provider {
 	return userProvider
 }
 
-func (userProvider AuthProvider) Signin(u string, p string) string {
+func (userProvider *AuthProvider) Signin(u string, p string) string {
 	fmt.Println("username", u, "password", userProvider.Password)
 	return "true"
 }

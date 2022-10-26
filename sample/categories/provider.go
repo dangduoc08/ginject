@@ -12,10 +12,10 @@ type CategoryProvider struct {
 	CategoryEntities []CategoryEntity
 }
 
-func (categoryProvider CategoryProvider) NewProvider() common.Provider {
+func (categoryProvider CategoryProvider) New() common.Provider {
 	return categoryProvider
 }
 
-func (categoryProvider CategoryProvider) GetProductByID(id string) string {
+func (categoryProvider *CategoryProvider) GetProductByID(id string) string {
 	return id
 }
