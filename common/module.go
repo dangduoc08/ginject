@@ -15,7 +15,7 @@ type Module struct {
 	Imports        []*Module
 	Providers      []Provider
 	Exports        []Provider
-	Controllers    []Controller
+	Presenters     []Presenter
 	Router         *routing.Route
 	OnInit         func()
 }
@@ -31,8 +31,8 @@ func (m *Module) Inject() *Module {
 		}
 
 		noInjectedFields := []string{
-			"Control",
-			"common.Control",
+			"Rest",
+			"common.Rest",
 		}
 
 		for _, subModule := range m.Imports {
@@ -52,32 +52,32 @@ func (m *Module) Inject() *Module {
 			providerMap[providerKey] = m.Providers[i]
 		}
 
-		for i, controller := range m.Controllers {
-			controllerType := reflect.TypeOf(controller)
-			copyController := reflect.New(controllerType)
+		for i, presenter := range m.Presenters {
+			presenterType := reflect.TypeOf(presenter)
+			copyPresenter := reflect.New(presenterType)
 
-			for j := 0; j < controllerType.NumField(); j++ {
-				injectProviderKey := controllerType.Field(j).Type.String()
-				fieldName := controllerType.Field(j).Name
+			for j := 0; j < presenterType.NumField(); j++ {
+				injectProviderKey := presenterType.Field(j).Type.String()
+				fieldName := presenterType.Field(j).Name
 				if utils.StrIsLower(fieldName[0:1])[0] {
-					panic(fmt.Errorf("can't set value to unexported %v field of the %v controller", fieldName, controllerType.Name()))
+					panic(fmt.Errorf("can't set value to unexported %v field of the %v presenter", fieldName, presenterType.Name()))
 				}
 
 				isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
 
 				if providerMap[injectProviderKey] != nil && !isUnneededInject {
-					copyController.Elem().Field(j).Set(reflect.ValueOf(providerMap[injectProviderKey]))
+					copyPresenter.Elem().Field(j).Set(reflect.ValueOf(providerMap[injectProviderKey]))
 				} else {
 					if isUnneededInject {
 						continue
 					}
-					panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller", injectProviderKey, j, controllerType.Name()))
+					panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v presenter", injectProviderKey, j, presenterType.Name()))
 				}
 			}
 
-			m.Controllers[i] = copyController.Interface().(Controller).New()
+			m.Presenters[i] = copyPresenter.Interface().(Presenter).New()
 
-			for pattern, handlers := range reflect.ValueOf(m.Controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Control).routerMap {
+			for pattern, handlers := range reflect.ValueOf(m.Presenters[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
 				m.Router.Add(pattern, handlers...)
 			}
 		}

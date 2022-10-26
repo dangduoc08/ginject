@@ -7,18 +7,18 @@ import (
 )
 
 type moduleBuilder struct {
-	imports     []*Module
-	providers   []Provider
-	exports     []Provider
-	controllers []Controller
+	imports    []*Module
+	providers  []Provider
+	exports    []Provider
+	presenters []Presenter
 }
 
 func ModuleBuilder() *moduleBuilder {
 	return &moduleBuilder{
-		imports:     []*Module{},
-		providers:   []Provider{},
-		exports:     []Provider{},
-		controllers: []Controller{},
+		imports:    []*Module{},
+		providers:  []Provider{},
+		exports:    []Provider{},
+		presenters: []Presenter{},
 	}
 }
 
@@ -37,18 +37,18 @@ func (m *moduleBuilder) Providers(providers ...Provider) *moduleBuilder {
 	return m
 }
 
-func (m *moduleBuilder) Controllers(controllers ...Controller) *moduleBuilder {
-	m.controllers = append(m.controllers, controllers...)
+func (m *moduleBuilder) Presenters(presenters ...Presenter) *moduleBuilder {
+	m.presenters = append(m.presenters, presenters...)
 	return m
 }
 
 func (m *moduleBuilder) Build() *Module {
 	return &Module{
-		Mutex:       &sync.Mutex{},
-		Imports:     m.imports,
-		Exports:     m.exports,
-		Providers:   m.providers,
-		Controllers: m.controllers,
-		Router:      routing.NewRoute(),
+		Mutex:      &sync.Mutex{},
+		Imports:    m.imports,
+		Exports:    m.exports,
+		Providers:  m.providers,
+		Presenters: m.presenters,
+		Router:     routing.NewRoute(),
 	}
 }
