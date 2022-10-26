@@ -12,6 +12,10 @@ func StrRemoveSpace(str string) string {
 }
 
 func StrAddBegin(str, subStr string) string {
+	if str == "" {
+		return str
+	}
+
 	if str[:len(subStr)] != subStr {
 		return subStr + str
 	}
@@ -20,6 +24,10 @@ func StrAddBegin(str, subStr string) string {
 }
 
 func StrRemoveBegin(str, subStr string) string {
+	if str == "" {
+		return str
+	}
+
 	subStrLength := len(subStr)
 	if str[:subStrLength] == subStr {
 		return str[subStrLength:]
@@ -29,6 +37,10 @@ func StrRemoveBegin(str, subStr string) string {
 }
 
 func StrAddEnd(str, subStr string) string {
+	if str == "" {
+		return str
+	}
+
 	lastMatchedIndex := strings.LastIndex(str, subStr)
 	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
 	if !isAtEnd {
@@ -39,6 +51,10 @@ func StrAddEnd(str, subStr string) string {
 }
 
 func StrRemoveEnd(str, subStr string) string {
+	if str == "" {
+		return str
+	}
+
 	lastMatchedIndex := strings.LastIndex(str, subStr)
 	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
 	if isAtEnd {
