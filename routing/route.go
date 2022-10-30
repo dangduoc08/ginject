@@ -9,8 +9,6 @@ type Route struct {
 	*Trie
 	List        []string
 	Middlewares []ctx.Handler
-
-	// cache map[string]*cache
 }
 
 func NewRoute() *Route {
@@ -18,7 +16,6 @@ func NewRoute() *Route {
 		Trie:        NewTrie(),
 		List:        []string{},
 		Middlewares: []ctx.Handler{},
-		// cache:       make(map[string]*cache),
 	}
 }
 
@@ -42,25 +39,12 @@ func (r *Route) Add(route string, handlers ...ctx.Handler) *Route {
 }
 
 func (r *Route) match(route string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	// if r.cache[route] != nil {
-	// 	cached := r.cache[route]
-	// 	return true, cached.matchedRoute, cached.paramKeys, cached.paramVals, cached.handlers
-	// }
-
 	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {
 		isMatched = true
 		matchedRoute = r.List[i]
-		// if r.cache[route] == nil {
-		// 	r.cache[route] = &cache{
-		// 		matchedRoute: matchedRoute,
-		// 		paramKeys:    paramKeys,
-		// 		paramVals:    paramVals,
-		// 		handlers:     handlers,
-		// 	}
-		// }
 	}
 
 	return isMatched, matchedRoute, paramKeys, paramVals, handlers

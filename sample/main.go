@@ -5,6 +5,7 @@ import (
 
 	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/sample/auths"
 	"github.com/dangduoc08/gooh/sample/categories"
 	"github.com/dangduoc08/gooh/sample/products"
@@ -12,7 +13,7 @@ import (
 
 func main() {
 	app := core.New()
-	// app.Use(middlewares.RequestLogger)
+	app.Use(middlewares.RequestLogger)
 
 	appModule := common.ModuleBuilder().
 		Imports(
