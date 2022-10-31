@@ -1,5 +1,9 @@
 package cache
 
+import (
+	"sync/atomic"
+)
+
 type node[T any] struct {
 	next *node[T]
 	prev *node[T]
@@ -9,7 +13,7 @@ type node[T any] struct {
 type dll[T any] struct {
 	head *node[T]
 	tail *node[T]
-	size int
+	size int64
 }
 
 func newDLL[T any]() *dll[T] {
@@ -42,7 +46,7 @@ func (dll *dll[T]) push(d T) *node[T] {
 	}
 
 	dll.tail = n
-	dll.size += 1
+	atomic.AddInt64(&dll.size, 1)
 
 	return n
 }
@@ -69,7 +73,7 @@ func (dll *dll[T]) unshift(d T) *node[T] {
 	}
 
 	dll.head = n
-	dll.size += 1
+	atomic.AddInt64(&dll.size, 1)
 
 	return n
 }
@@ -82,7 +86,7 @@ func (dll *dll[T]) pop() *node[T] {
 		}
 		return nil
 	}
-	dll.size -= 1
+	atomic.AddInt64(&dll.size, -1)
 
 	if dll.size > 0 {
 		dll.tail = dll.tail.prev
@@ -105,7 +109,7 @@ func (dll *dll[T]) shift() *node[T] {
 		}
 		return nil
 	}
-	dll.size -= 1
+	atomic.AddInt64(&dll.size, -1)
 
 	if dll.size > 0 {
 		dll.head = dll.head.next
@@ -146,6 +150,7 @@ func (dll *dll[T]) delete(n *node[T]) *node[T] {
 
 	n.next.prev = n.prev
 	n.prev.next = n.next
-	dll.size -= 1
+	atomic.AddInt64(&dll.size, -1)
+
 	return n
 }
