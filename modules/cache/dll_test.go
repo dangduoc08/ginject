@@ -43,7 +43,7 @@ func TestDLLModifyNode(t *testing.T) {
 
 	output3 := dll.size
 	expect3 := genCounter*2 - 2
-	if dll.size != genCounter*2-3 {
+	if int(dll.size) != genCounter*2-3 {
 		t.Errorf("dll.size = %v; expect = %v", output3, expect3)
 	}
 }
