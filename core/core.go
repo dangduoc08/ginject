@@ -17,9 +17,12 @@ func New() *App {
 	a := App{
 		routing.NewRoute(),
 	}
+	ev := ctx.NewEvent()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		c := ctx.NewContext()
+		c.Event = ev
+
 		defer func() {
 			if rec := recover(); rec != nil {
 				c.Status(http.StatusInternalServerError)

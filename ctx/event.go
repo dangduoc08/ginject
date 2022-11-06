@@ -1,52 +1,56 @@
 package ctx
 
+import (
+	"sync"
+)
+
 const (
 	REQUEST_FINISHED = "REQUEST_FINISHED"
 )
 
 type event struct {
-	opts     map[string]func(args ...interface{})
-	onceOpts map[string]func(args ...interface{})
+	opts     *sync.Map
+	onceOpts *sync.Map
 }
 
-func newEvent() *event {
+func NewEvent() *event {
 	return &event{
-		opts:     make(map[string]func(args ...interface{})),
-		onceOpts: make(map[string]func(args ...interface{})),
+		opts:     &sync.Map{},
+		onceOpts: &sync.Map{},
 	}
 }
 
 func (e *event) On(eventName string, listener func(args ...interface{})) {
-	e.opts[eventName] = listener
+	e.opts.Store(eventName, listener)
 }
 
 func (e *event) Once(eventName string, listener func(args ...interface{})) {
-	e.onceOpts[eventName] = listener
+	e.onceOpts.Store(eventName, listener)
 }
 
 func (e *event) Emit(eventName string, args ...interface{}) {
-	ch1 := make(chan bool)
-	ch2 := make(chan bool)
-	defer close(ch1)
-	defer close(ch2)
+	ch := make(chan bool, 2)
 
-	go (func(c chan bool) {
-		if e.opts[eventName] != nil {
-			listener := e.opts[eventName]
-			listener(args...)
+	go (func(ch chan<- bool) {
+		listener, ok := e.opts.Load(eventName)
+		if ok {
+			fn := listener.(func(args ...interface{}))
+			fn(args...)
 		}
-		c <- true
-	})(ch1)
+		ch <- true
+	})(ch)
+	<-ch
 
-	go (func(c chan bool) {
-		if e.onceOpts[eventName] != nil {
-			listener := e.onceOpts[eventName]
-			listener(args...)
-			delete(e.onceOpts, eventName)
+	go (func(c chan<- bool) {
+		listener, ok := e.onceOpts.Load(eventName)
+		if ok {
+			fn := listener.(func(args ...interface{}))
+			fn(args...)
+			e.onceOpts.Delete(eventName)
 		}
-		c <- true
-	})(ch2)
+		ch <- true
+	})(ch)
+	<-ch
 
-	<-ch1
-	<-ch2
+	close(ch)
 }

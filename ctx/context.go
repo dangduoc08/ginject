@@ -42,7 +42,6 @@ func NewContext() *Context {
 	return &Context{
 		Code:      http.StatusOK,
 		Timestamp: time.Now(),
-		Event:     newEvent(),
 	}
 }
 
