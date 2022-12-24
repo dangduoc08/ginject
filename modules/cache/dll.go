@@ -10,21 +10,22 @@ type node[T any] struct {
 	data T
 }
 
-type dll[T any] struct {
+type DLL[T any] struct {
 	head *node[T]
 	tail *node[T]
 	size int64
 }
 
-func newDLL[T any]() *dll[T] {
-	return &dll[T]{
+func NewDLL[T any]() *DLL[T] {
+	return &DLL[T]{
 		head: nil,
 		tail: nil,
 		size: 0,
 	}
 }
 
-func (dll *dll[T]) push(d T) *node[T] {
+// Add at tail of list
+func (dll *DLL[T]) push(d T) *node[T] {
 	n := &node[T]{
 		next: nil,
 		prev: dll.tail,
@@ -51,7 +52,8 @@ func (dll *dll[T]) push(d T) *node[T] {
 	return n
 }
 
-func (dll *dll[T]) unshift(d T) *node[T] {
+// Add at head of list
+func (dll *DLL[T]) unshift(d T) *node[T] {
 	n := &node[T]{
 		next: dll.head,
 		prev: nil,
@@ -78,7 +80,8 @@ func (dll *dll[T]) unshift(d T) *node[T] {
 	return n
 }
 
-func (dll *dll[T]) pop() *node[T] {
+// Remove at tail of list
+func (dll *DLL[T]) pop() *node[T] {
 	n := dll.tail
 	if n == nil {
 		if dll.head != nil {
@@ -101,7 +104,8 @@ func (dll *dll[T]) pop() *node[T] {
 	return n
 }
 
-func (dll *dll[T]) shift() *node[T] {
+// Add at head of list
+func (dll *DLL[T]) shift() *node[T] {
 	n := dll.head
 	if n == nil {
 		if dll.tail != nil {
@@ -124,9 +128,9 @@ func (dll *dll[T]) shift() *node[T] {
 	return n
 }
 
-func (dll *dll[T]) delete(n *node[T]) *node[T] {
+func (dll *DLL[T]) delete(n *node[T]) {
 	if dll.size == 0 {
-		return nil
+		return
 	}
 
 	if dll.size == 1 {
@@ -135,22 +139,23 @@ func (dll *dll[T]) delete(n *node[T]) *node[T] {
 		} else if dll.tail != nil {
 			dll.tail = nil
 		}
-
+		n = nil
 		dll.size = 0
-		return n
+		return
 	}
 
 	if n == dll.head {
-		return dll.shift()
+		dll.shift()
+		return
 	}
 
 	if n == dll.tail {
-		return dll.pop()
+		dll.pop()
+		return
 	}
 
 	n.next.prev = n.prev
 	n.prev.next = n.next
+	n = nil
 	atomic.AddInt64(&dll.size, -1)
-
-	return n
 }

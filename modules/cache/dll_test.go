@@ -7,7 +7,7 @@ import (
 )
 
 func TestDLLModifyNode(t *testing.T) {
-	dll := newDLL[string]()
+	dll := NewDLL[string]()
 
 	headArr := []string{}
 	tailArr := []string{}
