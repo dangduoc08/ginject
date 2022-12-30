@@ -9,6 +9,12 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
+var modulesInjectedFromMain []uintptr
+var noInjectedFields = []string{
+	"Rest",
+	"common.Rest",
+}
+
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
@@ -30,9 +36,15 @@ func (m *Module) Inject() *Module {
 			m.OnInit()
 		}
 
-		noInjectedFields := []string{
-			"Rest",
-			"common.Rest",
+		// first inject always from main module
+		// invoked by create function.
+		// only modules injected by main module
+		// able to use presenter
+		if len(modulesInjectedFromMain) == 0 {
+			modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
+			for _, subModule := range m.Imports {
+				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
+			}
 		}
 
 		for _, subModule := range m.Imports {
@@ -48,37 +60,39 @@ func (m *Module) Inject() *Module {
 		providerMap := map[string]Provider{}
 		for i, provider := range m.Providers {
 			providerKey := reflect.TypeOf(provider).String()
-			m.Providers = append(m.Providers, provider.New())
+			m.Providers[i] = provider.New()
 			providerMap[providerKey] = m.Providers[i]
 		}
 
-		for i, presenter := range m.Presenters {
-			presenterType := reflect.TypeOf(presenter)
-			copyPresenter := reflect.New(presenterType)
+		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
+			for i, presenter := range m.Presenters {
+				presenterType := reflect.TypeOf(presenter)
+				copyPresenter := reflect.New(presenterType)
 
-			for j := 0; j < presenterType.NumField(); j++ {
-				injectProviderKey := presenterType.Field(j).Type.String()
-				fieldName := presenterType.Field(j).Name
-				if utils.StrIsLower(fieldName[0:1])[0] {
-					panic(fmt.Errorf("can't set value to unexported %v field of the %v presenter", fieldName, presenterType.Name()))
-				}
-
-				isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
-
-				if providerMap[injectProviderKey] != nil && !isUnneededInject {
-					copyPresenter.Elem().Field(j).Set(reflect.ValueOf(providerMap[injectProviderKey]))
-				} else {
-					if isUnneededInject {
-						continue
+				for j := 0; j < presenterType.NumField(); j++ {
+					injectProviderKey := presenterType.Field(j).Type.String()
+					fieldName := presenterType.Field(j).Name
+					if utils.StrIsLower(fieldName[0:1])[0] {
+						panic(fmt.Errorf("can't set value to unexported %v field of the %v presenter", fieldName, presenterType.Name()))
 					}
-					panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v presenter", injectProviderKey, j, presenterType.Name()))
+
+					isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
+
+					if providerMap[injectProviderKey] != nil && !isUnneededInject {
+						copyPresenter.Elem().Field(j).Set(reflect.ValueOf(providerMap[injectProviderKey]))
+					} else {
+						if isUnneededInject {
+							continue
+						}
+						panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v presenter", injectProviderKey, j, presenterType.Name()))
+					}
 				}
-			}
 
-			m.Presenters[i] = copyPresenter.Interface().(Presenter).New()
+				m.Presenters[i] = copyPresenter.Interface().(Presenter).New()
 
-			for pattern, handlers := range reflect.ValueOf(m.Presenters[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
-				m.Router.Add(pattern, handlers...)
+				for pattern, handlers := range reflect.ValueOf(m.Presenters[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
+					m.Router.Add(pattern, handlers...)
+				}
 			}
 		}
 	}
