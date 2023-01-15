@@ -2,32 +2,32 @@ package categories
 
 import (
 	"github.com/dangduoc08/gooh"
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/sample/products"
 )
 
-type CategoryPresenter struct {
-	common.Rest
+type CategoryController struct {
+	core.Rest
 	ProductProvider products.ProductProvider
 }
 
-func (categoryPresenter CategoryPresenter) New() common.Presenter {
-	categoryPresenter.
+func (categoryController CategoryController) Inject() core.Controller {
+	categoryController.
 		Prefix("categories").
-		Get("/list", categoryPresenter.List).
-		Get("/{categoryId}/get", categoryPresenter.List).
-		Post("/create", categoryPresenter.List).
-		Put("/{categoryId}/update", categoryPresenter.List).
-		Get("/{categoryId}/products/{productId}/get", categoryPresenter.GetProductOnCategoryId)
+		Get("/list", categoryController.List).
+		Get("/{categoryId}/get", categoryController.List).
+		Post("/create", categoryController.List).
+		Put("/{categoryId}/update", categoryController.List).
+		Get("/{categoryId}/products/{productId}/get", categoryController.GetProductOnCategoryId)
 
-	return categoryPresenter
+	return categoryController
 }
 
-func (categoryPresenter *CategoryPresenter) List(c gooh.Context) {
-	c.Text("CategoryPresenter List")
+func (categoryController *CategoryController) List(c gooh.Context) {
+	c.Text("CategoryController List")
 }
 
-func (categoryPresenter *CategoryPresenter) GetProductOnCategoryId(c gooh.Context) {
-	categoryPresenter.ProductProvider.GetProductByID("/{categoryId}/products/{productId}/get")
+func (categoryController *CategoryController) GetProductOnCategoryId(c gooh.Context) {
+	// categoryController.ProductProvider.GetProductByID("/{categoryId}/products/{productId}/get")
 	c.Text("GetProductOnCategoryId List")
 }

@@ -1,25 +1,32 @@
 package products
 
 import (
+	"fmt"
+
 	"github.com/dangduoc08/gooh"
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/modules/config"
 )
 
-type ProductPresenter struct {
-	common.Rest
+type ProductController struct {
+	core.Rest
+	ProductProvider        ProductProvider
+	InjectedConfigProvider config.ConfigProvider // props
 }
 
-func (productPresenter ProductPresenter) New() common.Presenter {
-	productPresenter.
+func (productController ProductController) Inject() core.Controller {
+	productController.
 		Prefix("products").
-		Get("/list", productPresenter.List).
-		Get("/{productId}/get", productPresenter.List).
-		Post("/create", productPresenter.List).
-		Put("/{productId}/update", productPresenter.List)
+		Get("list", productController.List).
+		Get("/{productId}/get", productController.List).
+		Post("/create", productController.List).
+		Put("/{productId}/update", productController.List)
 
-	return productPresenter
+	return productController
 }
 
-func (productPresenter *ProductPresenter) List(c gooh.Context) {
-	c.Text("ProductPresenter List")
+func (productController *ProductController) List(c gooh.Context) {
+	fmt.Println("configProvider from LIST", productController.InjectedConfigProvider)
+	productController.ProductProvider.GetProductByID("asdsa")
+	c.Text("ProductController List")
 }

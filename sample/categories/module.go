@@ -3,12 +3,12 @@ package categories
 import (
 	"log"
 
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/sample/products"
 )
 
-var Module = func() *common.Module {
-	module := common.ModuleBuilder().
+var Module = func() *core.Module {
+	module := core.ModuleBuilder().
 		Imports(
 			products.Module,
 		).
@@ -18,8 +18,8 @@ var Module = func() *common.Module {
 		Exports(
 			CategoryProvider{},
 		).
-		Presenters(
-			CategoryPresenter{},
+		Controllers(
+			CategoryController{},
 		).
 		Build()
 
