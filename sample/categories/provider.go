@@ -1,7 +1,7 @@
 package categories
 
 import (
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 )
 
 type Categorier interface {
@@ -12,7 +12,7 @@ type CategoryProvider struct {
 	CategoryEntities []CategoryEntity
 }
 
-func (categoryProvider CategoryProvider) New() common.Provider {
+func (categoryProvider CategoryProvider) Inject() core.Provider {
 	return categoryProvider
 }
 

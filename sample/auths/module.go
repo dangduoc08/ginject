@@ -3,13 +3,13 @@ package auths
 import (
 	"log"
 
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/sample/categories"
 	"github.com/dangduoc08/gooh/sample/products"
 )
 
-var Module = func() *common.Module {
-	module := common.ModuleBuilder().
+var Module = func() *core.Module {
+	module := core.ModuleBuilder().
 		Imports(
 			products.Module,
 			categories.Module,
@@ -17,14 +17,15 @@ var Module = func() *common.Module {
 		Providers(
 			AuthProvider{},
 		).
-		Presenters(
-			AuthPresenter{},
+		Controllers(
+			AuthController{},
 		).
 		Build()
 
 	module.OnInit = func() {
 		log.Default().Println("AuthsModule OnInit")
 	}
+	module.IsGlobal = true
 
 	return module
 }()

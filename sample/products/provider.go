@@ -1,9 +1,8 @@
 package products
 
 import (
-	"fmt"
-
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/modules/config"
 )
 
 type Producter interface {
@@ -11,14 +10,14 @@ type Producter interface {
 }
 
 type ProductProvider struct {
-	ProductEntities []ProductEntity
+	ProductEntities        []ProductEntity       // state
+	InjectedConfigProvider config.ConfigProvider // props
 }
 
-func (productProvider ProductProvider) New() common.Provider {
+func (productProvider ProductProvider) Inject() core.Provider {
 	return productProvider
 }
 
 func (productProvider *ProductProvider) GetProductByID(id string) string {
-	fmt.Println("GetProductByID", id)
 	return id
 }

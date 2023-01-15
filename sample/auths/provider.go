@@ -3,7 +3,7 @@ package auths
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 )
 
 type Authenticator interface {
@@ -15,7 +15,7 @@ type AuthProvider struct {
 	Password string
 }
 
-func (userProvider AuthProvider) New() common.Provider {
+func (userProvider AuthProvider) Inject() core.Provider {
 	return userProvider
 }
 
