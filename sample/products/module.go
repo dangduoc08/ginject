@@ -3,19 +3,23 @@ package products
 import (
 	"log"
 
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/modules/config"
 )
 
-var Module = func() *common.Module {
-	module := common.ModuleBuilder().
+var Module = func() *core.Module {
+	productProvider := ProductProvider{}
+
+	module := core.ModuleBuilder().
+		Imports(config.Module).
 		Providers(
-			ProductProvider{},
+			productProvider,
 		).
 		Exports(
-			ProductProvider{},
+			productProvider,
 		).
-		Presenters(
-			ProductPresenter{},
+		Controllers(
+			ProductController{},
 		).
 		Build()
 

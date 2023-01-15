@@ -2,31 +2,31 @@ package auths
 
 import (
 	"github.com/dangduoc08/gooh"
-	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/sample/categories"
 	"github.com/dangduoc08/gooh/sample/products"
 )
 
-type AuthPresenter struct {
-	common.Rest
+type AuthController struct {
+	core.Rest
 	AuthProvider     AuthProvider
 	ProductProvider  products.ProductProvider
 	CategoryProvider categories.CategoryProvider
 }
 
-func (authPresenter AuthPresenter) New() common.Presenter {
-	authPresenter.
+func (authController AuthController) Inject() core.Controller {
+	authController.
 		Prefix("auths").
-		Post("/signin", authPresenter.Signin).
-		Get("/ping", authPresenter.Signin).
-		Post("/signup", authPresenter.Signin)
+		Post("/signin", authController.Signin).
+		Get("/ping", authController.Signin).
+		Post("/signup", authController.Signin)
 
-	return authPresenter
+	return authController
 }
 
-func (authPresenter *AuthPresenter) Signin(c gooh.Context) {
-	authPresenter.AuthProvider.Signin(c.URL.Query().Get("username"), c.URL.Query().Get("password"))
-	authPresenter.ProductProvider.GetProductByID("Signin")
+func (authController *AuthController) Signin(c gooh.Context) {
+	authController.AuthProvider.Signin(c.URL.Query().Get("username"), c.URL.Query().Get("password"))
+	authController.ProductProvider.GetProductByID("Signin")
 	c.JSON(gooh.Map{
 		"name": "Hello World!",
 	})
