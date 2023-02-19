@@ -30,6 +30,7 @@ func New() *App {
 
 		defer func() {
 			if rec := recover(); rec != nil {
+				c.Event.Emit(ctx.REQUEST_FAILED, rec)
 			}
 		}()
 
