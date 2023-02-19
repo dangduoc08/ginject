@@ -2,13 +2,27 @@ package core
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gooh/utils"
 )
 
 type Rest struct {
 	prefixes  []string
 	routerMap map[string][]ctx.Handler
+}
+
+func (r *Rest) addToRouters(path, method string, handlers ...ctx.Handler) {
+	if reflect.ValueOf(r.routerMap).IsNil() {
+		r.routerMap = make(map[string][]ctx.Handler)
+	}
+	prefix := ""
+	for _, str := range r.prefixes {
+		prefix += utils.StrAddBegin(utils.StrRemoveEnd(str, "/"), "/")
+	}
+	r.routerMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = handlers
 }
 
 func (r *Rest) Prefix(prefix string) *Rest {

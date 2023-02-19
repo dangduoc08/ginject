@@ -20,13 +20,42 @@ var noInjectedFields = []string{
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
-	IsGlobal       bool
-	Imports        []*Module
-	Providers      []Provider
-	Exports        []Provider
-	Controllers    []Controller
-	Router         *routing.Route
-	OnInit         func()
+	router         *routing.Route
+	staticModules  []*Module
+	dynamicModules []any
+	providers      []Provider
+	exports        []Provider
+	controllers    []Controller
+
+	IsGlobal bool
+	OnInit   func()
+}
+
+func (m *Module) injectMainModulesAndGlobalProviders() {
+
+	// first inject always from main module
+	// invoked by create function.
+	// only modules injected by main module
+	// able to use controller
+	if len(modulesInjectedFromMain) == 0 {
+		modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
+
+		for _, subModule := range m.staticModules {
+			modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
+
+			// module which IsGlobal = true can
+			// global inject providers
+			// submodule no need to import module
+			if subModule.IsGlobal {
+				for _, subProvider := range subModule.providers {
+					subProviderType := reflect.TypeOf(subProvider)
+					subProviderKey := subProviderType.String()
+
+					globalProviders[subProviderKey] = subProvider
+				}
+			}
+		}
+	}
 }
 
 func (m *Module) Inject() *Module {
@@ -39,52 +68,72 @@ func (m *Module) Inject() *Module {
 			m.OnInit()
 		}
 
-		// first inject always from main module
-		// invoked by create function.
-		// only modules injected by main module
-		// able to use presenter
-		if len(modulesInjectedFromMain) == 0 {
-			for _, subModule := range m.Imports {
-				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
-				for _, subModule := range m.Imports {
-					modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
-				}
+		m.injectMainModulesAndGlobalProviders()
 
-				// module which IsGlobal = true can
-				// global inject providers
-				// submodule no need to import module
-				if subModule.IsGlobal {
-					for _, subProvider := range subModule.Providers {
-						subProviderType := reflect.TypeOf(subProvider)
-						subProviderKey := subProviderType.String()
-
-						globalProviders[subProviderKey] = subProvider
-					}
-				}
-			}
-		}
-
-		for _, subModule := range m.Imports {
+		for _, subModule := range m.staticModules {
 			injectModule := subModule.Inject()
 
 			// only import providers which exported
-			if len(injectModule.Exports) > 0 {
-				m.Providers = append(m.Providers, injectModule.Exports...)
+			if len(injectModule.exports) > 0 {
+				m.providers = append(m.providers, injectModule.exports...)
 			}
 
-			m.Router.Group("/", injectModule.Router)
+			m.router.Group("/", injectModule.router)
 		}
 
 		// local inject providers
 		var injectedProviders map[string]Provider = make(map[string]Provider)
-		for _, provider := range m.Providers {
+		for _, provider := range m.providers {
 			providerType := reflect.TypeOf(provider)
 			providerKey := providerType.String()
 
 			injectedProviders[providerKey] = provider
 		}
 
-		for i, provider := range m.Providers {
+		// handle dynamic modules
+		for _, dynamicModule := range m.dynamicModules {
+			dynamicModuleType := reflect.TypeOf(dynamicModule)
+			args := []reflect.Value{}
+
+			for i := 0; i < dynamicModuleType.NumIn(); i++ {
+				dynamicModuleProviderKey := dynamicModuleType.In(i).String()
+				if injectedProviders[dynamicModuleProviderKey] != nil {
+					args = append(args, reflect.ValueOf(injectedProviders[dynamicModuleProviderKey]))
+				} else if globalProviders[dynamicModuleProviderKey] != nil {
+					args = append(args, reflect.ValueOf(globalProviders[dynamicModuleProviderKey]))
+				}
+			}
+
+			subModule := reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
+
+			if subModule.IsGlobal {
+				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
+				for _, subProvider := range subModule.providers {
+					subProviderType := reflect.TypeOf(subProvider)
+					subProviderKey := subProviderType.String()
+
+					globalProviders[subProviderKey] = subProvider
+				}
+			}
+
+			injectModule := subModule.Inject()
+
+			// only import providers which exported
+			if len(injectModule.exports) > 0 {
+				m.providers = append(m.providers, injectModule.exports...)
+			}
+
+			m.router.Group("/", injectModule.router)
+		}
+
+		for _, provider := range m.providers {
+			providerType := reflect.TypeOf(provider)
+			providerKey := providerType.String()
+
+			injectedProviders[providerKey] = provider
+		}
+
+		for i, provider := range m.providers {
 			providerType := reflect.TypeOf(provider)
 			providerValue := reflect.ValueOf(provider)
 			newProvider := reflect.New(providerType)
@@ -113,11 +162,13 @@ func (m *Module) Inject() *Module {
 				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).Inject()
 			}
 
-			m.Providers[i] = providerInjectCheck[providerKey]
+			m.providers[i] = providerInjectCheck[providerKey]
 			injectedProviders[providerKey] = providerInjectCheck[providerKey]
 		}
+
+		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
-			for i, controller := range m.Controllers {
+			for i, controller := range m.controllers {
 				controllerType := reflect.TypeOf(controller)
 				newControllerType := reflect.New(controllerType)
 
@@ -142,10 +193,10 @@ func (m *Module) Inject() *Module {
 					}
 				}
 
-				m.Controllers[i] = newControllerType.Interface().(Controller).Inject()
+				m.controllers[i] = newControllerType.Interface().(Controller).Inject()
 
-				for pattern, handlers := range reflect.ValueOf(m.Controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
-					m.Router.Add(pattern, handlers...)
+				for pattern, handlers := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
+					m.router.Add(pattern, handlers...)
 				}
 			}
 		}
