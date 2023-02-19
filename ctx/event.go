@@ -6,6 +6,7 @@ import (
 
 const (
 	REQUEST_FINISHED = "REQUEST_FINISHED"
+	REQUEST_FAILED   = "REQUEST_FAILED"
 )
 
 type event struct {
