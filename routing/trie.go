@@ -132,9 +132,9 @@ func (tr *Trie) ToJSON() (string, error) {
 	return string(b), err
 }
 
-func (tr *Trie) genTrieMap(path string) map[string]interface{} {
-	nodeMap := map[string]interface{}{
-		"children": []map[string]interface{}{},
+func (tr *Trie) genTrieMap(path string) map[string]any {
+	nodeMap := map[string]any{
+		"children": []map[string]any{},
 	}
 	if path != "" {
 		nodeMap["path"] = path
@@ -148,7 +148,7 @@ func (tr *Trie) genTrieMap(path string) map[string]interface{} {
 				trieMap["params"] = node.ParamKeys
 
 				if len(node.Handlers) > 0 {
-					handlers := []interface{}{}
+					handlers := []any{}
 					for _, handler := range node.Handlers {
 						fnName := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
 
@@ -166,7 +166,7 @@ func (tr *Trie) genTrieMap(path string) map[string]interface{} {
 					trieMap["handlers"] = handlers
 				}
 
-				nodeMap["children"] = append(nodeMap["children"].([]map[string]interface{}), trieMap)
+				nodeMap["children"] = append(nodeMap["children"].([]map[string]any), trieMap)
 			}
 		}
 	}
