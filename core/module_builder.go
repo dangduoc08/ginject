@@ -1,13 +1,16 @@
 package core
 
 import (
+	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/dangduoc08/gooh/routing"
 )
 
 type moduleBuilder struct {
-	imports     []*Module
+	imports     []any
 	providers   []Provider
 	exports     []Provider
 	controllers []Controller
@@ -15,16 +18,47 @@ type moduleBuilder struct {
 
 func ModuleBuilder() *moduleBuilder {
 	return &moduleBuilder{
-		imports:     []*Module{},
+		imports:     []any{},
 		providers:   []Provider{},
 		exports:     []Provider{},
 		controllers: []Controller{},
 	}
 }
 
-func (m *moduleBuilder) Imports(modules ...*Module) *moduleBuilder {
+func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {
 	m.imports = append(m.imports, modules...)
 	return m
+}
+
+func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
+	staticModules := []*Module{}
+	dynamicModules := []any{}
+	errors := []string{}
+
+	for _, arg := range m.imports {
+		switch module := arg.(type) {
+		case *Module:
+			staticModules = append(staticModules, module)
+		default:
+			moduleType := reflect.TypeOf(module)
+			isDynamic, e := isDynamicModule(moduleType.String())
+			if e != nil {
+				panic(e)
+			}
+
+			if isDynamic {
+				dynamicModules = append(dynamicModules, module)
+			} else {
+				errors = append(errors, fmt.Sprintf("can't pass %v type as module", moduleType))
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		panic(strings.Join(errors, "\n       "))
+	}
+
+	return staticModules, dynamicModules
 }
 
 func (m *moduleBuilder) Exports(providers ...Provider) *moduleBuilder {
@@ -43,12 +77,15 @@ func (m *moduleBuilder) Controllers(controllers ...Controller) *moduleBuilder {
 }
 
 func (m *moduleBuilder) Build() *Module {
+	staticModules, dynamicModules := m.getModuleType()
+
 	return &Module{
-		Mutex:       &sync.Mutex{},
-		Imports:     m.imports,
-		Exports:     m.exports,
-		Providers:   m.providers,
-		Controllers: m.controllers,
-		Router:      routing.NewRoute(),
+		Mutex:          &sync.Mutex{},
+		staticModules:  staticModules,
+		dynamicModules: dynamicModules,
+		exports:        m.exports,
+		providers:      m.providers,
+		controllers:    m.controllers,
+		router:         routing.NewRoute(),
 	}
 }

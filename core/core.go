@@ -21,23 +21,19 @@ func New() *App {
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		c := ctx.NewContext()
 		c.Event = ev
+		isNext := true
+		c.ResponseWriter = w
+		c.Request = req
+		c.Next = func() {
+			isNext = true
+		}
 
 		defer func() {
 			if rec := recover(); rec != nil {
-				c.Status(http.StatusInternalServerError)
-				c.Event.Emit(ctx.REQUEST_FINISHED)
-				http.Error(w, rec.(error).Error(), http.StatusInternalServerError)
 			}
 		}()
 
 		isMatched, _, paramKeys, paramVals, handlers := a.Route.Match(req.URL.Path, req.Method)
-		isNext := true
-		next := func() {
-			isNext = true
-		}
-		c.ResponseWriter = w
-		c.Request = req
-		c.Next = next
 
 		if isMatched {
 			ctx.SetParamKeys(c, paramKeys)
@@ -71,7 +67,7 @@ func New() *App {
 
 func (a *App) Create(m *Module) {
 	mainModule := m.Inject()
-	a.Route.Group("/", mainModule.Router)
+	a.Route.Group("/", mainModule.router)
 }
 
 func (a *App) ListenAndServe(addr string, handler http.Handler) error {
