@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func handleJSON(args ...interface{}) ([]byte, error) {
+func handleJSON(args ...any) ([]byte, error) {
 	data := args[0]
 	switch args[0].(type) {
 	case string:
