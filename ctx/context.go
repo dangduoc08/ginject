@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	Map     map[string]interface{}
+	Map     map[string]any
 	ErrFn   func(error)
 	Handler = func(c *Context)
 )
@@ -17,9 +17,9 @@ type (
 type Responser interface {
 	Set(map[string]string) Responser
 	Status(int) Responser
-	Text(string, ...interface{})
-	JSONP(...interface{})
-	JSON(...interface{})
+	Text(string, ...any)
+	JSONP(...any)
+	JSON(...any)
 	Param() Values
 	Error(ErrFn)
 }
@@ -67,13 +67,13 @@ func (c *Context) Status(code int) Responser {
 	return c
 }
 
-func (c *Context) Text(content string, args ...interface{}) {
+func (c *Context) Text(content string, args ...any) {
 	c.WriteHeader(c.Code)
 	fmt.Fprintf(c.ResponseWriter, content, args...)
 	c.Event.Emit(REQUEST_FINISHED)
 }
 
-func (c *Context) JSON(args ...interface{}) {
+func (c *Context) JSON(args ...any) {
 	buf, err := handleJSON(args...)
 	if err != nil {
 		panic(err.Error())
@@ -87,7 +87,7 @@ func (c *Context) JSON(args ...interface{}) {
 	c.Event.Emit(REQUEST_FINISHED)
 }
 
-func (c *Context) JSONP(args ...interface{}) {
+func (c *Context) JSONP(args ...any) {
 	cb := utils.StrRemoveSpace(c.URL.Query().Get("callback"))
 	if cb == "" {
 		c.JSON(args...)
