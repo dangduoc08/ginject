@@ -31,30 +31,18 @@ type Module struct {
 	OnInit   func()
 }
 
-func (m *Module) injectMainModulesAndGlobalProviders() {
+func (m *Module) injectMainModules() {
 
-	// first inject always from main module
-	// invoked by create function.
-	// only modules injected by main module
-	// able to use controller
-	if len(modulesInjectedFromMain) == 0 {
-		modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
+	// append module pointer to a list of modules
+	// which injected from the main function
+	modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
+}
 
-		for _, subModule := range m.staticModules {
-			modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
+func (m *Module) injectGlobalProviders() {
+	for _, provider := range m.exports {
 
-			// module which IsGlobal = true can
-			// global inject providers
-			// submodule no need to import module
-			if subModule.IsGlobal {
-				for _, subProvider := range subModule.providers {
-					subProviderType := reflect.TypeOf(subProvider)
-					subProviderKey := subProviderType.String()
-
-					globalProviders[subProviderKey] = subProvider
-				}
-			}
-		}
+		// generate a unique key for the provider
+		globalProviders[genProviderKey(provider)] = provider
 	}
 }
 
@@ -68,10 +56,31 @@ func (m *Module) Inject() *Module {
 			m.OnInit()
 		}
 
-		m.injectMainModulesAndGlobalProviders()
+		// first injection always from main module
+		// invoked by create function.
+		// only modules injected by main module
+		// are able to use controllers
+		if len(modulesInjectedFromMain) == 0 {
+			m.injectMainModules()
 
-		for _, subModule := range m.staticModules {
-			injectModule := subModule.Inject()
+			// main module's provider
+			// alway inject globally
+			m.injectGlobalProviders()
+
+			for _, staticModule := range m.staticModules {
+				staticModule.injectMainModules()
+
+				if staticModule.IsGlobal {
+					staticModule.injectGlobalProviders()
+				}
+			}
+		}
+
+		// inject static modules
+		for _, staticModule := range m.staticModules {
+
+			// recursion injection
+			injectModule := staticModule.Inject()
 
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
@@ -81,42 +90,27 @@ func (m *Module) Inject() *Module {
 			m.router.Group("/", injectModule.router)
 		}
 
-		// local inject providers
+		// inject local providers
 		var injectedProviders map[string]Provider = make(map[string]Provider)
 		for _, provider := range m.providers {
-			providerType := reflect.TypeOf(provider)
-			providerKey := providerType.String()
-
-			injectedProviders[providerKey] = provider
+			injectedProviders[genProviderKey(provider)] = provider
 		}
 
-		// handle dynamic modules
+		// inject dynamic modules
 		for _, dynamicModule := range m.dynamicModules {
-			dynamicModuleType := reflect.TypeOf(dynamicModule)
-			args := []reflect.Value{}
+			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
 
-			for i := 0; i < dynamicModuleType.NumIn(); i++ {
-				dynamicModuleProviderKey := dynamicModuleType.In(i).String()
-				if injectedProviders[dynamicModuleProviderKey] != nil {
-					args = append(args, reflect.ValueOf(injectedProviders[dynamicModuleProviderKey]))
-				} else if globalProviders[dynamicModuleProviderKey] != nil {
-					args = append(args, reflect.ValueOf(globalProviders[dynamicModuleProviderKey]))
-				}
+			// dynamic modules will be treated
+			// as global module
+			// hence dynamic module's controllers
+			// always are injected
+			staticModule.injectMainModules()
+
+			if staticModule.IsGlobal {
+				staticModule.injectGlobalProviders()
 			}
 
-			subModule := reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
-
-			if subModule.IsGlobal {
-				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(subModule).Pointer())
-				for _, subProvider := range subModule.providers {
-					subProviderType := reflect.TypeOf(subProvider)
-					subProviderKey := subProviderType.String()
-
-					globalProviders[subProviderKey] = subProvider
-				}
-			}
-
-			injectModule := subModule.Inject()
+			injectModule := staticModule.Inject()
 
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
@@ -127,10 +121,7 @@ func (m *Module) Inject() *Module {
 		}
 
 		for _, provider := range m.providers {
-			providerType := reflect.TypeOf(provider)
-			providerKey := providerType.String()
-
-			injectedProviders[providerKey] = provider
+			injectedProviders[genProviderKey(provider)] = provider
 		}
 
 		for i, provider := range m.providers {
@@ -175,7 +166,11 @@ func (m *Module) Inject() *Module {
 				for j := 0; j < controllerType.NumField(); j++ {
 					fieldName := controllerType.Field(j).Name
 					if utils.StrIsLower(fieldName[0:1])[0] {
-						panic(fmt.Errorf("can't set value to unexported %v field of the %v controller", fieldName, controllerType.Name()))
+						panic(fmt.Errorf(
+							"can't set value to unexported %v field of the %v controller",
+							fieldName,
+							controllerType.Name(),
+						))
 					}
 
 					injectProviderKey := controllerType.Field(j).Type.String()
@@ -189,7 +184,12 @@ func (m *Module) Inject() *Module {
 						if isUnneededInject {
 							continue
 						}
-						panic(fmt.Errorf("can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller", injectProviderKey, j, controllerType.Name()))
+						panic(fmt.Errorf(
+							"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller",
+							injectProviderKey,
+							j,
+							controllerType.Name(),
+						))
 					}
 				}
 
