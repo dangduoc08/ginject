@@ -120,6 +120,9 @@ func (m *Module) Inject() *Module {
 			m.router.Group("/", injectModule.router)
 		}
 
+		// inject local providers
+		// from dynamic modules
+		// line 94 already inject (not bug)
 		for _, provider := range m.providers {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
