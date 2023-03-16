@@ -1,28 +1,131 @@
 package config
 
 import (
+	"os"
+	"strings"
+
 	"github.com/dangduoc08/gooh/core"
 )
 
-var Module = func() *core.Module {
-	config := map[string]string{
-		"username": "root",
-		"pwd":      "password",
+type ConfigLoadFn = func() map[string]any
+type ConfigHookFn = func(map[string]any) map[string]any
+
+type ConfigModuleOptions struct {
+	IsGlobal          bool
+	IgnoreEnvFile     bool
+	IsOverride        bool
+	IsExpandVariables bool
+	ENVFilePaths      []string
+	Loads             []ConfigLoadFn
+	Hooks             []ConfigHookFn
+}
+
+func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
+	envFilePaths := opts.ENVFilePaths
+	if len(envFilePaths) == 0 {
+		defaultPath, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		envFilePaths = []string{defaultPath + "/.env"}
 	}
 
-	configProvider := ConfigProvider{config}
+	return ConfigModuleOptions{
+		IsGlobal:          opts.IsGlobal,
+		IgnoreEnvFile:     opts.IgnoreEnvFile,
+		IsOverride:        opts.IsOverride,
+		IsExpandVariables: opts.IsExpandVariables,
+		ENVFilePaths:      envFilePaths,
+		Loads:             opts.Loads,
+		Hooks:             opts.Hooks,
+	}
+}
+
+func loadDotENV(path string, isExpandVariables bool) map[string]any {
+	dotENVMap := make(map[string]any)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	// prevent last index won't be appended into value
+	data = append(data, newline)
+	dotENV := &DotENV{
+		data:   data,
+		envMap: dotENVMap,
+	}
+	dotENV.Unmarshal()
+
+	if isExpandVariables {
+		for key, value := range dotENVMap {
+			dotENVMap[key] = parseParamsToValue(key, value.(string), dotENVMap)
+		}
+	}
+
+	return dotENVMap
+}
+
+func loadOSEnv() map[string]any {
+	osENVMap := make(map[string]any)
+	env := os.Environ()
+	for _, v := range env {
+		envArr := strings.Split(v, "=")
+		if len(envArr) > 1 {
+			osENVMap[envArr[0]] = envArr[1]
+		}
+	}
+
+	return osENVMap
+}
+
+func mergeIntoOSENV(osENV map[string]any, isOverride bool, envs ...map[string]any) {
+	for _, env := range envs {
+		for key, value := range env {
+
+			// key already set in machine
+			// and not allow to override
+			if osENV[key] != nil && !isOverride {
+				continue
+			}
+			osENV[key] = value
+		}
+	}
+}
+
+func Register(opts ConfigModuleOptions) *core.Module {
+	configOptions := loadConfigOptions(opts)
+	osENVMap := loadOSEnv()
+	envs := []map[string]any{}
+
+	if !configOptions.IgnoreEnvFile || len(opts.ENVFilePaths) > 0 {
+		for _, path := range configOptions.ENVFilePaths {
+			dotENVMap := loadDotENV(path, opts.IsExpandVariables)
+			envs = append(envs, dotENVMap)
+		}
+	}
+
+	if len(configOptions.Loads) > 0 {
+		for _, loadCustomENV := range configOptions.Loads {
+			customENVMap := loadCustomENV()
+			customENVMap = flatten(customENVMap, make(map[string]any), "").(map[string]any)
+			envs = append(envs, customENVMap)
+		}
+	}
+
+	mergeIntoOSENV(osENVMap, configOptions.IsOverride, envs...)
+
+	if len(configOptions.Hooks) > 0 {
+		for _, hookFn := range configOptions.Hooks {
+			hookFn(osENVMap)
+		}
+	}
 
 	module := core.ModuleBuilder().
-		Imports().
-		Providers(
-			configProvider,
-		).
 		Exports(
-			configProvider,
+			ConfigService{osENVMap},
 		).
 		Build()
 
-	module.IsGlobal = true
-
+	module.IsGlobal = configOptions.IsGlobal
 	return module
-}()
+}
