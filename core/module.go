@@ -137,18 +137,27 @@ func (m *Module) Inject() *Module {
 			// can be injected through global modules
 			// or through imported modules
 			for j := 0; j < providerType.NumField(); j++ {
-				providerFieldNameKey := providerType.Field(j).Type.String()
+				providerFieldType := providerType.Field(j).Type
+				providerFieldNameKey := providerFieldType.String()
 
 				// inject provider priorities
 				// local inject
 				// global inject
 				// inner packages
+				// resolve dependencies error
 				if providerFieldNameKey != "" && injectedProviders[providerFieldNameKey] != nil {
 					newProvider.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[providerFieldNameKey]))
 				} else if providerFieldNameKey != "" && globalProviders[providerFieldNameKey] != nil {
 					newProvider.Elem().Field(j).Set(reflect.ValueOf(globalProviders[providerFieldNameKey]))
-				} else {
+				} else if !isInjectedProvider(providerFieldType) {
 					newProvider.Elem().Field(j).Set(providerValue.Field(j))
+				} else {
+					panic(fmt.Errorf(
+						"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v provider",
+						providerFieldNameKey,
+						j,
+						providerType.Name(),
+					))
 				}
 			}
 
@@ -164,14 +173,18 @@ func (m *Module) Inject() *Module {
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
 			for i, controller := range m.controllers {
 				controllerType := reflect.TypeOf(controller)
+				controllerValue := reflect.ValueOf(controller)
 				newControllerType := reflect.New(controllerType)
 
 				for j := 0; j < controllerType.NumField(); j++ {
-					fieldName := controllerType.Field(j).Name
-					if utils.StrIsLower(fieldName[0:1])[0] {
+					controllerField := controllerType.Field(j)
+					controllerFieldType := controllerField.Type
+					controllerFieldNameKey := controllerField.Name
+
+					if utils.StrIsLower(controllerFieldNameKey[0:1])[0] {
 						panic(fmt.Errorf(
 							"can't set value to unexported %v field of the %v controller",
-							fieldName,
+							controllerFieldNameKey,
 							controllerType.Name(),
 						))
 					}
@@ -183,6 +196,8 @@ func (m *Module) Inject() *Module {
 						newControllerType.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 					} else if globalProviders[injectProviderKey] != nil && !isUnneededInject {
 						newControllerType.Elem().Field(j).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+					} else if !isInjectedProvider(controllerFieldType) {
+						newControllerType.Elem().Field(j).Set(controllerValue.Field(j))
 					} else {
 						if isUnneededInject {
 							continue
