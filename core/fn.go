@@ -11,6 +11,12 @@ func isDynamicModule(moduleType string) (bool, error) {
 	return regexp.Match(`^func\(.*\*core.Module$`, []byte(moduleType))
 }
 
+func isInjectedProvider(providerFieldType reflect.Type) bool {
+	instance := reflect.New(providerFieldType)
+	_, ok := instance.Interface().(Provider)
+	return ok
+}
+
 func genProviderKey(p Provider) string {
 	return reflect.TypeOf(p).String()
 }
