@@ -12,7 +12,7 @@ type ConfigHookFn = func(map[string]any) map[string]any
 
 type ConfigModuleOptions struct {
 	IsGlobal          bool
-	IgnoreEnvFile     bool
+	IsIgnoreEnvFile   bool
 	IsOverride        bool
 	IsExpandVariables bool
 	ENVFilePaths      []string
@@ -32,7 +32,7 @@ func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
 
 	return ConfigModuleOptions{
 		IsGlobal:          opts.IsGlobal,
-		IgnoreEnvFile:     opts.IgnoreEnvFile,
+		IsIgnoreEnvFile:   opts.IsIgnoreEnvFile,
 		IsOverride:        opts.IsOverride,
 		IsExpandVariables: opts.IsExpandVariables,
 		ENVFilePaths:      envFilePaths,
@@ -97,7 +97,7 @@ func Register(opts ConfigModuleOptions) *core.Module {
 	osENVMap := loadOSEnv()
 	envs := []map[string]any{}
 
-	if !configOptions.IgnoreEnvFile || len(opts.ENVFilePaths) > 0 {
+	if !configOptions.IsIgnoreEnvFile || len(opts.ENVFilePaths) > 0 {
 		for _, path := range configOptions.ENVFilePaths {
 			dotENVMap := loadDotENV(path, opts.IsExpandVariables)
 			envs = append(envs, dotENVMap)
