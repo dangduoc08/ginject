@@ -27,7 +27,10 @@ func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
 		if err != nil {
 			panic(err)
 		}
-		envFilePaths = []string{defaultPath + "/.env"}
+		defaultENVPath := defaultPath + "/.env"
+		if _, err = os.Stat(defaultENVPath); err == nil {
+			envFilePaths = []string{defaultENVPath}
+		}
 	}
 
 	return ConfigModuleOptions{
