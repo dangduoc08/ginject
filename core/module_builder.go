@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gooh/utils"
 )
 
 type moduleBuilder struct {
@@ -55,7 +56,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 	}
 
 	if len(errors) > 0 {
-		panic(strings.Join(errors, "\n       "))
+		panic(utils.FmtRed(strings.Join(errors, "\n       ")))
 	}
 
 	return staticModules, dynamicModules
