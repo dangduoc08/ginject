@@ -127,6 +127,7 @@ func (m *Module) Inject() *Module {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
 
+		// inject providers into providers
 		for i, provider := range m.providers {
 			providerType := reflect.TypeOf(provider)
 			providerValue := reflect.ValueOf(provider)

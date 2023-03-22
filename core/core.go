@@ -6,21 +6,23 @@ import (
 
 	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gooh/utils"
 )
 
 type App struct {
-	Route *routing.Route
+	route  *routing.Route
+	module *Module
 }
 
 func New() *App {
-	a := App{
-		routing.NewRoute(),
+	app := App{
+		route: routing.NewRoute(),
 	}
-	ev := ctx.NewEvent()
+	event := ctx.NewEvent()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		c := ctx.NewContext()
-		c.Event = ev
+		c.Event = event
 		isNext := true
 		c.ResponseWriter = w
 		c.Request = req
@@ -34,7 +36,7 @@ func New() *App {
 			}
 		}()
 
-		isMatched, _, paramKeys, paramVals, handlers := a.Route.Match(req.URL.Path, req.Method)
+		isMatched, _, paramKeys, paramVals, handlers := app.route.Match(req.URL.Path, req.Method)
 
 		if isMatched {
 			ctx.SetParamKeys(c, paramKeys)
@@ -48,7 +50,7 @@ func New() *App {
 		} else {
 
 			// Invoke middlewares
-			for _, middleware := range a.Route.Middlewares {
+			for _, middleware := range app.route.Middlewares {
 				if isNext {
 					isNext = false
 					middleware(c)
@@ -63,18 +65,25 @@ func New() *App {
 		}
 	})
 
-	return &a
+	return &app
 }
 
-func (a *App) Create(m *Module) {
-	mainModule := m.Inject()
-	a.Route.Group("/", mainModule.router)
+func (app *App) Create(m *Module) {
+	app.module = m.Inject()
+	app.route.Group("/", app.module.router)
 }
 
-func (a *App) ListenAndServe(addr string, handler http.Handler) error {
-	a.Route.Range(func(method, route string) {
+func (app *App) ListenAndServe(addr string, handler http.Handler) error {
+	app.route.Range(func(method, route string) {
 		log.Default().Println("RouteExplorer", method, route)
 	})
 
 	return http.ListenAndServe(addr, handler)
+}
+
+func (app *App) Get(p Provider) any {
+	findKey := genProviderKey(p)
+	return utils.ArrFind(app.module.providers, func(provider Provider, i int) bool {
+		return genProviderKey(provider) == findKey
+	})
 }
