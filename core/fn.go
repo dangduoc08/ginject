@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/dangduoc08/gooh/utils"
 )
 
 func isDynamicModule(moduleType string) (bool, error) {
@@ -30,10 +32,12 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
 		return fmt.Errorf(
-			"can't resolve argument of %v. Please make sure that the argument %v at index [%v] is available in the injected providers",
-			strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
-			dynamicArgKey,
-			index,
+			utils.FmtRed(
+				"can't resolve argument of %v. Please make sure that the argument %v at index [%v] is available in the injected providers",
+				strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
+				dynamicArgKey,
+				index,
+			),
 		)
 	}
 

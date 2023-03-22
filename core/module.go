@@ -153,10 +153,12 @@ func (m *Module) Inject() *Module {
 					newProvider.Elem().Field(j).Set(providerValue.Field(j))
 				} else {
 					panic(fmt.Errorf(
-						"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v provider",
-						providerFieldNameKey,
-						j,
-						providerType.Name(),
+						utils.FmtRed(
+							"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v provider",
+							providerFieldNameKey,
+							j,
+							providerType.Name(),
+						),
 					))
 				}
 			}
@@ -183,9 +185,11 @@ func (m *Module) Inject() *Module {
 
 					if utils.StrIsLower(controllerFieldNameKey[0:1])[0] {
 						panic(fmt.Errorf(
-							"can't set value to unexported %v field of the %v controller",
-							controllerFieldNameKey,
-							controllerType.Name(),
+							utils.FmtRed(
+								"can't set value to unexported %v field of the %v controller",
+								controllerFieldNameKey,
+								controllerType.Name(),
+							),
 						))
 					}
 
@@ -203,10 +207,12 @@ func (m *Module) Inject() *Module {
 							continue
 						}
 						panic(fmt.Errorf(
-							"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller",
-							injectProviderKey,
-							j,
-							controllerType.Name(),
+							utils.FmtRed(
+								"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller",
+								injectProviderKey,
+								j,
+								controllerType.Name(),
+							),
 						))
 					}
 				}
