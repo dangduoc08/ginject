@@ -75,6 +75,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 
 func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
 	node := tr
+	var lastWildcardNode *Trie
 	start := strings.IndexByte(path, sep)
 
 	i := -1
@@ -92,6 +93,12 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
 				node = node.Children["*"]
+
+				// there is a wildcard at last index
+				if node.Index > -1 {
+					lastWildcardNode = node
+				}
+
 			} else {
 				for route := range node.Children {
 					if matchWildcard(seg, route) {
@@ -105,9 +112,18 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 		}
 
 		if next == len(path)-1 {
-			i = node.Index
-			paramKeys = node.ParamKeys
-			handlers = node.Handlers
+			matchedNode := node
+
+			// If not matched any route
+			// but has last wildcard node
+			// then fallback to lastWildcardNode
+			if matchedNode.Index < 0 && lastWildcardNode != nil {
+				matchedNode = lastWildcardNode
+			}
+
+			i = matchedNode.Index
+			paramKeys = matchedNode.ParamKeys
+			handlers = matchedNode.Handlers
 			break
 		}
 
