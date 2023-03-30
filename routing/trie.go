@@ -93,18 +93,12 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 			} else if node.Children["*"] != nil {
 				node = node.Children["*"]
 			} else {
-				isMatchWildcard := false
 				for route := range node.Children {
 					if matchWildcard(seg, route) {
 						node = node.Children[route]
-						isMatchWildcard = true
 						break
 					}
 				}
-				if isMatchWildcard {
-					continue
-				}
-				break
 			}
 		} else {
 			node = node.Children[seg]
