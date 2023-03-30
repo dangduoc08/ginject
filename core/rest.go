@@ -74,3 +74,23 @@ func (r *Rest) Trace(path string, handlers ...ctx.Handler) *Rest {
 	r.addToRouters(path, http.MethodTrace, handlers...)
 	return r
 }
+
+func (r *Rest) All(path string, handlers ...ctx.Handler) *Rest {
+	httpMethods := [9]string{
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace,
+	}
+
+	for _, method := range httpMethods {
+		r.addToRouters(path, method, handlers...)
+	}
+
+	return r
+}

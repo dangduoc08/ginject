@@ -17,6 +17,7 @@ type Router interface {
 	Connect(string, ...ctx.Handler) *Route
 	Options(string, ...ctx.Handler) *Route
 	Trace(string, ...ctx.Handler) *Route
+	All(string, ...ctx.Handler) *Route
 	Group(prefix string, subRouters ...*Route) *Route
 	Use(...ctx.Handler) *Route
 	For(string) func(...ctx.Handler) *Route
@@ -56,6 +57,26 @@ func (r *Route) Options(path string, handlers ...ctx.Handler) *Route {
 
 func (r *Route) Trace(path string, handlers ...ctx.Handler) *Route {
 	return r.Add(AddMethodToRoute(path, http.MethodTrace), handlers...)
+}
+
+func (r *Route) All(path string, handlers ...ctx.Handler) *Route {
+	httpMethods := [9]string{
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace,
+	}
+
+	for _, method := range httpMethods {
+		r.Add(AddMethodToRoute(path, method), handlers...)
+	}
+
+	return r
 }
 
 func (r *Route) Group(prefix string, subRouters ...*Route) *Route {
