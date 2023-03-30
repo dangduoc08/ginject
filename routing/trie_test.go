@@ -117,6 +117,12 @@ func TestTrieFind(t *testing.T) {
 	if index3 != expectIndex3 {
 		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
 	}
+
+	index4, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/", '/')
+	expectIndex4 := 3
+	if index4 != expectIndex4 {
+		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
+	}
 }
 
 func TestTrieScan(t *testing.T) {
