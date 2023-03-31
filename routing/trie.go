@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -17,15 +17,15 @@ type (
 
 type Trie struct {
 	Children  Node
-	Handlers  []ctx.Handler
+	Handlers  []context.Handler
 	ParamKeys map[string][]int
 	Index     int
 }
 
 type Trier interface {
 	len() int
-	insert(string, byte, int, map[string][]int, []ctx.Handler) Trier
-	find(string, byte) (int, map[string][]int, []string, []ctx.Handler)
+	insert(string, byte, int, map[string][]int, []context.Handler) Trier
+	find(string, byte) (int, map[string][]int, []string, []context.Handler)
 	scan(cb ScanFn)
 	ToJSON() (string, error)
 }
@@ -51,7 +51,7 @@ func (tr *Trie) len() int {
 	return counter
 }
 
-func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []ctx.Handler) Trier {
+func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []context.Handler) Trier {
 	node := tr
 	start := strings.IndexByte(path, sep)
 
@@ -73,7 +73,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	return tr
 }
 
-func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
+func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []context.Handler) {
 	node := tr
 	var lastWildcardNode *Trie
 	start := strings.IndexByte(path, sep)
@@ -81,7 +81,7 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 	i := -1
 	paramKeys := make(map[string][]int)
 	paramVals := make([]string, 0)
-	handlers := []ctx.Handler{}
+	handlers := []context.Handler{}
 
 	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {
 		if node.Children[seg] == nil {

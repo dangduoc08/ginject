@@ -1,25 +1,25 @@
 package routing
 
 import (
-	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/utils"
 )
 
 type Route struct {
 	*Trie
 	List        []string
-	Middlewares []ctx.Handler
+	Middlewares []context.Handler
 }
 
 func NewRoute() *Route {
 	return &Route{
 		Trie:        NewTrie(),
 		List:        []string{},
-		Middlewares: []ctx.Handler{},
+		Middlewares: []context.Handler{},
 	}
 }
 
-func (r *Route) Add(route string, handlers ...ctx.Handler) *Route {
+func (r *Route) Add(route string, handlers ...context.Handler) *Route {
 	endpoint := utils.StrRemoveDup(ToEndpoint(route), "*")
 	i := utils.ArrFindIndex(r.List, func(route string, i int) bool {
 		return route == endpoint
@@ -38,7 +38,7 @@ func (r *Route) Add(route string, handlers ...ctx.Handler) *Route {
 	return r
 }
 
-func (r *Route) match(route string) (bool, string, map[string][]int, []string, []ctx.Handler) {
+func (r *Route) match(route string) (bool, string, map[string][]int, []string, []context.Handler) {
 	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), '/')
 	matchedRoute := ""
 	isMatched := false
