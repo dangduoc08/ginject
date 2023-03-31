@@ -39,6 +39,27 @@ func (app *App) Create(m *Module) {
 	app.route.Group("/", app.module.router)
 }
 
+func (app *App) Get(p Provider) any {
+	k := genProviderKey(p)
+	return utils.ArrFind(app.module.providers, func(provider Provider, i int) bool {
+		return genProviderKey(provider) == k
+	})
+}
+
+func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := app.pool.Get().(*context.Context)
+	app.handleRequest(w, r, c)
+
+	defer func() {
+		app.pool.Put(c)
+		if rec := recover(); rec != nil {
+			c.Event.Emit(context.REQUEST_FAILED, rec)
+		}
+	}()
+
+	c.Reset()
+}
+
 func (app *App) ListenAndServe(addr string) error {
 	app.route.Range(func(method, route string) {
 		log.Default().Println("RouteExplorer", method, route)
@@ -47,28 +68,13 @@ func (app *App) ListenAndServe(addr string) error {
 	return http.ListenAndServe(addr, app)
 }
 
-func (app *App) Get(p Provider) any {
-	findKey := genProviderKey(p)
-	return utils.ArrFind(app.module.providers, func(provider Provider, i int) bool {
-		return genProviderKey(provider) == findKey
-	})
-}
-
-func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := app.pool.Get().(*context.Context)
+func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
 	isNext := true
 	c.ResponseWriter = w
 	c.Request = r
 	c.Next = func() {
 		isNext = true
 	}
-
-	defer func() {
-		app.pool.Put(c)
-		if rec := recover(); rec != nil {
-			c.Event.Emit(context.REQUEST_FAILED, rec)
-		}
-	}()
 
 	isMatched, _, paramKeys, paramVals, handlers := app.route.Match(r.URL.Path, r.Method)
 
@@ -97,5 +103,4 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 		}
 	}
-	c.Reset()
 }
