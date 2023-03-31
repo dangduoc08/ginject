@@ -1,4 +1,4 @@
-package ctx
+package context
 
 import (
 	"fmt"
@@ -45,11 +45,11 @@ func NewContext() *Context {
 	}
 }
 
-func SetParamKeys(c *Context, paramKeys map[string][]int) {
+func (c *Context) SetParamKeys(paramKeys map[string][]int) {
 	c.paramKeys = paramKeys
 }
 
-func SetParamVals(c *Context, paramVals []string) {
+func (c *Context) SetParamVals(paramVals []string) {
 	c.paramVals = paramVals
 }
 
@@ -110,4 +110,9 @@ func (c *Context) Error(cb ErrFn) {
 		cb(rec.(error))
 		c.Event.Emit(REQUEST_FINISHED)
 	}
+}
+
+func (c *Context) Reset() {
+	c.Code = http.StatusOK
+	c.Next = nil
 }

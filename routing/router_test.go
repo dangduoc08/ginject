@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/middlewares"
 )
 
@@ -124,7 +124,7 @@ func TestRouterGroup(test *testing.T) {
 }
 
 func TestRouterMiddleware(t *testing.T) {
-	handler1 := func(ctx *ctx.Context) {
+	handler1 := func(context *context.Context) {
 		fmt.Println("handler1")
 	}
 
@@ -154,7 +154,7 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRoute()
 
 		for _, path := range paths {
-			r.Add(path, func(c *ctx.Context) {}, func(c *ctx.Context) {})
+			r.Add(path, func(c *context.Context) {}, func(c *context.Context) {})
 		}
 
 		json, err := r.ToJSON()

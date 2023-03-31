@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gooh/context"
 )
 
-func Recovery(c *ctx.Context) {
-	c.Event.On(ctx.REQUEST_FAILED, func(args ...any) {
+func Recovery(c *context.Context) {
+	c.Event.On(context.REQUEST_FAILED, func(args ...any) {
 		errorStr := "Unknown Error"
 		switch args[0].(type) {
 		case error:
@@ -34,7 +34,7 @@ func Recovery(c *ctx.Context) {
 		}
 
 		c.Status(http.StatusInternalServerError)
-		c.Event.Emit(ctx.REQUEST_FINISHED)
+		c.Event.Emit(context.REQUEST_FINISHED)
 		http.Error(c.ResponseWriter, errorStr, http.StatusInternalServerError)
 	})
 	c.Next()
