@@ -9,12 +9,13 @@ import (
 
 func Recovery(c *context.Context) {
 	c.Event.On(context.REQUEST_FAILED, func(args ...any) {
+		newC := args[0].(*context.Context)
 		errorStr := "Unknown Error"
-		switch args[0].(type) {
+		switch args[1].(type) {
 		case error:
-			errorStr = args[0].(error).Error()
+			errorStr = args[1].(error).Error()
 		case string:
-			errorStr = args[0].(string)
+			errorStr = args[1].(string)
 		case int:
 		case int8:
 		case int16:
@@ -30,12 +31,12 @@ func Recovery(c *context.Context) {
 		case complex64:
 		case complex128:
 		case uintptr:
-			errorStr = strconv.Itoa(args[0].(int))
+			errorStr = strconv.Itoa(args[1].(int))
 		}
 
-		c.Status(http.StatusInternalServerError)
-		c.Event.Emit(context.REQUEST_FINISHED)
-		http.Error(c.ResponseWriter, errorStr, http.StatusInternalServerError)
+		newC.Status(http.StatusInternalServerError)
+		newC.Event.Emit(context.REQUEST_FINISHED, newC)
+		http.Error(newC.ResponseWriter, errorStr, http.StatusInternalServerError)
 	})
 	c.Next()
 }

@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/routing"
@@ -48,15 +49,9 @@ func (app *App) Get(p Provider) any {
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := app.pool.Get().(*context.Context)
+	c.Timestamp = time.Now()
+	defer app.pool.Put(c)
 	app.handleRequest(w, r, c)
-
-	defer func() {
-		app.pool.Put(c)
-		if rec := recover(); rec != nil {
-			c.Event.Emit(context.REQUEST_FAILED, rec)
-		}
-	}()
-
 	c.Reset()
 }
 
@@ -69,6 +64,12 @@ func (app *App) ListenAndServe(addr string) error {
 }
 
 func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			c.Event.Emit(context.REQUEST_FAILED, c, rec)
+		}
+	}()
+
 	isNext := true
 	c.ResponseWriter = w
 	c.Request = r
@@ -76,11 +77,11 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 		isNext = true
 	}
 
-	isMatched, _, paramKeys, paramVals, handlers := app.route.Match(r.URL.Path, r.Method)
+	isMatched, _, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
 
 	if isMatched {
-		c.SetParamKeys(paramKeys)
-		c.SetParamVals(paramVals)
+		c.ParamKeys = paramKeys
+		c.ParamValues = paramValues
 		for _, handler := range handlers {
 			if isNext {
 				isNext = false
@@ -99,7 +100,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 
 		if isNext {
 			c.Status(http.StatusNotFound)
-			c.Event.Emit(context.REQUEST_FINISHED)
+			c.Event.Emit(context.REQUEST_FINISHED, c)
 			http.NotFound(w, r)
 		}
 	}

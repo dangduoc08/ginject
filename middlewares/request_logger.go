@@ -9,8 +9,9 @@ import (
 
 func RequestLogger(c *context.Context) {
 	c.Event.On(context.REQUEST_FINISHED, func(args ...any) {
-		responseTime := time.Now().UnixMilli() - c.Timestamp.UnixMilli()
-		log.Printf("%v %v %v %v - %v ms", c.Method, c.UserAgent(), c.URL, c.Code, responseTime)
+		newC := args[0].(*context.Context)
+		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
+		log.Printf("%v %v %v %v - %v ms", newC.Method, newC.UserAgent(), newC.URL, newC.Code, responseTime)
 	})
 
 	c.Next()

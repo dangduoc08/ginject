@@ -28,9 +28,9 @@ type Context struct {
 	*http.Request
 	http.ResponseWriter
 
-	param     Values
-	paramKeys map[string][]int
-	paramVals []string
+	param       Values
+	ParamKeys   map[string][]int
+	ParamValues []string
 
 	Next      func()
 	Event     *event
@@ -40,17 +40,8 @@ type Context struct {
 
 func NewContext() *Context {
 	return &Context{
-		Code:      http.StatusOK,
-		Timestamp: time.Now(),
+		Code: http.StatusOK,
 	}
-}
-
-func (c *Context) SetParamKeys(paramKeys map[string][]int) {
-	c.paramKeys = paramKeys
-}
-
-func (c *Context) SetParamVals(paramVals []string) {
-	c.paramVals = paramVals
 }
 
 func (c *Context) Set(pair map[string]string) Responser {
@@ -70,7 +61,7 @@ func (c *Context) Status(code int) Responser {
 func (c *Context) Text(content string, args ...any) {
 	c.WriteHeader(c.Code)
 	fmt.Fprintf(c.ResponseWriter, content, args...)
-	c.Event.Emit(REQUEST_FINISHED)
+	c.Event.Emit(REQUEST_FINISHED, c)
 }
 
 func (c *Context) JSON(args ...any) {
@@ -84,7 +75,7 @@ func (c *Context) JSON(args ...any) {
 	})
 	c.WriteHeader(c.Code)
 	c.ResponseWriter.Write(buf)
-	c.Event.Emit(REQUEST_FINISHED)
+	c.Event.Emit(REQUEST_FINISHED, c)
 }
 
 func (c *Context) JSONP(args ...any) {
@@ -108,11 +99,16 @@ func (c *Context) Error(cb ErrFn) {
 	if rec := recover(); rec != nil {
 		c.Status(http.StatusInternalServerError)
 		cb(rec.(error))
-		c.Event.Emit(REQUEST_FINISHED)
+		c.Event.Emit(REQUEST_FINISHED, c)
 	}
 }
 
 func (c *Context) Reset() {
 	c.Code = http.StatusOK
+	c.param = nil
+	c.ParamKeys = nil
+	c.ParamValues = nil
 	c.Next = nil
+	c.ResponseWriter = nil
+	c.Request = nil
 }

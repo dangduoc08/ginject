@@ -16,9 +16,9 @@ func (c *Context) Param() Values {
 	}
 
 	p := make(Values)
-	for key, indexs := range c.paramKeys {
+	for key, indexs := range c.ParamKeys {
 		for _, i := range indexs {
-			p[key] = append(p[key], c.paramVals[i])
+			p[key] = append(p[key], c.ParamValues[i])
 		}
 	}
 

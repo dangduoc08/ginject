@@ -22,6 +22,9 @@ func (controller Controller) Inject() core.Controller {
 			c.JSON(gooh.Map{
 				"name": "Hello World!",
 			})
+		}).
+		Get("panic", func(c gooh.Context) {
+			panic("Cause panic")
 		})
 
 	return controller
@@ -29,7 +32,7 @@ func (controller Controller) Inject() core.Controller {
 
 func main() {
 	app := core.New()
-	app.Use(middlewares.RequestLogger, middlewares.Recovery)
+	app.Use(middlewares.Recovery)
 
 	app.Create(
 		core.ModuleBuilder().
