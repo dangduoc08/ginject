@@ -7,6 +7,7 @@ import (
 
 type Route struct {
 	*Trie
+	Hash        map[string][]context.Handler
 	List        []string
 	Middlewares []context.Handler
 }
@@ -14,6 +15,7 @@ type Route struct {
 func NewRoute() *Route {
 	return &Route{
 		Trie:        NewTrie(),
+		Hash:        make(map[string][]context.Handler),
 		List:        []string{},
 		Middlewares: []context.Handler{},
 	}
@@ -34,11 +36,18 @@ func (r *Route) Add(route string, handlers ...context.Handler) *Route {
 	parsedRoute, paramKey := parseToParamKey(endpoint)
 
 	r.Trie.insert(parsedRoute, '/', i, paramKey, handlers)
+	if isStaticRoute(parsedRoute) {
+		_, _, _, r.Hash[parsedRoute] = r.Trie.find(parsedRoute, '/')
+	}
 
 	return r
 }
 
 func (r *Route) match(route string) (bool, string, map[string][]int, []string, []context.Handler) {
+	if handlers, ok := r.Hash[route]; ok {
+		return ok, route, nil, nil, handlers
+	}
+
 	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), '/')
 	matchedRoute := ""
 	isMatched := false
