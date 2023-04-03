@@ -94,3 +94,8 @@ func matchWildcard(str, route string) bool {
 
 	return len(str) == 0
 }
+
+func isStaticRoute(route string) bool {
+	return !strings.Contains(route, "*") &&
+		!strings.Contains(route, "$")
+}
