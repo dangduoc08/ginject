@@ -91,6 +91,12 @@ func (r *Route) Group(prefix string, subRouters ...*Route) *Route {
 		subRouter.scan(func(node *Trie) {
 			r.Add(prefix+subRouter.List[node.Index], node.Handlers...)
 		})
+
+		// add all injectable handlers from sub routers
+		// to main router
+		for route, injectableHandler := range subRouter.InjectableHandlers {
+			r.InjectableHandlers[prefix+route] = injectableHandler
+		}
 	}
 
 	return r

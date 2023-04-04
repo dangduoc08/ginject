@@ -1,23 +1,28 @@
 package routing
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/utils"
 )
 
 type Route struct {
 	*Trie
-	Hash        map[string][]context.Handler
-	List        []string
-	Middlewares []context.Handler
+	Hash               map[string][]context.Handler
+	List               []string
+	Middlewares        []context.Handler
+	InjectableHandlers map[string]any
 }
 
 func NewRoute() *Route {
 	return &Route{
-		Trie:        NewTrie(),
-		Hash:        make(map[string][]context.Handler),
-		List:        []string{},
-		Middlewares: []context.Handler{},
+		Trie:               NewTrie(),
+		Hash:               make(map[string][]context.Handler),
+		List:               []string{},
+		Middlewares:        []context.Handler{},
+		InjectableHandlers: make(map[string]any),
 	}
 }
 
@@ -39,6 +44,25 @@ func (r *Route) Add(route string, handlers ...context.Handler) *Route {
 	if isStaticRoute(parsedRoute) {
 		_, _, _, r.Hash[parsedRoute] = r.Trie.find(parsedRoute, '/')
 	}
+
+	return r
+}
+
+func (r *Route) AddInjectableHandlers(route string, handler any) *Route {
+	handlerKind := reflect.TypeOf(handler).Kind()
+	if handler == nil || handlerKind != reflect.Func {
+		panic(fmt.Errorf(
+			utils.FmtRed(
+				"%v is not a handler",
+				handlerKind,
+			),
+		))
+	}
+
+	// push to trie
+	// and mark as nil handler
+	r.Add(route, nil)
+	r.InjectableHandlers[route] = handler
 
 	return r
 }

@@ -220,8 +220,8 @@ func (m *Module) Inject() *Module {
 
 				m.controllers[i] = newControllerType.Interface().(Controller).Inject()
 
-				for pattern, handlers := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
-					m.router.Add(pattern, handlers...)
+				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
+					m.router.AddInjectableHandlers(pattern, handler)
 				}
 			}
 		}

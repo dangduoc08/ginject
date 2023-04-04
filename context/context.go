@@ -12,6 +12,7 @@ type (
 	Map     map[string]any
 	ErrFn   func(error)
 	Handler = func(c *Context)
+	Next    = func()
 )
 
 type Responser interface {
@@ -32,7 +33,7 @@ type Context struct {
 	ParamKeys   map[string][]int
 	ParamValues []string
 
-	Next      func()
+	Next      Next
 	Event     *event
 	Code      int
 	Timestamp time.Time
