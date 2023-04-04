@@ -5,17 +5,17 @@ import (
 	"fmt"
 )
 
-func handleJSON(args ...any) ([]byte, error) {
+func toJSONBuffer(args ...any) ([]byte, error) {
 	data := args[0]
 	switch args[0].(type) {
 	case string:
-		str := fmt.Sprintf(data.(string), args[1:]...)
-		data = json.RawMessage(str)
+		jsonStr := fmt.Sprintf(data.(string), args[1:]...)
+		data = json.RawMessage(jsonStr)
 	}
 
 	return json.Marshal(&data)
 }
 
-func buildJSONP(jsonStr, cb string) string {
-	return fmt.Sprintf("/**/ typeof %v === 'function' && %v(%v);", cb, cb, jsonStr)
+func toJSONP(jsonStr, callback string) string {
+	return fmt.Sprintf("/**/ typeof %v === 'function' && %v(%v);", callback, callback, jsonStr)
 }
