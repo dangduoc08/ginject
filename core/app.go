@@ -1,8 +1,10 @@
 package core
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 
@@ -16,6 +18,27 @@ type App struct {
 	module *Module
 	pool   sync.Pool
 }
+
+// link to aliases
+var (
+	CONTEXT  = "*context.Context"
+	REQUEST  = "*http.Request"
+	RESPONSE = "http.ResponseWriter"
+	PARAM    = "context.Values"
+	QUERY    = "url.Values"
+	HEADER   = "http.Header"
+	NEXT     = "func()"
+
+	dependencies = map[string]int{
+		CONTEXT:  1,
+		REQUEST:  1,
+		RESPONSE: 1,
+		PARAM:    1,
+		QUERY:    1,
+		HEADER:   1,
+		NEXT:     1,
+	}
+)
 
 func New() *App {
 	event := context.NewEvent()
@@ -77,7 +100,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 		isNext = true
 	}
 
-	isMatched, _, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
+	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
 
 	if isMatched {
 		c.ParamKeys = paramKeys
@@ -85,7 +108,15 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 		for _, handler := range handlers {
 			if isNext {
 				isNext = false
-				handler(c)
+				if handler == nil {
+
+					// handler = nil
+					// meaning this is injectable handler
+					injectableHandler := app.route.InjectableHandlers[matchedRoute]
+					app.provideAndInvoke(injectableHandler, c)
+				} else {
+					handler(c)
+				}
 			}
 		}
 	} else {
@@ -104,4 +135,47 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 			http.NotFound(w, r)
 		}
 	}
+}
+
+func (app *App) provideAndInvoke(f any, c *context.Context) {
+	args := []reflect.Value{}
+	injectableFnType := reflect.TypeOf(f)
+
+	for i := 0; i < injectableFnType.NumIn(); i++ {
+
+		// get the type of the current input parameter
+		dynamicArgKey := injectableFnType.In(i).String()
+		if _, ok := dependencies[dynamicArgKey]; ok {
+			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c)))
+		} else {
+			panic(fmt.Errorf(
+				"can't resolve dependencies of the handler. Please make sure that the argument dependency at index [%v] is available in the handler",
+				i,
+			))
+		}
+	}
+
+	// invoke handler
+	reflect.ValueOf(f).Call(args)
+}
+
+func (app *App) getDependency(k string, c *context.Context) any {
+	switch k {
+	case CONTEXT:
+		return c
+	case REQUEST:
+		return c.Request
+	case RESPONSE:
+		return c.ResponseWriter
+	case PARAM:
+		return c.Param()
+	case QUERY:
+		return c.URL.Query()
+	case HEADER:
+		return c.Request.Header
+	case NEXT:
+		return c.Next
+	}
+
+	return dependencies
 }
