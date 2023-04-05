@@ -13,6 +13,30 @@ func isDynamicModule(moduleType string) (bool, error) {
 	return regexp.Match(`^func\(.*\*core.Module$`, []byte(moduleType))
 }
 
+func getFnArgs(f any, cb func(string, int)) {
+	injectableFnType := reflect.TypeOf(f)
+	for i := 0; i < injectableFnType.NumIn(); i++ {
+		arg := injectableFnType.In(i).String()
+		cb(arg, i)
+	}
+}
+
+func isInjectableHandler(handler any) error {
+	var e error
+
+	getFnArgs(handler, func(arg string, i int) {
+		if _, ok := dependencies[arg]; !ok {
+			e = fmt.Errorf(
+				"can't resolve dependencies of %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				reflect.TypeOf(handler).String(),
+				i,
+			)
+		}
+	})
+
+	return e
+}
+
 func isInjectedProvider(providerFieldType reflect.Type) bool {
 	instance := reflect.New(providerFieldType)
 	_, ok := instance.Interface().(Provider)
@@ -41,12 +65,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 		)
 	}
 
-	// loop through each input parameter of the dynamic module
-	for i := 0; i < dynamicModuleType.NumIn(); i++ {
-
-		// get the type of the current input parameter
-		dynamicArgKey := dynamicModuleType.In(i).String()
-
+	getFnArgs(dynamicModule, func(dynamicArgKey string, i int) {
 		// inject provider priorities
 		// local inject
 		// global inject
@@ -66,7 +85,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 		} else {
 			panic(genError(dynamicModuleType, dynamicArgKey, i))
 		}
-	}
+	})
 
 	args = append(args, append(localArgs, globalArgs...)...)
 
