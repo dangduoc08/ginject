@@ -48,7 +48,7 @@ func (r *Route) Add(route string, handlers ...context.Handler) *Route {
 	return r
 }
 
-func (r *Route) AddInjectableHandlers(route string, handler any) *Route {
+func (r *Route) AddInjectableHandler(route string, handler any) *Route {
 	handlerKind := reflect.TypeOf(handler).Kind()
 	if handler == nil || handlerKind != reflect.Func {
 		panic(fmt.Errorf(
