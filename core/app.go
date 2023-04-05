@@ -103,6 +103,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
 
 	if isMatched {
+		c.SetRoute(matchedRoute)
 		c.ParamKeys = paramKeys
 		c.ParamValues = paramValues
 		if r.Method == http.MethodPost {

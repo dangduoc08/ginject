@@ -2,6 +2,7 @@ package context
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dangduoc08/gooh/utils"
@@ -15,7 +16,9 @@ type (
 )
 
 type Responser interface {
-	Set(map[string]string) Responser
+	SetHeaders(map[string]string) Responser
+	SetRoute(string) Responser
+	GetRoute() string
 	Status(int) Responser
 	Param() Values
 	Text(string, ...any)
@@ -33,6 +36,8 @@ type Context struct {
 	ParamKeys   map[string][]int
 	ParamValues []string
 
+	route string
+
 	Next      Next
 	Event     *event
 	Code      int
@@ -45,7 +50,7 @@ func NewContext() *Context {
 	}
 }
 
-func (c *Context) Set(pair map[string]string) Responser {
+func (c *Context) SetHeaders(pair map[string]string) Responser {
 	for key, value := range pair {
 		c.ResponseWriter.Header().Set(key, value)
 	}
@@ -92,8 +97,18 @@ func (c *Context) JSONP(data ...any) {
 	c.Event.Emit(REQUEST_FINISHED, c)
 }
 
+func (c *Context) GetRoute() string {
+	return strings.Replace(c.route, "/["+c.Method+"]/", "", 1)
+}
+
+func (c *Context) SetRoute(route string) Responser {
+	c.route = route
+	return c
+}
+
 func (c *Context) Reset() {
 	c.Code = http.StatusOK
+	c.route = ""
 	c.param = nil
 	c.ParamKeys = nil
 	c.ParamValues = nil
