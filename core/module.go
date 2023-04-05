@@ -221,7 +221,11 @@ func (m *Module) Inject() *Module {
 				m.controllers[i] = newControllerType.Interface().(Controller).Inject()
 
 				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
-					m.router.AddInjectableHandlers(pattern, handler)
+					if err := isInjectableHandler(handler); err != nil {
+						panic(utils.FmtRed(err.Error()))
+					}
+
+					m.router.AddInjectableHandler(pattern, handler)
 				}
 			}
 		}

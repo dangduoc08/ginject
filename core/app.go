@@ -105,15 +105,25 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	if isMatched {
 		c.ParamKeys = paramKeys
 		c.ParamValues = paramValues
+		if r.Method == http.MethodPost {
+			c.Status(http.StatusCreated)
+		}
+
 		for _, handler := range handlers {
 			if isNext {
 				isNext = false
 				if handler == nil {
 
-					// handler = nil
+					// handler = nil / main handler
 					// meaning this is injectable handler
 					injectableHandler := app.route.InjectableHandlers[matchedRoute]
-					app.provideAndInvoke(injectableHandler, c)
+					values := app.provideAndInvoke(injectableHandler, c)
+					if len(values) == 1 {
+						app.selectData(c, values[0])
+					} else if len(values) > 1 {
+						app.selectStatusCode(c, values[0])
+						app.selectData(c, values[1])
+					}
 				} else {
 					handler(c)
 				}
@@ -137,26 +147,21 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	}
 }
 
-func (app *App) provideAndInvoke(f any, c *context.Context) {
+func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	args := []reflect.Value{}
-	injectableFnType := reflect.TypeOf(f)
-
-	for i := 0; i < injectableFnType.NumIn(); i++ {
-
-		// get the type of the current input parameter
-		dynamicArgKey := injectableFnType.In(i).String()
+	getFnArgs(f, func(dynamicArgKey string, i int) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c)))
 		} else {
 			panic(fmt.Errorf(
-				"can't resolve dependencies of the handler. Please make sure that the argument dependency at index [%v] is available in the handler",
+				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				reflect.TypeOf(f).String(),
 				i,
 			))
 		}
-	}
+	})
 
-	// invoke handler
-	reflect.ValueOf(f).Call(args)
+	return reflect.ValueOf(f).Call(args)
 }
 
 func (app *App) getDependency(k string, c *context.Context) any {
@@ -178,4 +183,58 @@ func (app *App) getDependency(k string, c *context.Context) any {
 	}
 
 	return dependencies
+}
+
+func (app *App) selectData(c *context.Context, data reflect.Value) {
+	switch data.Type().Kind() {
+	case
+		reflect.Map,
+		reflect.Slice,
+		reflect.Struct,
+		reflect.Interface:
+		c.JSON(data.Interface())
+	case
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128:
+		c.Text(fmt.Sprint(data))
+	case
+		reflect.Pointer,
+		reflect.UnsafePointer:
+		c.Text(fmt.Sprint(data.UnsafePointer()))
+	case
+		reflect.String:
+		c.Text(data.Interface().(string))
+	case
+		reflect.Func:
+		c.Text(data.Type().String())
+	}
+}
+
+func (app *App) selectStatusCode(c *context.Context, statusCode reflect.Value) {
+	statusCodeKind := statusCode.Type().Kind()
+
+	if statusCodeKind == reflect.Int {
+		status := int(statusCode.Int())
+		if http.StatusText(status) != "" {
+			c.Status(status)
+		}
+	} else if statusCodeKind == reflect.Interface {
+		if status, ok := statusCode.Interface().(int); ok &&
+			http.StatusText(status) != "" {
+			c.Status(status)
+		}
+	}
 }
