@@ -138,25 +138,37 @@ func (m *Module) Inject() *Module {
 			// can be injected through global modules
 			// or through imported modules
 			for j := 0; j < providerType.NumField(); j++ {
-				providerFieldType := providerType.Field(j).Type
-				providerFieldNameKey := providerFieldType.String()
+				providerField := providerType.Field(j)
+				providerFieldType := providerField.Type
+				providerFieldKey := providerFieldType.String()
+				providerFieldName := providerField.Name
+
+				if utils.StrIsLower(providerFieldName[0:1])[0] {
+					panic(fmt.Errorf(
+						utils.FmtRed(
+							"can't set value to unexported %v field of the %v provider",
+							providerFieldName,
+							providerType.Name(),
+						),
+					))
+				}
 
 				// inject provider priorities
 				// local inject
 				// global inject
 				// inner packages
 				// resolve dependencies error
-				if providerFieldNameKey != "" && injectedProviders[providerFieldNameKey] != nil {
-					newProvider.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[providerFieldNameKey]))
-				} else if providerFieldNameKey != "" && globalProviders[providerFieldNameKey] != nil {
-					newProvider.Elem().Field(j).Set(reflect.ValueOf(globalProviders[providerFieldNameKey]))
+				if providerFieldKey != "" && injectedProviders[providerFieldKey] != nil {
+					newProvider.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[providerFieldKey]))
+				} else if providerFieldKey != "" && globalProviders[providerFieldKey] != nil {
+					newProvider.Elem().Field(j).Set(reflect.ValueOf(globalProviders[providerFieldKey]))
 				} else if !isInjectedProvider(providerFieldType) {
 					newProvider.Elem().Field(j).Set(providerValue.Field(j))
 				} else {
 					panic(fmt.Errorf(
 						utils.FmtRed(
 							"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v provider",
-							providerFieldNameKey,
+							providerFieldKey,
 							j,
 							providerType.Name(),
 						),
