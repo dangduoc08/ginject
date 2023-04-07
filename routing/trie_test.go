@@ -91,7 +91,7 @@ func TestTrieFind(t *testing.T) {
 	friendId1 := "633b0af45f4fe7d45b00fba5"
 	testPath1 := fmt.Sprintf("/users/%v/friends/%v/", userId1, friendId1)
 
-	index1, _, params1, _ := tr.find(testPath1, '/')
+	index1, _, params1, _ := tr.find(testPath1, "", '/')
 	expectIndex1 := 2
 	if index1 != expectIndex1 {
 		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath1, index1, expectIndex1)
@@ -106,19 +106,19 @@ func TestTrieFind(t *testing.T) {
 	}
 
 	testPath2 := fmt.Sprintf("/users/%v/friends", userId1)
-	index2, _, _, _ := tr.find(testPath2, '/')
+	index2, _, _, _ := tr.find(testPath2, "", '/')
 	expectIndex2 := -1
 	if index2 != expectIndex2 {
 		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath2, index2, expectIndex2)
 	}
 
-	index3, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/", '/')
+	index3, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/", "", '/')
 	expectIndex3 := 3
 	if index3 != expectIndex3 {
 		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
 	}
 
-	index4, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/", '/')
+	index4, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/", "", '/')
 	expectIndex4 := 3
 	if index4 != expectIndex4 {
 		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
@@ -139,7 +139,7 @@ func TestTrieScan(t *testing.T) {
 		tr.insert(path, '/', i, nil, nil)
 	}
 
-	tr.scan(func(node *Trie) {
-
+	tr.scan(func(seg string, node *Trie) {
+		fmt.Println(seg, tr)
 	})
 }

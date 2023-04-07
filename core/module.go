@@ -225,7 +225,8 @@ func (m *Module) Inject() *Module {
 						panic(utils.FmtRed(err.Error()))
 					}
 
-					m.router.AddInjectableHandler(pattern, handler)
+					method, _ := routing.SplitRoute(pattern)
+					m.router.AddInjectableHandler(pattern, method, handler)
 				}
 			}
 		}
