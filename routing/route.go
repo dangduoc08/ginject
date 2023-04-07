@@ -26,7 +26,7 @@ func NewRoute() *Route {
 	}
 }
 
-func (r *Route) Add(route string, handlers ...context.Handler) *Route {
+func (r *Route) Add(route, method string, handlers ...context.Handler) *Route {
 	endpoint := utils.StrRemoveDup(ToEndpoint(route), "*")
 	i := utils.ArrFindIndex(r.List, func(route string, i int) bool {
 		return route == endpoint
@@ -42,13 +42,13 @@ func (r *Route) Add(route string, handlers ...context.Handler) *Route {
 
 	r.Trie.insert(parsedRoute, '/', i, paramKey, handlers)
 	if isStaticRoute(parsedRoute) {
-		_, _, _, r.Hash[parsedRoute] = r.Trie.find(parsedRoute, '/')
+		_, _, _, r.Hash[parsedRoute] = r.Trie.find(parsedRoute, method, '/')
 	}
 
 	return r
 }
 
-func (r *Route) AddInjectableHandler(route string, handler any) *Route {
+func (r *Route) AddInjectableHandler(route, method string, handler any) *Route {
 	handlerKind := reflect.TypeOf(handler).Kind()
 	if handler == nil || handlerKind != reflect.Func {
 		panic(fmt.Errorf(
@@ -61,18 +61,18 @@ func (r *Route) AddInjectableHandler(route string, handler any) *Route {
 
 	// push to trie
 	// and mark as nil handler
-	r.Add(route, nil)
+	r.Add(route, method, nil)
 	r.InjectableHandlers[route] = handler
 
 	return r
 }
 
-func (r *Route) match(route string) (bool, string, map[string][]int, []string, []context.Handler) {
+func (r *Route) match(route, method string) (bool, string, map[string][]int, []string, []context.Handler) {
 	if handlers, ok := r.Hash[route]; ok {
 		return ok, route, nil, nil, handlers
 	}
 
-	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), '/')
+	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), method, '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {

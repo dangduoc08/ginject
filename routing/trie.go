@@ -12,7 +12,7 @@ import (
 
 type (
 	Node   map[string]*Trie
-	ScanFn func(*Trie)
+	ScanFn func(string, *Trie)
 )
 
 type Trie struct {
@@ -25,7 +25,7 @@ type Trie struct {
 type Trier interface {
 	len() int
 	insert(string, byte, int, map[string][]int, []context.Handler) Trier
-	find(string, byte) (int, map[string][]int, []string, []context.Handler)
+	find(string, string, byte) (int, map[string][]int, []string, []context.Handler)
 	scan(cb ScanFn)
 	ToJSON() (string, error)
 }
@@ -73,8 +73,9 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	return tr
 }
 
-func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []context.Handler) {
+func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []string, []context.Handler) {
 	node := tr
+	var matchedNode *Trie
 	var lastWildcardNode *Trie
 	start := strings.IndexByte(path, sep)
 
@@ -82,39 +83,80 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 	paramKeys := make(map[string][]int)
 	paramVals := make([]string, 0)
 	handlers := []context.Handler{}
+	methodPattern := fromMethodtoPattern(method)
 
 	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {
 		if node.Children[seg] == nil {
 
 			// Handle segs have paramVals
 			// param have higher priority than wildcard
+			// pushed /lv1/123 => /lv/{id}
 			if node.Children["$"] != nil {
+
+				// handle case param and wildcard on same position
+				// then cannot fallback to wildcard
+				// due to trie already be traversed
+				// we will store temp node and return if no route matched
+				lastWildcardNode = getLastWildcardNode(node, methodPattern)
+
+				// pushed /lv1 => /lv/{id}
+				// but still matched
+				// due to [GET] will be treated as param value
+				// can match due to line 172
+				// this line prevent this
+				if seg == methodPattern && next == len(path)-1 {
+					break
+				}
+
 				node = node.Children["$"]
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
+				lastWildcardNode = getLastWildcardNode(node, methodPattern)
 				node = node.Children["*"]
-
-				// there is a wildcard at last index
-				if node.Index > -1 {
-					lastWildcardNode = node
-				}
-
 			} else {
+				isNotMatchAnythings := true
+
+				// check prefix*suffix case
+				// useful when want to use route like:
+				// *.html, filename.*
+				// limitation:
+				// if we pushed /lv1/* and /lv1/*/*.html
+				// then /lv1/* will match
 				for route := range node.Children {
 					if matchWildcard(seg, route) {
 						node = node.Children[route]
+						isNotMatchAnythings = false
 						break
 					}
 				}
+
+				// if not matched any route
+				// but has last wildcard node
+				// then fallback to lastWildcardNode
+				// jump to line 185
+				// if not break in this conditions
+				// pushed /lv1/{id} and /lv1/*
+				// request /lv1/foo/bar won't match /lv1/*
+				// instead it's matched /lv1/{id}
+				if isNotMatchAnythings ||
+					(isNotMatchAnythings && lastWildcardNode != nil) {
+					break
+				}
 			}
 		} else {
+
+			// handle case static path and wildcard on same position
+			// then cannot fallback to wildcard
+			// due to trie already be traversed
+			// we will store temp node and return if no route matched
+			lastWildcardNode = getLastWildcardNode(node, methodPattern)
 			node = node.Children[seg]
 		}
 
 		if next == len(path)-1 {
-			matchedNode := node
+			matchedNode = node
 
-			// If not matched any route
+			// if not matched any route
 			// but has last wildcard node
 			// then fallback to lastWildcardNode
 			if matchedNode.Index < 0 && lastWildcardNode != nil {
@@ -128,6 +170,13 @@ func (tr *Trie) find(path string, sep byte) (int, map[string][]int, []string, []
 		}
 
 		continue
+	}
+
+	if i < 0 && lastWildcardNode != nil {
+		matchedNode = lastWildcardNode
+		i = matchedNode.Index
+		paramKeys = matchedNode.ParamKeys
+		handlers = matchedNode.Handlers
 	}
 
 	return i, paramKeys, paramVals, handlers
@@ -186,9 +235,9 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 }
 
 func (tr *Trie) scan(cb ScanFn) {
-	for _, node := range tr.Children {
+	for seg, node := range tr.Children {
 		if node.Index > -1 {
-			cb(node)
+			cb(seg, node)
 		}
 		node.scan(cb)
 	}
