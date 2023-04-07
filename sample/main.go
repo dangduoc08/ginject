@@ -5,43 +5,27 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dangduoc08/gooh"
 	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/modules/config"
+	"github.com/dangduoc08/gooh/sample/list"
+	userList "github.com/dangduoc08/gooh/sample/user_list"
 )
-
-type Controller struct {
-	core.Rest
-}
-
-func (controller Controller) Inject() core.Controller {
-	controller.
-		Prefix("/users").
-		All("/{userId}/all", func(c gooh.Context) {
-			c.JSON(gooh.Map{
-				"name": "Hello World!",
-			})
-		}).
-		Get("panic", func(c gooh.Context) {
-			panic("Cause panic")
-		})
-
-	return controller
-}
 
 func main() {
 	app := core.New()
-	app.Use(middlewares.Recovery)
+	app.Use(middlewares.Recovery, middlewares.RequestLogger)
 
 	app.Create(
 		core.ModuleBuilder().
 			Imports(
 				config.Register(config.ConfigModuleOptions{
-					IsGlobal: true,
+					IsGlobal:          true,
+					IsExpandVariables: true,
 				}),
+				userList.UserListModule,
+				list.ListModule,
 			).
-			Controllers(Controller{}).
 			Build(),
 	)
 
