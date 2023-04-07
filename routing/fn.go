@@ -20,7 +20,7 @@ var HTTP_METHODS = []string{
 	http.MethodTrace,
 }
 
-func splitRoute(str string) (string, string) {
+func SplitRoute(str string) (string, string) {
 	matchMethodReg := regexp.MustCompile(strings.Join(utils.ArrMap(HTTP_METHODS, func(el string, i int) string {
 		return "/" + "\\" + "[" + el + "\\" + "]"
 	}), "|"))
@@ -31,7 +31,7 @@ func splitRoute(str string) (string, string) {
 }
 
 func ToEndpoint(str string) string {
-	return utils.StrAddEnd(utils.StrAddBegin(utils.StrRemoveSpace(str), "/"), "/")
+	return utils.StrRemoveDup(utils.StrAddEnd(utils.StrAddBegin(utils.StrRemoveSpace(str), "/"), "/"), "/")
 }
 
 func AddMethodToRoute(str, method string) string {
@@ -95,7 +95,29 @@ func matchWildcard(str, route string) bool {
 	return len(str) == 0
 }
 
+// get node which has * at last
+func getLastWildcardNode(node *Trie, methodPattern string) *Trie {
+	if node.Children["*"] != nil {
+		wildcardNode := node.Children["*"]
+
+		if wildcardNode.Children[methodPattern] != nil &&
+			wildcardNode.Children[methodPattern].Index > -1 {
+			return wildcardNode.Children[methodPattern]
+		}
+	}
+
+	return nil
+}
+
 func isStaticRoute(route string) bool {
 	return !strings.Contains(route, "*") &&
 		!strings.Contains(route, "$")
+}
+
+func fromMethodtoPattern(method string) string {
+	return utils.StrAddEnd(utils.StrAddBegin(method, "["), "]")
+}
+
+func fromPatternToMethod(pattern string) string {
+	return utils.StrRemoveEnd(utils.StrRemoveBegin(pattern, "["), "]")
 }

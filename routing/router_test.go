@@ -20,7 +20,7 @@ func TestRouteAdd(t *testing.T) {
 	r := NewRoute()
 
 	for _, path := range paths {
-		r.Add(path, nil)
+		r.Add(path, "", nil)
 	}
 
 	expect1 := 11
@@ -48,41 +48,42 @@ func TestRouteAdd(t *testing.T) {
 }
 
 func TestRouterMatch(t *testing.T) {
+	cases := map[string]string{
+		"/lv1/ping":                             "/lv1/ping",
+		"/lv1/642e948adef44c303cdd2df3":         "/lv1/{id1}",
+		"/lv1/foo/bar":                          "/lv1/*",
+		"/lv1":                                  "/lv1/*",
+		"/lv1/lv2/pong":                         "/lv1/lv2/pong",
+		"/lv1/lv2/642e951525714c1ec609b338":     "/lv1/lv2/{id2}",
+		"/lv1/lv2/foo/bar":                      "/lv1/lv2/*",
+		"/lv1/lv2/file/index.html":              "lv1/lv2/file/in*.html",
+		"/lv1/lv2/file/in.html":                 "lv1/lv2/file/in*.html",
+		"/lv1/lv2/file/image.png":               "lv1/lv2/file/image.*",
+		"/lv1/lv2/lv3/peng":                     "/lv1/lv2/lv3/peng",
+		"/lv1/lv2/lv3/642e95c4fbb2ad847ca96840": "/lv1/lv2/lv3/{id3}",
+		"/lv1/lv2/lv3/foo/bar":                  "/lv1/lv2/lv3/*",
+		"/lv1/lv2/lv3":                          "/lv1/lv2/lv3/*",
+		"/lv1/lv2/lv3/file/index.html":          "lv1/lv2/lv3/file/in*.html",
+		"/lv1/lv2/lv3/file/in.html":             "lv1/lv2/lv3/file/in*.html",
+		"/lv1/lv2/lv3/file/image.jpeg":          "lv1/lv2/lv3/file/image.*",
+	}
+
 	r := NewRoute()
-	for _, route := range []string{
-		"/v1/users/get/jobs/get",
-		"/v2/users/get/*/jobs/{jobId}get",
-		"/v2/users/{userId}/*/jobs/{jobId}/get",
-		"/v1/users/{userId}/*/jobs/{jobId}/delete",
-		"/v2/users/{userId}/*/jobs/{jobId}/*",
-	} {
-		r.Post(route)
-		r.Put(route)
-		r.Get(route)
+	for _, path := range cases {
+		r.Get(path, nil)
 	}
 
-	isMatched1, _, _, _, _ := r.Match("/v1/users/get/jobs/get", http.MethodPost)
-	if !isMatched1 {
-		t.Errorf("r.Match(\"/v1/users/get/jobs/get\", http.MethodPost) = %v; expect = %v", isMatched1, true)
-	}
+	for requestedRoute, expectedRoute := range cases {
+		expectedRoute = AddMethodToRoute(expectedRoute, http.MethodGet)
+		_, matchedRoute, _, _, _ := r.Match(requestedRoute, http.MethodGet)
 
-	isMatched2, _, _, _, _ := r.Match("/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get", http.MethodPut)
-	if !isMatched2 {
-		t.Errorf("r.Match(\"/v2/users/63029905408d8ed70d411662/update/jobs/63029924b2584a856cbb8baf/get\", http.MethodPut) = %v; expect = %v", isMatched2, true)
-	}
-
-	isMatched3, _, _, _, _ := r.Match("/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete", http.MethodGet)
-	if !isMatched3 {
-		t.Errorf("r.Match(\"/v1/users/63029c3246fd350a3ffc276c/update/jobs/63029c3bb998dabb261d99a1/delete\", http.MethodGet) = %v; expect = %v", isMatched3, true)
-	}
-
-	isMatched4, _, _, _, _ := r.Match("/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get", http.MethodHead)
-	if isMatched4 {
-		t.Errorf("r.Match(\"/v2/users/gett/delete/jobs/6302a6d946dc9b4a37c1d281/get\", http.MethodHead) = %v; expect = %v", isMatched4, false)
+		if matchedRoute != expectedRoute {
+			t.Errorf("request = %v, matched = %v, expected = %v", requestedRoute, matchedRoute, expectedRoute)
+		}
 	}
 }
 
-func TestRouterGroup(test *testing.T) {
+func TestRouterGroup(t *testing.T) {
 	r1 := NewRoute()
 	for _, route := range []string{
 		"/users/get",
@@ -119,7 +120,7 @@ func TestRouterGroup(test *testing.T) {
 	_, outputMatchedRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
 	expectMatchedRoute1 := AddMethodToRoute("/v1/users/update/{userId}/", http.MethodPatch)
 	if outputMatchedRoute1 != expectMatchedRoute1 {
-		test.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", outputMatchedRoute1, expectMatchedRoute1)
+		t.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", outputMatchedRoute1, expectMatchedRoute1)
 	}
 }
 
@@ -154,7 +155,7 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRoute()
 
 		for _, path := range paths {
-			r.Add(path, func(c *context.Context) {}, func(c *context.Context) {})
+			r.Add(path, "", func(c *context.Context) {}, func(c *context.Context) {})
 		}
 
 		json, err := r.ToJSON()

@@ -52,6 +52,6 @@ func BenchmarkTrieFind(b *testing.B) {
 		if j == l-1 {
 			j = 0
 		}
-		tr.find(arr[j], '/')
+		tr.find("", arr[j], '/')
 	}
 }
