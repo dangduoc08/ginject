@@ -22,4 +22,5 @@ type (
 	Query    = url.Values
 	Header   = http.Header
 	Next     = context.Next
+	Redirect = context.Redirect
 )

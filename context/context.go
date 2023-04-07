@@ -9,10 +9,11 @@ import (
 )
 
 type (
-	Map     map[string]any
-	ErrFn   func(error)
-	Handler = func(c *Context)
-	Next    = func()
+	Map      map[string]any
+	ErrFn    func(error)
+	Handler  = func(c *Context)
+	Next     = func()
+	Redirect = func(string)
 )
 
 type Responser interface {
@@ -20,6 +21,7 @@ type Responser interface {
 	SetRoute(string) Responser
 	GetRoute() string
 	Status(int) Responser
+	Redirect(string)
 	Param() Values
 	Text(string, ...any)
 	JSONP(...any)
@@ -104,6 +106,12 @@ func (c *Context) GetRoute() string {
 func (c *Context) SetRoute(route string) Responser {
 	c.route = route
 	return c
+}
+
+func (c *Context) Redirect(url string) {
+	c.Status(http.StatusMovedPermanently)
+	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
+	c.Event.Emit(REQUEST_FINISHED, c)
 }
 
 func (c *Context) Reset() {
