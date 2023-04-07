@@ -28,6 +28,7 @@ var (
 	QUERY    = "url.Values"
 	HEADER   = "http.Header"
 	NEXT     = "func()"
+	REDIRECT = "func(string)"
 
 	dependencies = map[string]int{
 		CONTEXT:  1,
@@ -37,6 +38,7 @@ var (
 		QUERY:    1,
 		HEADER:   1,
 		NEXT:     1,
+		REDIRECT: 1,
 	}
 )
 
@@ -181,6 +183,8 @@ func (app *App) getDependency(k string, c *context.Context) any {
 		return c.Request.Header
 	case NEXT:
 		return c.Next
+	case REDIRECT:
+		return c.Redirect
 	}
 
 	return dependencies
