@@ -2,6 +2,7 @@ package routing
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 )
 
@@ -76,10 +77,10 @@ func TestTrieInsert(t *testing.T) {
 
 func TestTrieFind(t *testing.T) {
 	paths := []string{
-		"/users/$/",
-		"/feeds/all/",
-		"/users/$/friends/$/",
-		"/*/feeds/{feed*Id}/*/files/*.html/*/",
+		fmt.Sprintf("/users/$/%v/", fromMethodtoPattern(http.MethodGet)),
+		fmt.Sprintf("/feeds/all/%v/", fromMethodtoPattern(http.MethodGet)),
+		fmt.Sprintf("/users/$/friends/$/%v/", fromMethodtoPattern(http.MethodGet)),
+		fmt.Sprintf("/*/feeds/{feed*Id}/*/files/*.html/*/%v/", fromMethodtoPattern(http.MethodGet)),
 	}
 	tr := NewTrie()
 
@@ -89,9 +90,9 @@ func TestTrieFind(t *testing.T) {
 
 	userId1 := "633b0aa5d7fc3578b655b9bd"
 	friendId1 := "633b0af45f4fe7d45b00fba5"
-	testPath1 := fmt.Sprintf("/users/%v/friends/%v/", userId1, friendId1)
+	testPath1 := fmt.Sprintf("/users/%v/friends/%v/[%v]/", userId1, friendId1, http.MethodGet)
 
-	index1, _, params1, _ := tr.find(testPath1, "", '/')
+	index1, _, params1, _ := tr.find(testPath1, http.MethodGet, '/')
 	expectIndex1 := 2
 	if index1 != expectIndex1 {
 		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath1, index1, expectIndex1)
@@ -105,23 +106,25 @@ func TestTrieFind(t *testing.T) {
 		t.Errorf("params1[1] = %v; expect = %v", params1[1], friendId1)
 	}
 
-	testPath2 := fmt.Sprintf("/users/%v/friends", userId1)
-	index2, _, _, _ := tr.find(testPath2, "", '/')
+	testPath2 := fmt.Sprintf("/users/%v/friends/[%v]/", userId1, http.MethodGet)
+	index2, _, _, _ := tr.find(testPath2, http.MethodGet, '/')
 	expectIndex2 := -1
 	if index2 != expectIndex2 {
 		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath2, index2, expectIndex2)
 	}
 
-	index3, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/", "", '/')
+	testPath3 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/[%v]/", http.MethodGet)
+	index3, _, _, _ := tr.find(testPath3, http.MethodGet, '/')
 	expectIndex3 := 3
 	if index3 != expectIndex3 {
-		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
+		t.Errorf("tr.find(%v, '/') return Index = %v; expect = %v", testPath3, index3, expectIndex3)
 	}
 
-	index4, _, _, _ := tr.find("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/", "", '/')
+	testPath4 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/[%v]/", http.MethodGet)
+	index4, _, _, _ := tr.find(testPath4, http.MethodGet, '/')
 	expectIndex4 := 3
 	if index4 != expectIndex4 {
-		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/\", '/') return Index = %v; expect = %v", index3, expectIndex3)
+		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/\", '/') return Index = %v; expect = %v", index4, expectIndex4)
 	}
 }
 
