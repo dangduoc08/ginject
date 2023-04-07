@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/gooh/context"
-	"github.com/dangduoc08/gooh/middlewares"
 )
 
 func TestRouteAdd(t *testing.T) {
@@ -66,16 +65,18 @@ func TestRouterMatch(t *testing.T) {
 		"/lv1/lv2/lv3/file/index.html":          "lv1/lv2/lv3/file/in*.html",
 		"/lv1/lv2/lv3/file/in.html":             "lv1/lv2/lv3/file/in*.html",
 		"/lv1/lv2/lv3/file/image.jpeg":          "lv1/lv2/lv3/file/image.*",
+		"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after": "/*/feeds/{feed*Id}/*/files/*.html/*/",
+		"/users/633b0aa5d7fc3578b655b9bd/friends/633b0af45f4fe7d45b00fba5":       "/users/{userId}/friends/{friendId}",
 	}
 
 	r := NewRoute()
 	for _, path := range cases {
-		r.Get(path, nil)
+		r.All(path, nil)
 	}
 
 	for requestedRoute, expectedRoute := range cases {
-		expectedRoute = AddMethodToRoute(expectedRoute, http.MethodGet)
-		_, matchedRoute, _, _, _ := r.Match(requestedRoute, http.MethodGet)
+		expectedRoute = AddMethodToRoute(expectedRoute, http.MethodPost)
+		_, matchedRoute, _, _, _ := r.Match(requestedRoute, http.MethodPost)
 
 		if matchedRoute != expectedRoute {
 			t.Errorf("request = %v, matched = %v, expected = %v", requestedRoute, matchedRoute, expectedRoute)
@@ -125,21 +126,17 @@ func TestRouterGroup(t *testing.T) {
 }
 
 func TestRouterMiddleware(t *testing.T) {
-	handler1 := func(context *context.Context) {
-		fmt.Println("handler1")
+	counter := 0
+
+	handler1 := func(c *context.Context) {
+		counter++
+		c.Next()
 	}
 
 	r1 := NewRoute()
+	r1.Use(handler1)
 	r1.Get("/test", handler1)
-	r1.For("/test")(middlewares.RequestLogger)
-
-	r1.Get("/test", handler1)
-	r1.Use(middlewares.RequestLogger)
-
-	r2 := NewRoute()
-	r2.Use(middlewares.RequestLogger)
-	r2.Get("/test", handler1)
-	r2.For("/test")(middlewares.RequestLogger)
+	r1.For("/test")(handler1)
 }
 
 func TestRouteToJSON(t *testing.T) {
