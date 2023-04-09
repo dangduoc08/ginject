@@ -1,4 +1,4 @@
-package core
+package common
 
 import (
 	"net/http"
@@ -10,18 +10,18 @@ import (
 
 type Rest struct {
 	prefixes  []string
-	routerMap map[string]any
+	RouterMap map[string]any
 }
 
 func (r *Rest) addToRouters(path, method string, injectableHandler any) {
-	if reflect.ValueOf(r.routerMap).IsNil() {
-		r.routerMap = make(map[string]any)
+	if reflect.ValueOf(r.RouterMap).IsNil() {
+		r.RouterMap = make(map[string]any)
 	}
 	prefix := ""
 	for _, str := range r.prefixes {
 		prefix += utils.StrAddBegin(utils.StrRemoveEnd(str, "/"), "/")
 	}
-	r.routerMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = injectableHandler
+	r.RouterMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = injectableHandler
 }
 
 func (r *Rest) Prefix(prefix string) *Rest {

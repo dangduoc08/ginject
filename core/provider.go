@@ -1,5 +1,5 @@
 package core
 
 type Provider interface {
-	Inject() Provider
+	NewProvider() Provider
 }
