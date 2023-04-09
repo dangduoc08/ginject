@@ -7,8 +7,10 @@ import (
 	"github.com/dangduoc08/gooh/core"
 )
 
-type ConfigLoadFn = func() map[string]any
-type ConfigHookFn = func(map[string]any) map[string]any
+type (
+	ConfigLoadFn = func() map[string]any
+	ConfigHookFn = func(map[string]any) map[string]any
+)
 
 type ConfigModuleOptions struct {
 	IsGlobal          bool

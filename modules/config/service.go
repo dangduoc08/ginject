@@ -8,7 +8,7 @@ type ConfigService struct {
 	Config map[string]any
 }
 
-func (configService ConfigService) Inject() core.Provider {
+func (configService ConfigService) NewProvider() core.Provider {
 	return configService
 }
 

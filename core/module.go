@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"sync"
 
+	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -46,7 +47,7 @@ func (m *Module) injectGlobalProviders() {
 	}
 }
 
-func (m *Module) Inject() *Module {
+func (m *Module) NewModule() *Module {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
@@ -80,7 +81,7 @@ func (m *Module) Inject() *Module {
 		for _, staticModule := range m.staticModules {
 
 			// recursion injection
-			injectModule := staticModule.Inject()
+			injectModule := staticModule.NewModule()
 
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
@@ -110,7 +111,7 @@ func (m *Module) Inject() *Module {
 				staticModule.injectGlobalProviders()
 			}
 
-			injectModule := staticModule.Inject()
+			injectModule := staticModule.NewModule()
 
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
@@ -177,7 +178,7 @@ func (m *Module) Inject() *Module {
 			}
 
 			if providerInjectCheck[providerKey] == nil {
-				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).Inject()
+				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
 			}
 
 			m.providers[i] = providerInjectCheck[providerKey]
@@ -230,9 +231,9 @@ func (m *Module) Inject() *Module {
 					}
 				}
 
-				m.controllers[i] = newControllerType.Interface().(Controller).Inject()
+				m.controllers[i] = newControllerType.Interface().(Controller).NewController()
 
-				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(Rest).routerMap {
+				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest).RouterMap {
 					if err := isInjectableHandler(handler); err != nil {
 						panic(utils.FmtRed(err.Error()))
 					}
