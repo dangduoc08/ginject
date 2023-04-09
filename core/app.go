@@ -61,7 +61,7 @@ func New() *App {
 }
 
 func (app *App) Create(m *Module) {
-	app.module = m.Inject()
+	app.module = m.NewModule()
 	app.route.Group("/", app.module.router)
 }
 
