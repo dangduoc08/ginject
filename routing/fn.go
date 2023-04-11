@@ -1,24 +1,11 @@
 package routing
 
 import (
-	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/dangduoc08/gooh/utils"
 )
-
-var HTTP_METHODS = []string{
-	http.MethodGet,
-	http.MethodHead,
-	http.MethodPost,
-	http.MethodPut,
-	http.MethodPatch,
-	http.MethodDelete,
-	http.MethodConnect,
-	http.MethodOptions,
-	http.MethodTrace,
-}
 
 func SplitRoute(str string) (string, string) {
 	matchMethodReg := regexp.MustCompile(strings.Join(utils.ArrMap(HTTP_METHODS, func(el string, i int) string {

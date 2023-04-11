@@ -75,19 +75,7 @@ func (r *Rest) Trace(path string, injectableHandler any) *Rest {
 }
 
 func (r *Rest) All(path string, injectableHandler any) *Rest {
-	httpMethods := [9]string{
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodPost,
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodDelete,
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodTrace,
-	}
-
-	for _, method := range httpMethods {
+	for _, method := range routing.HTTP_METHODS {
 		r.addToRouters(path, method, injectableHandler)
 	}
 

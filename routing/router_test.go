@@ -136,7 +136,7 @@ func TestRouterMiddleware(t *testing.T) {
 	r1 := NewRoute()
 	r1.Use(handler1)
 	r1.Get("/test", handler1)
-	r1.For("/test")(handler1)
+	r1.For("/test", []string{})(handler1)
 }
 
 func TestRouteToJSON(t *testing.T) {

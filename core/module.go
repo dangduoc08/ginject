@@ -28,8 +28,9 @@ type Module struct {
 	exports        []Provider
 	controllers    []Controller
 
-	IsGlobal bool
-	OnInit   func()
+	Middleware *Middleware
+	IsGlobal   bool
+	OnInit     func()
 }
 
 func (m *Module) injectMainModules() {
@@ -233,6 +234,24 @@ func (m *Module) NewModule() *Module {
 
 				m.controllers[i] = newControllerType.Interface().(Controller).NewController()
 
+				configInclusion := []RouteConfig{}
+				for pattern := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest).RouterMap {
+					method, path := routing.SplitRoute(pattern)
+					configInclusion = append(configInclusion, RouteConfig{
+						Method: method,
+						Path:   path,
+					})
+				}
+				m.Middleware.include(configInclusion).add()
+
+				// apply module bound middlewares
+				for _, middlewareMap := range m.Middleware.middlewareMapArr {
+					for path, configs := range middlewareMap {
+						m.router.For(path, configs.methods)(configs.handlers...)
+					}
+				}
+
+				// add main handler
 				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest).RouterMap {
 					if err := isInjectableHandler(handler); err != nil {
 						panic(utils.FmtRed(err.Error()))
