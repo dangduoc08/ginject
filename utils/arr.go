@@ -56,3 +56,16 @@ func ArrIncludes[T comparable](arr []T, v T) bool {
 
 	return false
 }
+
+func ArrToUnique[T comparable](arr []T) []T {
+	m := make(map[T]bool)
+	uniqueArr := []T{}
+	for _, el := range arr {
+		if !m[el] {
+			uniqueArr = append(uniqueArr, el)
+			m[el] = true
+		}
+	}
+
+	return uniqueArr
+}
