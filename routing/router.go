@@ -23,6 +23,18 @@ type Router interface {
 	For(string) func(...context.Handler) *Route
 }
 
+var HTTP_METHODS = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodConnect,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
 func (r *Route) Get(path string, handlers ...context.Handler) *Route {
 	return r.Add(AddMethodToRoute(path, http.MethodGet), http.MethodGet, handlers...)
 }
@@ -60,19 +72,7 @@ func (r *Route) Trace(path string, handlers ...context.Handler) *Route {
 }
 
 func (r *Route) All(path string, handlers ...context.Handler) *Route {
-	httpMethods := [9]string{
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodPost,
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodDelete,
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodTrace,
-	}
-
-	for _, method := range httpMethods {
+	for _, method := range HTTP_METHODS {
 		r.Add(AddMethodToRoute(path, method), method, handlers...)
 	}
 
@@ -111,9 +111,9 @@ func (r *Route) Use(handlers ...context.Handler) *Route {
 	return r
 }
 
-func (r *Route) For(path string) func(handlers ...context.Handler) *Route {
+func (r *Route) For(path string, inclusions []string) func(handlers ...context.Handler) *Route {
 	return func(handlers ...context.Handler) *Route {
-		for _, method := range HTTP_METHODS {
+		for _, method := range inclusions {
 			r.Add(AddMethodToRoute(path, method), method, handlers...)
 		}
 

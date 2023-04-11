@@ -88,5 +88,6 @@ func (m *moduleBuilder) Build() *Module {
 		providers:      m.providers,
 		controllers:    m.controllers,
 		router:         routing.NewRoute(),
+		Middleware:     &Middleware{},
 	}
 }
