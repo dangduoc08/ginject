@@ -106,3 +106,30 @@ func TestArrIncludes(t *testing.T) {
 		t.Errorf("ArrIncludes = %v; expect = %v", output2, expect2)
 	}
 }
+
+func TestArrToUnique(t *testing.T) {
+	arr := []string{
+		"John Doe",
+		"Jane Doe",
+		"The Rock",
+		"John Doe",
+		"Jane Doe",
+	}
+
+	expect1 := []string{
+		"John Doe",
+		"Jane Doe",
+		"The Rock",
+	}
+	output1 := ArrToUnique(arr)
+
+	if len(expect1) != len(output1) {
+		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
+	}
+
+	for i, e := range output1 {
+		if expect1[i] != e {
+			t.Errorf("expect1's element at index %v = %v; output1's element at index %v = %v", i, expect1[i], i, e)
+		}
+	}
+}
