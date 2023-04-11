@@ -65,6 +65,14 @@ func (app *App) Create(m *Module) {
 	app.route.Group("/", app.module.router)
 }
 
+func (app *App) Use(handlers ...context.Handler) *routing.Route {
+	return app.route.Use(handlers...)
+}
+
+func (app *App) For(path string) func(handlers ...context.Handler) *routing.Route {
+	return app.route.For(path, routing.HTTP_METHODS)
+}
+
 func (app *App) Get(p Provider) any {
 	k := genProviderKey(p)
 	return utils.ArrFind(app.module.providers, func(provider Provider, i int) bool {
