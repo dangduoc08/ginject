@@ -23,7 +23,7 @@ type Router interface {
 	For(string) func(...context.Handler) *Route
 }
 
-var HTTP_METHODS = []string{
+var HTTPMethods = []string{
 	http.MethodGet,
 	http.MethodHead,
 	http.MethodPost,
@@ -72,7 +72,7 @@ func (r *Route) Trace(path string, handlers ...context.Handler) *Route {
 }
 
 func (r *Route) All(path string, handlers ...context.Handler) *Route {
-	for _, method := range HTTP_METHODS {
+	for _, method := range HTTPMethods {
 		r.Add(AddMethodToRoute(path, method), method, handlers...)
 	}
 

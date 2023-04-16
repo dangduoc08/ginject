@@ -9,74 +9,71 @@ import (
 )
 
 type Rest struct {
-	prefixes  []string
+	prefix    string
 	RouterMap map[string]any
 }
 
-func (r *Rest) addToRouters(path, method string, injectableHandler any) {
+func (r *Rest) addToRouters(prefix, path, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
-	prefix := ""
-	for _, str := range r.prefixes {
-		prefix += utils.StrAddBegin(utils.StrRemoveEnd(str, "/"), "/")
-	}
+	prefix = utils.StrAddBegin(utils.StrRemoveEnd(prefix, "/"), "/")
 	r.RouterMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = injectableHandler
 }
 
 func (r *Rest) Prefix(prefix string) *Rest {
-	r.prefixes = append(r.prefixes, prefix)
+	r.prefix = prefix
 	return r
 }
 
 func (r *Rest) Get(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodGet, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodGet, injectableHandler)
 	return r
 }
 
 func (r *Rest) Head(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodHead, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodHead, injectableHandler)
 	return r
 }
 
 func (r *Rest) Post(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodPost, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodPost, injectableHandler)
 	return r
 }
 
 func (r *Rest) Put(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodPut, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodPut, injectableHandler)
 	return r
 }
 
 func (r *Rest) Patch(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodPatch, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodPatch, injectableHandler)
 	return r
 }
 
 func (r *Rest) Delete(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodDelete, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodDelete, injectableHandler)
 	return r
 }
 
 func (r *Rest) Connect(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodDelete, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodDelete, injectableHandler)
 	return r
 }
 
 func (r *Rest) Options(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodOptions, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodOptions, injectableHandler)
 	return r
 }
 
 func (r *Rest) Trace(path string, injectableHandler any) *Rest {
-	r.addToRouters(path, http.MethodTrace, injectableHandler)
+	r.addToRouters(r.prefix, path, http.MethodTrace, injectableHandler)
 	return r
 }
 
 func (r *Rest) All(path string, injectableHandler any) *Rest {
 	for _, method := range routing.HTTP_METHODS {
-		r.addToRouters(path, method, injectableHandler)
+		r.addToRouters(r.prefix, path, method, injectableHandler)
 	}
 
 	return r

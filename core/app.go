@@ -70,7 +70,7 @@ func (app *App) Use(handlers ...context.Handler) *routing.Route {
 }
 
 func (app *App) For(path string) func(handlers ...context.Handler) *routing.Route {
-	return app.route.For(path, routing.HTTP_METHODS)
+	return app.route.For(path, routing.HTTPMethods)
 }
 
 func (app *App) Get(p Provider) any {

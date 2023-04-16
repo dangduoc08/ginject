@@ -8,7 +8,7 @@ import (
 )
 
 func SplitRoute(str string) (string, string) {
-	matchMethodReg := regexp.MustCompile(strings.Join(utils.ArrMap(HTTP_METHODS, func(el string, i int) string {
+	matchMethodReg := regexp.MustCompile(strings.Join(utils.ArrMap(HTTPMethods, func(el string, i int) string {
 		return "/" + "\\" + "[" + el + "\\" + "]"
 	}), "|"))
 
