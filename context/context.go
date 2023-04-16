@@ -11,7 +11,7 @@ import (
 type (
 	Map      map[string]any
 	ErrFn    func(error)
-	Handler  = func(c *Context)
+	Handler  = func(*Context)
 	Next     = func()
 	Redirect = func(string)
 )
