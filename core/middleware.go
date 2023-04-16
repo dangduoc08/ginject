@@ -57,7 +57,7 @@ func (mw *Middleware) add() {
 		// method = ""
 		// apply for all
 		if routeConfig.Method == "" {
-			methods = append(methods, routing.HTTP_METHODS...)
+			methods = append(methods, routing.HTTPMethods...)
 		} else {
 			methods = append(methods, routeConfig.Method)
 		}

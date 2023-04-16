@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"go/token"
 	"reflect"
 	"sync"
 
@@ -15,7 +16,9 @@ var globalProviders map[string]Provider = make(map[string]Provider)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
 var noInjectedFields = []string{
 	"Rest",
-	"core.Rest",
+	"common.Rest",
+	"Guard",
+	"common.Guard",
 }
 
 type Module struct {
@@ -145,10 +148,10 @@ func (m *Module) NewModule() *Module {
 				providerFieldKey := providerFieldType.String()
 				providerFieldName := providerField.Name
 
-				if utils.StrIsLower(providerFieldName[0:1])[0] {
+				if !token.IsExported(providerFieldName) {
 					panic(fmt.Errorf(
 						utils.FmtRed(
-							"can't set value to unexported %v field of the %v provider",
+							"can't set value to unexported '%v' field of the %v provider",
 							providerFieldName,
 							providerType.Name(),
 						),
@@ -169,7 +172,7 @@ func (m *Module) NewModule() *Module {
 				} else {
 					panic(fmt.Errorf(
 						utils.FmtRed(
-							"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v provider",
+							"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' provider",
 							providerFieldKey,
 							j,
 							providerType.Name(),
@@ -198,10 +201,10 @@ func (m *Module) NewModule() *Module {
 					controllerFieldType := controllerField.Type
 					controllerFieldNameKey := controllerField.Name
 
-					if utils.StrIsLower(controllerFieldNameKey[0:1])[0] {
+					if !token.IsExported(controllerFieldNameKey) {
 						panic(fmt.Errorf(
 							utils.FmtRed(
-								"can't set value to unexported %v field of the %v controller",
+								"can't set value to unexported '%v' field of the '%v' controller",
 								controllerFieldNameKey,
 								controllerType.Name(),
 							),
@@ -223,7 +226,7 @@ func (m *Module) NewModule() *Module {
 						}
 						panic(fmt.Errorf(
 							utils.FmtRed(
-								"can't resolve dependencies of the %v provider. Please make sure that the argument dependency at index [%v] is available in the %v controller",
+								"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' controller",
 								injectProviderKey,
 								j,
 								controllerType.Name(),

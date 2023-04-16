@@ -27,7 +27,7 @@ func isInjectableHandler(handler any) error {
 	getFnArgs(handler, func(arg string, i int) {
 		if _, ok := dependencies[arg]; !ok {
 			e = fmt.Errorf(
-				"can't resolve dependencies of %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				"can't resolve dependencies of '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
 				reflect.TypeOf(handler).String(),
 				i,
 			)
@@ -57,7 +57,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
 		return fmt.Errorf(
 			utils.FmtRed(
-				"can't resolve argument of %v. Please make sure that the argument %v at index [%v] is available in the injected providers",
+				"can't resolve argument of '%v'. Please make sure that the argument '%v' at index [%v] is available in the injected providers",
 				strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
 				dynamicArgKey,
 				index,

@@ -50,7 +50,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 			if isDynamic {
 				dynamicModules = append(dynamicModules, module)
 			} else {
-				errors = append(errors, fmt.Sprintf("can't pass %v type as module", moduleType))
+				errors = append(errors, fmt.Sprintf("can't pass '%v' type as module", moduleType))
 			}
 		}
 	}
