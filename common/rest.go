@@ -1,80 +1,194 @@
 package common
 
 import (
-	"net/http"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
 
+var Operations = map[string]string{
+	"READ":   routing.HTTPMethods[0],
+	"CREATE": routing.HTTPMethods[2],
+	"UPDATE": routing.HTTPMethods[3],
+	"MODIFY": routing.HTTPMethods[4],
+	"DELETE": routing.HTTPMethods[5],
+	"DO":     "DO",
+}
+
+const (
+	TokenBy   = "BY"
+	TokenAnd  = "AND"
+	TokenOf   = "OF"
+	TokenAny  = "ANY"
+	TokenFile = "FILE"
+)
+
+var TokenMap = map[string]string{
+	TokenBy:   TokenBy,
+	TokenAnd:  TokenAnd,
+	TokenOf:   TokenOf,
+	TokenAny:  TokenAny,
+	TokenFile: TokenFile,
+}
+
 type Rest struct {
-	prefix    string
+	version   string
 	RouterMap map[string]any
 }
 
-func (r *Rest) addToRouters(prefix, path, method string, injectableHandler any) {
+func (r *Rest) AddToRouters(path, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
-	prefix = utils.StrAddBegin(utils.StrRemoveEnd(prefix, "/"), "/")
-	r.RouterMap[routing.AddMethodToRoute(prefix+routing.ToEndpoint(path), method)] = injectableHandler
+	version := utils.StrAddBegin(utils.StrRemoveEnd(r.version, "/"), "/")
+	r.RouterMap[routing.AddMethodToRoute(version+routing.ToEndpoint(path), method)] = injectableHandler
 }
 
-func (r *Rest) Prefix(prefix string) *Rest {
-	r.prefix = prefix
+func (r *Rest) AddAllToRouters(path string, injectableHandler any) {
+	for _, method := range Operations {
+		if method != Operations["DO"] {
+			r.AddToRouters(path, method, injectableHandler)
+		}
+	}
+}
+
+func (r *Rest) Version(version string) *Rest {
+	r.version = version
 	return r
 }
 
-func (r *Rest) Get(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodGet, injectableHandler)
-	return r
+func (r *Rest) ParseFnNameToURL(fnName string) (string, string) {
+	return r.segmentFnName(fnName)
 }
 
-func (r *Rest) Head(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodHead, injectableHandler)
-	return r
-}
+func (r *Rest) segmentFnName(fnName string) (string, string) {
+	method := ""
+	route := ""
 
-func (r *Rest) Post(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodPost, injectableHandler)
-	return r
-}
+	subStr := strings.Split(fnName, "_")
+	j := -1
 
-func (r *Rest) Put(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodPut, injectableHandler)
-	return r
-}
+	for i, b := range subStr {
+		if j >= 0 && i < j {
+			continue
+		}
 
-func (r *Rest) Patch(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodPatch, injectableHandler)
-	return r
-}
+		s := string(b)
 
-func (r *Rest) Delete(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodDelete, injectableHandler)
-	return r
-}
+		// function name is not satisfied statements
+		if _, ok := Operations[s]; !ok && i == 0 {
+			return "", ""
+		}
 
-func (r *Rest) Connect(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodDelete, injectableHandler)
-	return r
-}
+		if _, ok := Operations[s]; ok && i == 0 {
+			method = Operations[s]
+		}
 
-func (r *Rest) Options(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodOptions, injectableHandler)
-	return r
-}
+		if _, ok := Operations[s]; ok || s == TokenOf {
+			i++
+			path := ""
+			isAny := false
 
-func (r *Rest) Trace(path string, injectableHandler any) *Rest {
-	r.addToRouters(r.prefix, path, http.MethodTrace, injectableHandler)
-	return r
-}
+			for i < len(subStr) &&
+				subStr[i] != TokenBy &&
+				subStr[i] != TokenAnd &&
+				subStr[i] != TokenOf {
 
-func (r *Rest) All(path string, injectableHandler any) *Rest {
-	for _, method := range routing.HTTP_METHODS {
-		r.addToRouters(r.prefix, path, method, injectableHandler)
+				// READ_ANY
+				// or OF_ANY
+				// mapped with condition line 54
+				if subStr[i] == TokenAny {
+					path += "*"
+					isAny = true
+				}
+
+				if subStr[i] == TokenFile {
+					lastWildcardIndex := strings.LastIndex(path, "*")
+					if lastWildcardIndex > -1 {
+						remainPath := "*"
+						extension := strings.ToLower(path[lastWildcardIndex+1:])
+						path = remainPath + "." + extension
+					} else {
+						lastWildcardIndex := strings.LastIndex(path, "_")
+						if lastWildcardIndex > -1 {
+							remainPath := path[:lastWildcardIndex]
+							if remainPath == TokenAny {
+								remainPath = "*"
+							}
+							extension := strings.ToLower(path[lastWildcardIndex+1:])
+
+							path = remainPath + "." + extension
+						}
+					}
+				}
+
+				if subStr[i] != TokenAny && subStr[i] != TokenFile {
+					if path == "" || isAny {
+						path += subStr[i]
+						isAny = false
+					} else {
+						path += "_" + subStr[i]
+					}
+				}
+				i++
+			}
+			j = i
+
+			route = path + "/" + route
+			continue
+		}
+
+		// param concat to first slash of path
+		if s == TokenBy || s == TokenAnd {
+			firstSlashIndex := strings.Index(route, "/")
+			shouldConcatRoute := route[:firstSlashIndex]
+			remainRoutes := route[firstSlashIndex:]
+
+			param := ""
+			i++
+			for i < len(subStr) && TokenMap[subStr[i]] == "" {
+				if param == "" {
+					param += subStr[i]
+				} else {
+					param += "_" + subStr[i]
+				}
+				i++
+			}
+			j = i
+
+			if firstSlashIndex > -1 && firstSlashIndex < len(route)-1 {
+				if route[firstSlashIndex+1:firstSlashIndex+2] == "{" {
+					firstParamIndex := strings.Index(remainRoutes, "}/")
+					if firstParamIndex > -1 {
+						route = fmt.Sprintf("%v%v/{%v}%v", shouldConcatRoute, remainRoutes[:firstParamIndex+1], param, remainRoutes[firstParamIndex+1:])
+					}
+				} else {
+					route = fmt.Sprintf("%v/{%v}%v", shouldConcatRoute, param, remainRoutes)
+				}
+			} else {
+				route = fmt.Sprintf("%v/{%v}%v", shouldConcatRoute, param, remainRoutes)
+			}
+			continue
+		}
+
+		// ANY stand alone
+		if s == TokenAny && (i == len(subStr)-1 || subStr[i+1] == TokenOf) {
+
+			// ANY same as a static path
+			if route == "" {
+				route = "*/"
+				continue
+			}
+			firstSlashIndex := strings.Index(route, "/")
+			shouldConcatRoute := route[:firstSlashIndex]
+			remainRoutes := route[firstSlashIndex:]
+			route = fmt.Sprintf("%v/%v%v", "*", shouldConcatRoute, remainRoutes)
+			continue
+		}
 	}
 
-	return r
+	return method, "/" + route
 }

@@ -194,7 +194,7 @@ func (m *Module) NewModule() *Module {
 			for i, controller := range m.controllers {
 				controllerType := reflect.TypeOf(controller)
 				controllerValue := reflect.ValueOf(controller)
-				newControllerType := reflect.New(controllerType)
+				newController := reflect.New(controllerType)
 
 				for j := 0; j < controllerType.NumField(); j++ {
 					controllerField := controllerType.Field(j)
@@ -215,11 +215,11 @@ func (m *Module) NewModule() *Module {
 					isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
 
 					if injectedProviders[injectProviderKey] != nil && !isUnneededInject {
-						newControllerType.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+						newController.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 					} else if globalProviders[injectProviderKey] != nil && !isUnneededInject {
-						newControllerType.Elem().Field(j).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+						newController.Elem().Field(j).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
 					} else if !isInjectedProvider(controllerFieldType) {
-						newControllerType.Elem().Field(j).Set(controllerValue.Field(j))
+						newController.Elem().Field(j).Set(controllerValue.Field(j))
 					} else {
 						if isUnneededInject {
 							continue
@@ -235,33 +235,49 @@ func (m *Module) NewModule() *Module {
 					}
 				}
 
-				m.controllers[i] = newControllerType.Interface().(Controller).NewController()
+				m.controllers[i] = newController.Interface().(Controller).NewController()
 
-				configInclusion := []RouteConfig{}
-				for pattern := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest).RouterMap {
-					method, path := routing.SplitRoute(pattern)
-					configInclusion = append(configInclusion, RouteConfig{
-						Method: method,
-						Path:   path,
-					})
-				}
-				m.Middleware.include(configInclusion).add()
+				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
+					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest)
 
-				// apply module bound middlewares
-				for _, middlewareMap := range m.Middleware.middlewareMapArr {
-					for path, configs := range middlewareMap {
-						m.router.For(path, configs.methods)(configs.handlers...)
-					}
-				}
-
-				// add main handler
-				for pattern, handler := range reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest).RouterMap {
-					if err := isInjectableHandler(handler); err != nil {
-						panic(utils.FmtRed(err.Error()))
+					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
+						method, route := rest.ParseFnNameToURL(reflect.TypeOf(m.controllers[i]).Method(j).Name)
+						if method != "" {
+							handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
+							if method == common.Operations["DO"] {
+								rest.AddAllToRouters(route, handler)
+							} else {
+								rest.AddToRouters(route, method, handler)
+							}
+						}
 					}
 
-					method, _ := routing.SplitRoute(pattern)
-					m.router.AddInjectableHandler(pattern, method, handler)
+					configInclusion := []RouteConfig{}
+					for pattern := range rest.RouterMap {
+						method, path := routing.SplitRoute(pattern)
+						configInclusion = append(configInclusion, RouteConfig{
+							Method: method,
+							Path:   path,
+						})
+					}
+					m.Middleware.include(configInclusion).add()
+
+					// apply module bound middlewares
+					for _, middlewareMap := range m.Middleware.middlewareMapArr {
+						for path, configs := range middlewareMap {
+							m.router.For(path, configs.methods)(configs.handlers...)
+						}
+					}
+
+					// add main handler
+					for pattern, handler := range rest.RouterMap {
+						if err := isInjectableHandler(handler); err != nil {
+							panic(utils.FmtRed(err.Error()))
+						}
+
+						method, _ := routing.SplitRoute(pattern)
+						m.router.AddInjectableHandler(pattern, method, handler)
+					}
 				}
 			}
 		}
