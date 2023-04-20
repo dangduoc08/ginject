@@ -16,7 +16,7 @@ func isDynamicModule(moduleType string) (bool, error) {
 func getFnArgs(f any, cb func(string, int)) {
 	injectableFnType := reflect.TypeOf(f)
 	for i := 0; i < injectableFnType.NumIn(); i++ {
-		arg := injectableFnType.In(i).String()
+		arg := injectableFnType.In(i).PkgPath() + "/" + injectableFnType.In(i).String()
 		cb(arg, i)
 	}
 }
@@ -44,7 +44,8 @@ func isInjectedProvider(providerFieldType reflect.Type) bool {
 }
 
 func genProviderKey(p Provider) string {
-	return reflect.TypeOf(p).String()
+	providerType := reflect.TypeOf(p)
+	return providerType.PkgPath() + "/" + providerType.String()
 }
 
 func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders map[string]Provider) *Module {
