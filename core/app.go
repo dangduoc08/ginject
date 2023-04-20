@@ -20,27 +20,27 @@ type App struct {
 }
 
 // link to aliases
-var (
-	CONTEXT  = "*context.Context"
-	REQUEST  = "*http.Request"
-	RESPONSE = "http.ResponseWriter"
-	PARAM    = "context.Values"
-	QUERY    = "url.Values"
-	HEADER   = "http.Header"
-	NEXT     = "func()"
-	REDIRECT = "func(string)"
-
-	dependencies = map[string]int{
-		CONTEXT:  1,
-		REQUEST:  1,
-		RESPONSE: 1,
-		PARAM:    1,
-		QUERY:    1,
-		HEADER:   1,
-		NEXT:     1,
-		REDIRECT: 1,
-	}
+const (
+	CONTEXT  = "/*context.Context"
+	REQUEST  = "/*http.Request"
+	RESPONSE = "net/http/http.ResponseWriter"
+	PARAM    = "github.com/dangduoc08/gooh/context/context.Values"
+	QUERY    = "net/url/url.Values"
+	HEADER   = "net/http/http.Header"
+	NEXT     = "/func()"
+	REDIRECT = "/func(string)"
 )
+
+var dependencies = map[string]int{
+	CONTEXT:  1,
+	REQUEST:  1,
+	RESPONSE: 1,
+	PARAM:    1,
+	QUERY:    1,
+	HEADER:   1,
+	NEXT:     1,
+	REDIRECT: 1,
+}
 
 func New() *App {
 	event := context.NewEvent()
