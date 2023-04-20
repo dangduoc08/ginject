@@ -137,7 +137,7 @@ func (m *Module) NewModule() *Module {
 			providerType := reflect.TypeOf(provider)
 			providerValue := reflect.ValueOf(provider)
 			newProvider := reflect.New(providerType)
-			providerKey := providerType.String()
+			providerKey := genProviderKey(provider)
 
 			// injected providers inside providers
 			// can be injected through global modules
@@ -145,7 +145,7 @@ func (m *Module) NewModule() *Module {
 			for j := 0; j < providerType.NumField(); j++ {
 				providerField := providerType.Field(j)
 				providerFieldType := providerField.Type
-				providerFieldKey := providerFieldType.String()
+				providerFieldKey := providerFieldType.PkgPath() + "/" + providerFieldType.String()
 				providerFieldName := providerField.Name
 
 				if !token.IsExported(providerFieldName) {
@@ -173,7 +173,7 @@ func (m *Module) NewModule() *Module {
 					panic(fmt.Errorf(
 						utils.FmtRed(
 							"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' provider",
-							providerFieldKey,
+							providerFieldType.String(),
 							j,
 							providerType.Name(),
 						),
@@ -211,7 +211,7 @@ func (m *Module) NewModule() *Module {
 						))
 					}
 
-					injectProviderKey := controllerType.Field(j).Type.String()
+					injectProviderKey := controllerType.Field(j).Type.PkgPath() + "/" + controllerType.Field(j).Type.String()
 					isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
 
 					if injectedProviders[injectProviderKey] != nil && !isUnneededInject {
