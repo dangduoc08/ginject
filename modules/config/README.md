@@ -10,8 +10,14 @@
   - [IsOverride](#isoverride)
   - [IsExpandVariables](#isexpandvariables)
   - [ENVFilePaths](#envfilepaths)
+  - [OnInit](#oninit)
   - [Loads (Custom Configuration Files)](#loads-custom-configuration-files)
   - [Hooks](#hooks)
+- [`ConfigService` Methods](#configservice-methods)
+  - [Get](#get)
+    - [Parameters](#parameters)
+    - [Returns](#returns)
+    - [Usage](#usage-1)
 
 ## Key Features
 - Zero-dependency
@@ -172,6 +178,15 @@ config.Register(config.ConfigModuleOptions{
 })
 ```
 
+### OnInit
+Type: `func()`
+
+Default: `nil`
+
+Required: `false`
+
+`OnInit` is a module's life cycle which is invoked before Config module was injected.
+
 ### Loads (Custom Configuration Files)
 Type: `[]func() map[string]interface{}`
 
@@ -267,26 +282,94 @@ provider.ConfigService.Get(("database.port"))
 ```
 
 ### Hooks
-Type: `[]func(map[string]interface{}) map[string]interface{}`
+Type: `[]func(ConfigService)`
 
-Default: `[]func(map[string]interface{}) map[string]interface{}{}`
+Default: `[]func(ConfigService)`
 
 Required: `false`
 
-Hooks is a property that allow you catch env map before config module instance is created. The idea is hook give you ability to transforms or validations configuration to avoid mismatch configs before application start.
+Hooks is a property that allow you catch env map before config module instance is created. The idea of hook is give you ability to transforms or validations configuration to avoid mismatch configs before application start.
 
 Hook functions will be invoked sequency in array.
 
 ```go
 config.Register(config.ConfigModuleOptions{
   Hooks: []config.ConfigHookFn{
-    func(m map[string]any) map[string]any {
-      m["ANOMYNOUS"] = "John Doe"
-      return m
+    func(c config.ConfigService) {
+      c.Set("ANOMYNOUS") = "John Doe"
     },
   },
 }),
 ```
 ```go
 provider.ConfigService.Get(("ANOMYNOUS")) // Will print: John Doe
+```
+
+It is standard practice to throw an exception during application startup if required environment variables haven't been provided or if they don't meet certain validation rules.
+
+In this example we will use `validator` package to validate struct tags. First, we need install library.
+
+Install:
+```shell
+go get github.com/go-playground/validator/v10
+```
+
+Add env key like below sample:
+
+```dosini
+EMAIL=duocdevtest@gmail
+```
+
+Define a struct:
+
+```go
+type Config struct {
+	EMAIL string `validate:"email"`
+}
+```
+
+Finally, on `Hooks` property add function:
+
+```go
+config.Register(config.ConfigModuleOptions{
+  Hooks: []config.ConfigHookFn{
+    func(c config.ConfigService) {
+      errs := validator.New().Struct(Config{
+        EMAIL: c.Get("EMAIL").(string),
+      })
+
+      if errs != nil {
+        panic(errs)
+      }
+    },
+  },
+}),
+```
+
+This will throw exception:
+```shell
+panic: Key: 'Config.EMAIL' Error:Field validation for 'EMAIL' failed on the 'email' tag
+```
+
+## `ConfigService` Methods
+
+### Get
+
+Method help to get env value by key. Return `nil` if hasn't value.
+
+#### Parameters
+- 1st parameter: `string`
+
+- Description: Env key name
+
+
+#### Returns
+- 1st value: `interface{}`
+
+- Description: Env key value
+
+#### Usage
+
+```go
+var PORT int = provider.ConfigService.Get(("PORT")).(int)
 ```
