@@ -15,3 +15,7 @@ func (configService ConfigService) NewProvider() core.Provider {
 func (configService *ConfigService) Get(k string) any {
 	return configService.Config[k]
 }
+
+func (configService *ConfigService) Set(k string, v any) {
+	configService.Config[k] = v
+}
