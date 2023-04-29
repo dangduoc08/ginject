@@ -12,6 +12,7 @@ import (
 )
 
 var modulesInjectedFromMain []uintptr
+var injectedDynamicModules []uintptr
 var globalProviders map[string]Provider = make(map[string]Provider)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
 var noInjectedFields = []string{
@@ -103,6 +104,11 @@ func (m *Module) NewModule() *Module {
 
 		// inject dynamic modules
 		for _, dynamicModule := range m.dynamicModules {
+			dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
+			if utils.ArrIncludes(injectedDynamicModules, dynamicModulePtr) {
+				continue
+			}
+			injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
 			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
 
 			// dynamic modules will be treated
