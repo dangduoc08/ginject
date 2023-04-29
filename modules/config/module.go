@@ -8,8 +8,9 @@ import (
 )
 
 type (
-	ConfigLoadFn = func() map[string]any
-	ConfigHookFn = func(map[string]any) map[string]any
+	ConfigLoadFn   = func() map[string]any
+	ConfigHookFn   = func(ConfigService)
+	ConfigOnInitFn = func()
 )
 
 type ConfigModuleOptions struct {
@@ -20,6 +21,7 @@ type ConfigModuleOptions struct {
 	ENVFilePaths      []string
 	Loads             []ConfigLoadFn
 	Hooks             []ConfigHookFn
+	OnInit            ConfigOnInitFn
 }
 
 func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
@@ -43,6 +45,7 @@ func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
 		ENVFilePaths:      envFilePaths,
 		Loads:             opts.Loads,
 		Hooks:             opts.Hooks,
+		OnInit:            opts.OnInit,
 	}
 }
 
@@ -118,19 +121,20 @@ func Register(opts ConfigModuleOptions) *core.Module {
 	}
 
 	mergeIntoOSENV(osENVMap, configOptions.IsOverride, envs...)
+	configService := ConfigService{osENVMap}
 
 	if len(configOptions.Hooks) > 0 {
 		for _, hookFn := range configOptions.Hooks {
-			hookFn(osENVMap)
+			hookFn(configService)
+			configService.Config = osENVMap
 		}
 	}
 
 	module := core.ModuleBuilder().
-		Exports(
-			ConfigService{osENVMap},
-		).
+		Exports(configService).
 		Build()
 
 	module.IsGlobal = configOptions.IsGlobal
+	module.OnInit = configOptions.OnInit
 	return module
 }
