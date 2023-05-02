@@ -17,6 +17,7 @@ type App struct {
 	route  *routing.Route
 	module *Module
 	pool   sync.Pool
+	prefix string
 }
 
 // link to aliases
@@ -62,7 +63,12 @@ func New() *App {
 
 func (app *App) Create(m *Module) {
 	app.module = m.NewModule()
-	app.route.Group("/", app.module.router)
+	app.route.Group(app.prefix, app.module.router)
+}
+
+func (app *App) Prefix(v string) *App {
+	app.prefix = utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(v), "/"), "/")
+	return app
 }
 
 func (app *App) Use(handlers ...context.Handler) *routing.Route {
