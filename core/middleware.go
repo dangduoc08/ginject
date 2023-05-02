@@ -78,7 +78,8 @@ func (mw *Middleware) add() {
 	}
 
 	for _, exclusionConfig := range mw.exclusion {
-		if configs, ok := middlewareMap[exclusionConfig.Path]; ok {
+		exclusionPath := utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(exclusionConfig.Path), "/"), "/")
+		if configs, ok := middlewareMap[exclusionPath]; ok {
 
 			// exclude for all
 			if exclusionConfig.Method == "" {
@@ -92,7 +93,7 @@ func (mw *Middleware) add() {
 				})
 			}
 
-			middlewareMap[exclusionConfig.Path] = configs
+			middlewareMap[exclusionPath] = configs
 		}
 	}
 
