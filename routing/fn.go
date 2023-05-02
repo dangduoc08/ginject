@@ -25,7 +25,7 @@ func AddMethodToRoute(str, method string) string {
 	return ToEndpoint(str) + "[" + method + "]" + "/"
 }
 
-func parseToParamKey(str string) (string, map[string][]int) {
+func ParseToParamKey(str string) (string, map[string][]int) {
 	paramKey := make(map[string][]int)
 
 	if str != "" {
