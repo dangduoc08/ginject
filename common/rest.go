@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -10,11 +11,11 @@ import (
 )
 
 var Operations = map[string]string{
-	"READ":   routing.HTTPMethods[0],
-	"CREATE": routing.HTTPMethods[2],
-	"UPDATE": routing.HTTPMethods[3],
-	"MODIFY": routing.HTTPMethods[4],
-	"DELETE": routing.HTTPMethods[5],
+	"READ":   http.MethodGet,
+	"CREATE": http.MethodPost,
+	"UPDATE": http.MethodPut,
+	"MODIFY": http.MethodPatch,
+	"DELETE": http.MethodDelete,
 	"DO":     "DO",
 }
 
@@ -35,29 +36,92 @@ var TokenMap = map[string]string{
 }
 
 type Rest struct {
-	version   string
+	prefixes  []Prefix
 	RouterMap map[string]any
 }
 
-func (r *Rest) AddToRouters(path, method string, injectableHandler any) {
+type Prefix struct {
+	Value    string
+	Handlers []any
+}
+
+func (r *Rest) addToRouters(path, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
-	version := utils.StrAddBegin(utils.StrRemoveEnd(r.version, "/"), "/")
-	r.RouterMap[routing.AddMethodToRoute(version+routing.ToEndpoint(path), method)] = injectableHandler
+	r.RouterMap[routing.AddMethodToRoute(routing.ToEndpoint(path), method)] = injectableHandler
 }
 
-func (r *Rest) AddAllToRouters(path string, injectableHandler any) {
+func (r *Rest) addAllToRouters(path string, injectableHandler any) {
 	for _, method := range Operations {
 		if method != Operations["DO"] {
-			r.AddToRouters(path, method, injectableHandler)
+			r.addToRouters(path, method, injectableHandler)
 		}
 	}
 }
 
-func (r *Rest) Version(version string) *Rest {
-	r.version = version
+func (r *Rest) Prefix(v string, handlers ...any) *Rest {
+	r.prefixes = append([]Prefix{
+		{
+			Value:    v,
+			Handlers: handlers,
+		},
+	}, r.prefixes...)
+
 	return r
+}
+
+func (r *Rest) GenPrefixes() []map[string]string {
+	prefixes := []map[string]string{}
+
+	for _, prefixConf := range r.prefixes {
+		prefixMap := make(map[string]string)
+		prefixValue := utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(prefixConf.Value), "/"), "/")
+		prefixHandlers := prefixConf.Handlers
+		if len(prefixHandlers) == 0 {
+			prefixMap[prefixValue] = "all"
+		} else {
+			for _, handler := range prefixHandlers {
+				prefixMap[prefixValue] = getFnName(handler)
+			}
+		}
+
+		prefixes = append(prefixes, prefixMap)
+	}
+
+	return prefixes
+}
+
+func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, prefixes []map[string]string, handler any) {
+	httpMethod, route := r.ParseFnNameToURL(fnName)
+	if httpMethod != "" {
+		for _, prefix := range prefixes {
+			for prefixValue, prefixFnName := range prefix {
+				if prefixFnName == "all" || prefixFnName == fnName {
+					route = prefixValue + route
+				}
+			}
+		}
+
+		parsedRoute, _ := routing.ParseToParamKey(routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod))
+		if insertedRoutes[parsedRoute] == "" {
+			insertedRoutes[parsedRoute] = fnName
+		} else {
+			panic(fmt.Errorf(
+				utils.FmtRed(
+					"%v method is conflicted with %v method",
+					fnName,
+					insertedRoutes[parsedRoute],
+				),
+			))
+		}
+
+		if httpMethod == Operations["DO"] {
+			r.addAllToRouters(route, handler)
+		} else {
+			r.addToRouters(route, httpMethod, handler)
+		}
+	}
 }
 
 func (r *Rest) ParseFnNameToURL(fnName string) (string, string) {
