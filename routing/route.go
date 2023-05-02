@@ -38,7 +38,8 @@ func (r *Route) Add(route, method string, handlers ...context.Handler) *Route {
 		// add global middleware to node
 		handlers = append(r.Middlewares, handlers...)
 	}
-	parsedRoute, paramKey := parseToParamKey(endpoint)
+
+	parsedRoute, paramKey := ParseToParamKey(endpoint)
 
 	r.Trie.insert(parsedRoute, '/', i, paramKey, handlers)
 	if isStaticRoute(parsedRoute) {

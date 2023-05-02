@@ -15,6 +15,7 @@ var modulesInjectedFromMain []uintptr
 var injectedDynamicModules []uintptr
 var globalProviders map[string]Provider = make(map[string]Provider)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
+var insertedRoutes = make(map[string]string)
 var noInjectedFields = []string{
 	"Rest",
 	"common.Rest",
@@ -243,19 +244,15 @@ func (m *Module) NewModule() *Module {
 
 				m.controllers[i] = newController.Interface().(Controller).NewController()
 
+				// Handle REST
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
 					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest)
+					prefixes := rest.GenPrefixes()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
-						method, route := rest.ParseFnNameToURL(reflect.TypeOf(m.controllers[i]).Method(j).Name)
-						if method != "" {
-							handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-							if method == common.Operations["DO"] {
-								rest.AddAllToRouters(route, handler)
-							} else {
-								rest.AddToRouters(route, method, handler)
-							}
-						}
+						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
+						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
+						rest.AddHandlerToRouterMap(methodName, insertedRoutes, prefixes, handler)
 					}
 
 					configInclusion := []RouteConfig{}
@@ -274,6 +271,29 @@ func (m *Module) NewModule() *Module {
 							m.router.For(path, configs.methods)(configs.handlers...)
 						}
 					}
+
+					// apply controller bound guard
+					// if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
+					// 	guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
+					// 	for _, guarder := range guard.GuardHandlers {
+					// 		for _, handler := range guarder.Handlers {
+					// 			strs := strings.Split(runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(), ".")
+					// 			fnName := strs[len(strs)-1]
+					// 			method, route := rest.ParseFnNameToURL(fnName)
+
+					// 			route = "" + route[:len(route)-5] + "}"
+					// 			m.router.For(route, []string{method})(
+					// 				func(ctx *context.Context) {
+					// 					if guarder.Guarder.CanActivate(ctx) {
+					// 						ctx.Next()
+					// 					} else {
+					// 						ctx.Status(http.StatusForbidden).Text("deo zo dc")
+					// 					}
+					// 				},
+					// 			)
+					// 		}
+					// 	}
+					// }
 
 					// add main handler
 					for pattern, handler := range rest.RouterMap {
