@@ -218,7 +218,7 @@ func (m *Module) NewModule() *Module {
 						))
 					}
 
-					injectProviderKey := controllerType.Field(j).Type.PkgPath() + "/" + controllerType.Field(j).Type.String()
+					injectProviderKey := controllerFieldType.PkgPath() + "/" + controllerFieldType.String()
 					isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
 
 					if injectedProviders[injectProviderKey] != nil && !isUnneededInject {
@@ -234,7 +234,7 @@ func (m *Module) NewModule() *Module {
 						panic(fmt.Errorf(
 							utils.FmtRed(
 								"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' controller",
-								injectProviderKey,
+								controllerFieldType.String(),
 								j,
 								controllerType.Name(),
 							),
@@ -247,12 +247,11 @@ func (m *Module) NewModule() *Module {
 				// Handle REST
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
 					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest)
-					prefixes := rest.GenPrefixes()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-						rest.AddHandlerToRouterMap(methodName, insertedRoutes, prefixes, handler)
+						rest.AddHandlerToRouterMap(methodName, insertedRoutes, handler)
 					}
 
 					configInclusion := []RouteConfig{}
@@ -273,27 +272,42 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound guard
-					// if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
-					// 	guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
-					// 	for _, guarder := range guard.GuardHandlers {
-					// 		for _, handler := range guarder.Handlers {
-					// 			strs := strings.Split(runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(), ".")
-					// 			fnName := strs[len(strs)-1]
-					// 			method, route := rest.ParseFnNameToURL(fnName)
+					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
+						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
+						guard.AddGuardsToController(&rest, m.router, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
+							guardField := guarderType.Field(i)
+							guardFieldType := guardField.Type
+							guardFieldNameKey := guardField.Name
+							injectProviderKey := guardFieldType.PkgPath() + "/" + guardFieldType.String()
 
-					// 			route = "" + route[:len(route)-5] + "}"
-					// 			m.router.For(route, []string{method})(
-					// 				func(ctx *context.Context) {
-					// 					if guarder.Guarder.CanActivate(ctx) {
-					// 						ctx.Next()
-					// 					} else {
-					// 						ctx.Status(http.StatusForbidden).Text("deo zo dc")
-					// 					}
-					// 				},
-					// 			)
-					// 		}
-					// 	}
-					// }
+							if !token.IsExported(guardFieldNameKey) {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't set value to unexported '%v' field of the '%v' guarder",
+										guardFieldNameKey,
+										guarderType.Name(),
+									),
+								))
+							}
+
+							if injectedProviders[injectProviderKey] != nil {
+								newGuard.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+							} else if globalProviders[injectProviderKey] != nil {
+								newGuard.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if !isInjectedProvider(guardFieldType) {
+								newGuard.Elem().Field(i).Set(guarderValue.Field(i))
+							} else {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't resolve dependencies of the '%v' guarder. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
+										guardFieldType.String(),
+										i,
+										controllerType.Name(),
+									),
+								))
+							}
+						})
+					}
 
 					// add main handler
 					for pattern, handler := range rest.RouterMap {
