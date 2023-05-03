@@ -290,6 +290,12 @@ func (m *Module) NewModule() *Module {
 								))
 							}
 
+							// Inject providers into guard
+							// inject provider priorities
+							// local inject
+							// global inject
+							// inner packages
+							// resolve dependencies error
 							if injectedProviders[injectProviderKey] != nil {
 								newGuard.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
@@ -299,10 +305,10 @@ func (m *Module) NewModule() *Module {
 							} else {
 								panic(fmt.Errorf(
 									utils.FmtRed(
-										"can't resolve dependencies of the '%v' guarder. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
+										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
 										guardFieldType.String(),
 										i,
-										controllerType.Name(),
+										guarderType.Name(),
 									),
 								))
 							}
