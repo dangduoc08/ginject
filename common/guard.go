@@ -59,7 +59,17 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Route, cb func(in
 		for i := 0; i < guarderType.NumField(); i++ {
 			cb(i, guarderType, guarderValue, newGuard)
 		}
-		guardHandler.Guarder = newGuard.Interface().(Guarder)
+
+		// invoke guard constructor
+		// if NewGuard was declared
+		newGuarder := newGuard.Interface().(Guarder)
+		newGuarderValue := reflect.ValueOf(newGuarder)
+		guardConstructor := newGuarderValue.MethodByName("NewGuard")
+		if guardConstructor.IsValid() {
+			newGuarder = guardConstructor.Call([]reflect.Value{})[0].Interface().(Guarder)
+		}
+
+		guardHandler.Guarder = newGuarder
 
 		for pattern, fnName := range r.patternToFnNameMap {
 			httpMethod, route := routing.SplitRoute(pattern)
