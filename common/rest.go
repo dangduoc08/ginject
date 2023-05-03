@@ -36,8 +36,9 @@ var TokenMap = map[string]string{
 }
 
 type Rest struct {
-	prefixes  []Prefix
-	RouterMap map[string]any
+	prefixes           []Prefix
+	patternToFnNameMap map[string]string
+	RouterMap          map[string]any
 }
 
 type Prefix struct {
@@ -45,33 +46,29 @@ type Prefix struct {
 	Handlers []any
 }
 
-func (r *Rest) addToRouters(path, method string, injectableHandler any) {
+func (r *Rest) addToRouters(fnName, path, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
-	r.RouterMap[routing.AddMethodToRoute(routing.ToEndpoint(path), method)] = injectableHandler
+
+	if r.patternToFnNameMap == nil {
+		r.patternToFnNameMap = map[string]string{}
+	}
+	pattern := routing.AddMethodToRoute(routing.ToEndpoint(path), method)
+
+	r.RouterMap[pattern] = injectableHandler
+	r.patternToFnNameMap[pattern] = fnName
 }
 
-func (r *Rest) addAllToRouters(path string, injectableHandler any) {
+func (r *Rest) addAllToRouters(fnName, path string, injectableHandler any) {
 	for _, method := range Operations {
 		if method != Operations["DO"] {
-			r.addToRouters(path, method, injectableHandler)
+			r.addToRouters(fnName, path, method, injectableHandler)
 		}
 	}
 }
 
-func (r *Rest) Prefix(v string, handlers ...any) *Rest {
-	r.prefixes = append([]Prefix{
-		{
-			Value:    v,
-			Handlers: handlers,
-		},
-	}, r.prefixes...)
-
-	return r
-}
-
-func (r *Rest) GenPrefixes() []map[string]string {
+func (r *Rest) genPrefixes() []map[string]string {
 	prefixes := []map[string]string{}
 
 	for _, prefixConf := range r.prefixes {
@@ -92,7 +89,19 @@ func (r *Rest) GenPrefixes() []map[string]string {
 	return prefixes
 }
 
-func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, prefixes []map[string]string, handler any) {
+func (r *Rest) Prefix(v string, handlers ...any) *Rest {
+	r.prefixes = append([]Prefix{
+		{
+			Value:    v,
+			Handlers: handlers,
+		},
+	}, r.prefixes...)
+
+	return r
+}
+
+func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, handler any) {
+	prefixes := r.genPrefixes()
 	httpMethod, route := r.ParseFnNameToURL(fnName)
 	if httpMethod != "" {
 		for _, prefix := range prefixes {
@@ -117,9 +126,9 @@ func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]st
 		}
 
 		if httpMethod == Operations["DO"] {
-			r.addAllToRouters(route, handler)
+			r.addAllToRouters(fnName, route, handler)
 		} else {
-			r.addToRouters(route, httpMethod, handler)
+			r.addToRouters(fnName, route, httpMethod, handler)
 		}
 	}
 }
