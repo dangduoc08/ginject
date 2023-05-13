@@ -22,14 +22,6 @@ type Trie struct {
 	Index     int
 }
 
-type Trier interface {
-	len() int
-	insert(string, byte, int, map[string][]int, []context.Handler) Trier
-	find(string, string, byte) (int, map[string][]int, []string, []context.Handler)
-	scan(cb ScanFn)
-	ToJSON() (string, error)
-}
-
 func NewTrie() *Trie {
 	return &Trie{
 		Children: make(Node),
@@ -51,7 +43,7 @@ func (tr *Trie) len() int {
 	return counter
 }
 
-func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []context.Handler) Trier {
+func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []context.Handler) *Trie {
 	node := tr
 	start := strings.IndexByte(path, sep)
 
@@ -65,7 +57,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 		if next == len(path)-1 {
 			node.Children[seg].Index = index
 			node.Children[seg].ParamKeys = paramKeys
-			node.Children[seg].Handlers = append(node.Children[seg].Handlers, handlers...)
+			node.Children[seg].Handlers = handlers
 		}
 		node = node.Children[seg]
 	}
@@ -232,13 +224,4 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 
 	return nodeMap
 
-}
-
-func (tr *Trie) scan(cb ScanFn) {
-	for seg, node := range tr.Children {
-		if node.Index > -1 {
-			cb(seg, node)
-		}
-		node.scan(cb)
-	}
 }

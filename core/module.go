@@ -26,7 +26,7 @@ var noInjectedFields = []string{
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
-	router         *routing.Route
+	router         *routing.Router
 	staticModules  []*Module
 	dynamicModules []any
 	providers      []Provider

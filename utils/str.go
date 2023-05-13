@@ -126,3 +126,13 @@ func StrIsUpper(str string) []bool {
 
 	return res
 }
+
+func ErrorMessage(actual, expected any, desc string) string {
+	if desc != "" {
+		desc = FmtGreen("\n%v", desc)
+	}
+
+	return desc +
+		FmtDim("\nExpected: %v", FmtRed("%v", expected)) +
+		FmtDim("\nActual: %v", FmtRed("%v", actual))
+}
