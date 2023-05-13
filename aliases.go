@@ -10,9 +10,9 @@ import (
 )
 
 type (
-	App   = *core.App
-	Map   = context.Map
-	Route = *routing.Route
+	App    = *core.App
+	Map    = context.Map
+	Router = *routing.Router
 
 	// decorators
 	Context  = *context.Context

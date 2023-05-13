@@ -18,11 +18,21 @@ func SplitRoute(str string) (string, string) {
 }
 
 func ToEndpoint(str string) string {
-	return utils.StrRemoveDup(utils.StrAddEnd(utils.StrAddBegin(utils.StrRemoveSpace(str), "/"), "/"), "/")
+	return utils.StrRemoveDup(
+		utils.StrRemoveDup(
+			utils.StrAddEnd(
+				utils.StrAddBegin(
+					utils.StrRemoveSpace(str), "/",
+				), "/",
+			),
+			"/",
+		),
+		"*",
+	)
 }
 
 func AddMethodToRoute(str, method string) string {
-	return ToEndpoint(str) + "[" + method + "]" + "/"
+	return ToEndpoint(str) + fromMethodtoPattern(method) + "/"
 }
 
 func ParseToParamKey(str string) (string, map[string][]int) {
@@ -96,15 +106,6 @@ func getLastWildcardNode(node *Trie, methodPattern string) *Trie {
 	return nil
 }
 
-func isStaticRoute(route string) bool {
-	return !strings.Contains(route, "*") &&
-		!strings.Contains(route, "$")
-}
-
 func fromMethodtoPattern(method string) string {
 	return utils.StrAddEnd(utils.StrAddBegin(method, "["), "]")
-}
-
-func fromPatternToMethod(pattern string) string {
-	return utils.StrRemoveEnd(utils.StrRemoveBegin(pattern, "["), "]")
 }

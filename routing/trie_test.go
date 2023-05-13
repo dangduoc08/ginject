@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/dangduoc08/gooh/utils"
 )
 
 func TestTrieLen(t *testing.T) {
@@ -18,65 +20,65 @@ func TestTrieLen(t *testing.T) {
 		tr.insert(path, '/', -1, nil, nil)
 	}
 
-	expect1 := 6
-	output1 := tr.len()
-	if output1 != expect1 {
-		t.Errorf("tr.len() = %v; expect = %v", output1, expect1)
+	expected1 := 6
+	actual1 := tr.len()
+	if actual1 != expected1 {
+		t.Errorf(utils.ErrorMessage(actual1, expected1, "trie length should be equal"))
 	}
 }
 
 func TestTrieInsert(t *testing.T) {
-	paths := []string{
+	cases := []string{
 		"/users/{userId}/",
 		"/feeds/all/",
 		"/users/{userId}/friends/all/",
 	}
 	tr := NewTrie()
 
-	for i, path := range paths {
+	for i, path := range cases {
 		tr.insert(path, '/', i, nil, nil)
 	}
 
-	output1 := tr.Children["users"]
-	if output1 == nil {
-		t.Errorf("tr.Children[\"users\"] = %v; expect ≠ %v", output1, nil)
+	actual1 := tr.Children["users"]
+	if actual1 == nil {
+		t.Errorf(utils.ErrorMessage(actual1, nil, "trie node should not be null"))
 	}
 
-	output2 := tr.Children["users"].Children["{userId}"]
-	if output2 == nil {
-		t.Errorf("tr.Children[\"users\"].Children[\"{userId}\"] = %v; expect ≠ %v", output2, nil)
+	actual2 := tr.Children["users"].Children["{userId}"]
+	if actual2 == nil {
+		t.Errorf(utils.ErrorMessage(actual2, nil, "trie node should not be null"))
 	}
 
-	output3 := tr.Children["users"].Children["{userId}"].Children["friends"]
-	if output3 == nil {
-		t.Errorf("tr.Children[\"users\"].Children[\"{userId}\"].Children[\"friends\"] = %v; expect ≠ %v", output3, nil)
+	actual3 := tr.Children["users"].Children["{userId}"].Children["friends"]
+	if actual3 == nil {
+		t.Errorf(utils.ErrorMessage(actual3, nil, "trie node should not be null"))
 	}
 
-	output4 := tr.Children["feeds"]
-	if output4 == nil {
-		t.Errorf("tr.Children[\"feeds\"] = %v; expect ≠ %v", output4, nil)
+	actual4 := tr.Children["feeds"]
+	if actual4 == nil {
+		t.Errorf(utils.ErrorMessage(actual4, nil, "trie node should not be null"))
 	}
 
-	output5 := tr.Children["feeds"].Children["all"]
-	if output5 == nil {
-		t.Errorf("tr.Children[\"feeds\"].Children[\"all\"] = %v; expect ≠ %v", output5, nil)
+	actual5 := tr.Children["feeds"].Children["all"]
+	if actual5 == nil {
+		t.Errorf(utils.ErrorMessage(actual5, nil, "trie node should not be null"))
 	}
 
-	output6 := tr.Children["users"].Children["{userId}"].Children["friends"].Index
-	expect1 := -1
-	if output6 != expect1 {
-		t.Errorf("tr.Children[\"users\"].Children[\"{userId}\"].Children[\"friends\"].Index = %v; expect = %v", output6, expect1)
+	actual6 := tr.Children["users"].Children["{userId}"].Children["friends"].Index
+	expected6 := -1
+	if actual6 != expected6 {
+		t.Errorf(utils.ErrorMessage(actual6, expected6, "trie node index should be equal"))
 	}
 
-	output7 := tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"].Index
-	expect7 := 2
-	if output7 != expect7 {
-		t.Errorf("tr.Children[\"users\"].Children[\"{userId}\"].Children[\"friends\"].Children[\"all\"].Index = %v; expect = %v", output7, expect7)
+	actual7 := tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"].Index
+	expected7 := 2
+	if actual7 != expected7 {
+		t.Errorf(utils.ErrorMessage(actual7, expected7, "trie node index should be equal"))
 	}
 }
 
 func TestTrieFind(t *testing.T) {
-	paths := []string{
+	cases := []string{
 		fmt.Sprintf("/users/$/%v/", fromMethodtoPattern(http.MethodGet)),
 		fmt.Sprintf("/feeds/all/%v/", fromMethodtoPattern(http.MethodGet)),
 		fmt.Sprintf("/users/$/friends/$/%v/", fromMethodtoPattern(http.MethodGet)),
@@ -84,7 +86,7 @@ func TestTrieFind(t *testing.T) {
 	}
 	tr := NewTrie()
 
-	for i, path := range paths {
+	for i, path := range cases {
 		tr.insert(path, '/', i, nil, nil)
 	}
 
@@ -92,57 +94,38 @@ func TestTrieFind(t *testing.T) {
 	friendId1 := "633b0af45f4fe7d45b00fba5"
 	testPath1 := fmt.Sprintf("/users/%v/friends/%v/[%v]/", userId1, friendId1, http.MethodGet)
 
-	index1, _, params1, _ := tr.find(testPath1, http.MethodGet, '/')
-	expectIndex1 := 2
-	if index1 != expectIndex1 {
-		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath1, index1, expectIndex1)
+	actualIndex1, _, actualParams1, _ := tr.find(testPath1, http.MethodGet, '/')
+	expectedIndex1 := 2
+	if actualIndex1 != expectedIndex1 {
+		t.Errorf(utils.ErrorMessage(actualIndex1, expectedIndex1, "trie node index should be equal"))
 	}
 
-	if params1[0] != userId1 {
-		t.Errorf("params1[0] = %v; expect = %v", params1[0], userId1)
+	if actualParams1[0] != userId1 {
+		t.Errorf(utils.ErrorMessage(actualParams1[0], userId1, "trie param should be equal"))
 	}
 
-	if params1[1] != friendId1 {
-		t.Errorf("params1[1] = %v; expect = %v", params1[1], friendId1)
+	if actualParams1[1] != friendId1 {
+		t.Errorf(utils.ErrorMessage(actualParams1[1], friendId1, "trie param should be equal"))
 	}
 
 	testPath2 := fmt.Sprintf("/users/%v/friends/[%v]/", userId1, http.MethodGet)
-	index2, _, _, _ := tr.find(testPath2, http.MethodGet, '/')
-	expectIndex2 := -1
-	if index2 != expectIndex2 {
-		t.Errorf("tr.find(%v), '/') return Index = %v; expect = %v", testPath2, index2, expectIndex2)
+	actualIndex2, _, _, _ := tr.find(testPath2, http.MethodGet, '/')
+	expectedIndex2 := -1
+	if actualIndex2 != expectedIndex2 {
+		t.Errorf(utils.ErrorMessage(actualIndex2, expectedIndex2, "trie node index should be equal"))
 	}
 
 	testPath3 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/[%v]/", http.MethodGet)
-	index3, _, _, _ := tr.find(testPath3, http.MethodGet, '/')
-	expectIndex3 := 3
-	if index3 != expectIndex3 {
-		t.Errorf("tr.find(%v, '/') return Index = %v; expect = %v", testPath3, index3, expectIndex3)
+	actualIndex3, _, _, _ := tr.find(testPath3, http.MethodGet, '/')
+	expectedIndex3 := 3
+	if actualIndex3 != expectedIndex3 {
+		t.Errorf(utils.ErrorMessage(actualIndex3, expectedIndex3, "trie node index should be equal"))
 	}
 
 	testPath4 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/[%v]/", http.MethodGet)
-	index4, _, _, _ := tr.find(testPath4, http.MethodGet, '/')
-	expectIndex4 := 3
-	if index4 != expectIndex4 {
-		t.Errorf("tr.find(\"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/\", '/') return Index = %v; expect = %v", index4, expectIndex4)
+	actualIndex4, _, _, _ := tr.find(testPath4, http.MethodGet, '/')
+	expectedIndex4 := 3
+	if actualIndex4 != expectedIndex4 {
+		t.Errorf(utils.ErrorMessage(actualIndex4, expectedIndex4, "trie node index should be equal"))
 	}
-}
-
-func TestTrieScan(t *testing.T) {
-	paths := []string{
-		"/users/$/",
-		"/feeds/all/",
-		"/feeds/",
-		"/users/$/friends/$/",
-		"/*/feeds/{feed*Id}/*/files/*.html/*/",
-	}
-	tr := NewTrie()
-
-	for i, path := range paths {
-		tr.insert(path, '/', i, nil, nil)
-	}
-
-	tr.scan(func(seg string, node *Trie) {
-		fmt.Println(seg, tr)
-	})
 }

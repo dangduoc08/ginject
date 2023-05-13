@@ -7,40 +7,42 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/utils"
 )
 
 func TestRouteAdd(t *testing.T) {
-	paths := []string{
-		"/users/{userId}/",
-		"/feeds/all/",
-		"/users/{userId}/friends/all/",
+	cases := []string{
+		"/users/{userId}",
+		"/feeds/all",
+		"/users/{userId}/friends/all",
 		"/schools/{schoolId}/subjects/{subjectId}/{schoolId}",
 	}
-	r := NewRoute()
+	r := NewRouter()
 
-	for _, path := range paths {
-		r.Add(path, "", nil)
+	for _, path := range cases {
+		r.Add(path, http.MethodGet, nil)
 	}
 
-	expect1 := 11
-	output1 := r.Trie.len()
-	if output1 != expect1 {
-		t.Errorf("r.Trie.Len() = %v; expect = %v", expect1, output1)
+	expected1 := 15
+	actual1 := r.Trie.len()
+	if actual1 != expected1 {
+		t.Errorf(utils.ErrorMessage(actual1, expected1, "trie length should be equal"))
 	}
 
-	expect2 := map[string][]int{
+	expected2 := map[string][]int{
 		"schoolId":  {0, 2},
 		"subjectId": {1},
 	}
-	output2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].ParamKeys
-	for key, indexs := range expect2 {
-		if output2[key] == nil {
-			t.Errorf("ParamKey[%v] = %v; expect ≠ %v", key, output2[key], nil)
+	actual2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].Children[fromMethodtoPattern(http.MethodGet)].ParamKeys
+
+	for key, indexs := range expected2 {
+		if actual2[key] == nil {
+			t.Errorf(utils.ErrorMessage(actual2[key], expected2, "params should not be null"))
 		}
 
 		for i, index := range indexs {
-			if output2[key][i] != index {
-				t.Errorf("ParamKey[%v][%v] = %v; expect = %v", key, i, output2[key][i], index)
+			if actual2[key][i] != index {
+				t.Errorf(utils.ErrorMessage(actual2[key][i], index, "params index should be equal"))
 			}
 		}
 	}
@@ -69,59 +71,53 @@ func TestRouterMatch(t *testing.T) {
 		"/users/633b0aa5d7fc3578b655b9bd/friends/633b0af45f4fe7d45b00fba5":       "/users/{userId}/friends/{friendId}",
 	}
 
-	r := NewRoute()
+	r := NewRouter()
 	for _, path := range cases {
-		r.All(path, nil)
+		for _, httpMethod := range HTTPMethods {
+			r.Add(path, httpMethod, nil)
+		}
 	}
 
 	for requestedRoute, expectedRoute := range cases {
 		expectedRoute = AddMethodToRoute(expectedRoute, http.MethodPost)
-		_, matchedRoute, _, _, _ := r.Match(requestedRoute, http.MethodPost)
+		_, actualRoute, _, _, _ := r.Match(requestedRoute, http.MethodPost)
 
-		if matchedRoute != expectedRoute {
-			t.Errorf("request = %v, matched = %v, expected = %v", requestedRoute, matchedRoute, expectedRoute)
+		if actualRoute != expectedRoute {
+			t.Errorf(utils.ErrorMessage(actualRoute, expectedRoute, "routes should be matched"))
 		}
 	}
 }
 
 func TestRouterGroup(t *testing.T) {
-	r1 := NewRoute()
-	for _, route := range []string{
+	r1 := NewRouter()
+	case1 := []string{
 		"/users/get",
 		"/users/get/{userId}",
-	} {
-		r1.Delete(route)
-		r1.Post(route)
-		r1.Put(route)
-		r1.Get(route)
-		r1.Patch(route)
-		r1.Head(route)
-		r1.Options(route)
-		r1.Head(route)
+	}
+	for _, route := range case1 {
+		for _, httpMethod := range HTTPMethods {
+			r1.Add(route, httpMethod, nil)
+		}
 	}
 
-	r2 := NewRoute()
-	for _, route := range []string{
+	r2 := NewRouter()
+	case2 := []string{
 		"/users/update/{userId}",
 		"/users/delete/{userId}",
-	} {
-		r2.Delete(route)
-		r2.Post(route)
-		r2.Put(route)
-		r2.Get(route)
-		r2.Patch(route)
-		r2.Head(route)
-		r2.Options(route)
-		r2.Head(route)
+	}
+	for _, route := range case2 {
+		for _, httpMethod := range HTTPMethods {
+			r2.Add(route, httpMethod, nil)
+		}
 	}
 
-	gr := NewRoute()
+	gr := NewRouter()
 	gr.Group("/v1", r1, r2)
 
-	_, outputMatchedRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
-	expectMatchedRoute1 := AddMethodToRoute("/v1/users/update/{userId}/", http.MethodPatch)
-	if outputMatchedRoute1 != expectMatchedRoute1 {
-		t.Errorf("routerGr.match(\"/v1/users/update/123\") = %v; expect = %v", outputMatchedRoute1, expectMatchedRoute1)
+	_, actualRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
+	expectedRoute1 := AddMethodToRoute("/v1"+case2[0], http.MethodPatch)
+	if actualRoute1 != expectedRoute1 {
+		t.Errorf(utils.ErrorMessage(actualRoute1, expectedRoute1, "routes should be matched"))
 	}
 }
 
@@ -133,10 +129,163 @@ func TestRouterMiddleware(t *testing.T) {
 		c.Next()
 	}
 
-	r1 := NewRoute()
+	handler2 := func(c *context.Context) {
+		counter += 2
+		c.Next()
+	}
+
+	handler3 := func(c *context.Context) {
+		counter += 3
+		c.Next()
+	}
+
+	handler4 := func(c *context.Context) {
+		counter += 4
+		c.Next()
+	}
+
+	r1 := NewRouter()
 	r1.Use(handler1)
-	r1.Get("/test", handler1)
-	r1.For("/test", []string{})(handler1)
+	r1.Use(handler2)
+	for _, httpMethod := range HTTPMethods {
+		r1.Add("/test1", httpMethod, handler4)
+	}
+	r1.For("/test1", HTTPMethods)(handler3)
+	r1.Use(handler1)
+
+	_, _, _, _, handlers := r1.Match("/test1", http.MethodPatch)
+
+	if len(handlers) != 5 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 5, "router 1 handlers total should be equal"))
+	}
+
+	isNext := true
+	c := context.NewContext()
+	c.Next = func() {
+		isNext = true
+	}
+	for i, handler := range handlers {
+		if isNext {
+			isNext = false
+			handler(c)
+
+			if i == 0 && counter != 1 {
+				t.Errorf(utils.ErrorMessage(counter, 1, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 1 && counter != 3 {
+				t.Errorf(utils.ErrorMessage(counter, 3, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 2 && counter != 7 {
+				t.Errorf(utils.ErrorMessage(counter, 7, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 3 && counter != 10 {
+				t.Errorf(utils.ErrorMessage(counter, 10, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 4 && counter != 11 {
+				t.Errorf(utils.ErrorMessage(counter, 11, "router 1 handlers increase counter should be equal"))
+			}
+		}
+	}
+
+	r2 := NewRouter()
+	r2.For("/test2/{param}", HTTPMethods)(handler1)
+	r2.Use(handler2)
+	for _, httpMethod := range HTTPMethods {
+		r2.Add("/test2/{param}", httpMethod, handler3)
+	}
+	r2.For("/test2/{param}", HTTPMethods)(handler4)
+
+	_, _, _, _, handlers = r2.Match("/test2/123", http.MethodOptions)
+
+	if len(handlers) != 4 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 4, "router 2 handlers total should be equal"))
+	}
+
+	isNext = true
+	c = context.NewContext()
+	c.Next = func() {
+		isNext = true
+	}
+	for i, handler := range handlers {
+		if isNext {
+			isNext = false
+			handler(c)
+
+			if i == 0 && counter != 12 {
+				t.Errorf(utils.ErrorMessage(counter, 12, "router 2 handlers increase counter should be equal"))
+			}
+
+			if i == 1 && counter != 14 {
+				t.Errorf(utils.ErrorMessage(counter, 14, "router 2 handlers increase counter should be equal"))
+			}
+
+			if i == 2 && counter != 17 {
+				t.Errorf(utils.ErrorMessage(counter, 17, "router 2 handlers increase counter should be equal"))
+			}
+
+			if i == 3 && counter != 21 {
+				t.Errorf(utils.ErrorMessage(counter, 21, "router 2 handlers increase counter should be equal"))
+			}
+		}
+	}
+
+	gr := NewRouter()
+	for _, httpMethod := range HTTPMethods {
+		gr.Add("/group/test1", httpMethod, handler3)
+	}
+	gr.Use(handler4)
+	gr.Group("/group", r1, r2)
+	gr.For("/group/test2/{param}", HTTPMethods)(handler3)
+
+	_, _, _, _, handlers = gr.Match("/group/test2/123", http.MethodOptions)
+
+	if len(handlers) != 6 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 6, "router group handlers total should be equal"))
+	}
+
+	isNext = true
+	c = context.NewContext()
+	c.Next = func() {
+		isNext = true
+	}
+	for i, handler := range handlers {
+		if isNext {
+			isNext = false
+			handler(c)
+
+			if i == 0 && counter != 25 {
+				t.Errorf(utils.ErrorMessage(counter, 25, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 1 && counter != 26 {
+				t.Errorf(utils.ErrorMessage(counter, 26, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 2 && counter != 28 {
+				t.Errorf(utils.ErrorMessage(counter, 28, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 3 && counter != 31 {
+				t.Errorf(utils.ErrorMessage(counter, 31, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 4 && counter != 35 {
+				t.Errorf(utils.ErrorMessage(counter, 35, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 5 && counter != 38 {
+				t.Errorf(utils.ErrorMessage(counter, 38, "router group handlers increase counter should be equal"))
+			}
+		}
+	}
+
+	if counter != 38 {
+		t.Errorf(utils.ErrorMessage(counter, 38, "final counter should be equal"))
+	}
 }
 
 func TestRouteToJSON(t *testing.T) {
@@ -149,10 +298,10 @@ func TestRouteToJSON(t *testing.T) {
 			"/schools/*",
 			"/*/feeds/{feed***Id}/**/files/*.html/***",
 		}
-		r := NewRoute()
+		r := NewRouter()
 
 		for _, path := range paths {
-			r.Add(path, "", func(c *context.Context) {}, func(c *context.Context) {})
+			r.Add(path, "", func(c *context.Context) {})
 		}
 
 		json, err := r.ToJSON()

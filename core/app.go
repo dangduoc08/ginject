@@ -8,16 +8,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
 
+type globalMiddleware struct {
+	path    string
+	handler context.Handler
+}
+
 type App struct {
-	route  *routing.Route
-	module *Module
-	pool   sync.Pool
-	prefix string
+	route             *routing.Router
+	module            *Module
+	pool              sync.Pool
+	prefix            string
+	globalMiddlewares []globalMiddleware
+	globalGuarders    []common.Guarder
 }
 
 // link to aliases
@@ -47,7 +55,7 @@ func New() *App {
 	event := context.NewEvent()
 
 	app := App{
-		route: routing.NewRoute(),
+		route: routing.NewRouter(),
 		pool: sync.Pool{
 			New: func() any {
 				c := context.NewContext()
@@ -63,6 +71,30 @@ func New() *App {
 
 func (app *App) Create(m *Module) {
 	app.module = m.NewModule()
+
+	// bind global middlewares
+	for _, globalMiddleware := range app.globalMiddlewares {
+		if globalMiddleware.path != "ALL" {
+			app.route.For(globalMiddleware.path, routing.HTTPMethods)(globalMiddleware.handler)
+		} else {
+			app.route.Use(globalMiddleware.handler)
+		}
+	}
+
+	// bind module middlewares ?
+
+	// bind global guards
+	for _, globalGuard := range app.globalGuarders {
+
+		// new guard ??
+
+		app.route.Use(func(ctx *context.Context) {
+			common.HandleGuard(ctx, globalGuard.CanActivate(ctx))
+		})
+	}
+
+	// bind controller guards ?
+
 	app.route.Group(app.prefix, app.module.router)
 }
 
@@ -71,12 +103,36 @@ func (app *App) Prefix(v string) *App {
 	return app
 }
 
-func (app *App) Use(handlers ...context.Handler) *routing.Route {
-	return app.route.Use(handlers...)
+func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
+	app.globalGuarders = append(app.globalGuarders, guarders...)
+
+	return app
 }
 
-func (app *App) For(path string) func(handlers ...context.Handler) *routing.Route {
-	return app.route.For(path, routing.HTTPMethods)
+func (app *App) Use(handlers ...context.Handler) *App {
+	for _, handler := range handlers {
+		middleware := globalMiddleware{
+			path:    "ALL",
+			handler: handler,
+		}
+		app.globalMiddlewares = append(app.globalMiddlewares, middleware)
+	}
+
+	return app
+}
+
+func (app *App) For(path string) func(handlers ...context.Handler) *App {
+	return func(handlers ...context.Handler) *App {
+		for _, handler := range handlers {
+			middleware := globalMiddleware{
+				path:    path,
+				handler: handler,
+			}
+			app.globalMiddlewares = append(app.globalMiddlewares, middleware)
+		}
+
+		return app
+	}
 }
 
 func (app *App) Get(p Provider) any {
@@ -149,7 +205,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	} else {
 
 		// Invoke middlewares
-		for _, middleware := range app.route.Middlewares {
+		for _, middleware := range app.route.GlobalMiddlewares {
 			if isNext {
 				isNext = false
 				middleware(c)
