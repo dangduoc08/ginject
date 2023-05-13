@@ -1,8 +1,12 @@
 package common
 
-import "testing"
+import (
+	"testing"
 
-func TestSegmentFnName(t *testing.T) {
+	"github.com/dangduoc08/gooh/utils"
+)
+
+func TestParseFnNameToURL(t *testing.T) {
 	testCases := make(map[string][]string)
 
 	testCases["READ_members_BY_user_name_AND_member_id_OF_club_users_BY_id"] = []string{
@@ -51,13 +55,13 @@ func TestSegmentFnName(t *testing.T) {
 	}
 
 	for fn, results := range testCases {
-		method, route := (&Rest{}).segmentFnName(fn)
+		method, route := ParseFnNameToURL(fn)
 		if method != results[0] {
-			t.Errorf("%v method is not matched %v", method, results[0])
+			t.Errorf(utils.ErrorMessage(results[0], method, "method should be equal"))
 		}
 
 		if route != results[1] {
-			t.Errorf("%v route is not matched %v", route, results[1])
+			t.Errorf(utils.ErrorMessage(results[1], route, "route should be equal"))
 		}
 	}
 }

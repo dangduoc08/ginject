@@ -1,7 +1,6 @@
 package common
 
 import (
-	"net/http"
 	"reflect"
 
 	"github.com/dangduoc08/gooh/context"
@@ -21,22 +20,10 @@ type Guard struct {
 	GuardHandlers []GuardHandler
 }
 
-func (g *Guard) addGuardToRoute(httpMethod, route string, router *routing.Route, guarder Guarder) {
-	router.For(route, []string{httpMethod})(
-		func(ctx *context.Context) {
-			if guarder.CanActivate(ctx) {
-				ctx.Next()
-			} else {
-				code := http.StatusForbidden
-				ctx.Status(code).JSON(context.Map{
-					"code":    code,
-					"message": "Forbidden resource",
-					"data":    nil,
-					"error":   http.StatusText(code),
-				})
-			}
-		},
-	)
+func (g *Guard) addGuardToRoute(httpMethod, route string, router *routing.Router, guarder Guarder) {
+	router.For(route, []string{httpMethod})(func(ctx *context.Context) {
+		HandleGuard(ctx, guarder.CanActivate(ctx))
+	})
 }
 
 func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
@@ -49,7 +36,7 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 	return g
 }
 
-func (g *Guard) AddGuardsToController(r *Rest, router *routing.Route, cb func(int, reflect.Type, reflect.Value, reflect.Value)) {
+func (g *Guard) AddGuardsToController(r *Rest, router *routing.Router, cb func(int, reflect.Type, reflect.Value, reflect.Value)) {
 	for _, guardHandler := range g.GuardHandlers {
 
 		guarderType := reflect.TypeOf(guardHandler.Guarder)
@@ -70,7 +57,6 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Route, cb func(in
 		}
 
 		guardHandler.Guarder = newGuarder
-
 		for pattern, fnName := range r.patternToFnNameMap {
 			httpMethod, route := routing.SplitRoute(pattern)
 
@@ -88,5 +74,4 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Route, cb func(in
 			}
 		}
 	}
-
 }
