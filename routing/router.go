@@ -69,11 +69,23 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 	handlerTotal := len(item.Handlers)
 	globalMiddlewareTotal := len(r.GlobalMiddlewares)
 
-	if caller == USE || caller == FOR || caller == GROUP {
+	if caller == USE || caller == GROUP {
 
 		// USE never has handlerTotal == 0 case
 		// check line 179
 		item.Handlers = append(item.Handlers, handlers...)
+	}
+
+	if caller == FOR {
+
+		// handle case
+		// USE called first
+		// FOR called later
+		if handlerTotal == 0 && globalMiddlewareTotal > 0 {
+			item.Handlers = append(r.GlobalMiddlewares, handlers...)
+		} else {
+			item.Handlers = append(item.Handlers, handlers...)
+		}
 	}
 
 	if caller == ADD {
@@ -203,7 +215,7 @@ func (r *Router) AddInjectableHandler(route, method string, handler any) *Router
 		))
 	}
 
-	r.InjectableHandlers[route] = handler
+	r.InjectableHandlers[ToEndpoint(AddMethodToRoute(route, method))] = handler
 	r.Add(route, method, nil)
 
 	return r

@@ -144,19 +144,17 @@ func TestRouterMiddleware(t *testing.T) {
 		c.Next()
 	}
 
-	r1 := NewRouter()
-	r1.Use(handler1)
-	r1.Use(handler2)
+	r0 := NewRouter()
+	r0.Use(handler1)
+	r0.For("/test0", HTTPMethods)(handler1)
 	for _, httpMethod := range HTTPMethods {
-		r1.Add("/test1", httpMethod, handler4)
+		r0.Add("/test0", httpMethod, handler1)
 	}
-	r1.For("/test1", HTTPMethods)(handler3)
-	r1.Use(handler1)
 
-	_, _, _, _, handlers := r1.Match("/test1", http.MethodPatch)
+	_, _, _, _, handlers := r0.Match("/test0", http.MethodHead)
 
-	if len(handlers) != 5 {
-		t.Errorf(utils.ErrorMessage(len(handlers), 5, "router 1 handlers total should be equal"))
+	if len(handlers) != 3 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 3, "router 0 handlers total should be equal"))
 	}
 
 	isNext := true
@@ -170,23 +168,62 @@ func TestRouterMiddleware(t *testing.T) {
 			handler(c)
 
 			if i == 0 && counter != 1 {
-				t.Errorf(utils.ErrorMessage(counter, 1, "router 1 handlers increase counter should be equal"))
+				t.Errorf(utils.ErrorMessage(counter, 1, "router 0 handlers increase counter should be equal"))
 			}
 
-			if i == 1 && counter != 3 {
-				t.Errorf(utils.ErrorMessage(counter, 3, "router 1 handlers increase counter should be equal"))
+			if i == 1 && counter != 2 {
+				t.Errorf(utils.ErrorMessage(counter, 2, "router 0 handlers increase counter should be equal"))
 			}
 
-			if i == 2 && counter != 7 {
-				t.Errorf(utils.ErrorMessage(counter, 7, "router 1 handlers increase counter should be equal"))
+			if i == 2 && counter != 3 {
+				t.Errorf(utils.ErrorMessage(counter, 3, "router 0 handlers increase counter should be equal"))
+			}
+		}
+	}
+
+	r1 := NewRouter()
+	r1.Use(handler1)
+	r1.Use(handler2)
+	for _, httpMethod := range HTTPMethods {
+		r1.Add("/test1", httpMethod, handler4)
+	}
+	r1.For("/test1", HTTPMethods)(handler3)
+	r1.Use(handler1)
+
+	_, _, _, _, handlers = r1.Match("/test1", http.MethodPatch)
+
+	if len(handlers) != 5 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 5, "router 1 handlers total should be equal"))
+	}
+
+	isNext = true
+	c = context.NewContext()
+	c.Next = func() {
+		isNext = true
+	}
+	for i, handler := range handlers {
+		if isNext {
+			isNext = false
+			handler(c)
+
+			if i == 0 && counter != 4 {
+				t.Errorf(utils.ErrorMessage(counter, 4, "router 1 handlers increase counter should be equal"))
 			}
 
-			if i == 3 && counter != 10 {
+			if i == 1 && counter != 6 {
+				t.Errorf(utils.ErrorMessage(counter, 6, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 2 && counter != 10 {
 				t.Errorf(utils.ErrorMessage(counter, 10, "router 1 handlers increase counter should be equal"))
 			}
 
-			if i == 4 && counter != 11 {
-				t.Errorf(utils.ErrorMessage(counter, 11, "router 1 handlers increase counter should be equal"))
+			if i == 3 && counter != 13 {
+				t.Errorf(utils.ErrorMessage(counter, 13, "router 1 handlers increase counter should be equal"))
+			}
+
+			if i == 4 && counter != 14 {
+				t.Errorf(utils.ErrorMessage(counter, 14, "router 1 handlers increase counter should be equal"))
 			}
 		}
 	}
@@ -215,20 +252,20 @@ func TestRouterMiddleware(t *testing.T) {
 			isNext = false
 			handler(c)
 
-			if i == 0 && counter != 12 {
-				t.Errorf(utils.ErrorMessage(counter, 12, "router 2 handlers increase counter should be equal"))
+			if i == 0 && counter != 15 {
+				t.Errorf(utils.ErrorMessage(counter, 15, "router 2 handlers increase counter should be equal"))
 			}
 
-			if i == 1 && counter != 14 {
-				t.Errorf(utils.ErrorMessage(counter, 14, "router 2 handlers increase counter should be equal"))
-			}
-
-			if i == 2 && counter != 17 {
+			if i == 1 && counter != 17 {
 				t.Errorf(utils.ErrorMessage(counter, 17, "router 2 handlers increase counter should be equal"))
 			}
 
-			if i == 3 && counter != 21 {
-				t.Errorf(utils.ErrorMessage(counter, 21, "router 2 handlers increase counter should be equal"))
+			if i == 2 && counter != 20 {
+				t.Errorf(utils.ErrorMessage(counter, 20, "router 2 handlers increase counter should be equal"))
+			}
+
+			if i == 3 && counter != 24 {
+				t.Errorf(utils.ErrorMessage(counter, 24, "router 2 handlers increase counter should be equal"))
 			}
 		}
 	}
@@ -257,34 +294,34 @@ func TestRouterMiddleware(t *testing.T) {
 			isNext = false
 			handler(c)
 
-			if i == 0 && counter != 25 {
-				t.Errorf(utils.ErrorMessage(counter, 25, "router group handlers increase counter should be equal"))
-			}
-
-			if i == 1 && counter != 26 {
-				t.Errorf(utils.ErrorMessage(counter, 26, "router group handlers increase counter should be equal"))
-			}
-
-			if i == 2 && counter != 28 {
+			if i == 0 && counter != 28 {
 				t.Errorf(utils.ErrorMessage(counter, 28, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 3 && counter != 31 {
+			if i == 1 && counter != 29 {
+				t.Errorf(utils.ErrorMessage(counter, 29, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 2 && counter != 31 {
 				t.Errorf(utils.ErrorMessage(counter, 31, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 4 && counter != 35 {
-				t.Errorf(utils.ErrorMessage(counter, 35, "router group handlers increase counter should be equal"))
+			if i == 3 && counter != 34 {
+				t.Errorf(utils.ErrorMessage(counter, 34, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 5 && counter != 38 {
+			if i == 4 && counter != 38 {
 				t.Errorf(utils.ErrorMessage(counter, 38, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 5 && counter != 41 {
+				t.Errorf(utils.ErrorMessage(counter, 41, "router group handlers increase counter should be equal"))
 			}
 		}
 	}
 
-	if counter != 38 {
-		t.Errorf(utils.ErrorMessage(counter, 38, "final counter should be equal"))
+	if counter != 41 {
+		t.Errorf(utils.ErrorMessage(counter, 41, "final counter should be equal"))
 	}
 }
 
