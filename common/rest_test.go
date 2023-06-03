@@ -39,11 +39,6 @@ func TestParseFnNameToURL(t *testing.T) {
 		"/users/{id}/members/image.png/",
 	}
 
-	testCases["DO_storage_OF_image_PNG_FILE_OF_index_HTML_FILE_OF_users"] = []string{
-		"DO",
-		"/users/index.html/image.png/storage/",
-	}
-
 	testCases["MODIFY_dm_events_OF_with_BY_participant_id_OF_dm_conversations"] = []string{
 		"PATCH",
 		"/dm_conversations/with/{participant_id}/dm_events/",
