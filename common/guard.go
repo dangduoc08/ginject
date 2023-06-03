@@ -65,7 +65,7 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Router, cb func(i
 				g.addGuardToRoute(httpMethod, route, router, guardHandler.Guarder)
 			} else {
 				for _, handler := range guardHandler.Handlers {
-					parsedFnName := getFnName(handler)
+					parsedFnName := GetFnName(handler)
 					if parsedFnName == fnName {
 						httpMethod, route := routing.SplitRoute(pattern)
 						g.addGuardToRoute(httpMethod, route, router, guardHandler.Guarder)
