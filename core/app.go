@@ -15,7 +15,7 @@ import (
 )
 
 type globalMiddleware struct {
-	path    string
+	route   string
 	handler context.Handler
 }
 
@@ -23,7 +23,6 @@ type App struct {
 	route             *routing.Router
 	module            *Module
 	pool              sync.Pool
-	prefix            string
 	globalMiddlewares []globalMiddleware
 	globalGuarders    []common.Guarder
 }
@@ -72,35 +71,53 @@ func New() *App {
 func (app *App) Create(m *Module) {
 	app.module = m.NewModule()
 
+	// Request cycles
+	// global middlewares
+	// module middlewares
+	// global guards
+	// module guards
+
+	// main handler
+
 	// bind global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
-		if globalMiddleware.path != "ALL" {
-			app.route.For(globalMiddleware.path, routing.HTTPMethods)(globalMiddleware.handler)
+		if globalMiddleware.route != "ALL" {
+			app.route.For(globalMiddleware.route, routing.HTTPMethods)(globalMiddleware.handler)
 		} else {
 			app.route.Use(globalMiddleware.handler)
 		}
 	}
 
-	// bind module middlewares ?
+	// bind module middlewares
+	for _, moduleMiddleware := range app.module.Middlewares {
+		app.route.For(moduleMiddleware.Route, []string{moduleMiddleware.Method})(moduleMiddleware.Handlers...)
+	}
 
 	// bind global guards
 	for _, globalGuard := range app.globalGuarders {
 
 		// new guard ??
-
-		app.route.Use(func(ctx *context.Context) {
+		canActivateMiddleware := func(ctx *context.Context) {
 			common.HandleGuard(ctx, globalGuard.CanActivate(ctx))
-		})
+		}
+
+		for _, mainHandlerItem := range app.module.MainHandlers {
+			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(canActivateMiddleware)
+		}
 	}
 
-	// bind controller guards ?
+	// bind module guards
+	for _, moduleGuard := range app.module.Guards {
+		canActivateMiddleware := func(ctx *context.Context) {
+			common.HandleGuard(ctx, moduleGuard.Handler.(func(*context.Context) bool)(ctx))
+		}
+		app.route.For(moduleGuard.Route, []string{moduleGuard.Method})(canActivateMiddleware)
+	}
 
-	app.route.Group(app.prefix, app.module.router)
-}
-
-func (app *App) Prefix(v string) *App {
-	app.prefix = utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(v), "/"), "/")
-	return app
+	// bind main handler
+	for _, moduleHandler := range app.module.MainHandlers {
+		app.route.AddInjectableHandler(moduleHandler.Route, moduleHandler.Method, moduleHandler.Handler)
+	}
 }
 
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
@@ -112,7 +129,7 @@ func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
 func (app *App) Use(handlers ...context.Handler) *App {
 	for _, handler := range handlers {
 		middleware := globalMiddleware{
-			path:    "ALL",
+			route:   "ALL",
 			handler: handler,
 		}
 		app.globalMiddlewares = append(app.globalMiddlewares, middleware)
@@ -121,11 +138,11 @@ func (app *App) Use(handlers ...context.Handler) *App {
 	return app
 }
 
-func (app *App) For(path string) func(handlers ...context.Handler) *App {
+func (app *App) For(route string) func(handlers ...context.Handler) *App {
 	return func(handlers ...context.Handler) *App {
 		for _, handler := range handlers {
 			middleware := globalMiddleware{
-				path:    path,
+				route:   route,
 				handler: handler,
 			}
 			app.globalMiddlewares = append(app.globalMiddlewares, middleware)
