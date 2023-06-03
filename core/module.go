@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -23,6 +24,11 @@ var noInjectedFields = []string{
 	"common.Guard",
 }
 
+type ModuleItem struct {
+	Route    string
+	Handlers []context.Handler
+}
+
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
@@ -36,6 +42,11 @@ type Module struct {
 	Middleware *Middleware
 	IsGlobal   bool
 	OnInit     func()
+	Items      struct {
+		Middlewares  []ModuleItem
+		Guards       []ModuleItem
+		Interceptors []ModuleItem
+	}
 }
 
 func (m *Module) injectMainModules() {
@@ -250,25 +261,24 @@ func (m *Module) NewModule() *Module {
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
+
+						// for module middleware inclusion
+						m.Middleware.include(methodName)
+
+						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
 						rest.AddHandlerToRouterMap(methodName, insertedRoutes, handler)
 					}
 
-					configInclusion := []RouteConfig{}
-					for pattern := range rest.RouterMap {
-						method, path := routing.SplitRoute(pattern)
-						configInclusion = append(configInclusion, RouteConfig{
-							Method: method,
-							Path:   path,
-						})
-					}
-					m.Middleware.include(configInclusion).add()
+					// create middlewareItemArr
+					m.Middleware.add(rest.GetPrefixes())
 
 					// apply module bound middlewares
-					for _, middlewareMap := range m.Middleware.middlewareMapArr {
-						for path, configs := range middlewareMap {
-							m.router.For(path, configs.methods)(configs.handlers...)
-						}
+					for _, middlewareItem := range m.Middleware.middlewareItemArr {
+						m.Items.Middlewares = append(m.Items.Middlewares, ModuleItem{
+							Route:    middlewareItem.route,
+							Handlers: middlewareItem.handlers,
+						})
 					}
 
 					// apply controller bound guard
