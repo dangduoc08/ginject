@@ -222,7 +222,11 @@ func (r *Router) AddInjectableHandler(route, method string, handler any) *Router
 }
 
 func (r *Router) Range(cb func(method, route string)) {
-	for r := range r.Hash {
-		cb(SplitRoute(r))
+
+	// only scan for main handlers
+	for r, item := range r.Hash {
+		if item.HandlerIndex > -1 {
+			cb(SplitRoute(r))
+		}
 	}
 }

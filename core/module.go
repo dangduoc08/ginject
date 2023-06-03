@@ -24,15 +24,9 @@ var noInjectedFields = []string{
 	"common.Guard",
 }
 
-type ModuleItem struct {
-	Route    string
-	Handlers []context.Handler
-}
-
 type Module struct {
 	*sync.Mutex
 	singleInstance *Module
-	router         *routing.Router
 	staticModules  []*Module
 	dynamicModules []any
 	providers      []Provider
@@ -42,10 +36,26 @@ type Module struct {
 	Middleware *Middleware
 	IsGlobal   bool
 	OnInit     func()
-	Items      struct {
-		Middlewares  []ModuleItem
-		Guards       []ModuleItem
-		Interceptors []ModuleItem
+
+	// store module middlewares
+	Middlewares []struct {
+		Method   string
+		Route    string
+		Handlers []context.Handler
+	}
+
+	// store module middlewares
+	Guards []struct {
+		Method  string
+		Route   string
+		Handler any
+	}
+
+	// store main handlers
+	MainHandlers []struct {
+		Method  string
+		Route   string
+		Handler any
 	}
 }
 
@@ -105,7 +115,9 @@ func (m *Module) NewModule() *Module {
 				m.providers = append(m.providers, injectModule.exports...)
 			}
 
-			m.router.Group("/", injectModule.router)
+			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
+			m.Guards = append(m.Guards, injectModule.Guards...)
+			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 		}
 
 		// inject local providers
@@ -140,7 +152,9 @@ func (m *Module) NewModule() *Module {
 				m.providers = append(m.providers, injectModule.exports...)
 			}
 
-			m.router.Group("/", injectModule.router)
+			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
+			m.Guards = append(m.Guards, injectModule.Guards...)
+			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 		}
 
 		// inject local providers
@@ -275,7 +289,12 @@ func (m *Module) NewModule() *Module {
 
 					// apply module bound middlewares
 					for _, middlewareItem := range m.Middleware.middlewareItemArr {
-						m.Items.Middlewares = append(m.Items.Middlewares, ModuleItem{
+						m.Middlewares = append(m.Middlewares, struct {
+							Method   string
+							Route    string
+							Handlers []func(*context.Context)
+						}{
+							Method:   middlewareItem.method,
 							Route:    middlewareItem.route,
 							Handlers: middlewareItem.handlers,
 						})
@@ -284,7 +303,10 @@ func (m *Module) NewModule() *Module {
 					// apply controller bound guard
 					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
 						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
-						guard.AddGuardsToController(&rest, m.router, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
+						guardItemArr := guard.AddGuardsToModule(&rest, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
+
+							// callback use to inject providers
+							// into guard
 							guardField := guarderType.Field(i)
 							guardFieldType := guardField.Type
 							guardFieldNameKey := guardField.Name
@@ -323,6 +345,19 @@ func (m *Module) NewModule() *Module {
 								))
 							}
 						})
+
+						// apply controller bound guards
+						for _, guardItem := range guardItemArr {
+							m.Guards = append(m.Guards, struct {
+								Method  string
+								Route   string
+								Handler any
+							}{
+								Method:  guardItem.Method,
+								Route:   guardItem.Route,
+								Handler: guardItem.Handler,
+							})
+						}
 					}
 
 					// add main handler
@@ -331,8 +366,16 @@ func (m *Module) NewModule() *Module {
 							panic(utils.FmtRed(err.Error()))
 						}
 
-						method, _ := routing.SplitRoute(pattern)
-						m.router.AddInjectableHandler(pattern, method, handler)
+						method, route := routing.SplitRoute(pattern)
+						m.MainHandlers = append(m.MainHandlers, struct {
+							Method  string
+							Route   string
+							Handler any
+						}{
+							Method:  method,
+							Route:   routing.ToEndpoint(route),
+							Handler: handler,
+						})
 					}
 				}
 			}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -87,7 +87,21 @@ func (m *moduleBuilder) Build() *Module {
 		exports:        m.exports,
 		providers:      m.providers,
 		controllers:    m.controllers,
-		router:         routing.NewRouter(),
 		Middleware:     &Middleware{},
+		Middlewares: []struct {
+			Method   string
+			Route    string
+			Handlers []func(*context.Context)
+		}{},
+		Guards: []struct {
+			Method  string
+			Route   string
+			Handler any
+		}{},
+		MainHandlers: []struct {
+			Method  string
+			Route   string
+			Handler any
+		}{},
 	}
 }
