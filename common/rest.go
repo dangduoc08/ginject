@@ -15,7 +15,6 @@ var Operations = map[string]string{
 	"UPDATE": http.MethodPut,
 	"MODIFY": http.MethodPatch,
 	"DELETE": http.MethodDelete,
-	"DO":     "DO",
 }
 
 const (
@@ -59,14 +58,6 @@ func (r *Rest) addToRouters(fnName, path, method string, injectableHandler any) 
 	r.patternToFnNameMap[pattern] = fnName
 }
 
-func (r *Rest) addAllToRouters(fnName, path string, injectableHandler any) {
-	for _, method := range Operations {
-		if method != Operations["DO"] {
-			r.addToRouters(fnName, path, method, injectableHandler)
-		}
-	}
-}
-
 func (r *Rest) GetPrefixes() []map[string]string {
 	prefixes := []map[string]string{}
 
@@ -81,7 +72,7 @@ func (r *Rest) GetPrefixes() []map[string]string {
 			prefixMap[prefixValue] = "ALL"
 		} else {
 			for _, handler := range prefixHandlers {
-				prefixMap[prefixValue] = getFnName(handler)
+				prefixMap[prefixValue] = GetFnName(handler)
 			}
 		}
 
@@ -128,10 +119,6 @@ func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]st
 			))
 		}
 
-		if httpMethod == Operations["DO"] {
-			r.addAllToRouters(fnName, route, handler)
-		} else {
-			r.addToRouters(fnName, route, httpMethod, handler)
-		}
+		r.addToRouters(fnName, route, httpMethod, handler)
 	}
 }
