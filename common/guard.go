@@ -16,14 +16,14 @@ type GuardHandler struct {
 	Handlers []any
 }
 
-type Guard struct {
-	GuardHandlers []GuardHandler
+type GuardItem struct {
+	Method  string
+	Route   string
+	Handler any
 }
 
-func (g *Guard) addGuardToRoute(httpMethod, route string, router *routing.Router, guarder Guarder) {
-	router.For(route, []string{httpMethod})(func(ctx *context.Context) {
-		HandleGuard(ctx, guarder.CanActivate(ctx))
-	})
+type Guard struct {
+	GuardHandlers []GuardHandler
 }
 
 func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
@@ -36,7 +36,9 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 	return g
 }
 
-func (g *Guard) AddGuardsToController(r *Rest, router *routing.Router, cb func(int, reflect.Type, reflect.Value, reflect.Value)) {
+func (g *Guard) AddGuardsToModule(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
+	guardItemArr := []GuardItem{}
+
 	for _, guardHandler := range g.GuardHandlers {
 
 		guarderType := reflect.TypeOf(guardHandler.Guarder)
@@ -44,6 +46,8 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Router, cb func(i
 		newGuard := reflect.New(guarderType)
 
 		for i := 0; i < guarderType.NumField(); i++ {
+
+			// callback use to inject providers
 			cb(i, guarderType, guarderValue, newGuard)
 		}
 
@@ -57,21 +61,16 @@ func (g *Guard) AddGuardsToController(r *Rest, router *routing.Router, cb func(i
 		}
 
 		guardHandler.Guarder = newGuarder
-		for pattern, fnName := range r.patternToFnNameMap {
-			httpMethod, route := routing.SplitRoute(pattern)
 
-			// Guard all methods
-			if len(guardHandler.Handlers) == 0 {
-				g.addGuardToRoute(httpMethod, route, router, guardHandler.Guarder)
-			} else {
-				for _, handler := range guardHandler.Handlers {
-					parsedFnName := GetFnName(handler)
-					if parsedFnName == fnName {
-						httpMethod, route := routing.SplitRoute(pattern)
-						g.addGuardToRoute(httpMethod, route, router, guardHandler.Guarder)
-					}
-				}
-			}
+		for pattern := range r.patternToFnNameMap {
+			httpMethod, route := routing.SplitRoute(pattern)
+			guardItemArr = append(guardItemArr, GuardItem{
+				Method:  httpMethod,
+				Route:   routing.ToEndpoint(route),
+				Handler: guardHandler.Guarder.CanActivate,
+			})
 		}
 	}
+
+	return guardItemArr
 }

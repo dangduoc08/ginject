@@ -19,6 +19,7 @@ type Middleware struct {
 	inclusion         []string
 	exclusion         []string
 	middlewareItemArr []struct {
+		method   string
 		route    string
 		handlers []context.Handler
 	}
@@ -64,10 +65,12 @@ func (mw *Middleware) add(prefixes []map[string]string) {
 
 				// apply for all
 				mw.middlewareItemArr = append(mw.middlewareItemArr, struct {
+					method   string
 					route    string
 					handlers []func(*context.Context)
 				}{
-					route:    routing.ToEndpoint(routing.AddMethodToRoute(route, httpMethod)),
+					method:   httpMethod,
+					route:    routing.ToEndpoint(route),
 					handlers: mw.middlewares,
 				})
 			}
