@@ -274,14 +274,14 @@ func TestRouterMiddleware(t *testing.T) {
 	for _, httpMethod := range HTTPMethods {
 		gr.Add("/group/test1", httpMethod, handler3)
 	}
-	gr.Use(handler4)
+	gr.Use(handler4).Use(handler2).Use(handler1)
 	gr.Group("/group", r1, r2)
 	gr.For("/group/test2/{param}", HTTPMethods)(handler3)
 
 	_, _, _, _, handlers = gr.Match("/group/test2/123", http.MethodOptions)
 
-	if len(handlers) != 6 {
-		t.Errorf(utils.ErrorMessage(len(handlers), 6, "router group handlers total should be equal"))
+	if len(handlers) != 8 {
+		t.Errorf(utils.ErrorMessage(len(handlers), 8, "router group handlers total should be equal"))
 	}
 
 	isNext = true
@@ -298,30 +298,38 @@ func TestRouterMiddleware(t *testing.T) {
 				t.Errorf(utils.ErrorMessage(counter, 28, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 1 && counter != 29 {
-				t.Errorf(utils.ErrorMessage(counter, 29, "router group handlers increase counter should be equal"))
+			if i == 1 && counter != 30 {
+				t.Errorf(utils.ErrorMessage(counter, 30, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 2 && counter != 31 {
 				t.Errorf(utils.ErrorMessage(counter, 31, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 3 && counter != 34 {
+			if i == 3 && counter != 32 {
+				t.Errorf(utils.ErrorMessage(counter, 32, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 4 && counter != 34 {
 				t.Errorf(utils.ErrorMessage(counter, 34, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 4 && counter != 38 {
-				t.Errorf(utils.ErrorMessage(counter, 38, "router group handlers increase counter should be equal"))
+			if i == 5 && counter != 37 {
+				t.Errorf(utils.ErrorMessage(counter, 37, "router group handlers increase counter should be equal"))
 			}
 
-			if i == 5 && counter != 41 {
+			if i == 6 && counter != 41 {
 				t.Errorf(utils.ErrorMessage(counter, 41, "router group handlers increase counter should be equal"))
+			}
+
+			if i == 7 && counter != 44 {
+				t.Errorf(utils.ErrorMessage(counter, 44, "router group handlers increase counter should be equal"))
 			}
 		}
 	}
 
-	if counter != 41 {
-		t.Errorf(utils.ErrorMessage(counter, 41, "final counter should be equal"))
+	if counter != 44 {
+		t.Errorf(utils.ErrorMessage(counter, 44, "final counter should be equal"))
 	}
 }
 

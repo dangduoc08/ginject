@@ -29,9 +29,10 @@ const (
 )
 
 type RouterItem struct {
-	Index        int
-	HandlerIndex int
-	Handlers     []context.Handler
+	Index                 int
+	HandlerIndex          int
+	Handlers              []context.Handler
+	isRouteContainsParams bool
 }
 
 type Router struct {
@@ -57,10 +58,8 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 
 	if matchedRouterHash, ok := r.Hash[endpoint]; !ok {
 		r.List = append(r.List, endpoint)
-		item = RouterItem{
-			Index:        len(r.List) - 1,
-			HandlerIndex: -1,
-		}
+		item.Index = len(r.List) - 1
+		item.HandlerIndex = -1
 	} else {
 		item = r.Hash[endpoint]
 		item.Index = matchedRouterHash.Index
@@ -82,7 +81,8 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 		// USE called first
 		// FOR called later
 		if handlerTotal == 0 && globalMiddlewareTotal > 0 {
-			item.Handlers = append(r.GlobalMiddlewares, handlers...)
+			item.Handlers = append(item.Handlers, r.GlobalMiddlewares...)
+			item.Handlers = append(item.Handlers, handlers...)
 		} else {
 			item.Handlers = append(item.Handlers, handlers...)
 		}
@@ -102,7 +102,8 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 		} else if handlerTotal == 0 && globalMiddlewareTotal > 0 {
 
 			// handler hasn't added yet
-			item.Handlers = append(r.GlobalMiddlewares, handlers...)
+			item.Handlers = append(item.Handlers, r.GlobalMiddlewares...)
+			item.Handlers = append(item.Handlers, handlers...)
 			item.HandlerIndex = globalMiddlewareTotal
 		} else if item.HandlerIndex > -1 {
 			// handler was added before
@@ -120,8 +121,9 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 		}
 	}
 
-	r.Hash[endpoint] = item
 	parsedRoute, paramKey := ParseToParamKey(endpoint)
+	item.isRouteContainsParams = checkRouteContainsParams(parsedRoute)
+	r.Hash[endpoint] = item
 	r.Trie.insert(parsedRoute, '/', r.Hash[endpoint].Index, paramKey, r.Hash[endpoint].Handlers)
 
 	return r
@@ -130,7 +132,7 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 func (r *Router) Match(route, method string) (bool, string, map[string][]int, []string, []context.Handler) {
 	route = AddMethodToRoute(route, method)
 
-	if matchedRouterHash, ok := r.Hash[route]; ok {
+	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}
 

@@ -106,6 +106,10 @@ func getLastWildcardNode(node *Trie, methodPattern string) *Trie {
 	return nil
 }
 
+func checkRouteContainsParams(route string) bool {
+	return strings.Contains(route, "$")
+}
+
 func fromMethodtoPattern(method string) string {
 	return utils.StrAddEnd(utils.StrAddBegin(method, "["), "]")
 }
