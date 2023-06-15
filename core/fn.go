@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"go/token"
 	"reflect"
 	"regexp"
 	"strings"
@@ -108,4 +109,57 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 	}
 
 	return staticModule
+}
+
+func injectDependencies(component any, kind string, dependencies map[string]Provider) reflect.Value {
+	componentType := reflect.TypeOf(component)
+	componentValue := reflect.ValueOf(component)
+	newComponent := reflect.New(componentType)
+
+	// injected providers into components
+	// can be injected through global modules
+	// or through imported modules
+	for j := 0; j < componentType.NumField(); j++ {
+		componentField := componentType.Field(j)
+		componentFieldType := componentField.Type
+		componentFieldKey := componentFieldType.PkgPath() + "/" + componentFieldType.String()
+		componentFieldName := componentField.Name
+
+		if !token.IsExported(componentFieldName) {
+			panic(fmt.Errorf(
+				utils.FmtRed(
+					"can't set value to unexported '%v' field of the %v %v",
+					componentFieldName,
+					componentType.Name(),
+					kind,
+				),
+			))
+		}
+
+		// inject provider priorities
+		// local inject
+		// global inject
+		// inner packages
+		// resolve dependencies error
+		if componentFieldKey != "" && dependencies[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(dependencies[componentFieldKey]))
+		} else if componentFieldKey != "" && globalProviders[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviders[componentFieldKey]))
+		} else if !isInjectedProvider(componentFieldType) {
+			newComponent.Elem().Field(j).Set(componentValue.Field(j))
+		} else {
+			panic(fmt.Errorf(
+				utils.FmtRed(
+					"can't resolve dependencies of the '%v' %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
+					componentFieldType.String(),
+					kind,
+					j,
+					componentType.Name(),
+					kind,
+				),
+			))
+		}
+	}
+
+	return newComponent
 }

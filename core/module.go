@@ -177,52 +177,8 @@ func (m *Module) NewModule() *Module {
 
 		// inject providers into providers
 		for i, provider := range m.providers {
-			providerType := reflect.TypeOf(provider)
-			providerValue := reflect.ValueOf(provider)
-			newProvider := reflect.New(providerType)
+			newProvider := injectDependencies(provider, "provider", injectedProviders)
 			providerKey := genProviderKey(provider)
-
-			// injected providers inside providers
-			// can be injected through global modules
-			// or through imported modules
-			for j := 0; j < providerType.NumField(); j++ {
-				providerField := providerType.Field(j)
-				providerFieldType := providerField.Type
-				providerFieldKey := providerFieldType.PkgPath() + "/" + providerFieldType.String()
-				providerFieldName := providerField.Name
-
-				if !token.IsExported(providerFieldName) {
-					panic(fmt.Errorf(
-						utils.FmtRed(
-							"can't set value to unexported '%v' field of the %v provider",
-							providerFieldName,
-							providerType.Name(),
-						),
-					))
-				}
-
-				// inject provider priorities
-				// local inject
-				// global inject
-				// inner packages
-				// resolve dependencies error
-				if providerFieldKey != "" && injectedProviders[providerFieldKey] != nil {
-					newProvider.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[providerFieldKey]))
-				} else if providerFieldKey != "" && globalProviders[providerFieldKey] != nil {
-					newProvider.Elem().Field(j).Set(reflect.ValueOf(globalProviders[providerFieldKey]))
-				} else if !isInjectedProvider(providerFieldType) {
-					newProvider.Elem().Field(j).Set(providerValue.Field(j))
-				} else {
-					panic(fmt.Errorf(
-						utils.FmtRed(
-							"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' provider",
-							providerFieldType.String(),
-							j,
-							providerType.Name(),
-						),
-					))
-				}
-			}
 
 			if providerInjectCheck[providerKey] == nil {
 				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
@@ -235,49 +191,7 @@ func (m *Module) NewModule() *Module {
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
 			for i, controller := range m.controllers {
-				controllerType := reflect.TypeOf(controller)
-				controllerValue := reflect.ValueOf(controller)
-				newController := reflect.New(controllerType)
-
-				for j := 0; j < controllerType.NumField(); j++ {
-					controllerField := controllerType.Field(j)
-					controllerFieldType := controllerField.Type
-					controllerFieldNameKey := controllerField.Name
-
-					if !token.IsExported(controllerFieldNameKey) {
-						panic(fmt.Errorf(
-							utils.FmtRed(
-								"can't set value to unexported '%v' field of the '%v' controller",
-								controllerFieldNameKey,
-								controllerType.Name(),
-							),
-						))
-					}
-
-					injectProviderKey := controllerFieldType.PkgPath() + "/" + controllerFieldType.String()
-					isUnneededInject := utils.ArrIncludes(noInjectedFields, injectProviderKey)
-
-					if injectedProviders[injectProviderKey] != nil && !isUnneededInject {
-						newController.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
-					} else if globalProviders[injectProviderKey] != nil && !isUnneededInject {
-						newController.Elem().Field(j).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
-					} else if !isInjectedProvider(controllerFieldType) {
-						newController.Elem().Field(j).Set(controllerValue.Field(j))
-					} else {
-						if isUnneededInject {
-							continue
-						}
-						panic(fmt.Errorf(
-							utils.FmtRed(
-								"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' controller",
-								controllerFieldType.String(),
-								j,
-								controllerType.Name(),
-							),
-						))
-					}
-				}
-
+				newController := injectDependencies(controller, "controller", injectedProviders)
 				m.controllers[i] = newController.Interface().(Controller).NewController()
 
 				// Handle REST

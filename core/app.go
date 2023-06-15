@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"go/token"
 	"log"
 	"net/http"
 	"reflect"
@@ -104,49 +103,7 @@ func (app *App) Create(m *Module) {
 
 	// global guards
 	for _, globalGuard := range app.globalGuarders {
-		globalGuardType := reflect.TypeOf(globalGuard)
-		globalGuardValue := reflect.ValueOf(globalGuard)
-		newGlobalGuard := reflect.New(globalGuardType)
-
-		for j := 0; j < globalGuardType.NumField(); j++ {
-			globalGuardField := globalGuardType.Field(j)
-			globalGuardFieldType := globalGuardField.Type
-			globalGuardFieldKey := globalGuardFieldType.PkgPath() + "/" + globalGuardFieldType.String()
-			globalGuardFieldName := globalGuardField.Name
-
-			if !token.IsExported(globalGuardFieldName) {
-				panic(fmt.Errorf(
-					utils.FmtRed(
-						"can't set value to unexported '%v' field of the %v guarder",
-						globalGuardFieldName,
-						globalGuardType.Name(),
-					),
-				))
-			}
-
-			// inject provider priorities
-			// local inject
-			// global inject
-			// inner packages
-			// resolve dependencies error
-			if globalGuardFieldKey != "" && injectedProviders[globalGuardFieldKey] != nil {
-				newGlobalGuard.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[globalGuardFieldKey]))
-			} else if globalGuardFieldKey != "" && globalProviders[globalGuardFieldKey] != nil {
-				newGlobalGuard.Elem().Field(j).Set(reflect.ValueOf(globalProviders[globalGuardFieldKey]))
-			} else if !isInjectedProvider(globalGuardFieldType) {
-				newGlobalGuard.Elem().Field(j).Set(globalGuardValue.Field(j))
-			} else {
-				panic(fmt.Errorf(
-					utils.FmtRed(
-						"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
-						globalGuardFieldType.String(),
-						j,
-						globalGuardType.Name(),
-					),
-				))
-			}
-		}
-
+		newGlobalGuard := injectDependencies(globalGuard, "guard", injectedProviders)
 		globalGuard = common.Construct(newGlobalGuard.Interface(), "NewGuard").(common.Guarder)
 
 		canActivateMiddleware := func(ctx *context.Context) {
@@ -168,49 +125,7 @@ func (app *App) Create(m *Module) {
 
 	// global interceptors
 	for _, globalInterceptor := range app.globalInterceptors {
-		globalInterceptorType := reflect.TypeOf(globalInterceptor)
-		globalInterceptorValue := reflect.ValueOf(globalInterceptor)
-		newGlobalInterceptor := reflect.New(globalInterceptorType)
-
-		for j := 0; j < globalInterceptorType.NumField(); j++ {
-			globalInterceptorField := globalInterceptorType.Field(j)
-			globalInterceptorFieldType := globalInterceptorField.Type
-			globalInterceptorFieldKey := globalInterceptorFieldType.PkgPath() + "/" + globalInterceptorFieldType.String()
-			globalInterceptorFieldName := globalInterceptorField.Name
-
-			if !token.IsExported(globalInterceptorFieldName) {
-				panic(fmt.Errorf(
-					utils.FmtRed(
-						"can't set value to unexported '%v' field of the %v interceptor",
-						globalInterceptorFieldName,
-						globalInterceptorType.Name(),
-					),
-				))
-			}
-
-			// inject provider priorities
-			// local inject
-			// global inject
-			// inner packages
-			// resolve dependencies error
-			if globalInterceptorFieldKey != "" && injectedProviders[globalInterceptorFieldKey] != nil {
-				newGlobalInterceptor.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[globalInterceptorFieldKey]))
-			} else if globalInterceptorFieldKey != "" && globalProviders[globalInterceptorFieldKey] != nil {
-				newGlobalInterceptor.Elem().Field(j).Set(reflect.ValueOf(globalProviders[globalInterceptorFieldKey]))
-			} else if !isInjectedProvider(globalInterceptorFieldType) {
-				newGlobalInterceptor.Elem().Field(j).Set(globalInterceptorValue.Field(j))
-			} else {
-				panic(fmt.Errorf(
-					utils.FmtRed(
-						"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' interceptor",
-						globalInterceptorFieldType.String(),
-						j,
-						globalInterceptorType.Name(),
-					),
-				))
-			}
-		}
-
+		newGlobalInterceptor := injectDependencies(globalInterceptor, "interceptor", injectedProviders)
 		globalInterceptor = common.Construct(newGlobalInterceptor.Interface(), "NewInterceptor").(common.Interceptable)
 
 		interceptorMiddleware := func(ctx *context.Context) {
