@@ -111,6 +111,10 @@ func (m *Module) NewModule() *Module {
 					staticModule.injectGlobalProviders()
 				}
 			}
+
+			for _, dynamicModule := range m.dynamicModules {
+				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(dynamicModule).Pointer())
+			}
 		}
 
 		// inject static modules
@@ -144,12 +148,13 @@ func (m *Module) NewModule() *Module {
 			}
 			injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
 			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
+			matchedIndex := utils.ArrFindIndex[uintptr](modulesInjectedFromMain, func(el uintptr, i int) bool {
+				return el == reflect.ValueOf(dynamicModule).Pointer()
+			})
 
-			// dynamic modules will be treated
-			// as global module
-			// hence dynamic module's controllers
-			// always are injected
-			staticModule.injectMainModules()
+			if matchedIndex > -1 {
+				modulesInjectedFromMain[matchedIndex] = reflect.ValueOf(staticModule).Pointer()
+			}
 
 			if staticModule.IsGlobal {
 				staticModule.injectGlobalProviders()
