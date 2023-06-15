@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"go/token"
 	"log"
 	"net/http"
 	"reflect"
@@ -20,11 +21,12 @@ type globalMiddleware struct {
 }
 
 type App struct {
-	route             *routing.Router
-	module            *Module
-	pool              sync.Pool
-	globalMiddlewares []globalMiddleware
-	globalGuarders    []common.Guarder
+	route              *routing.Router
+	module             *Module
+	pool               sync.Pool
+	globalMiddlewares  []globalMiddleware
+	globalGuarders     []common.Guarder
+	globalInterceptors []common.Interceptable
 }
 
 // link to aliases
@@ -71,15 +73,22 @@ func New() *App {
 func (app *App) Create(m *Module) {
 	app.module = m.NewModule()
 
+	var injectedProviders map[string]Provider = make(map[string]Provider)
+	for _, provider := range app.module.providers {
+		injectedProviders[genProviderKey(provider)] = provider
+	}
+
 	// Request cycles
 	// global middlewares
 	// module middlewares
 	// global guards
 	// module guards
+	// global interceptors (pre)
+	// module interceptors (pre)
 
 	// main handler
 
-	// bind global middlewares
+	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
 		if globalMiddleware.route != "ALL" {
 			app.route.For(globalMiddleware.route, routing.HTTPMethods)(globalMiddleware.handler)
@@ -88,15 +97,58 @@ func (app *App) Create(m *Module) {
 		}
 	}
 
-	// bind module middlewares
+	// module middlewares
 	for _, moduleMiddleware := range app.module.Middlewares {
 		app.route.For(moduleMiddleware.Route, []string{moduleMiddleware.Method})(moduleMiddleware.Handlers...)
 	}
 
-	// bind global guards
+	// global guards
 	for _, globalGuard := range app.globalGuarders {
+		globalGuardType := reflect.TypeOf(globalGuard)
+		globalGuardValue := reflect.ValueOf(globalGuard)
+		newGlobalGuard := reflect.New(globalGuardType)
 
-		// new guard ??
+		for j := 0; j < globalGuardType.NumField(); j++ {
+			globalGuardField := globalGuardType.Field(j)
+			globalGuardFieldType := globalGuardField.Type
+			globalGuardFieldKey := globalGuardFieldType.PkgPath() + "/" + globalGuardFieldType.String()
+			globalGuardFieldName := globalGuardField.Name
+
+			if !token.IsExported(globalGuardFieldName) {
+				panic(fmt.Errorf(
+					utils.FmtRed(
+						"can't set value to unexported '%v' field of the %v guarder",
+						globalGuardFieldName,
+						globalGuardType.Name(),
+					),
+				))
+			}
+
+			// inject provider priorities
+			// local inject
+			// global inject
+			// inner packages
+			// resolve dependencies error
+			if globalGuardFieldKey != "" && injectedProviders[globalGuardFieldKey] != nil {
+				newGlobalGuard.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[globalGuardFieldKey]))
+			} else if globalGuardFieldKey != "" && globalProviders[globalGuardFieldKey] != nil {
+				newGlobalGuard.Elem().Field(j).Set(reflect.ValueOf(globalProviders[globalGuardFieldKey]))
+			} else if !isInjectedProvider(globalGuardFieldType) {
+				newGlobalGuard.Elem().Field(j).Set(globalGuardValue.Field(j))
+			} else {
+				panic(fmt.Errorf(
+					utils.FmtRed(
+						"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
+						globalGuardFieldType.String(),
+						j,
+						globalGuardType.Name(),
+					),
+				))
+			}
+		}
+
+		globalGuard = common.Construct(newGlobalGuard.Interface(), "NewGuard").(common.Guarder)
+
 		canActivateMiddleware := func(ctx *context.Context) {
 			common.HandleGuard(ctx, globalGuard.CanActivate(ctx))
 		}
@@ -106,7 +158,7 @@ func (app *App) Create(m *Module) {
 		}
 	}
 
-	// bind module guards
+	// module guards
 	for _, moduleGuard := range app.module.Guards {
 		canActivateMiddleware := func(ctx *context.Context) {
 			common.HandleGuard(ctx, moduleGuard.Handler.(func(*context.Context) bool)(ctx))
@@ -114,7 +166,75 @@ func (app *App) Create(m *Module) {
 		app.route.For(moduleGuard.Route, []string{moduleGuard.Method})(canActivateMiddleware)
 	}
 
-	// bind main handler
+	// global interceptors
+	for _, globalInterceptor := range app.globalInterceptors {
+		globalInterceptorType := reflect.TypeOf(globalInterceptor)
+		globalInterceptorValue := reflect.ValueOf(globalInterceptor)
+		newGlobalInterceptor := reflect.New(globalInterceptorType)
+
+		for j := 0; j < globalInterceptorType.NumField(); j++ {
+			globalInterceptorField := globalInterceptorType.Field(j)
+			globalInterceptorFieldType := globalInterceptorField.Type
+			globalInterceptorFieldKey := globalInterceptorFieldType.PkgPath() + "/" + globalInterceptorFieldType.String()
+			globalInterceptorFieldName := globalInterceptorField.Name
+
+			if !token.IsExported(globalInterceptorFieldName) {
+				panic(fmt.Errorf(
+					utils.FmtRed(
+						"can't set value to unexported '%v' field of the %v interceptor",
+						globalInterceptorFieldName,
+						globalInterceptorType.Name(),
+					),
+				))
+			}
+
+			// inject provider priorities
+			// local inject
+			// global inject
+			// inner packages
+			// resolve dependencies error
+			if globalInterceptorFieldKey != "" && injectedProviders[globalInterceptorFieldKey] != nil {
+				newGlobalInterceptor.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[globalInterceptorFieldKey]))
+			} else if globalInterceptorFieldKey != "" && globalProviders[globalInterceptorFieldKey] != nil {
+				newGlobalInterceptor.Elem().Field(j).Set(reflect.ValueOf(globalProviders[globalInterceptorFieldKey]))
+			} else if !isInjectedProvider(globalInterceptorFieldType) {
+				newGlobalInterceptor.Elem().Field(j).Set(globalInterceptorValue.Field(j))
+			} else {
+				panic(fmt.Errorf(
+					utils.FmtRed(
+						"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' interceptor",
+						globalInterceptorFieldType.String(),
+						j,
+						globalInterceptorType.Name(),
+					),
+				))
+			}
+		}
+
+		globalInterceptor = common.Construct(newGlobalInterceptor.Interface(), "NewInterceptor").(common.Interceptable)
+
+		interceptorMiddleware := func(ctx *context.Context) {
+			globalInterceptor.Intercept(ctx, 1)
+
+			ctx.Next()
+		}
+
+		for _, mainHandlerItem := range app.module.MainHandlers {
+			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(interceptorMiddleware)
+		}
+	}
+
+	// module interceptors
+	for _, moduleInterceptor := range app.module.Interceptors {
+		interceptorMiddleware := func(ctx *context.Context) {
+			moduleInterceptor.Handler.(func(*context.Context, any) any)(ctx, 1)
+
+			ctx.Next()
+		}
+		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptorMiddleware)
+	}
+
+	// main handler
 	for _, moduleHandler := range app.module.MainHandlers {
 		app.route.AddInjectableHandler(moduleHandler.Route, moduleHandler.Method, moduleHandler.Handler)
 	}
@@ -122,6 +242,12 @@ func (app *App) Create(m *Module) {
 
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
 	app.globalGuarders = append(app.globalGuarders, guarders...)
+
+	return app
+}
+
+func (app *App) BindGlobalInterceptors(interceptors ...common.Interceptable) *App {
+	app.globalInterceptors = append(app.globalInterceptors, interceptors...)
 
 	return app
 }

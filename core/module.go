@@ -22,6 +22,8 @@ var noInjectedFields = []string{
 	"common.Rest",
 	"Guard",
 	"common.Guard",
+	"Interceptor",
+	"common.Interceptor",
 }
 
 type Module struct {
@@ -44,8 +46,15 @@ type Module struct {
 		Handlers []context.Handler
 	}
 
-	// store module middlewares
+	// store module guards
 	Guards []struct {
+		Method  string
+		Route   string
+		Handler any
+	}
+
+	// store module interceptors
+	Interceptors []struct {
 		Method  string
 		Route   string
 		Handler any
@@ -117,6 +126,7 @@ func (m *Module) NewModule() *Module {
 
 			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
 			m.Guards = append(m.Guards, injectModule.Guards...)
+			m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
 			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 		}
 
@@ -154,6 +164,7 @@ func (m *Module) NewModule() *Module {
 
 			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
 			m.Guards = append(m.Guards, injectModule.Guards...)
+			m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
 			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 		}
 
@@ -356,6 +367,66 @@ func (m *Module) NewModule() *Module {
 								Method:  guardItem.Method,
 								Route:   guardItem.Route,
 								Handler: guardItem.Handler,
+							})
+						}
+					}
+
+					// apply controller bound interceptor
+					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[4]); loadedInterceptor {
+						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[4]).Interface().(common.Interceptor)
+						interceptorItemArr := interceptor.AddInterceptorsToModule(&rest, func(i int, interceptableType reflect.Type, interceptableValue, newInterceptor reflect.Value) {
+
+							// callback use to inject providers
+							// into interceptor
+							interceptorField := interceptableType.Field(i)
+							interceptorFieldType := interceptorField.Type
+							interceptorFieldNameKey := interceptorField.Name
+							injectProviderKey := interceptorFieldType.PkgPath() + "/" + interceptorFieldType.String()
+
+							if !token.IsExported(interceptorFieldNameKey) {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't set value to unexported '%v' field of the '%v' interceptor",
+										interceptorFieldNameKey,
+										interceptableType.Name(),
+									),
+								))
+							}
+
+							// Inject providers into interceptor
+							// inject provider priorities
+							// local inject
+							// global inject
+							// inner packages
+							// resolve dependencies error
+							if injectedProviders[injectProviderKey] != nil {
+								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+							} else if globalProviders[injectProviderKey] != nil {
+								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if !isInjectedProvider(interceptorFieldType) {
+								newInterceptor.Elem().Field(i).Set(interceptableValue.Field(i))
+							} else {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' interceptor",
+										interceptorFieldType.String(),
+										i,
+										interceptableType.Name(),
+									),
+								))
+							}
+						})
+
+						// apply controller bound interceptors
+						for _, interceptorItem := range interceptorItemArr {
+							m.Interceptors = append(m.Interceptors, struct {
+								Method  string
+								Route   string
+								Handler any
+							}{
+								Method:  interceptorItem.Method,
+								Route:   interceptorItem.Route,
+								Handler: interceptorItem.Handler,
 							})
 						}
 					}
