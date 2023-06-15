@@ -10,6 +10,9 @@ import (
 	"github.com/dangduoc08/gooh/context"
 )
 
+// to ensure constructor only run once
+var singletons = make(map[string]any)
+
 func GetFnName(handler any) string {
 	strs := strings.Split(runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(), ".")
 	fnName := strs[len(strs)-1]
@@ -157,4 +160,19 @@ func HandleGuard(ctx *context.Context, canActive bool) {
 			"error":   http.StatusText(code),
 		})
 	}
+}
+
+func Construct(obj any, constructor string) any {
+	newGuarderValue := reflect.ValueOf(obj)
+	if newObj, ok := singletons[newGuarderValue.String()]; ok {
+		return newObj
+	}
+
+	guardConstructor := newGuarderValue.MethodByName(constructor)
+	if guardConstructor.IsValid() {
+		obj = guardConstructor.Call([]reflect.Value{})[0].Interface()
+		singletons[newGuarderValue.String()] = obj
+	}
+
+	return obj
 }

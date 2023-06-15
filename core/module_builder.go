@@ -98,6 +98,11 @@ func (m *moduleBuilder) Build() *Module {
 			Route   string
 			Handler any
 		}{},
+		Interceptors: []struct {
+			Method  string
+			Route   string
+			Handler any
+		}{},
 		MainHandlers: []struct {
 			Method  string
 			Route   string
