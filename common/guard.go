@@ -53,14 +53,10 @@ func (g *Guard) AddGuardsToModule(r *Rest, cb func(int, reflect.Type, reflect.Va
 
 		// invoke guard constructor
 		// if NewGuard was declared
-		newGuarder := newGuard.Interface().(Guarder)
-		newGuarderValue := reflect.ValueOf(newGuarder)
-		guardConstructor := newGuarderValue.MethodByName("NewGuard")
-		if guardConstructor.IsValid() {
-			newGuarder = guardConstructor.Call([]reflect.Value{})[0].Interface().(Guarder)
-		}
+		newGuarder := newGuard.Interface()
+		newGuarder = Construct(newGuarder, "NewGuard")
 
-		guardHandler.Guarder = newGuarder
+		guardHandler.Guarder = newGuarder.(Guarder)
 
 		for pattern := range r.patternToFnNameMap {
 			httpMethod, route := routing.SplitRoute(pattern)
