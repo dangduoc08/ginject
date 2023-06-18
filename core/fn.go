@@ -94,6 +94,14 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 	// call the dynamic module with the list of arguments and convert the result to a static module
 	staticModule := reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
 
+	// recursion injection
+	injectModule := staticModule.NewModule()
+
+	// only import providers which exported
+	if len(injectModule.exports) > 0 {
+		staticModule.providers = append(staticModule.providers, injectModule.exports...)
+	}
+
 	// recheck inject dependencies
 	actualLocalProviderMap := make(map[string]bool)
 	for _, provider := range staticModule.providers {
