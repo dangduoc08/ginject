@@ -140,6 +140,26 @@ func (m *Module) NewModule() *Module {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
 
+		// inject local providers
+		// from dynamic modules
+		// line 94 already inject (not bug)
+		for _, provider := range m.providers {
+			injectedProviders[genProviderKey(provider)] = provider
+		}
+
+		// inject providers into providers
+		for i, provider := range m.providers {
+			newProvider := injectDependencies(provider, "provider", injectedProviders)
+			providerKey := genProviderKey(provider)
+
+			if providerInjectCheck[providerKey] == nil {
+				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
+			}
+
+			m.providers[i] = providerInjectCheck[providerKey]
+			injectedProviders[providerKey] = providerInjectCheck[providerKey]
+		}
+
 		// inject dynamic modules
 		for _, dynamicModule := range m.dynamicModules {
 			dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
@@ -171,26 +191,6 @@ func (m *Module) NewModule() *Module {
 			m.Guards = append(m.Guards, injectModule.Guards...)
 			m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
 			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
-		}
-
-		// inject local providers
-		// from dynamic modules
-		// line 94 already inject (not bug)
-		for _, provider := range m.providers {
-			injectedProviders[genProviderKey(provider)] = provider
-		}
-
-		// inject providers into providers
-		for i, provider := range m.providers {
-			newProvider := injectDependencies(provider, "provider", injectedProviders)
-			providerKey := genProviderKey(provider)
-
-			if providerInjectCheck[providerKey] == nil {
-				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
-			}
-
-			m.providers[i] = providerInjectCheck[providerKey]
-			injectedProviders[providerKey] = providerInjectCheck[providerKey]
 		}
 
 		// inject providers into controllers
