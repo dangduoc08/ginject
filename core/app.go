@@ -26,6 +26,7 @@ type App struct {
 	globalMiddlewares  []globalMiddleware
 	globalGuarders     []common.Guarder
 	globalInterceptors []common.Interceptable
+	injectedProviders  map[string]Provider
 }
 
 // link to aliases
@@ -38,6 +39,7 @@ const (
 	HEADER   = "net/http/http.Header"
 	NEXT     = "/func()"
 	REDIRECT = "/func(string)"
+	PIPEABLE = "PIPEABLE"
 )
 
 var dependencies = map[string]int{
@@ -49,6 +51,7 @@ var dependencies = map[string]int{
 	HEADER:   1,
 	NEXT:     1,
 	REDIRECT: 1,
+	PIPEABLE: 1,
 }
 
 func New() *App {
@@ -76,6 +79,7 @@ func (app *App) Create(m *Module) {
 	for _, provider := range app.module.providers {
 		injectedProviders[genProviderKey(provider)] = provider
 	}
+	app.injectedProviders = injectedProviders
 
 	// Request cycles
 	// global middlewares
@@ -280,9 +284,9 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 
 func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	args := []reflect.Value{}
-	getFnArgs(f, func(dynamicArgKey string, i int) {
+	getFnArgs(f, func(dynamicArgKey string, i int, pipe reflect.Type) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
-			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c)))
+			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c, pipe)))
 		} else {
 			panic(fmt.Errorf(
 				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -295,7 +299,7 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	return reflect.ValueOf(f).Call(args)
 }
 
-func (app *App) getDependency(k string, c *context.Context) any {
+func (app *App) getDependency(k string, c *context.Context, pipeType reflect.Type) any {
 	switch k {
 	case CONTEXT:
 		return c
@@ -313,6 +317,32 @@ func (app *App) getDependency(k string, c *context.Context) any {
 		return c.Next
 	case REDIRECT:
 		return c.Redirect
+	case PIPEABLE:
+		var bindParam any = nil
+		paramType := ""
+
+		for i := 0; i < pipeType.NumField(); i++ {
+			fieldKey := genFieldKey(pipeType.Field(i).Type)
+			if fieldKey == QUERY {
+				bindParam = c.URL.Query()
+				paramType = "query"
+			} else if fieldKey == PARAM {
+				bindParam = c.Param()
+				paramType = "param"
+			} else if fieldKey == HEADER {
+				bindParam = c.Request.Header
+				paramType = "header"
+			} else if app.injectedProviders[fieldKey] != nil {
+				// injectDependencies(pipeType, "pipe", app.injectedProviders)
+			}
+		}
+
+		return reflect.
+			New(pipeType).
+			Interface().(common.Pipeable).
+			Transform(bindParam, common.ArgumentMetadata{
+				ParamType: paramType,
+			})
 	}
 
 	return dependencies
