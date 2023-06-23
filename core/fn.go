@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -14,18 +15,25 @@ func isDynamicModule(moduleType string) (bool, error) {
 	return regexp.Match(`^func\(.*\*core.Module$`, []byte(moduleType))
 }
 
-func getFnArgs(f any, cb func(string, int)) {
+func getFnArgs(f any, cb func(string, int, reflect.Type)) {
 	injectableFnType := reflect.TypeOf(f)
 	for i := 0; i < injectableFnType.NumIn(); i++ {
-		arg := injectableFnType.In(i).PkgPath() + "/" + injectableFnType.In(i).String()
-		cb(arg, i)
+		argType := injectableFnType.In(i)
+		arg := argType.PkgPath() + "/" + argType.String()
+
+		_, isImplPipeable := reflect.New(argType).Interface().(common.Pipeable)
+		if isImplPipeable {
+			cb(PIPEABLE, i, argType)
+		} else {
+			cb(arg, i, argType)
+		}
 	}
 }
 
 func isInjectableHandler(handler any) error {
 	var e error
 
-	getFnArgs(handler, func(arg string, i int) {
+	getFnArgs(handler, func(arg string, i int, pipeType reflect.Type) {
 		if _, ok := dependencies[arg]; !ok {
 			e = fmt.Errorf(
 				"can't resolve dependencies of '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -45,8 +53,11 @@ func isInjectedProvider(providerFieldType reflect.Type) bool {
 }
 
 func genProviderKey(p Provider) string {
-	providerType := reflect.TypeOf(p)
-	return providerType.PkgPath() + "/" + providerType.String()
+	return genFieldKey(reflect.TypeOf(p))
+}
+
+func genFieldKey(t reflect.Type) string {
+	return t.PkgPath() + "/" + t.String()
 }
 
 func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders map[string]Provider) *Module {
@@ -67,7 +78,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 		)
 	}
 
-	getFnArgs(dynamicModule, func(dynamicArgKey string, i int) {
+	getFnArgs(dynamicModule, func(dynamicArgKey string, i int, pipeType reflect.Type) {
 		// inject provider priorities
 		// local inject
 		// global inject
