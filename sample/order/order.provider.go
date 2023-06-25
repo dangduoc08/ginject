@@ -1,4 +1,4 @@
-package list
+package order
 
 import (
 	"github.com/dangduoc08/gooh"
@@ -6,14 +6,19 @@ import (
 	"github.com/dangduoc08/gooh/modules/config"
 )
 
-type ListProvider struct {
+type OrderProvider struct {
 	ConfigService config.ConfigService
 }
 
-func (listProvider ListProvider) handler(
+func (orderProvider OrderProvider) NewProvider() core.Provider {
+	return orderProvider
+}
+
+func (orderProvider OrderProvider) Handler(
 	c gooh.Context,
 	p gooh.Param,
 	q gooh.Query,
+	h gooh.Header,
 ) any {
 	return gooh.Map{
 		"method":   c.Method,
@@ -21,11 +26,7 @@ func (listProvider ListProvider) handler(
 		"original": c.URL.Path,
 		"params":   p,
 		"queries":  q,
-		"TEST_ENV": listProvider.ConfigService.Get("TEST_ENV"),
+		"headers":  h,
+		"TEST_ENV": orderProvider.ConfigService.Get("TEST_ENV"),
 	}
-}
-
-func (listProvider ListProvider) Inject() core.Provider {
-
-	return listProvider
 }
