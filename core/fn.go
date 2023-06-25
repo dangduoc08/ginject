@@ -15,25 +15,38 @@ func isDynamicModule(moduleType string) (bool, error) {
 	return regexp.Match(`^func\(.*\*core.Module$`, []byte(moduleType))
 }
 
-func getFnArgs(f any, cb func(string, int, reflect.Type)) {
+// function were re-use at
+// dynamic module
+// isInjectable handler
+// checking pipe
+// due to all this patterns inject dependencies as function arguments
+func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int, reflect.Value)) {
 	injectableFnType := reflect.TypeOf(f)
 	for i := 0; i < injectableFnType.NumIn(); i++ {
 		argType := injectableFnType.In(i)
 		arg := argType.PkgPath() + "/" + argType.String()
+		newArg := reflect.New(argType).Elem()
+		argAnyValue := newArg.Interface()
 
-		_, isImplPipeable := reflect.New(argType).Interface().(common.Pipeable)
-		if isImplPipeable {
-			cb(PIPEABLE, i, argType)
+		if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
+			newArg = injectDependencies(queryPipeable, "pipe", injectedProviders)
+			cb(QUERY_PIPEABLE, i, newArg)
+		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
+			newArg = injectDependencies(paramPipeable, "pipe", injectedProviders)
+			cb(PARAM_PIPEABLE, i, newArg)
+		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
+			newArg = injectDependencies(headerPipeable, "pipe", injectedProviders)
+			cb(HEADER_PIPEABLE, i, newArg)
 		} else {
-			cb(arg, i, argType)
+			cb(arg, i, newArg)
 		}
 	}
 }
 
-func isInjectableHandler(handler any) error {
+func isInjectableHandler(handler any, injectedProviders map[string]Provider) error {
 	var e error
 
-	getFnArgs(handler, func(arg string, i int, pipeType reflect.Type) {
+	getFnArgs(handler, injectedProviders, func(arg string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[arg]; !ok {
 			e = fmt.Errorf(
 				"can't resolve dependencies of '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -78,7 +91,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 		)
 	}
 
-	getFnArgs(dynamicModule, func(dynamicArgKey string, i int, pipeType reflect.Type) {
+	getFnArgs(dynamicModule, globalProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		// inject provider priorities
 		// local inject
 		// global inject
@@ -141,7 +154,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 	for j := 0; j < componentType.NumField(); j++ {
 		componentField := componentType.Field(j)
 		componentFieldType := componentField.Type
-		componentFieldKey := componentFieldType.PkgPath() + "/" + componentFieldType.String()
+		componentFieldKey := genFieldKey(componentFieldType)
 		componentFieldName := componentField.Name
 
 		if !token.IsExported(componentFieldName) {
@@ -165,6 +178,10 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 		} else if componentFieldKey != "" && globalProviders[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviders[componentFieldKey]))
 		} else if !isInjectedProvider(componentFieldType) {
+
+			// if module set state to provider
+			// this line will set state again to provider
+			// other wise state = nil
 			newComponent.Elem().Field(j).Set(componentValue.Field(j))
 		} else {
 			panic(fmt.Errorf(
