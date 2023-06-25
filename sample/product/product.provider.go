@@ -1,4 +1,4 @@
-package userlist
+package product
 
 import (
 	"github.com/dangduoc08/gooh"
@@ -6,14 +6,19 @@ import (
 	"github.com/dangduoc08/gooh/modules/config"
 )
 
-type UserListProvider struct {
+type ProductProvider struct {
 	ConfigService config.ConfigService
 }
 
-func (userListProvider UserListProvider) handler(
+func (productProvider ProductProvider) NewProvider() core.Provider {
+	return productProvider
+}
+
+func (productProvider ProductProvider) Handler(
 	c gooh.Context,
 	p gooh.Param,
 	q gooh.Query,
+	h gooh.Header,
 ) any {
 	return gooh.Map{
 		"method":   c.Method,
@@ -21,11 +26,7 @@ func (userListProvider UserListProvider) handler(
 		"original": c.URL.Path,
 		"params":   p,
 		"queries":  q,
-		"TEST_ENV": userListProvider.ConfigService.Get("TEST_ENV"),
+		"headers":  h,
+		"TEST_ENV": productProvider.ConfigService.Get("TEST_ENV"),
 	}
-}
-
-func (userListProvider UserListProvider) Inject() core.Provider {
-
-	return userListProvider
 }
