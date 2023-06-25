@@ -358,7 +358,7 @@ func (m *Module) NewModule() *Module {
 
 					// add main handler
 					for pattern, handler := range rest.RouterMap {
-						if err := isInjectableHandler(handler); err != nil {
+						if err := isInjectableHandler(handler, injectedProviders); err != nil {
 							panic(utils.FmtRed(err.Error()))
 						}
 

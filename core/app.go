@@ -31,27 +31,31 @@ type App struct {
 
 // link to aliases
 const (
-	CONTEXT  = "/*context.Context"
-	REQUEST  = "/*http.Request"
-	RESPONSE = "net/http/http.ResponseWriter"
-	PARAM    = "github.com/dangduoc08/gooh/context/context.Values"
-	QUERY    = "net/url/url.Values"
-	HEADER   = "net/http/http.Header"
-	NEXT     = "/func()"
-	REDIRECT = "/func(string)"
-	PIPEABLE = "PIPEABLE"
+	CONTEXT         = "/*context.Context"
+	REQUEST         = "/*http.Request"
+	RESPONSE        = "net/http/http.ResponseWriter"
+	PARAM           = "github.com/dangduoc08/gooh/context/context.Values"
+	QUERY           = "net/url/url.Values"
+	HEADER          = "net/http/http.Header"
+	NEXT            = "/func()"
+	REDIRECT        = "/func(string)"
+	QUERY_PIPEABLE  = "query"
+	PARAM_PIPEABLE  = "param"
+	HEADER_PIPEABLE = "header"
 )
 
 var dependencies = map[string]int{
-	CONTEXT:  1,
-	REQUEST:  1,
-	RESPONSE: 1,
-	PARAM:    1,
-	QUERY:    1,
-	HEADER:   1,
-	NEXT:     1,
-	REDIRECT: 1,
-	PIPEABLE: 1,
+	CONTEXT:         1,
+	REQUEST:         1,
+	RESPONSE:        1,
+	PARAM:           1,
+	QUERY:           1,
+	HEADER:          1,
+	NEXT:            1,
+	REDIRECT:        1,
+	QUERY_PIPEABLE:  1,
+	PARAM_PIPEABLE:  1,
+	HEADER_PIPEABLE: 1,
 }
 
 func New() *App {
@@ -284,9 +288,9 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 
 func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	args := []reflect.Value{}
-	getFnArgs(f, func(dynamicArgKey string, i int, pipe reflect.Type) {
+	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
-			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c, pipe)))
+			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
 				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -299,7 +303,7 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	return reflect.ValueOf(f).Call(args)
 }
 
-func (app *App) getDependency(k string, c *context.Context, pipeType reflect.Type) any {
+func (app *App) getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 	switch k {
 	case CONTEXT:
 		return c
@@ -317,31 +321,23 @@ func (app *App) getDependency(k string, c *context.Context, pipeType reflect.Typ
 		return c.Next
 	case REDIRECT:
 		return c.Redirect
-	case PIPEABLE:
-		var bindParam any = nil
-		paramType := ""
-
-		for i := 0; i < pipeType.NumField(); i++ {
-			fieldKey := genFieldKey(pipeType.Field(i).Type)
-			if fieldKey == QUERY {
-				bindParam = c.URL.Query()
-				paramType = "query"
-			} else if fieldKey == PARAM {
-				bindParam = c.Param()
-				paramType = "param"
-			} else if fieldKey == HEADER {
-				bindParam = c.Request.Header
-				paramType = "header"
-			} else if app.injectedProviders[fieldKey] != nil {
-				// injectDependencies(pipeType, "pipe", app.injectedProviders)
-			}
-		}
-
-		return reflect.
-			New(pipeType).
-			Interface().(common.Pipeable).
-			Transform(bindParam, common.ArgumentMetadata{
-				ParamType: paramType,
+	case QUERY_PIPEABLE:
+		return pipeValue.
+			Interface().(common.QueryPipeable).
+			Transform(c.URL.Query(), common.ArgumentMetadata{
+				ParamType: QUERY_PIPEABLE,
+			})
+	case PARAM_PIPEABLE:
+		return pipeValue.
+			Interface().(common.ParamPipeable).
+			Transform(c.Param(), common.ArgumentMetadata{
+				ParamType: PARAM_PIPEABLE,
+			})
+	case HEADER_PIPEABLE:
+		return pipeValue.
+			Interface().(common.HeaderPipeable).
+			Transform(c.Request.Header, common.ArgumentMetadata{
+				ParamType: HEADER_PIPEABLE,
 			})
 	}
 
