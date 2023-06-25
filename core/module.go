@@ -12,6 +12,7 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
+var mainModule uintptr
 var modulesInjectedFromMain []uintptr
 var injectedDynamicModules []uintptr
 var globalProviders map[string]Provider = make(map[string]Provider)
@@ -97,8 +98,9 @@ func (m *Module) NewModule() *Module {
 		// invoked by create function.
 		// only modules injected by main module
 		// are able to use controllers
-		if len(modulesInjectedFromMain) == 0 {
+		if mainModule == 0 {
 			m.injectMainModules()
+			mainModule = reflect.ValueOf(m).Pointer()
 
 			// main module's provider
 			// alway inject globally
@@ -128,10 +130,12 @@ func (m *Module) NewModule() *Module {
 				m.providers = append(m.providers, injectModule.exports...)
 			}
 
-			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
-			m.Guards = append(m.Guards, injectModule.Guards...)
-			m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
-			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
+			if reflect.ValueOf(m).Pointer() == mainModule {
+				m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
+				m.Guards = append(m.Guards, injectModule.Guards...)
+				m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
+				m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
+			}
 		}
 
 		// inject local providers
@@ -187,10 +191,12 @@ func (m *Module) NewModule() *Module {
 				m.providers = append(m.providers, injectModule.exports...)
 			}
 
-			m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
-			m.Guards = append(m.Guards, injectModule.Guards...)
-			m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
-			m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
+			if reflect.ValueOf(m).Pointer() == mainModule {
+				m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
+				m.Guards = append(m.Guards, injectModule.Guards...)
+				m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
+				m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
+			}
 		}
 
 		// inject providers into controllers
