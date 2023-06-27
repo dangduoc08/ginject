@@ -1,6 +1,6 @@
 package context
 
-type Values map[string][]string
+type Param map[string][]string
 
 type Parameter interface {
 	Get(string) string
@@ -10,12 +10,12 @@ type Parameter interface {
 	Has(string) bool
 }
 
-func (c *Context) Param() Values {
+func (c *Context) Param() Param {
 	if c.param != nil {
 		return c.param
 	}
 
-	p := make(Values)
+	p := make(Param)
 	for key, indexs := range c.ParamKeys {
 		for _, i := range indexs {
 			p[key] = append(p[key], c.ParamValues[i])
@@ -26,30 +26,30 @@ func (c *Context) Param() Values {
 	return p
 }
 
-func (v Values) Get(key string) string {
-	if v == nil {
+func (p Param) Get(key string) string {
+	if p == nil {
 		return ""
 	}
-	vs := v[key]
-	if len(vs) == 0 {
+	ps := p[key]
+	if len(ps) == 0 {
 		return ""
 	}
-	return vs[0]
+	return ps[0]
 }
 
-func (v Values) Set(key, value string) {
-	v[key] = []string{value}
+func (p Param) Set(key, value string) {
+	p[key] = []string{value}
 }
 
-func (v Values) Add(key, value string) {
-	v[key] = append(v[key], value)
+func (p Param) Add(key, value string) {
+	p[key] = append(p[key], value)
 }
 
-func (v Values) Del(key string) {
-	delete(v, key)
+func (p Param) Del(key string) {
+	delete(p, key)
 }
 
-func (v Values) Has(key string) bool {
-	_, ok := v[key]
+func (p Param) Has(key string) bool {
+	_, ok := p[key]
 	return ok
 }

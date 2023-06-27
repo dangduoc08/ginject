@@ -34,28 +34,32 @@ const (
 	CONTEXT         = "/*context.Context"
 	REQUEST         = "/*http.Request"
 	RESPONSE        = "net/http/http.ResponseWriter"
-	PARAM           = "github.com/dangduoc08/gooh/context/context.Values"
+	BODY            = "github.com/dangduoc08/gooh/context/context.Body"
 	QUERY           = "net/url/url.Values"
 	HEADER          = "net/http/http.Header"
+	PARAM           = "github.com/dangduoc08/gooh/context/context.Param"
 	NEXT            = "/func()"
 	REDIRECT        = "/func(string)"
+	BODY_PIPEABLE   = "body"
 	QUERY_PIPEABLE  = "query"
-	PARAM_PIPEABLE  = "param"
 	HEADER_PIPEABLE = "header"
+	PARAM_PIPEABLE  = "param"
 )
 
 var dependencies = map[string]int{
 	CONTEXT:         1,
 	REQUEST:         1,
 	RESPONSE:        1,
-	PARAM:           1,
+	BODY:            1,
 	QUERY:           1,
 	HEADER:          1,
+	PARAM:           1,
 	NEXT:            1,
 	REDIRECT:        1,
+	BODY_PIPEABLE:   1,
 	QUERY_PIPEABLE:  1,
-	PARAM_PIPEABLE:  1,
 	HEADER_PIPEABLE: 1,
+	PARAM_PIPEABLE:  1,
 }
 
 func New() *App {
@@ -311,33 +315,41 @@ func (app *App) getDependency(k string, c *context.Context, pipeValue reflect.Va
 		return c.Request
 	case RESPONSE:
 		return c.ResponseWriter
+	case BODY:
+		return c.Body()
+	case QUERY:
+		return c.Query()
+	case HEADER:
+		return c.Header()
 	case PARAM:
 		return c.Param()
-	case QUERY:
-		return c.URL.Query()
-	case HEADER:
-		return c.Request.Header
 	case NEXT:
 		return c.Next
 	case REDIRECT:
 		return c.Redirect
+	case BODY_PIPEABLE:
+		return pipeValue.
+			Interface().(common.BodyPipeable).
+			Transform(c.Body(), common.ArgumentMetadata{
+				ParamType: BODY_PIPEABLE,
+			})
 	case QUERY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.QueryPipeable).
-			Transform(c.URL.Query(), common.ArgumentMetadata{
+			Transform(c.Query(), common.ArgumentMetadata{
 				ParamType: QUERY_PIPEABLE,
+			})
+	case HEADER_PIPEABLE:
+		return pipeValue.
+			Interface().(common.HeaderPipeable).
+			Transform(c.Header(), common.ArgumentMetadata{
+				ParamType: HEADER_PIPEABLE,
 			})
 	case PARAM_PIPEABLE:
 		return pipeValue.
 			Interface().(common.ParamPipeable).
 			Transform(c.Param(), common.ArgumentMetadata{
 				ParamType: PARAM_PIPEABLE,
-			})
-	case HEADER_PIPEABLE:
-		return pipeValue.
-			Interface().(common.HeaderPipeable).
-			Transform(c.Request.Header, common.ArgumentMetadata{
-				ParamType: HEADER_PIPEABLE,
 			})
 	}
 

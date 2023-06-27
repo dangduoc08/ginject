@@ -2,7 +2,6 @@ package gooh
 
 import (
 	"net/http"
-	"net/url"
 
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/core"
@@ -18,9 +17,10 @@ type (
 	Context  = *context.Context
 	Request  = *http.Request
 	Response = http.ResponseWriter
-	Param    = context.Values
-	Query    = url.Values
-	Header   = http.Header
+	Body     = context.Body
+	Query    = context.Query
+	Header   = context.Header
+	Param    = context.Param
 	Next     = context.Next
 	Redirect = context.Redirect
 )

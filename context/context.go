@@ -22,7 +22,10 @@ type Responser interface {
 	GetRoute() string
 	Status(int) Responser
 	Redirect(string)
-	Param() Values
+	Body() Body
+	Header() Header
+	Query() Query
+	Param() Param
 	Text(string, ...any)
 	JSONP(...any)
 	JSON(...any)
@@ -34,9 +37,11 @@ type Context struct {
 
 	dataWriter DataWriter
 
-	param       Values
+	param       Param
 	ParamKeys   map[string][]int
 	ParamValues []string
+
+	body Body
 
 	route string
 
@@ -50,13 +55,6 @@ func NewContext() *Context {
 	return &Context{
 		Code: http.StatusOK,
 	}
-}
-
-func (c *Context) SetHeaders(pair map[string]string) Responser {
-	for key, value := range pair {
-		c.ResponseWriter.Header().Set(key, value)
-	}
-	return c
 }
 
 func (c *Context) Status(code int) Responser {
