@@ -116,6 +116,7 @@ func (c *Context) Reset() {
 	c.Code = http.StatusOK
 	c.route = ""
 	c.param = nil
+	c.body = nil
 	c.ParamKeys = nil
 	c.ParamValues = nil
 	c.Next = nil

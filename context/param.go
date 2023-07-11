@@ -15,15 +15,14 @@ func (c *Context) Param() Param {
 		return c.param
 	}
 
-	p := make(Param)
+	c.param = make(Param)
 	for key, indexs := range c.ParamKeys {
 		for _, i := range indexs {
-			p[key] = append(p[key], c.ParamValues[i])
+			c.param[key] = append(c.param[key], c.ParamValues[i])
 		}
 	}
 
-	c.param = p
-	return p
+	return c.param
 }
 
 func (p Param) Get(key string) string {
