@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/routing"
@@ -27,6 +28,7 @@ type App struct {
 	globalGuarders     []common.Guarder
 	globalInterceptors []common.Interceptable
 	injectedProviders  map[string]Provider
+	aggregationMap     map[string][]*aggregation.Aggregation
 }
 
 // link to aliases
@@ -66,7 +68,8 @@ func New() *App {
 	event := context.NewEvent()
 
 	app := App{
-		route: routing.NewRouter(),
+		route:          routing.NewRouter(),
+		aggregationMap: make(map[string][]*aggregation.Aggregation),
 		pool: sync.Pool{
 			New: func() any {
 				c := context.NewContext()
@@ -118,9 +121,11 @@ func (app *App) Create(m *Module) {
 		newGlobalGuard := injectDependencies(globalGuard, "guard", injectedProviders)
 		globalGuard = common.Construct(newGlobalGuard.Interface(), "NewGuard").(common.Guarder)
 
-		canActivateMiddleware := func(ctx *context.Context) {
-			common.HandleGuard(ctx, globalGuard.CanActivate(ctx))
-		}
+		canActivateMiddleware := func(guard common.Guarder) context.Handler {
+			return func(ctx *context.Context) {
+				common.HandleGuard(ctx, guard.CanActivate(ctx))
+			}
+		}(globalGuard)
 
 		for _, mainHandlerItem := range app.module.MainHandlers {
 			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(canActivateMiddleware)
@@ -129,9 +134,13 @@ func (app *App) Create(m *Module) {
 
 	// module guards
 	for _, moduleGuard := range app.module.Guards {
-		canActivateMiddleware := func(ctx *context.Context) {
-			common.HandleGuard(ctx, moduleGuard.Handler.(func(*context.Context) bool)(ctx))
-		}
+
+		canActivateMiddleware := func(canActiveFn common.CanActivate) context.Handler {
+			return func(ctx *context.Context) {
+				common.HandleGuard(ctx, canActiveFn(ctx))
+			}
+		}(moduleGuard.Handler.(common.CanActivate))
+
 		app.route.For(moduleGuard.Route, []string{moduleGuard.Method})(canActivateMiddleware)
 	}
 
@@ -140,25 +149,57 @@ func (app *App) Create(m *Module) {
 		newGlobalInterceptor := injectDependencies(globalInterceptor, "interceptor", injectedProviders)
 		globalInterceptor = common.Construct(newGlobalInterceptor.Interface(), "NewInterceptor").(common.Interceptable)
 
-		interceptorMiddleware := func(ctx *context.Context) {
-			globalInterceptor.Intercept(ctx, 1)
-
-			ctx.Next()
-		}
-
 		for _, mainHandlerItem := range app.module.MainHandlers {
-			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(interceptorMiddleware)
+			aggregationInstance := aggregation.NewAggregation()
+			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
+			app.aggregationMap[endpoint] = append(app.aggregationMap[endpoint], aggregationInstance)
+			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) context.Handler {
+				return func(ctx *context.Context) {
+
+					// IsMainHandlerCalled will be = true
+					// if Pipe was invoked in Intercept function
+					aggregationInstance.IsMainHandlerCalled = false
+					aggregationInstance.SetMainData(nil)
+
+					// invoke intercept function
+					// value may returned from Pipe function
+					// depend on Intercept invoked at run time
+					value := interceptor.Intercept(ctx, aggregationInstance)
+					aggregationInstance.InterceptorData = value
+
+					ctx.Next()
+				}
+			}(globalInterceptor, aggregationInstance)
+
+			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(interceptMiddleware)
 		}
 	}
 
-	// module interceptors
 	for _, moduleInterceptor := range app.module.Interceptors {
-		interceptorMiddleware := func(ctx *context.Context) {
-			moduleInterceptor.Handler.(func(*context.Context, any) any)(ctx, 1)
+		aggregationInstance := aggregation.NewAggregation()
+		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, moduleInterceptor.Method))
+		app.aggregationMap[endpoint] = append(app.aggregationMap[endpoint], aggregationInstance)
 
-			ctx.Next()
-		}
-		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptorMiddleware)
+		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) context.Handler {
+			return func(ctx *context.Context) {
+
+				// IsMainHandlerCalled will be = true
+				// if Pipe was invoked in Intercept function
+				aggregationInstance.IsMainHandlerCalled = false
+				aggregationInstance.SetMainData(nil)
+
+				// invoke intercept function
+				// value may returned from Pipe function
+				// depend on Intercept invoked at run time
+				value := interceptFn(ctx, aggregationInstance)
+				aggregationInstance.InterceptorData = value
+
+				ctx.Next()
+			}
+		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
+
+		// add interceptor middleware
+		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptMiddleware)
 	}
 
 	// main handler
@@ -260,12 +301,51 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 					// handler = nil / main handler
 					// meaning this is injectable handler
 					injectableHandler := app.route.InjectableHandlers[matchedRoute]
-					values := app.provideAndInvoke(injectableHandler, c)
-					if len(values) == 1 {
-						app.selectData(c, values[0])
-					} else if len(values) > 1 {
-						app.selectStatusCode(c, values[0])
-						app.selectData(c, values[1])
+
+					// data return from main handler
+					data := app.provideAndInvoke(injectableHandler, c)
+
+					if aggregations, ok := app.aggregationMap[matchedRoute]; ok {
+						var aggregatedData any
+						isMainHandlerCalled := true
+
+						totalAggregations := len(aggregations)
+
+						for i := totalAggregations - 1; i >= 0; i-- {
+							aggregation := aggregations[i]
+
+							if aggregation.IsMainHandlerCalled {
+
+								// set data from main handler into
+								// first interceptor
+								if i == totalAggregations-1 {
+									if len(data) == 1 {
+										aggregatedData = data[0].Interface()
+									} else if len(data) > 1 {
+										app.selectStatusCode(c, data[0])
+										aggregatedData = data[1].Interface()
+									}
+								}
+
+								aggregation.SetMainData(aggregatedData)
+								aggregatedData = aggregation.Aggregate()
+							} else {
+								isMainHandlerCalled = false
+								app.selectData(c, reflect.ValueOf(aggregation.InterceptorData))
+								break
+							}
+						}
+
+						if isMainHandlerCalled {
+							app.selectData(c, reflect.ValueOf(aggregatedData))
+						}
+					} else {
+						if len(data) == 1 {
+							app.selectData(c, data[0])
+						} else if len(data) > 1 {
+							app.selectStatusCode(c, data[0])
+							app.selectData(c, data[1])
+						}
 					}
 				} else {
 					handler(c)

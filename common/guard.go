@@ -7,6 +7,8 @@ import (
 	"github.com/dangduoc08/gooh/routing"
 )
 
+type CanActivate = func(*context.Context) bool
+
 type Guarder interface {
 	CanActivate(*context.Context) bool
 }
