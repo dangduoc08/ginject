@@ -25,6 +25,8 @@ var noInjectedFields = []string{
 	"common.Guard",
 	"Interceptor",
 	"common.Interceptor",
+	"ExceptionFilter",
+	"common.ExceptionFilter",
 }
 
 type Module struct {
@@ -56,6 +58,13 @@ type Module struct {
 
 	// store module interceptors
 	Interceptors []struct {
+		Method  string
+		Route   string
+		Handler any
+	}
+
+	// store module exception filters
+	ExceptionFilters []struct {
 		Method  string
 		Route   string
 		Handler any
@@ -134,6 +143,7 @@ func (m *Module) NewModule() *Module {
 				m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
 				m.Guards = append(m.Guards, injectModule.Guards...)
 				m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
+				m.ExceptionFilters = append(m.ExceptionFilters, injectModule.ExceptionFilters...)
 				m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 			}
 		}
@@ -195,6 +205,7 @@ func (m *Module) NewModule() *Module {
 				m.Middlewares = append(m.Middlewares, injectModule.Middlewares...)
 				m.Guards = append(m.Guards, injectModule.Guards...)
 				m.Interceptors = append(m.Interceptors, injectModule.Interceptors...)
+				m.ExceptionFilters = append(m.ExceptionFilters, injectModule.ExceptionFilters...)
 				m.MainHandlers = append(m.MainHandlers, injectModule.MainHandlers...)
 			}
 		}
@@ -352,6 +363,66 @@ func (m *Module) NewModule() *Module {
 								Method:  interceptorItem.Method,
 								Route:   interceptorItem.Route,
 								Handler: interceptorItem.Handler,
+							})
+						}
+					}
+
+					// apply controller bound exception filer
+					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
+						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
+						exceptionFilterItemArr := exceptionFilter.AddExceptionFiltersToModule(&rest, func(i int, exceptionFilterableType reflect.Type, exceptionFilterableValue, newExceptionFilter reflect.Value) {
+
+							// callback use to inject providers
+							// into exceptionFilter
+							exceptionFilterField := exceptionFilterableType.Field(i)
+							exceptionFilterFieldType := exceptionFilterField.Type
+							exceptionFilterFieldNameKey := exceptionFilterField.Name
+							injectProviderKey := exceptionFilterFieldType.PkgPath() + "/" + exceptionFilterFieldType.String()
+
+							if !token.IsExported(exceptionFilterFieldNameKey) {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't set value to unexported '%v' field of the '%v' exceptionFilter",
+										exceptionFilterFieldNameKey,
+										exceptionFilterableType.Name(),
+									),
+								))
+							}
+
+							// Inject providers into exceptionFilter
+							// inject provider priorities
+							// local inject
+							// global inject
+							// inner packages
+							// resolve dependencies error
+							if injectedProviders[injectProviderKey] != nil {
+								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+							} else if globalProviders[injectProviderKey] != nil {
+								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if !isInjectedProvider(exceptionFilterFieldType) {
+								newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
+							} else {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' exceptionFilter",
+										exceptionFilterFieldType.String(),
+										i,
+										exceptionFilterableType.Name(),
+									),
+								))
+							}
+						})
+
+						// apply controller bound exceptionFilters
+						for _, exceptionFilterItem := range exceptionFilterItemArr {
+							m.ExceptionFilters = append(m.ExceptionFilters, struct {
+								Method  string
+								Route   string
+								Handler any
+							}{
+								Method:  exceptionFilterItem.Method,
+								Route:   exceptionFilterItem.Route,
+								Handler: exceptionFilterItem.Handler,
 							})
 						}
 					}

@@ -6,7 +6,7 @@ import (
 
 const (
 	REQUEST_FINISHED = "REQUEST_FINISHED"
-	REQUEST_FAILED   = "REQUEST_FAILED"
+	CATCH_EXCEPTION  = "CATCH_EXCEPTION"
 )
 
 type event struct {
