@@ -2,12 +2,12 @@ package common
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
 	"runtime"
 	"strings"
 
 	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/exception"
 )
 
 // to ensure constructor only run once
@@ -152,12 +152,12 @@ func HandleGuard(ctx *context.Context, canActive bool) {
 	if canActive {
 		ctx.Next()
 	} else {
-		code := http.StatusForbidden
-		ctx.Status(code).JSON(context.Map{
-			"code":    code,
-			"message": "Forbidden resource",
-			"data":    nil,
-			"error":   http.StatusText(code),
+		forbiddenException := exception.ForbiddenException("Access denied")
+		httpCode, _ := forbiddenException.GetHTTPStatus()
+		ctx.Status(httpCode).JSON(context.Map{
+			"code":    forbiddenException.GetCode(),
+			"error":   forbiddenException.Error(),
+			"message": forbiddenException.GetResponse(),
 		})
 	}
 }

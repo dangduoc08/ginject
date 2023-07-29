@@ -5,12 +5,14 @@ import (
 	"log"
 	"net/http"
 	"reflect"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/exception"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -21,14 +23,16 @@ type globalMiddleware struct {
 }
 
 type App struct {
-	route              *routing.Router
-	module             *Module
-	pool               sync.Pool
-	globalMiddlewares  []globalMiddleware
-	globalGuarders     []common.Guarder
-	globalInterceptors []common.Interceptable
-	injectedProviders  map[string]Provider
-	aggregationMap     map[string][]*aggregation.Aggregation
+	route                  *routing.Router
+	module                 *Module
+	pool                   sync.Pool
+	globalMiddlewares      []globalMiddleware
+	globalGuarders         []common.Guarder
+	globalInterceptors     []common.Interceptable
+	globalExceptionFilters []common.ExceptionFilterable
+	injectedProviders      map[string]Provider
+	aggregationMap         map[string][]*aggregation.Aggregation
+	catchFnsMap            map[string][]common.Catch
 }
 
 // link to aliases
@@ -70,6 +74,7 @@ func New() *App {
 	app := App{
 		route:          routing.NewRouter(),
 		aggregationMap: make(map[string][]*aggregation.Aggregation),
+		catchFnsMap:    make(map[string][]common.Catch),
 		pool: sync.Pool{
 			New: func() any {
 				c := context.NewContext()
@@ -79,6 +84,9 @@ func New() *App {
 			},
 		},
 	}
+
+	// binding default exception filter
+	app.BindGlobalExceptionFilters(GlobalExceptionFilter{})
 
 	return &app
 }
@@ -202,6 +210,84 @@ func (app *App) Create(m *Module) {
 		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptMiddleware)
 	}
 
+	// module exception filters
+	totalModuleExceptionFilers := len(app.module.ExceptionFilters)
+	for i := totalModuleExceptionFilers - 1; i >= 0; i-- {
+		moduleExceptionFilter := app.module.ExceptionFilters[i]
+		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, moduleExceptionFilter.Method))
+		app.catchFnsMap[endpoint] = append(app.catchFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+	}
+
+	// global exception filters
+	totalGlobalExceptionFilters := len(app.globalExceptionFilters)
+	for i := totalGlobalExceptionFilters - 1; i >= 0; i-- {
+		globalExceptionFilter := app.globalExceptionFilters[i]
+		newGlobalExceptionFilter := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
+		globalExceptionFilter = common.Construct(newGlobalExceptionFilter.Interface(), "NewExceptionFilter").(common.ExceptionFilterable)
+
+		for _, mainHandlerItem := range app.module.MainHandlers {
+			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
+			app.catchFnsMap[endpoint] = append(app.catchFnsMap[endpoint], globalExceptionFilter.Catch)
+		}
+	}
+
+	for pattern, catchFns := range app.catchFnsMap {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
+			return func(ctx *context.Context) {
+				ctx.Event.Once(catchEvent, func(args ...any) {
+					catchFnIndex := args[2].(int)
+
+					defer func() {
+						if rec := recover(); rec != nil {
+							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+						}
+					}()
+
+					newC := args[0].(*context.Context)
+					catchFn := catchFns[catchFnIndex]
+
+					response := http.StatusText(http.StatusInternalServerError)
+
+					switch arg := args[1].(type) {
+					case exception.HTTPException:
+						catchFn(newC, &arg)
+						return
+					case error:
+						response = arg.Error()
+					case string:
+						response = arg
+					case int:
+					case int8:
+					case int16:
+					case int32:
+					case int64:
+					case uint:
+					case uint8:
+					case uint16:
+					case uint32:
+					case uint64:
+					case float32:
+					case float64:
+					case complex64:
+					case complex128:
+					case uintptr:
+						response = strconv.Itoa(args[1].(int))
+					}
+					httpException := exception.InternalServerErrorException(response, map[string]any{
+						"description": "Unknown exception",
+					})
+					catchFn(newC, &httpException)
+				})
+
+				ctx.Next()
+			}
+		}(pattern, catchFns)
+
+		// add catch middleware
+		httpMethod, route := routing.SplitRoute(pattern)
+		app.route.For(route, []string{httpMethod})(catchMiddleware)
+	}
+
 	// main handler
 	for _, moduleHandler := range app.module.MainHandlers {
 		app.route.AddInjectableHandler(moduleHandler.Route, moduleHandler.Method, moduleHandler.Handler)
@@ -216,6 +302,12 @@ func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
 
 func (app *App) BindGlobalInterceptors(interceptors ...common.Interceptable) *App {
 	app.globalInterceptors = append(app.globalInterceptors, interceptors...)
+
+	return app
+}
+
+func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionFilterable) *App {
+	app.globalExceptionFilters = append(app.globalExceptionFilters, exceptionFilters...)
 
 	return app
 }
@@ -270,9 +362,13 @@ func (app *App) ListenAndServe(addr string) error {
 }
 
 func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
+	var catchEvent string
 	defer func() {
 		if rec := recover(); rec != nil {
-			c.Event.Emit(context.REQUEST_FAILED, c, rec)
+			if _, ok := app.catchFnsMap[catchEvent]; ok {
+				// 3rd param is index of catch function
+				c.Event.Emit(catchEvent, c, rec, 0)
+			}
 		}
 	}()
 
@@ -284,6 +380,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	}
 
 	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
+	catchEvent = matchedRoute
 
 	if isMatched {
 		c.SetRoute(matchedRoute)
@@ -363,9 +460,15 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 		}
 
 		if isNext {
-			c.Status(http.StatusNotFound)
+			notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
+			httpCode, _ := notFoundException.GetHTTPStatus()
+			c.Status(httpCode)
 			c.Event.Emit(context.REQUEST_FINISHED, c)
-			http.NotFound(w, r)
+			c.JSON(context.Map{
+				"code":    notFoundException.GetCode(),
+				"error":   notFoundException.Error(),
+				"message": notFoundException.GetResponse(),
+			})
 		}
 	}
 }
