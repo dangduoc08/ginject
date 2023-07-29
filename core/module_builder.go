@@ -103,6 +103,11 @@ func (m *moduleBuilder) Build() *Module {
 			Route   string
 			Handler any
 		}{},
+		ExceptionFilters: []struct {
+			Method  string
+			Route   string
+			Handler any
+		}{},
 		MainHandlers: []struct {
 			Method  string
 			Route   string
