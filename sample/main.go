@@ -8,18 +8,17 @@ import (
 	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/modules/config"
-	"github.com/dangduoc08/gooh/sample/book"
+	"github.com/dangduoc08/gooh/sample/company"
 	"github.com/dangduoc08/gooh/sample/global"
-	"github.com/dangduoc08/gooh/sample/order"
-	"github.com/dangduoc08/gooh/sample/product"
 )
 
 func main() {
 	app := core.New()
 	app.
-		Use(middlewares.Recovery, global.Middleware, middlewares.RequestLogger).
-		BindGlobalGuards(global.Guard{}).
-		BindGlobalInterceptors(global.Interceptor{})
+		Use(middlewares.RequestLogger).
+		BindGlobalGuards(global.PermissionGuard{}).
+		BindGlobalInterceptors(global.LoggingInterceptor{}, global.ResponseInterceptor{}).
+		BindGlobalExceptionFilters(global.AllExceptionsFilter{})
 
 	app.Create(
 		core.ModuleBuilder().
@@ -28,9 +27,7 @@ func main() {
 					IsGlobal:          true,
 					IsExpandVariables: true,
 				}),
-				book.BookModule,
-				product.ProductModule,
-				order.OrderModule,
+				company.CompanyModule,
 			).
 			Build(),
 	)

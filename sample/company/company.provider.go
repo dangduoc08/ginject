@@ -1,4 +1,4 @@
-package product
+package company
 
 import (
 	"github.com/dangduoc08/gooh"
@@ -6,19 +6,20 @@ import (
 	"github.com/dangduoc08/gooh/modules/config"
 )
 
-type ProductProvider struct {
+type CompanyProvider struct {
 	ConfigService config.ConfigService
 }
 
-func (productProvider ProductProvider) NewProvider() core.Provider {
-	return productProvider
+func (companyProvider CompanyProvider) NewProvider() core.Provider {
+	return companyProvider
 }
 
-func (productProvider ProductProvider) Handler(
+func (companyProvider CompanyProvider) Handler(
 	c gooh.Context,
 	p gooh.Param,
 	q gooh.Query,
 	h gooh.Header,
+	b gooh.Body,
 ) any {
 	return gooh.Map{
 		"method":   c.Method,
@@ -27,6 +28,7 @@ func (productProvider ProductProvider) Handler(
 		"params":   p,
 		"queries":  q,
 		"headers":  h,
-		"TEST_ENV": productProvider.ConfigService.Get("TEST_ENV"),
+		"body":     b,
+		"envs":     companyProvider.ConfigService.Get("TEST_ENV"),
 	}
 }
