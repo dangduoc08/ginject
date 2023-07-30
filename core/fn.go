@@ -28,15 +28,18 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 		newArg := reflect.New(argType).Elem()
 		argAnyValue := newArg.Interface()
 
-		if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
+		if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
+			newArg = injectDependencies(bodyPipeable, "pipe", injectedProviders)
+			cb(BODY_PIPEABLE, i, newArg)
+		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
 			newArg = injectDependencies(queryPipeable, "pipe", injectedProviders)
 			cb(QUERY_PIPEABLE, i, newArg)
-		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
-			newArg = injectDependencies(paramPipeable, "pipe", injectedProviders)
-			cb(PARAM_PIPEABLE, i, newArg)
 		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
 			newArg = injectDependencies(headerPipeable, "pipe", injectedProviders)
 			cb(HEADER_PIPEABLE, i, newArg)
+		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
+			newArg = injectDependencies(paramPipeable, "pipe", injectedProviders)
+			cb(PARAM_PIPEABLE, i, newArg)
 		} else {
 			cb(arg, i, newArg)
 		}
