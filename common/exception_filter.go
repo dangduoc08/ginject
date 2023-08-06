@@ -39,7 +39,7 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 	return e
 }
 
-func (e *ExceptionFilter) AddExceptionFiltersToModule(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
+func (e *ExceptionFilter) InjectProvidersIntoExceptionFilters(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
 	exceptionFilterItemArr := []ExceptionFilterItem{}
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
@@ -61,13 +61,23 @@ func (e *ExceptionFilter) AddExceptionFiltersToModule(r *Rest, cb func(int, refl
 
 		exceptionFilterHandler.ExceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
 
+		shouldAddExceptionFilter := map[string]bool{}
+		for _, handler := range exceptionFilterHandler.Handlers {
+			fnName := GetFnName(handler)
+			httpMethod, route := ParseFnNameToURL(fnName)
+			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
+			shouldAddExceptionFilter[routing.AddMethodToRoute(route, httpMethod)] = true
+		}
+
 		for pattern := range r.patternToFnNameMap {
-			httpMethod, route := routing.SplitRoute(pattern)
-			exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-				Method:  httpMethod,
-				Route:   routing.ToEndpoint(route),
-				Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
-			})
+			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
+				httpMethod, route := routing.SplitRoute(pattern)
+				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
+					Method:  httpMethod,
+					Route:   routing.ToEndpoint(route),
+					Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
+				})
+			}
 		}
 	}
 

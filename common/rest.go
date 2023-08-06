@@ -82,6 +82,18 @@ func (r *Rest) GetPrefixes() []map[string]string {
 	return prefixes
 }
 
+func (r *Rest) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
+	for _, prefix := range prefixes {
+		for prefixValue, prefixFnName := range prefix {
+			if prefixFnName == "ALL" || prefixFnName == fnName {
+				route = prefixValue + route
+			}
+		}
+	}
+
+	return route
+}
+
 func (r *Rest) Prefix(v string, handlers ...any) *Rest {
 	r.prefixes = append([]Prefix{
 		{
@@ -98,13 +110,7 @@ func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]st
 
 	httpMethod, route := ParseFnNameToURL(fnName)
 	if httpMethod != "" {
-		for _, prefix := range prefixes {
-			for prefixValue, prefixFnName := range prefix {
-				if prefixFnName == "ALL" || prefixFnName == fnName {
-					route = prefixValue + route
-				}
-			}
-		}
+		route = r.addPrefixesToRoute(route, fnName, prefixes)
 
 		parsedRoute, _ := routing.ParseToParamKey(routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod))
 		if insertedRoutes[parsedRoute] == "" {

@@ -250,7 +250,7 @@ func (m *Module) NewModule() *Module {
 					// apply controller bound guard
 					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
 						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
-						guardItemArr := guard.AddGuardsToModule(&rest, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
+						guardItemArr := guard.InjectProvidersIntoGuards(&rest, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
 
 							// callback use to inject providers
 							// into guard
@@ -310,7 +310,7 @@ func (m *Module) NewModule() *Module {
 					// apply controller bound interceptor
 					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[4]); loadedInterceptor {
 						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[4]).Interface().(common.Interceptor)
-						interceptorItemArr := interceptor.AddInterceptorsToModule(&rest, func(i int, interceptableType reflect.Type, interceptableValue, newInterceptor reflect.Value) {
+						interceptorItemArr := interceptor.InjectProvidersIntoInterceptors(&rest, func(i int, interceptableType reflect.Type, interceptableValue, newInterceptor reflect.Value) {
 
 							// callback use to inject providers
 							// into interceptor
@@ -370,7 +370,7 @@ func (m *Module) NewModule() *Module {
 					// apply controller bound exception filer
 					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
 						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
-						exceptionFilterItemArr := exceptionFilter.AddExceptionFiltersToModule(&rest, func(i int, exceptionFilterableType reflect.Type, exceptionFilterableValue, newExceptionFilter reflect.Value) {
+						exceptionFilterItemArr := exceptionFilter.InjectProvidersIntoExceptionFilters(&rest, func(i int, exceptionFilterableType reflect.Type, exceptionFilterableValue, newExceptionFilter reflect.Value) {
 
 							// callback use to inject providers
 							// into exceptionFilter

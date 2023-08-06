@@ -40,7 +40,7 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 	return i
 }
 
-func (i *Interceptor) AddInterceptorsToModule(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
+func (i *Interceptor) InjectProvidersIntoInterceptors(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
 	interceptorItemArr := []InterceptorItem{}
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
@@ -62,13 +62,23 @@ func (i *Interceptor) AddInterceptorsToModule(r *Rest, cb func(int, reflect.Type
 
 		interceptorHandler.Interceptable = newInterceptable.(Interceptable)
 
+		shouldAddInterceptors := map[string]bool{}
+		for _, handler := range interceptorHandler.Handlers {
+			fnName := GetFnName(handler)
+			httpMethod, route := ParseFnNameToURL(fnName)
+			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
+			shouldAddInterceptors[routing.AddMethodToRoute(route, httpMethod)] = true
+		}
+
 		for pattern := range r.patternToFnNameMap {
-			httpMethod, route := routing.SplitRoute(pattern)
-			interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-				Method:  httpMethod,
-				Route:   routing.ToEndpoint(route),
-				Handler: interceptorHandler.Interceptable.Intercept,
-			})
+			if _, ok := shouldAddInterceptors[pattern]; ok || len(shouldAddInterceptors) == 0 {
+				httpMethod, route := routing.SplitRoute(pattern)
+				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
+					Method:  httpMethod,
+					Route:   routing.ToEndpoint(route),
+					Handler: interceptorHandler.Interceptable.Intercept,
+				})
+			}
 		}
 	}
 
