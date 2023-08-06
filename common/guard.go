@@ -38,11 +38,10 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 	return g
 }
 
-func (g *Guard) AddGuardsToModule(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
+func (g *Guard) InjectProvidersIntoGuards(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
 	guardItemArr := []GuardItem{}
 
 	for _, guardHandler := range g.GuardHandlers {
-
 		guarderType := reflect.TypeOf(guardHandler.Guarder)
 		guarderValue := reflect.ValueOf(guardHandler.Guarder)
 		newGuard := reflect.New(guarderType)
@@ -60,13 +59,23 @@ func (g *Guard) AddGuardsToModule(r *Rest, cb func(int, reflect.Type, reflect.Va
 
 		guardHandler.Guarder = newGuarder.(Guarder)
 
+		shouldAddGuard := map[string]bool{}
+		for _, handler := range guardHandler.Handlers {
+			fnName := GetFnName(handler)
+			httpMethod, route := ParseFnNameToURL(fnName)
+			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
+			shouldAddGuard[routing.AddMethodToRoute(route, httpMethod)] = true
+		}
+
 		for pattern := range r.patternToFnNameMap {
-			httpMethod, route := routing.SplitRoute(pattern)
-			guardItemArr = append(guardItemArr, GuardItem{
-				Method:  httpMethod,
-				Route:   routing.ToEndpoint(route),
-				Handler: guardHandler.Guarder.CanActivate,
-			})
+			if _, ok := shouldAddGuard[pattern]; ok || len(shouldAddGuard) == 0 {
+				httpMethod, route := routing.SplitRoute(pattern)
+				guardItemArr = append(guardItemArr, GuardItem{
+					Method:  httpMethod,
+					Route:   routing.ToEndpoint(route),
+					Handler: guardHandler.Guarder.CanActivate,
+				})
+			}
 		}
 	}
 
