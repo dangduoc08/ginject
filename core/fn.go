@@ -31,6 +31,9 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 		if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
 			newArg = injectDependencies(bodyPipeable, "pipe", injectedProviders)
 			cb(BODY_PIPEABLE, i, newArg)
+		} else if formPipeable, isImplFormPipeable := argAnyValue.(common.FormPipeable); isImplFormPipeable {
+			newArg = injectDependencies(formPipeable, "pipe", injectedProviders)
+			cb(FORM_PIPEABLE, i, newArg)
 		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
 			newArg = injectDependencies(queryPipeable, "pipe", injectedProviders)
 			cb(QUERY_PIPEABLE, i, newArg)

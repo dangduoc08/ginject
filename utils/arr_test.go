@@ -133,3 +133,22 @@ func TestArrToUnique(t *testing.T) {
 		}
 	}
 }
+
+func TestArrGet(t *testing.T) {
+	arr := []string{
+		"John Doe",
+		"Jane Doe",
+	}
+
+	expect1 := "John Doe"
+	output1, _ := ArrGet[string](arr, 0)
+	if expect1 != output1 {
+		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
+	}
+
+	expect2 := ""
+	output2, _ := ArrGet[string](arr, 100)
+	if expect2 != output2 {
+		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
+	}
+}

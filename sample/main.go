@@ -23,7 +23,7 @@ func main() {
 	app.Create(
 		core.ModuleBuilder().
 			Imports(
-				config.Register(config.ConfigModuleOptions{
+				config.Register(&config.ConfigModuleOptions{
 					IsGlobal:          true,
 					IsExpandVariables: true,
 				}),

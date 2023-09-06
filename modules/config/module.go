@@ -24,7 +24,7 @@ type ConfigModuleOptions struct {
 	OnInit            ConfigOnInitFn
 }
 
-func loadConfigOptions(opts ConfigModuleOptions) ConfigModuleOptions {
+func loadConfigOptions(opts *ConfigModuleOptions) ConfigModuleOptions {
 	envFilePaths := opts.ENVFilePaths
 	if len(envFilePaths) == 0 {
 		defaultPath, err := os.Getwd()
@@ -100,7 +100,7 @@ func mergeIntoOSENV(osENV map[string]any, isOverride bool, envs ...map[string]an
 	}
 }
 
-func Register(opts ConfigModuleOptions) *core.Module {
+func Register(opts *ConfigModuleOptions) *core.Module {
 	configOptions := loadConfigOptions(opts)
 	osENVMap := loadOSEnv()
 	envs := []map[string]any{}

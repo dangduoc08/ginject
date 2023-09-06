@@ -5,7 +5,7 @@ import (
 )
 
 func TestLoadDotEnv(t *testing.T) {
-	output1 := loadDotENV(loadConfigOptions(ConfigModuleOptions{}).ENVFilePaths[0], true)
+	output1 := loadDotENV(loadConfigOptions(&ConfigModuleOptions{}).ENVFilePaths[0], true)
 	expect1 := map[string]string{}
 	expect1["KEY_1"] = "1"
 	expect1["KEY2"] = "22"
