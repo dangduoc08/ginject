@@ -1,16 +1,41 @@
 package context
 
-import "net/http"
+import (
+	"net/textproto"
+)
 
-type Header = http.Header
+type Header map[string][]string
 
 func (c *Context) Header() Header {
-	return c.Request.Header
+	if c.header != nil {
+		return c.header
+	}
+	c.header = Header(c.Request.Header)
+
+	return c.header
 }
 
-func (c *Context) SetHeaders(pair map[string]string) Responser {
-	for key, value := range pair {
-		c.ResponseWriter.Header().Set(key, value)
-	}
-	return c
+func (h Header) Get(k string) string {
+	return textproto.MIMEHeader(h).Get(k)
+}
+
+func (h Header) Set(k, v string) {
+	textproto.MIMEHeader(h).Set(k, v)
+}
+
+func (h Header) Add(k, v string) {
+	textproto.MIMEHeader(h).Add(k, v)
+}
+
+func (h Header) Del(k string) {
+	textproto.MIMEHeader(h).Del(k)
+}
+
+func (h Header) Has(k string) bool {
+	_, ok := h[k]
+	return ok
+}
+
+func (h Header) Bind(s any) any {
+	return bindStrArr(h, s)
 }
