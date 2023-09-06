@@ -8,6 +8,10 @@ type BodyPipeable interface {
 	Transform(context.Body, ArgumentMetadata) any
 }
 
+type FormPipeable interface {
+	Transform(context.Form, ArgumentMetadata) any
+}
+
 type QueryPipeable interface {
 	Transform(context.Query, ArgumentMetadata) any
 }

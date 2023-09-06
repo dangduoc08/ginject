@@ -9,9 +9,7 @@ import (
 type Body map[string]any
 
 const (
-	applicationJSON               = "application/json"
-	multipartFormData             = "multipart/form-data"
-	applicationXWWWFormUrlencoded = "application/x-www-form-urlencoded"
+	applicationJSON = "application/json"
 )
 
 func (c *Context) Body() Body {
@@ -29,24 +27,6 @@ func (c *Context) Body() Body {
 		err = json.Unmarshal(body, &c.body)
 		if err != nil {
 			panic(err)
-		}
-	} else if strings.Contains(contentType, applicationXWWWFormUrlencoded) {
-		c.Request.ParseForm()
-		for key, values := range c.Request.Form {
-			if len(values) == 1 {
-				c.body[key] = values[0]
-			} else {
-				c.body[key] = values
-			}
-		}
-	} else if strings.Contains(contentType, multipartFormData) {
-		c.Request.ParseMultipartForm(32 << 20)
-		for key, values := range c.Request.Form {
-			if len(values) == 1 {
-				c.body[key] = values[0]
-			} else {
-				c.body[key] = values
-			}
 		}
 	}
 

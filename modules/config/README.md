@@ -2,22 +2,23 @@
 
 *Config module is a part of `Gooh` framework, by default it’s support `.env` only, but you can extends any respective config files by using external libraries.*
 
-- [Key Features](#key-features)
-- [Usage](#usage)
-- [`ConfigModuleOptions` Parameters](#configmoduleoptions-parameters)
-  - [IsGlobal](#isglobal)
-  - [IsIgnoreEnvFile](#isignoreenvfile)
-  - [IsOverride](#isoverride)
-  - [IsExpandVariables](#isexpandvariables)
-  - [ENVFilePaths](#envfilepaths)
-  - [OnInit](#oninit)
-  - [Loads (Custom Configuration Files)](#loads-custom-configuration-files)
-  - [Hooks](#hooks)
-- [`ConfigService` Methods](#configservice-methods)
-  - [Get](#get)
-    - [Parameters](#parameters)
-    - [Returns](#returns)
-    - [Usage](#usage-1)
+- [Config Module](#config-module)
+  - [Key Features](#key-features)
+  - [Usage](#usage)
+  - [`ConfigModuleOptions` Parameters](#configmoduleoptions-parameters)
+    - [IsGlobal](#isglobal)
+    - [IsIgnoreEnvFile](#isignoreenvfile)
+    - [IsOverride](#isoverride)
+    - [IsExpandVariables](#isexpandvariables)
+    - [ENVFilePaths](#envfilepaths)
+    - [OnInit](#oninit)
+    - [Loads (Custom Configuration Files)](#loads-custom-configuration-files)
+    - [Hooks](#hooks)
+  - [`ConfigService` Methods](#configservice-methods)
+    - [Get](#get)
+      - [Parameters](#parameters)
+      - [Returns](#returns)
+      - [Usage](#usage-1)
 
 ## Key Features
 - Zero-dependency
@@ -65,7 +66,7 @@ func main() {
 	app.Create(
 		core.ModuleBuilder().
 			Imports(
-				config.Register(config.ConfigModuleOptions{}),
+				config.Register(&config.ConfigModuleOptions{}),
 			).
 			Providers(DBProvider{}).
 			Build(),
@@ -96,7 +97,7 @@ Required: `false`
 Set module as globally. By set to `true`, you don't need to import config module wherever you read env variables.
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   IsGlobal: true,
 })
 ```
@@ -111,7 +112,7 @@ Required: `false`
 If you don't want to use `.env` file, instead would like to simply access `OS` environment variables from the runtime environment. set `IsIgnoreEnvFile: true`
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   IsIgnoreEnvFile: true,
 })
 ```
@@ -126,7 +127,7 @@ Required: `false`
 Override any environment variables that have already been set on your machine with values from your .env file.
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   IsOverride: true,
 })
 ```
@@ -149,7 +150,7 @@ URI=mongodb://${USER}:${PWD}@${HOST}/${DB}
 ```
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   IsExpandVariables: true,
 })
 ```
@@ -173,7 +174,7 @@ Required: `false`
 By default, the module looks for a .env file in the root directory of your project. To specify another paths for the .env files, set the `ENVFilePaths` property to list of files, as follows:
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   ENVFilePaths: []string{".env.sql", ".env.aws", "env.redis"},
 })
 ```
@@ -210,7 +211,7 @@ func configuration() map[string]interface{} {
 
 Then, add into `Loads` property
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   Loads: []config.ConfigLoadFn{configuration},
 })
 ```
@@ -293,7 +294,7 @@ Hooks is a property that allow you catch env map before config module instance i
 Hook functions will be invoked sequency in array.
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   Hooks: []config.ConfigHookFn{
     func(c config.ConfigService) {
       c.Set("ANOMYNOUS") = "John Doe"
@@ -331,7 +332,7 @@ type Config struct {
 Finally, on `Hooks` property add function:
 
 ```go
-config.Register(config.ConfigModuleOptions{
+config.Register(&config.ConfigModuleOptions{
   Hooks: []config.ConfigHookFn{
     func(c config.ConfigService) {
       errs := validator.New().Struct(Config{

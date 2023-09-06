@@ -16,32 +16,19 @@ type (
 	Redirect = func(string)
 )
 
-type Responser interface {
-	SetHeaders(map[string]string) Responser
-	SetRoute(string) Responser
-	GetRoute() string
-	Status(int) Responser
-	Redirect(string)
-	Body() Body
-	Header() Header
-	Query() Query
-	Param() Param
-	Text(string, ...any)
-	JSONP(...any)
-	JSON(...any)
-}
-
 type Context struct {
 	*http.Request
 	http.ResponseWriter
 
 	dataWriter DataWriter
 
+	body        Body
+	form        Form
+	query       Query
+	header      Header
 	param       Param
 	ParamKeys   map[string][]int
 	ParamValues []string
-
-	body Body
 
 	route string
 
@@ -57,7 +44,7 @@ func NewContext() *Context {
 	}
 }
 
-func (c *Context) Status(code int) Responser {
+func (c *Context) Status(code int) *Context {
 	c.Code = code
 	return c
 }
@@ -101,7 +88,7 @@ func (c *Context) GetRoute() string {
 	return strings.Replace(c.route, "/["+c.Method+"]/", "", 1)
 }
 
-func (c *Context) SetRoute(route string) Responser {
+func (c *Context) SetRoute(route string) *Context {
 	c.route = route
 	return c
 }
@@ -115,8 +102,11 @@ func (c *Context) Redirect(url string) {
 func (c *Context) Reset() {
 	c.Code = http.StatusOK
 	c.route = ""
-	c.param = nil
 	c.body = nil
+	c.form = nil
+	c.query = nil
+	c.header = nil
+	c.param = nil
 	c.ParamKeys = nil
 	c.ParamValues = nil
 	c.Next = nil

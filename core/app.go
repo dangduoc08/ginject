@@ -41,12 +41,14 @@ const (
 	REQUEST         = "/*http.Request"
 	RESPONSE        = "net/http/http.ResponseWriter"
 	BODY            = "github.com/dangduoc08/gooh/context/context.Body"
-	QUERY           = "net/url/url.Values"
-	HEADER          = "net/http/http.Header"
+	FORM            = "github.com/dangduoc08/gooh/context/context.Form"
+	QUERY           = "github.com/dangduoc08/gooh/context/context.Query"
+	HEADER          = "github.com/dangduoc08/gooh/context/context.Header"
 	PARAM           = "github.com/dangduoc08/gooh/context/context.Param"
 	NEXT            = "/func()"
 	REDIRECT        = "/func(string)"
 	BODY_PIPEABLE   = "body"
+	FORM_PIPEABLE   = "form"
 	QUERY_PIPEABLE  = "query"
 	HEADER_PIPEABLE = "header"
 	PARAM_PIPEABLE  = "param"
@@ -57,12 +59,14 @@ var dependencies = map[string]int{
 	REQUEST:         1,
 	RESPONSE:        1,
 	BODY:            1,
+	FORM:            1,
 	QUERY:           1,
 	HEADER:          1,
 	PARAM:           1,
 	NEXT:            1,
 	REDIRECT:        1,
 	BODY_PIPEABLE:   1,
+	FORM_PIPEABLE:   1,
 	QUERY_PIPEABLE:  1,
 	HEADER_PIPEABLE: 1,
 	PARAM_PIPEABLE:  1,
@@ -500,6 +504,8 @@ func (app *App) getDependency(k string, c *context.Context, pipeValue reflect.Va
 		return c.ResponseWriter
 	case BODY:
 		return c.Body()
+	case FORM:
+		return c.Form()
 	case QUERY:
 		return c.Query()
 	case HEADER:
@@ -515,6 +521,12 @@ func (app *App) getDependency(k string, c *context.Context, pipeValue reflect.Va
 			Interface().(common.BodyPipeable).
 			Transform(c.Body(), common.ArgumentMetadata{
 				ParamType: BODY_PIPEABLE,
+			})
+	case FORM_PIPEABLE:
+		return pipeValue.
+			Interface().(common.FormPipeable).
+			Transform(c.Form(), common.ArgumentMetadata{
+				ParamType: FORM_PIPEABLE,
 			})
 	case QUERY_PIPEABLE:
 		return pipeValue.

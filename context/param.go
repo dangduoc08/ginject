@@ -2,14 +2,6 @@ package context
 
 type Param map[string][]string
 
-type Parameter interface {
-	Get(string) string
-	Set(string, string)
-	Add(string, string)
-	Del(string)
-	Has(string) bool
-}
-
 func (c *Context) Param() Param {
 	if c.param != nil {
 		return c.param
@@ -25,30 +17,34 @@ func (c *Context) Param() Param {
 	return c.param
 }
 
-func (p Param) Get(key string) string {
+func (p Param) Get(k string) string {
 	if p == nil {
 		return ""
 	}
-	ps := p[key]
+	ps := p[k]
 	if len(ps) == 0 {
 		return ""
 	}
 	return ps[0]
 }
 
-func (p Param) Set(key, value string) {
-	p[key] = []string{value}
+func (p Param) Set(k, v string) {
+	p[k] = []string{v}
 }
 
-func (p Param) Add(key, value string) {
-	p[key] = append(p[key], value)
+func (p Param) Add(k, v string) {
+	p[k] = append(p[k], v)
 }
 
-func (p Param) Del(key string) {
-	delete(p, key)
+func (p Param) Del(k string) {
+	delete(p, k)
 }
 
-func (p Param) Has(key string) bool {
-	_, ok := p[key]
+func (p Param) Has(k string) bool {
+	_, ok := p[k]
 	return ok
+}
+
+func (p Param) Bind(s any) any {
+	return bindStrArr(p, s)
 }
