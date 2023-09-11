@@ -137,6 +137,7 @@ func (m *Module) NewModule() *Module {
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
 				m.providers = append(m.providers, injectModule.exports...)
+				m.exports = append(m.exports, injectModule.exports...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {
@@ -199,6 +200,7 @@ func (m *Module) NewModule() *Module {
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
 				m.providers = append(m.providers, injectModule.exports...)
+				m.exports = append(m.exports, injectModule.exports...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {
