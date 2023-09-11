@@ -1,15 +1,13 @@
 package main
 
 import (
-	"errors"
-	"fmt"
-	"log"
+	"strconv"
 
 	"github.com/dangduoc08/gooh/core"
 	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/modules/config"
-	"github.com/dangduoc08/gooh/sample/company"
 	"github.com/dangduoc08/gooh/sample/global"
+	"github.com/dangduoc08/gooh/sample/list"
 )
 
 func main() {
@@ -26,18 +24,25 @@ func main() {
 				config.Register(&config.ConfigModuleOptions{
 					IsGlobal:          true,
 					IsExpandVariables: true,
+					Hooks: []config.ConfigHookFn{
+						func(c config.ConfigService) {
+							port := c.Get("PORT")
+							if s, ok := port.(string); ok {
+								port, err := strconv.Atoi(s)
+								if err != nil {
+									panic(err)
+								}
+								c.Set("PORT", port)
+							}
+						},
+					},
 				}),
-				company.CompanyModule,
+				list.ListModule,
 			).
 			Build(),
 	)
 
-	configService, ok := app.Get(config.ConfigService{}).(config.ConfigService)
-	if !ok {
-		panic(errors.New("cannot get config.ConfigService"))
-	}
+	configService := app.Get(config.ConfigService{}).(config.ConfigService)
 
-	port := fmt.Sprintf(":%v", configService.Get("PORT"))
-
-	log.Fatal(app.ListenAndServe(port))
+	app.Logger.Fatal("AppError", app.Listen(configService.Get("PORT").(int)))
 }

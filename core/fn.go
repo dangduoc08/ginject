@@ -3,11 +3,15 @@ package core
 import (
 	"fmt"
 	"go/token"
+	"net"
+	"net/http"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
 
 	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -183,6 +187,8 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(dependencies[componentFieldKey]))
 		} else if componentFieldKey != "" && globalProviders[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviders[componentFieldKey]))
+		} else if globalInterfaces[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalInterfaces[componentFieldKey]))
 		} else if !isInjectedProvider(componentFieldType) {
 
 			// if module set state to provider
@@ -204,4 +210,145 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 	}
 
 	return newComponent
+}
+
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return ""
+}
+
+func logBoostrap(port int) {
+	accessURLs := "\n" + utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GOOH! Here Are Your Access URLs: "))) + "\n"
+	divider := utils.FmtDim("--------------------------------------------") + "\n"
+	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("http://%v:%v", "localhost", port) + "\n"
+	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("http://%v:%v", getLocalIP(), port)) + "\n"
+	close := utils.FmtItalic(utils.FmtGreen("Press CTRL+C to stop")) + "\n\n"
+
+	os.Stdout.Write([]byte(accessURLs))
+	os.Stdout.Write([]byte(divider))
+	os.Stdout.Write([]byte(host))
+	os.Stdout.Write([]byte(lan))
+	os.Stdout.Write([]byte(divider))
+	os.Stdout.Write([]byte(close))
+}
+
+func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
+	switch k {
+	case CONTEXT:
+		return c
+	case REQUEST:
+		return c.Request
+	case RESPONSE:
+		return c.ResponseWriter
+	case BODY:
+		return c.Body()
+	case FORM:
+		return c.Form()
+	case QUERY:
+		return c.Query()
+	case HEADER:
+		return c.Header()
+	case PARAM:
+		return c.Param()
+	case NEXT:
+		return c.Next
+	case REDIRECT:
+		return c.Redirect
+	case BODY_PIPEABLE:
+		return pipeValue.
+			Interface().(common.BodyPipeable).
+			Transform(c.Body(), common.ArgumentMetadata{
+				ParamType: BODY_PIPEABLE,
+			})
+	case FORM_PIPEABLE:
+		return pipeValue.
+			Interface().(common.FormPipeable).
+			Transform(c.Form(), common.ArgumentMetadata{
+				ParamType: FORM_PIPEABLE,
+			})
+	case QUERY_PIPEABLE:
+		return pipeValue.
+			Interface().(common.QueryPipeable).
+			Transform(c.Query(), common.ArgumentMetadata{
+				ParamType: QUERY_PIPEABLE,
+			})
+	case HEADER_PIPEABLE:
+		return pipeValue.
+			Interface().(common.HeaderPipeable).
+			Transform(c.Header(), common.ArgumentMetadata{
+				ParamType: HEADER_PIPEABLE,
+			})
+	case PARAM_PIPEABLE:
+		return pipeValue.
+			Interface().(common.ParamPipeable).
+			Transform(c.Param(), common.ArgumentMetadata{
+				ParamType: PARAM_PIPEABLE,
+			})
+	}
+
+	return dependencies
+}
+
+func selectData(c *context.Context, data reflect.Value) {
+	switch data.Type().Kind() {
+	case
+		reflect.Map,
+		reflect.Slice,
+		reflect.Struct,
+		reflect.Interface:
+		c.JSON(data.Interface())
+	case
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128:
+		c.Text(fmt.Sprint(data))
+	case
+		reflect.Pointer,
+		reflect.UnsafePointer:
+		c.Text(fmt.Sprint(data.UnsafePointer()))
+	case
+		reflect.String:
+		c.Text(data.Interface().(string))
+	case
+		reflect.Func:
+		c.Text(data.Type().String())
+	}
+}
+
+func selectStatusCode(c *context.Context, statusCode reflect.Value) {
+	statusCodeKind := statusCode.Type().Kind()
+
+	if statusCodeKind == reflect.Int {
+		status := int(statusCode.Int())
+		if http.StatusText(status) != "" {
+			c.Status(status)
+		}
+	} else if statusCodeKind == reflect.Interface {
+		if status, ok := statusCode.Interface().(int); ok &&
+			http.StatusText(status) != "" {
+			c.Status(status)
+		}
+	}
 }

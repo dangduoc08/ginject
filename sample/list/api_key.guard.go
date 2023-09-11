@@ -1,4 +1,4 @@
-package company
+package list
 
 import (
 	"github.com/dangduoc08/gooh"

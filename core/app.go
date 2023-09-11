@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/exception"
+	"github.com/dangduoc08/gooh/log"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -33,6 +33,7 @@ type App struct {
 	injectedProviders      map[string]Provider
 	aggregationMap         map[string][]*aggregation.Aggregation
 	catchFnsMap            map[string][]common.Catch
+	Logger                 common.Logger
 }
 
 // link to aliases
@@ -90,12 +91,16 @@ func New() *App {
 	}
 
 	// binding default exception filter
-	app.BindGlobalExceptionFilters(GlobalExceptionFilter{})
+	app.BindGlobalExceptionFilters(globalExceptionFilter{})
 
 	return &app
 }
 
 func (app *App) Create(m *Module) {
+	if app.Logger == nil {
+		app.Logger = log.NewLog(nil)
+	}
+	globalInterfaces[injectableInterfaces[0]] = app.Logger
 	app.module = m.NewModule()
 
 	var injectedProviders map[string]Provider = make(map[string]Provider)
@@ -328,6 +333,13 @@ func (app *App) Use(handlers ...context.Handler) *App {
 	return app
 }
 
+func (app *App) UseLogger(logger common.Logger) *App {
+	app.Logger = logger
+	globalInterfaces[injectableInterfaces[0]] = app.Logger
+
+	return app
+}
+
 func (app *App) For(route string) func(handlers ...context.Handler) *App {
 	return func(handlers ...context.Handler) *App {
 		for _, handler := range handlers {
@@ -357,11 +369,17 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.Reset()
 }
 
-func (app *App) ListenAndServe(addr string) error {
+func (app *App) Listen(port int) error {
 	app.route.Range(func(method, route string) {
-		log.Default().Println("RouteExplorer", method, route)
+		app.Logger.Info(
+			"RouteExplorer",
+			"method", method,
+			"route", route,
+		)
 	})
 
+	addr := fmt.Sprintf(":%v", port)
+	logBoostrap(port)
 	return http.ListenAndServe(addr, app)
 }
 
@@ -423,7 +441,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 									if len(data) == 1 {
 										aggregatedData = data[0].Interface()
 									} else if len(data) > 1 {
-										app.selectStatusCode(c, data[0])
+										selectStatusCode(c, data[0])
 										aggregatedData = data[1].Interface()
 									}
 								}
@@ -432,20 +450,20 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 								aggregatedData = aggregation.Aggregate()
 							} else {
 								isMainHandlerCalled = false
-								app.selectData(c, reflect.ValueOf(aggregation.InterceptorData))
+								selectData(c, reflect.ValueOf(aggregation.InterceptorData))
 								break
 							}
 						}
 
 						if isMainHandlerCalled {
-							app.selectData(c, reflect.ValueOf(aggregatedData))
+							selectData(c, reflect.ValueOf(aggregatedData))
 						}
 					} else {
 						if len(data) == 1 {
-							app.selectData(c, data[0])
+							selectData(c, data[0])
 						} else if len(data) > 1 {
-							app.selectStatusCode(c, data[0])
-							app.selectData(c, data[1])
+							selectStatusCode(c, data[0])
+							selectData(c, data[1])
 						}
 					}
 				} else {
@@ -467,7 +485,6 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 			notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
 			httpCode, _ := notFoundException.GetHTTPStatus()
 			c.Status(httpCode)
-			c.Event.Emit(context.REQUEST_FINISHED, c)
 			c.JSON(context.Map{
 				"code":    notFoundException.GetCode(),
 				"error":   notFoundException.Error(),
@@ -481,7 +498,7 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	args := []reflect.Value{}
 	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
-			args = append(args, reflect.ValueOf(app.getDependency(dynamicArgKey, c, pipeValue)))
+			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
 				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -492,115 +509,4 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	})
 
 	return reflect.ValueOf(f).Call(args)
-}
-
-func (app *App) getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
-	switch k {
-	case CONTEXT:
-		return c
-	case REQUEST:
-		return c.Request
-	case RESPONSE:
-		return c.ResponseWriter
-	case BODY:
-		return c.Body()
-	case FORM:
-		return c.Form()
-	case QUERY:
-		return c.Query()
-	case HEADER:
-		return c.Header()
-	case PARAM:
-		return c.Param()
-	case NEXT:
-		return c.Next
-	case REDIRECT:
-		return c.Redirect
-	case BODY_PIPEABLE:
-		return pipeValue.
-			Interface().(common.BodyPipeable).
-			Transform(c.Body(), common.ArgumentMetadata{
-				ParamType: BODY_PIPEABLE,
-			})
-	case FORM_PIPEABLE:
-		return pipeValue.
-			Interface().(common.FormPipeable).
-			Transform(c.Form(), common.ArgumentMetadata{
-				ParamType: FORM_PIPEABLE,
-			})
-	case QUERY_PIPEABLE:
-		return pipeValue.
-			Interface().(common.QueryPipeable).
-			Transform(c.Query(), common.ArgumentMetadata{
-				ParamType: QUERY_PIPEABLE,
-			})
-	case HEADER_PIPEABLE:
-		return pipeValue.
-			Interface().(common.HeaderPipeable).
-			Transform(c.Header(), common.ArgumentMetadata{
-				ParamType: HEADER_PIPEABLE,
-			})
-	case PARAM_PIPEABLE:
-		return pipeValue.
-			Interface().(common.ParamPipeable).
-			Transform(c.Param(), common.ArgumentMetadata{
-				ParamType: PARAM_PIPEABLE,
-			})
-	}
-
-	return dependencies
-}
-
-func (app *App) selectData(c *context.Context, data reflect.Value) {
-	switch data.Type().Kind() {
-	case
-		reflect.Map,
-		reflect.Slice,
-		reflect.Struct,
-		reflect.Interface:
-		c.JSON(data.Interface())
-	case
-		reflect.Bool,
-		reflect.Int,
-		reflect.Int8,
-		reflect.Int16,
-		reflect.Int32,
-		reflect.Int64,
-		reflect.Uint,
-		reflect.Uint8,
-		reflect.Uint16,
-		reflect.Uint32,
-		reflect.Uint64,
-		reflect.Float32,
-		reflect.Float64,
-		reflect.Complex64,
-		reflect.Complex128:
-		c.Text(fmt.Sprint(data))
-	case
-		reflect.Pointer,
-		reflect.UnsafePointer:
-		c.Text(fmt.Sprint(data.UnsafePointer()))
-	case
-		reflect.String:
-		c.Text(data.Interface().(string))
-	case
-		reflect.Func:
-		c.Text(data.Type().String())
-	}
-}
-
-func (app *App) selectStatusCode(c *context.Context, statusCode reflect.Value) {
-	statusCodeKind := statusCode.Type().Kind()
-
-	if statusCodeKind == reflect.Int {
-		status := int(statusCode.Int())
-		if http.StatusText(status) != "" {
-			c.Status(status)
-		}
-	} else if statusCodeKind == reflect.Interface {
-		if status, ok := statusCode.Interface().(int); ok &&
-			http.StatusText(status) != "" {
-			c.Status(status)
-		}
-	}
 }

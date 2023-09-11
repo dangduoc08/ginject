@@ -16,6 +16,7 @@ var mainModule uintptr
 var modulesInjectedFromMain []uintptr
 var injectedDynamicModules []uintptr
 var globalProviders map[string]Provider = make(map[string]Provider)
+var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
 var insertedRoutes = make(map[string]string)
 var noInjectedFields = []string{
@@ -27,6 +28,9 @@ var noInjectedFields = []string{
 	"common.Interceptor",
 	"ExceptionFilter",
 	"common.ExceptionFilter",
+}
+var injectableInterfaces = []string{
+	"github.com/dangduoc08/gooh/common/common.Logger",
 }
 
 type Module struct {
