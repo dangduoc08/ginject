@@ -5,11 +5,13 @@ import (
 	"github.com/dangduoc08/gooh/exception"
 )
 
-// includes default components
+/**
+- Include default components
+*/
 
-type GlobalExceptionFilter struct{}
+type globalExceptionFilter struct{}
 
-func (g GlobalExceptionFilter) Catch(c *context.Context, e *exception.HTTPException) {
+func (g globalExceptionFilter) Catch(c *context.Context, e *exception.HTTPException) {
 	internalServerErrorException := exception.InternalServerErrorException("Unhandled exception has occurred")
 	httpCode, _ := internalServerErrorException.GetHTTPStatus()
 	c.Status(httpCode).JSON(context.Map{

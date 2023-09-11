@@ -49,10 +49,6 @@ Support types:
   - Slice
 */
 
-const (
-	TAG_BIND = "bind"
-)
-
 func bindStrArr(d map[string][]string, s any) any {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)
