@@ -62,7 +62,7 @@ func bindStrArr(d map[string][]string, s any) any {
 			continue
 		}
 
-		if bindValues, ok := structField.Tag.Lookup(TAG_BIND); ok {
+		if bindValues, ok := structField.Tag.Lookup(tagBind); ok {
 			bindParams := getTagParams(bindValues)
 			if len(bindParams) > 0 {
 				bindedIndex, bindedField := getTagParamIndex(bindParams[0])

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	TAG_BIND = "bind"
+	tagBind = "bind"
 )
 
 func Bind(d, s any, isParseArray, isParseString bool) any {
@@ -26,7 +26,7 @@ func Bind(d, s any, isParseArray, isParseString bool) any {
 			// bind value is the field of
 			// body, query, header, param
 			// which struct want to map to
-			if bindValues, ok := structField.Tag.Lookup(TAG_BIND); ok {
+			if bindValues, ok := structField.Tag.Lookup(tagBind); ok {
 				bindParams := getTagParams(bindValues)
 
 				if len(bindParams) > 0 {
