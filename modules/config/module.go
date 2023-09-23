@@ -24,7 +24,11 @@ type ConfigModuleOptions struct {
 	OnInit            ConfigOnInitFn
 }
 
-func loadConfigOptions(opts *ConfigModuleOptions) ConfigModuleOptions {
+func loadConfigOptions(opts *ConfigModuleOptions) *ConfigModuleOptions {
+	if opts == nil {
+		opts = &ConfigModuleOptions{}
+	}
+
 	envFilePaths := opts.ENVFilePaths
 	if len(envFilePaths) == 0 {
 		defaultPath, err := os.Getwd()
@@ -37,7 +41,7 @@ func loadConfigOptions(opts *ConfigModuleOptions) ConfigModuleOptions {
 		}
 	}
 
-	return ConfigModuleOptions{
+	return &ConfigModuleOptions{
 		IsGlobal:          opts.IsGlobal,
 		IsIgnoreEnvFile:   opts.IsIgnoreEnvFile,
 		IsOverride:        opts.IsOverride,
