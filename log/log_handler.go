@@ -42,8 +42,10 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 		h.writer.Write([]byte(colorize.bg(" ")))
 	}
 
-	msg := utils.FmtCyan(" [%v]", record.Message) + " "
-	h.writer.Write([]byte(msg))
+	if record.Message != "" {
+		msg := utils.FmtCyan(" [%v]", record.Message) + " "
+		h.writer.Write([]byte(msg))
+	}
 
 	i := 0
 	record.Attrs(func(attr slog.Attr) bool {
@@ -67,10 +69,10 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 			}
 		}
 
-		pair := fmt.Sprintf(" ├── %v %v", key, value)
+		pair := fmt.Sprintf("  ├── %v %v", key, value)
 
 		if record.NumAttrs() == 1 || i == record.NumAttrs()-1 {
-			pair = fmt.Sprintf(" └── %v %v", key, value)
+			pair = fmt.Sprintf("  └── %v %v", key, value)
 		}
 
 		h.writer.Write([]byte(pair))
