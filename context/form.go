@@ -25,7 +25,7 @@ func (c *Context) Form() Form {
 		e = c.Request.ParseForm()
 	}
 
-	if e == nil {
+	if e != nil {
 		panic(e)
 	}
 

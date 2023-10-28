@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -84,7 +85,7 @@ func ArrGet[T any](arr []T, i int) (T, bool) {
 	}
 }
 
-func ArrParseBool(arr []string) []bool {
+func ArrStrParseBool(arr []string) []bool {
 	return ArrMap[string, bool](arr, func(el string, i int) bool {
 		if boolean, err := strconv.ParseBool(el); err != nil {
 			return false
@@ -94,7 +95,7 @@ func ArrParseBool(arr []string) []bool {
 	})
 }
 
-func ArrParseInt(arr []string) []int {
+func ArrStrParseInt(arr []string) []int {
 	return ArrMap[string, int](arr, func(el string, i int) int {
 		if intNum, err := strconv.Atoi(el); err != nil {
 			return 0
@@ -104,7 +105,7 @@ func ArrParseInt(arr []string) []int {
 	})
 }
 
-func ArrParseInt8(arr []string) []int8 {
+func ArrStrParseInt8(arr []string) []int8 {
 	return ArrMap[string, int8](arr, func(el string, i int) int8 {
 		if i64, err := strconv.ParseInt(el, 10, 8); err != nil {
 			return 0
@@ -114,7 +115,7 @@ func ArrParseInt8(arr []string) []int8 {
 	})
 }
 
-func ArrParseInt16(arr []string) []int16 {
+func ArrStrParseInt16(arr []string) []int16 {
 	return ArrMap[string, int16](arr, func(el string, i int) int16 {
 		if i64, err := strconv.ParseInt(el, 10, 16); err != nil {
 			return 0
@@ -124,7 +125,7 @@ func ArrParseInt16(arr []string) []int16 {
 	})
 }
 
-func ArrParseInt32(arr []string) []int32 {
+func ArrStrParseInt32(arr []string) []int32 {
 	return ArrMap[string, int32](arr, func(el string, i int) int32 {
 		if i64, err := strconv.ParseInt(el, 10, 32); err != nil {
 			return 0
@@ -134,7 +135,7 @@ func ArrParseInt32(arr []string) []int32 {
 	})
 }
 
-func ArrParseInt64(arr []string) []int64 {
+func ArrStrParseInt64(arr []string) []int64 {
 	return ArrMap[string, int64](arr, func(el string, i int) int64 {
 		if i64, err := strconv.ParseInt(el, 10, 64); err != nil {
 			return 0
@@ -144,7 +145,7 @@ func ArrParseInt64(arr []string) []int64 {
 	})
 }
 
-func ArrParseUint(arr []string) []uint {
+func ArrStrParseUint(arr []string) []uint {
 	return ArrMap[string, uint](arr, func(el string, i int) uint {
 		if u64, err := strconv.ParseUint(el, 10, 0); err != nil {
 			return 0
@@ -154,7 +155,7 @@ func ArrParseUint(arr []string) []uint {
 	})
 }
 
-func ArrParseUint8(arr []string) []uint8 {
+func ArrStrParseUint8(arr []string) []uint8 {
 	return ArrMap[string, uint8](arr, func(el string, i int) uint8 {
 		if u64, err := strconv.ParseUint(el, 10, 8); err != nil {
 			return 0
@@ -164,7 +165,7 @@ func ArrParseUint8(arr []string) []uint8 {
 	})
 }
 
-func ArrParseUint16(arr []string) []uint16 {
+func ArrStrParseUint16(arr []string) []uint16 {
 	return ArrMap[string, uint16](arr, func(el string, i int) uint16 {
 		if u64, err := strconv.ParseUint(el, 10, 16); err != nil {
 			return 0
@@ -174,7 +175,7 @@ func ArrParseUint16(arr []string) []uint16 {
 	})
 }
 
-func ArrParseUint32(arr []string) []uint32 {
+func ArrStrParseUint32(arr []string) []uint32 {
 	return ArrMap[string, uint32](arr, func(el string, i int) uint32 {
 		if u64, err := strconv.ParseUint(el, 10, 32); err != nil {
 			return 0
@@ -184,7 +185,7 @@ func ArrParseUint32(arr []string) []uint32 {
 	})
 }
 
-func ArrParseUint64(arr []string) []uint64 {
+func ArrStrParseUint64(arr []string) []uint64 {
 	return ArrMap[string, uint64](arr, func(el string, i int) uint64 {
 		if u64, err := strconv.ParseUint(el, 10, 64); err != nil {
 			return 0
@@ -194,7 +195,7 @@ func ArrParseUint64(arr []string) []uint64 {
 	})
 }
 
-func ArrParseFloat32(arr []string) []float32 {
+func ArrStrParseFloat32(arr []string) []float32 {
 	return ArrMap[string, float32](arr, func(el string, i int) float32 {
 		if f64, err := strconv.ParseFloat(el, 32); err != nil {
 			return 0
@@ -204,7 +205,7 @@ func ArrParseFloat32(arr []string) []float32 {
 	})
 }
 
-func ArrParseFloat64(arr []string) []float64 {
+func ArrStrParseFloat64(arr []string) []float64 {
 	return ArrMap[string, float64](arr, func(el string, i int) float64 {
 		if f64, err := strconv.ParseFloat(el, 64); err != nil {
 			return 0
@@ -214,7 +215,7 @@ func ArrParseFloat64(arr []string) []float64 {
 	})
 }
 
-func ArrParseComplex64(arr []string) []complex64 {
+func ArrStrParseComplex64(arr []string) []complex64 {
 	return ArrMap[string, complex64](arr, func(el string, i int) complex64 {
 		if c128, err := strconv.ParseComplex(strings.ReplaceAll(el, " ", ""), 64); err != nil {
 			return 0
@@ -224,7 +225,7 @@ func ArrParseComplex64(arr []string) []complex64 {
 	})
 }
 
-func ArrParseComplex128(arr []string) []complex128 {
+func ArrStrParseComplex128(arr []string) []complex128 {
 	return ArrMap[string, complex128](arr, func(el string, i int) complex128 {
 		if c128, err := strconv.ParseComplex(strings.ReplaceAll(el, " ", ""), 128); err != nil {
 			return 0
@@ -234,8 +235,17 @@ func ArrParseComplex128(arr []string) []complex128 {
 	})
 }
 
-func ArrParseAny(arr []string) []any {
+func ArrStrParseAny(arr []string) []any {
 	return ArrMap[string, any](arr, func(el string, i int) any {
 		return el
 	})
+}
+
+func ArrIter(arr []any, dimmensions int, cb func(any, int)) {
+	for _, el := range arr {
+		if reflect.TypeOf(el).Kind() == reflect.Slice {
+			ArrIter(el.([]any), dimmensions-1, cb)
+		}
+		cb(el, dimmensions)
+	}
 }

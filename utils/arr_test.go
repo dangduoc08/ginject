@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -151,4 +152,49 @@ func TestArrGet(t *testing.T) {
 	if expect2 != output2 {
 		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
 	}
+}
+
+func TestArrIterMultiDimensions(t *testing.T) {
+	multiDimension := []any{
+		[]any{
+			[]any{
+				[]any{
+					1000, 2000, 3000, 4000,
+				},
+				[]any{
+					4001, 5001, 6001, 7001,
+				},
+			},
+			[]any{
+				[]any{
+					1010, 2010, 3010, 4010,
+				},
+				[]any{
+					4011, 5011, 6011, 7011,
+				},
+			},
+		},
+		[]any{
+			[]any{
+				[]any{
+					1100, 2100, 3100, 4100,
+				},
+				[]any{
+					4101, 5101, 6101, 7101,
+				},
+			},
+			[]any{
+				[]any{
+					1110, 2110, 3110, 4110,
+				},
+				[]any{
+					4111, 5111, 6111, 7111,
+				},
+			},
+		},
+	}
+
+	ArrIter(multiDimension, 4, func(el any, d int) {
+		fmt.Println(el, d)
+	})
 }
