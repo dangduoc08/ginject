@@ -269,66 +269,59 @@ func bindStrArr(d map[string][]string, s any) any {
 						}
 
 					case reflect.Slice:
-						// if len(bindParams) > 1 {
-						// 	// key, value := getTagKV(bindParams[1])
-						// 	// fmt.Println("key=", key, " value=", value)
-						// }
 						switch structField.Type.Elem().Kind() {
 						case reflect.Bool:
-							setValueToStructField(utils.ArrParseBool(bindedValues))
+							setValueToStructField(utils.ArrStrParseBool(bindedValues))
 							continue
 						case reflect.Int:
-							setValueToStructField(utils.ArrParseInt(bindedValues))
+							setValueToStructField(utils.ArrStrParseInt(bindedValues))
 							continue
 						case reflect.Int8:
-							setValueToStructField(utils.ArrParseInt8(bindedValues))
+							setValueToStructField(utils.ArrStrParseInt8(bindedValues))
 							continue
 						case reflect.Int16:
-							setValueToStructField(utils.ArrParseInt16(bindedValues))
+							setValueToStructField(utils.ArrStrParseInt16(bindedValues))
 							continue
 						case reflect.Int32:
-							setValueToStructField(utils.ArrParseInt32(bindedValues))
+							setValueToStructField(utils.ArrStrParseInt32(bindedValues))
 							continue
 						case reflect.Int64:
-							setValueToStructField(utils.ArrParseInt64(bindedValues))
+							setValueToStructField(utils.ArrStrParseInt64(bindedValues))
 							continue
 						case reflect.Uint:
-							setValueToStructField(utils.ArrParseUint(bindedValues))
+							setValueToStructField(utils.ArrStrParseUint(bindedValues))
 							continue
 						case reflect.Uint8:
-							setValueToStructField(utils.ArrParseUint8(bindedValues))
+							setValueToStructField(utils.ArrStrParseUint8(bindedValues))
 							continue
 						case reflect.Uint16:
-							setValueToStructField(utils.ArrParseUint16(bindedValues))
+							setValueToStructField(utils.ArrStrParseUint16(bindedValues))
 							continue
 						case reflect.Uint32:
-							setValueToStructField(utils.ArrParseUint32(bindedValues))
+							setValueToStructField(utils.ArrStrParseUint32(bindedValues))
 							continue
 						case reflect.Uint64:
-							setValueToStructField(utils.ArrParseUint64(bindedValues))
+							setValueToStructField(utils.ArrStrParseUint64(bindedValues))
 							continue
 						case reflect.Float32:
-							setValueToStructField(utils.ArrParseFloat32(bindedValues))
+							setValueToStructField(utils.ArrStrParseFloat32(bindedValues))
 							continue
 						case reflect.Float64:
-							setValueToStructField(utils.ArrParseFloat64(bindedValues))
+							setValueToStructField(utils.ArrStrParseFloat64(bindedValues))
 							continue
 						case reflect.Complex64:
-							setValueToStructField(utils.ArrParseComplex64(bindedValues))
+							setValueToStructField(utils.ArrStrParseComplex64(bindedValues))
 							continue
 						case reflect.Complex128:
-							setValueToStructField(utils.ArrParseComplex128(bindedValues))
+							setValueToStructField(utils.ArrStrParseComplex128(bindedValues))
 							continue
 						case reflect.String:
 							setValueToStructField(bindedValues)
 							continue
 						case reflect.Interface:
-							setValueToStructField(utils.ArrParseAny(bindedValues))
+							setValueToStructField(utils.ArrStrParseAny(bindedValues))
 							continue
 						}
-
-					default:
-						continue
 					}
 				}
 			}

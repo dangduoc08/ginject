@@ -32,3 +32,7 @@ func (c *Context) Body() Body {
 
 	return c.body
 }
+
+func (b Body) Bind(s any) any {
+	return BindStruct(b, s)
+}
