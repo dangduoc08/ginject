@@ -228,7 +228,7 @@ func getLocalIP() string {
 }
 
 func logBoostrap(port int) {
-	accessURLs := "\n" + utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GOOH! Here Are Your Access URLs: "))) + "\n"
+	accessURLs := utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GOOH! Here Are Your Access URLs: "))) + "\n"
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
 	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("http://%v:%v", "localhost", port) + "\n"
 	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("http://%v:%v", getLocalIP(), port)) + "\n"
