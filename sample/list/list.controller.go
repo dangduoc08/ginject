@@ -11,6 +11,7 @@ type ListController struct {
 	common.Guard
 	common.Interceptor
 	ListProvider ListProvider
+	Logger       common.Logger
 }
 
 func (listController ListController) NewController() core.Controller {
@@ -37,6 +38,7 @@ func (listController ListController) CREATE_lists(
 	h gooh.Header,
 	p gooh.Param,
 	bodyDTO CreateListBody,
+	queryDTO CreateListQuery,
 ) any {
 	return listController.ListProvider.Handler(c, p, q, h, b)
 }
