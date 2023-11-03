@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -22,9 +23,13 @@ type PrettyHandler struct {
 	writer     io.Writer
 	timeFormat string
 	slog.TextHandler
+	mu sync.Mutex
 }
 
 func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	level := levelLabel[record.Level]
 	space := " "
 
