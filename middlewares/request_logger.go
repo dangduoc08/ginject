@@ -18,6 +18,7 @@ func RequestLogger(logger common.Logger) func(*context.Context) {
 				"Method", newC.Method,
 				"Status", newC.Code,
 				"Time", fmt.Sprintf("%v ms", responseTime),
+				"Protocol", newC.Request.Proto,
 				"User-Agent", newC.UserAgent(),
 			)
 		})

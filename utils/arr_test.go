@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -194,7 +194,23 @@ func TestArrIterMultiDimensions(t *testing.T) {
 		},
 	}
 
+	expected1 := 1000 + 2000 + 3000 + 4000 +
+		4001 + 5001 + 6001 + 7001 +
+		1010 + 2010 + 3010 + 4010 +
+		4011 + 5011 + 6011 + 7011 +
+		1100 + 2100 + 3100 + 4100 +
+		4101 + 5101 + 6101 + 7101 +
+		1110 + 2110 + 3110 + 4110 +
+		4111 + 5111 + 6111 + 7111
+
+	result1 := 0
 	ArrIter(multiDimension, 4, func(el any, d int) {
-		fmt.Println(el, d)
+		if reflect.TypeOf(el).Kind() == reflect.Int {
+			result1 += el.(int)
+		}
 	})
+
+	if expected1 != result1 {
+		t.Errorf("expected1 = %v; result1 = %v", expected1, result1)
+	}
 }
