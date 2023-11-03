@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/log"
 	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/modules/config"
 	"github.com/dangduoc08/gooh/sample/global"
@@ -12,8 +13,14 @@ import (
 
 func main() {
 	app := core.New()
+	logger := log.NewLog(&log.LogOptions{
+		Level:     log.DebugLevel,
+		LogFormat: log.PrettyFormat,
+	})
+
 	app.
-		Use(middlewares.RequestLogger).
+		UseLogger(logger).
+		Use(middlewares.RequestLogger(logger)).
 		BindGlobalGuards(global.PermissionGuard{}).
 		BindGlobalInterceptors(global.LoggingInterceptor{}, global.ResponseInterceptor{}).
 		BindGlobalExceptionFilters(global.AllExceptionsFilter{})
@@ -44,5 +51,5 @@ func main() {
 
 	configService := app.Get(config.ConfigService{}).(config.ConfigService)
 
-	app.Logger.Fatal("AppError", app.Listen(configService.Get("PORT").(int)))
+	app.Logger.Fatal("AppError", "errMsg", app.Listen(configService.Get("PORT").(int)))
 }
