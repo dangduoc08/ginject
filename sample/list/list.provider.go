@@ -23,7 +23,6 @@ func (listProvider ListProvider) Handler(
 	h gooh.Header,
 	b gooh.Body,
 ) any {
-	listProvider.Logger.Info("boolean ne", b)
 	return gooh.Map{
 		"method":   c.Method,
 		"route":    c.GetRoute(),
