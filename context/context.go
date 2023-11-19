@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -31,16 +32,31 @@ type Context struct {
 	ParamValues []string
 
 	route string
+	Type  string
 
 	Next      Next
 	Event     *event
 	Code      int
 	Timestamp time.Time
+
+	// Extend context
+	// WebSocket
+	WS *WS
+
+	ErrorAggregationOperators []aggregation.AggregationOperator
 }
+
+const (
+	HTTPType = "http"
+	WSType   = "ws"
+	RPCType  = "rpc"
+	GQLType  = "gql"
+)
 
 func NewContext() *Context {
 	return &Context{
-		Code: http.StatusOK,
+		Code:                      http.StatusOK,
+		ErrorAggregationOperators: []aggregation.AggregationOperator{},
 	}
 }
 
@@ -102,6 +118,8 @@ func (c *Context) Redirect(url string) {
 func (c *Context) Reset() {
 	c.Code = http.StatusOK
 	c.route = ""
+	c.Type = ""
+	c.WS = nil
 	c.body = nil
 	c.form = nil
 	c.query = nil
@@ -112,4 +130,20 @@ func (c *Context) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
+	c.ErrorAggregationOperators = nil
+}
+
+func (c *Context) SetType(t string) *Context {
+	if c.Type == "" &&
+		(t == HTTPType ||
+			t == WSType ||
+			t == RPCType ||
+			t == GQLType) {
+		c.Type = t
+	}
+	return c
+}
+
+func (c *Context) GetType() string {
+	return c.Type
 }

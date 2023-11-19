@@ -38,6 +38,13 @@ func (aggregation *Aggregation) setOperators(name string, op AggregationOperator
 	return aggregation
 }
 
+func (aggregation *Aggregation) GetAggregationOperator(oprName string) AggregationOperator {
+	if aggregationOperator, ok := aggregation.operators[oprName]; ok {
+		return aggregationOperator
+	}
+	return nil
+}
+
 func (aggregation *Aggregation) Aggregate() any {
 
 	// handle operators
@@ -94,6 +101,9 @@ func (aggregation *Aggregation) Aggregate() any {
 
 		case OPERATOR_CONSUME:
 			aggregation.mainData = operator(aggregation.mainData)
+
+		case OPERATOR_ERROR:
+			continue
 
 		case OPERATOR_FIRST:
 			// aggregation.mainData = aggregation.mainData

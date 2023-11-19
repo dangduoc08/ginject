@@ -8,6 +8,7 @@ import (
 
 	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/exception"
+	"github.com/dangduoc08/gooh/utils"
 )
 
 // to ensure constructor only run once
@@ -19,7 +20,7 @@ func GetFnName(handler any) string {
 	return fnName[:len(fnName)-3]
 }
 
-func ParseFnNameToURL(fnName string) (string, string) {
+func ParseFnNameToURL(fnName string, operations map[string]string) (string, string) {
 	method := ""
 	route := ""
 
@@ -34,15 +35,15 @@ func ParseFnNameToURL(fnName string) (string, string) {
 		s := string(b)
 
 		// function name is not satisfied statements
-		if _, ok := Operations[s]; !ok && i == 0 {
+		if _, ok := operations[s]; !ok && i == 0 {
 			return "", ""
 		}
 
-		if _, ok := Operations[s]; ok && i == 0 {
-			method = Operations[s]
+		if _, ok := operations[s]; ok && i == 0 {
+			method = operations[s]
 		}
 
-		if _, ok := Operations[s]; ok || s == TOKEN_OF {
+		if _, ok := operations[s]; ok || s == TOKEN_OF {
 			i++
 			path := ""
 			isAny := false
@@ -154,11 +155,17 @@ func HandleGuard(ctx *context.Context, canActive bool) {
 	} else {
 		forbiddenException := exception.ForbiddenException("Access denied")
 		httpCode, _ := forbiddenException.GetHTTPStatus()
-		ctx.Status(httpCode).JSON(context.Map{
+		data := context.Map{
 			"code":    forbiddenException.GetCode(),
 			"error":   forbiddenException.Error(),
 			"message": forbiddenException.GetResponse(),
-		})
+		}
+		requestType := ctx.GetType()
+		if requestType == context.HTTPType {
+			ctx.Status(httpCode).JSON(data)
+		} else if requestType == context.WSType {
+			ctx.WS.SendSelf(ctx, data)
+		}
 	}
 }
 
@@ -175,4 +182,8 @@ func Construct(obj any, constructor string) any {
 	}
 
 	return obj
+}
+
+func ToWSEventName(n, s string) string {
+	return n + "_" + utils.StrRemoveEnd(utils.StrRemoveBegin(s, "/"), "/")
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/dangduoc08/gooh"
 	"github.com/dangduoc08/gooh/common"
+	"github.com/dangduoc08/gooh/exception"
 	"github.com/dangduoc08/gooh/modules/config"
 )
 
@@ -60,14 +61,24 @@ func (i LoggingInterceptor) Intercept(c gooh.Context, aggregation gooh.Aggregati
 
 	return aggregation.Pipe(
 		aggregation.Consume(func(data any) any {
+
 			resJSON, _ := json.Marshal(data)
 			resJSONStr := string(resJSON)
 			if resJSONStr != "{}" {
-				i.Logger.Debug("Response", "data", resJSONStr)
+				i.Logger.Debug("Success", "data", resJSONStr)
 			} else {
-				i.Logger.Debug("Response", "data", nil)
+				i.Logger.Debug("Success", "data", nil)
 			}
 			return data
+		}),
+		aggregation.Error(func(err any) any {
+			if httpException, ok := err.(exception.HTTPException); ok {
+				i.Logger.Debug("Error", "data", err, "message", httpException.GetResponse())
+			} else {
+				i.Logger.Debug("Error", "data", err)
+			}
+
+			return err
 		}),
 	)
 }

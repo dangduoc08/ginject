@@ -1,7 +1,9 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -15,6 +17,7 @@ import (
 	"github.com/dangduoc08/gooh/log"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
+	"golang.org/x/net/websocket"
 )
 
 type globalMiddleware struct {
@@ -24,63 +27,83 @@ type globalMiddleware struct {
 
 type App struct {
 	route                  *routing.Router
+	wsEventMap             map[string][]context.Handler // to store WS layers, key = subscribe event name
+	wsMainHandlerMap       map[string]any               // to store WS main handler
+	wsEventToID            sync.Map                     // to store WS ID, key = emit event
 	module                 *Module
-	pool                   sync.Pool
+	ctxPool                sync.Pool
 	globalMiddlewares      []globalMiddleware
 	globalGuarders         []common.Guarder
 	globalInterceptors     []common.Interceptable
 	globalExceptionFilters []common.ExceptionFilterable
 	injectedProviders      map[string]Provider
-	aggregationMap         map[string][]*aggregation.Aggregation
-	catchFnsMap            map[string][]common.Catch
+	restAggregationMap     map[string][]*aggregation.Aggregation
+	wsAggregationMap       map[string][]*aggregation.Aggregation
+	catchRESTFnsMap        map[string][]common.Catch
+	catchWSFnsMap          map[string][]common.Catch
 	Logger                 common.Logger
 }
 
 // link to aliases
 const (
-	CONTEXT         = "/*context.Context"
-	REQUEST         = "/*http.Request"
-	RESPONSE        = "net/http/http.ResponseWriter"
-	BODY            = "github.com/dangduoc08/gooh/context/context.Body"
-	FORM            = "github.com/dangduoc08/gooh/context/context.Form"
-	QUERY           = "github.com/dangduoc08/gooh/context/context.Query"
-	HEADER          = "github.com/dangduoc08/gooh/context/context.Header"
-	PARAM           = "github.com/dangduoc08/gooh/context/context.Param"
-	NEXT            = "/func()"
-	REDIRECT        = "/func(string)"
-	BODY_PIPEABLE   = "body"
-	FORM_PIPEABLE   = "form"
-	QUERY_PIPEABLE  = "query"
-	HEADER_PIPEABLE = "header"
-	PARAM_PIPEABLE  = "param"
+	CONTEXT             = "/*context.Context"
+	WS_CONNECTION       = "/*websocket.Conn"
+	REQUEST             = "/*http.Request"
+	RESPONSE            = "net/http/http.ResponseWriter"
+	BODY                = "github.com/dangduoc08/gooh/context/context.Body"
+	FORM                = "github.com/dangduoc08/gooh/context/context.Form"
+	QUERY               = "github.com/dangduoc08/gooh/context/context.Query"
+	HEADER              = "github.com/dangduoc08/gooh/context/context.Header"
+	PARAM               = "github.com/dangduoc08/gooh/context/context.Param"
+	WS_PAYLOAD          = "github.com/dangduoc08/gooh/context/context.WSPayload"
+	NEXT                = "/func()"
+	REDIRECT            = "/func(string)"
+	BODY_PIPEABLE       = "body"
+	FORM_PIPEABLE       = "form"
+	QUERY_PIPEABLE      = "query"
+	HEADER_PIPEABLE     = "header"
+	PARAM_PIPEABLE      = "param"
+	WS_PAYLOAD_PIPEABLE = "wsPayload"
 )
 
 var dependencies = map[string]int{
-	CONTEXT:         1,
-	REQUEST:         1,
-	RESPONSE:        1,
-	BODY:            1,
-	FORM:            1,
-	QUERY:           1,
-	HEADER:          1,
-	PARAM:           1,
-	NEXT:            1,
-	REDIRECT:        1,
-	BODY_PIPEABLE:   1,
-	FORM_PIPEABLE:   1,
-	QUERY_PIPEABLE:  1,
-	HEADER_PIPEABLE: 1,
-	PARAM_PIPEABLE:  1,
+	CONTEXT:             1,
+	WS_CONNECTION:       1,
+	REQUEST:             1,
+	RESPONSE:            1,
+	BODY:                1,
+	FORM:                1,
+	QUERY:               1,
+	HEADER:              1,
+	PARAM:               1,
+	WS_PAYLOAD:          1,
+	NEXT:                1,
+	REDIRECT:            1,
+	BODY_PIPEABLE:       1,
+	FORM_PIPEABLE:       1,
+	QUERY_PIPEABLE:      1,
+	HEADER_PIPEABLE:     1,
+	PARAM_PIPEABLE:      1,
+	WS_PAYLOAD_PIPEABLE: 1,
+}
+
+var wsPaths = []string{
+	"/ws",
+	"/ws/",
 }
 
 func New() *App {
 	event := context.NewEvent()
 
 	app := App{
-		route:          routing.NewRouter(),
-		aggregationMap: make(map[string][]*aggregation.Aggregation),
-		catchFnsMap:    make(map[string][]common.Catch),
-		pool: sync.Pool{
+		route:              routing.NewRouter(),
+		restAggregationMap: make(map[string][]*aggregation.Aggregation),
+		wsAggregationMap:   make(map[string][]*aggregation.Aggregation),
+		catchRESTFnsMap:    make(map[string][]common.Catch),
+		catchWSFnsMap:      make(map[string][]common.Catch),
+		wsEventMap:         make(map[string][]func(*context.Context)),
+		wsMainHandlerMap:   make(map[string]any),
+		ctxPool: sync.Pool{
 			New: func() any {
 				c := context.NewContext()
 				c.Event = event
@@ -116,21 +139,38 @@ func (app *App) Create(m *Module) {
 	// module guards
 	// global interceptors (pre)
 	// module interceptors (pre)
-
 	// main handler
 
 	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
-		if globalMiddleware.route != "ALL" {
+		if globalMiddleware.route != "*" {
 			app.route.For(globalMiddleware.route, routing.HTTPMethods)(globalMiddleware.handler)
 		} else {
+
+			// REST global middlewares
 			app.route.Use(globalMiddleware.handler)
+
+			// WS global middlewares
+			for eventName := range insertedEvents {
+				app.wsEventMap[eventName] = append(
+					app.wsEventMap[eventName],
+					globalMiddleware.handler,
+				)
+			}
 		}
 	}
 
-	// module middlewares
-	for _, moduleMiddleware := range app.module.Middlewares {
-		app.route.For(moduleMiddleware.Route, []string{moduleMiddleware.Method})(moduleMiddleware.Handlers...)
+	// REST module middlewares
+	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
+		app.route.For(restModuleMiddleware.Route, []string{restModuleMiddleware.Method})(restModuleMiddleware.Handlers...)
+	}
+
+	// WS module middlewares
+	for _, wsModuleMiddleware := range app.module.WSMiddlewares {
+		app.wsEventMap[wsModuleMiddleware.EventName] = append(
+			app.wsEventMap[wsModuleMiddleware.EventName],
+			wsModuleMiddleware.Handlers...,
+		)
 	}
 
 	// global guards
@@ -144,13 +184,22 @@ func (app *App) Create(m *Module) {
 			}
 		}(globalGuard)
 
-		for _, mainHandlerItem := range app.module.MainHandlers {
+		// REST global guards
+		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(canActivateMiddleware)
+		}
+
+		// WS global guards
+		for eventName := range insertedEvents {
+			app.wsEventMap[eventName] = append(
+				app.wsEventMap[eventName],
+				canActivateMiddleware,
+			)
 		}
 	}
 
-	// module guards
-	for _, moduleGuard := range app.module.Guards {
+	// REST module guards
+	for _, moduleGuard := range app.module.RESTGuards {
 
 		canActivateMiddleware := func(canActiveFn common.CanActivate) context.Handler {
 			return func(ctx *context.Context) {
@@ -161,15 +210,31 @@ func (app *App) Create(m *Module) {
 		app.route.For(moduleGuard.Route, []string{moduleGuard.Method})(canActivateMiddleware)
 	}
 
+	// WS module guards
+	for _, moduleGuard := range app.module.WSGuards {
+
+		canActivateMiddleware := func(canActiveFn common.CanActivate) context.Handler {
+			return func(ctx *context.Context) {
+				common.HandleGuard(ctx, canActiveFn(ctx))
+			}
+		}(moduleGuard.Handler.(common.CanActivate))
+
+		app.wsEventMap[moduleGuard.EventName] = append(
+			app.wsEventMap[moduleGuard.EventName],
+			canActivateMiddleware,
+		)
+	}
+
 	// global interceptors
 	for _, globalInterceptor := range app.globalInterceptors {
 		newGlobalInterceptor := injectDependencies(globalInterceptor, "interceptor", injectedProviders)
 		globalInterceptor = common.Construct(newGlobalInterceptor.Interface(), "NewInterceptor").(common.Interceptable)
 
-		for _, mainHandlerItem := range app.module.MainHandlers {
+		// REST global interceptors
+		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			aggregationInstance := aggregation.NewAggregation()
 			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
-			app.aggregationMap[endpoint] = append(app.aggregationMap[endpoint], aggregationInstance)
+			app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) context.Handler {
 				return func(ctx *context.Context) {
 
@@ -184,18 +249,59 @@ func (app *App) Create(m *Module) {
 					value := interceptor.Intercept(ctx, aggregationInstance)
 					aggregationInstance.InterceptorData = value
 
+					// to handle error operator
+					errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
+					if errorAggregationOpr != nil {
+						ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
+					}
+
 					ctx.Next()
 				}
 			}(globalInterceptor, aggregationInstance)
 
 			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(interceptMiddleware)
 		}
+
+		// WS global interceptors
+		for eventName := range insertedEvents {
+			aggregationInstance := aggregation.NewAggregation()
+			app.wsAggregationMap[eventName] = append(app.wsAggregationMap[eventName], aggregationInstance)
+			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) context.Handler {
+				return func(ctx *context.Context) {
+
+					// IsMainHandlerCalled will be = true
+					// if Pipe was invoked in Intercept function
+					aggregationInstance.IsMainHandlerCalled = false
+					aggregationInstance.SetMainData(nil)
+
+					// invoke intercept function
+					// value may returned from Pipe function
+					// depend on Intercept invoked at run time
+					value := interceptor.Intercept(ctx, aggregationInstance)
+					aggregationInstance.InterceptorData = value
+
+					// to handle error operator
+					errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
+					if errorAggregationOpr != nil {
+						ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
+					}
+
+					ctx.Next()
+				}
+			}(globalInterceptor, aggregationInstance)
+
+			app.wsEventMap[eventName] = append(
+				app.wsEventMap[eventName],
+				interceptMiddleware,
+			)
+		}
 	}
 
-	for _, moduleInterceptor := range app.module.Interceptors {
+	// REST module interceptors
+	for _, moduleInterceptor := range app.module.RESTInterceptors {
 		aggregationInstance := aggregation.NewAggregation()
 		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, moduleInterceptor.Method))
-		app.aggregationMap[endpoint] = append(app.aggregationMap[endpoint], aggregationInstance)
+		app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 
 		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) context.Handler {
 			return func(ctx *context.Context) {
@@ -211,6 +317,12 @@ func (app *App) Create(m *Module) {
 				value := interceptFn(ctx, aggregationInstance)
 				aggregationInstance.InterceptorData = value
 
+				// to handle error operator
+				errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
+				if errorAggregationOpr != nil {
+					ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
+				}
+
 				ctx.Next()
 			}
 		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
@@ -219,12 +331,54 @@ func (app *App) Create(m *Module) {
 		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptMiddleware)
 	}
 
-	// module exception filters
-	totalModuleExceptionFilers := len(app.module.ExceptionFilters)
-	for i := totalModuleExceptionFilers - 1; i >= 0; i-- {
-		moduleExceptionFilter := app.module.ExceptionFilters[i]
+	// WS module interceptors
+	for _, moduleInterceptor := range app.module.WSInterceptors {
+		aggregationInstance := aggregation.NewAggregation()
+		app.wsAggregationMap[moduleInterceptor.EventName] = append(app.wsAggregationMap[moduleInterceptor.EventName], aggregationInstance)
+
+		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) context.Handler {
+			return func(ctx *context.Context) {
+
+				// IsMainHandlerCalled will be = true
+				// if Pipe was invoked in Intercept function
+				aggregationInstance.IsMainHandlerCalled = false
+				aggregationInstance.SetMainData(nil)
+
+				// invoke intercept function
+				// value may returned from Pipe function
+				// depend on Intercept invoked at run time
+				value := interceptFn(ctx, aggregationInstance)
+				aggregationInstance.InterceptorData = value
+
+				// to handle error operator
+				errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
+				if errorAggregationOpr != nil {
+					ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
+				}
+
+				ctx.Next()
+			}
+		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
+
+		app.wsEventMap[moduleInterceptor.EventName] = append(
+			app.wsEventMap[moduleInterceptor.EventName],
+			interceptMiddleware,
+		)
+	}
+
+	// REST module exception filters
+	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
+	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
+		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
 		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, moduleExceptionFilter.Method))
-		app.catchFnsMap[endpoint] = append(app.catchFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+	}
+
+	// WS module exception filters
+	totalWSModuleExceptionFilers := len(app.module.WSExceptionFilters)
+	for i := totalWSModuleExceptionFilers - 1; i >= 0; i-- {
+		moduleExceptionFilter := app.module.WSExceptionFilters[i]
+		app.catchWSFnsMap[moduleExceptionFilter.EventName] = append(app.catchWSFnsMap[moduleExceptionFilter.EventName], moduleExceptionFilter.Handler.(common.Catch))
 	}
 
 	// global exception filters
@@ -234,13 +388,22 @@ func (app *App) Create(m *Module) {
 		newGlobalExceptionFilter := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
 		globalExceptionFilter = common.Construct(newGlobalExceptionFilter.Interface(), "NewExceptionFilter").(common.ExceptionFilterable)
 
-		for _, mainHandlerItem := range app.module.MainHandlers {
+		// REST global exception filters
+		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
-			app.catchFnsMap[endpoint] = append(app.catchFnsMap[endpoint], globalExceptionFilter.Catch)
+			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
+		}
+
+		// WS global exception filters
+		for eventName := range insertedEvents {
+			app.catchWSFnsMap[eventName] = append(
+				app.catchWSFnsMap[eventName],
+				globalExceptionFilter.Catch,
+			)
 		}
 	}
 
-	for pattern, catchFns := range app.catchFnsMap {
+	for pattern, catchFns := range app.catchRESTFnsMap {
 		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
 			return func(ctx *context.Context) {
 				ctx.Event.Once(catchEvent, func(args ...any) {
@@ -297,9 +460,73 @@ func (app *App) Create(m *Module) {
 		app.route.For(route, []string{httpMethod})(catchMiddleware)
 	}
 
-	// main handler
-	for _, moduleHandler := range app.module.MainHandlers {
+	for pattern, catchFns := range app.catchWSFnsMap {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
+			return func(ctx *context.Context) {
+				ctx.Event.Once(catchEvent, func(args ...any) {
+					catchFnIndex := args[2].(int)
+
+					defer func() {
+						if rec := recover(); rec != nil {
+							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+						}
+					}()
+
+					newC := args[0].(*context.Context)
+					catchFn := catchFns[catchFnIndex]
+
+					response := http.StatusText(http.StatusInternalServerError)
+
+					switch arg := args[1].(type) {
+					case exception.HTTPException:
+						catchFn(newC, &arg)
+						return
+					case error:
+						response = arg.Error()
+					case string:
+						response = arg
+					case int:
+					case int8:
+					case int16:
+					case int32:
+					case int64:
+					case uint:
+					case uint8:
+					case uint16:
+					case uint32:
+					case uint64:
+					case float32:
+					case float64:
+					case complex64:
+					case complex128:
+					case uintptr:
+						response = strconv.Itoa(args[1].(int))
+					}
+					httpException := exception.InternalServerErrorException(response, map[string]any{
+						"description": "Unknown exception",
+					})
+					catchFn(newC, &httpException)
+				})
+
+				ctx.Next()
+			}
+		}(pattern, catchFns)
+
+		// add catch middleware
+		app.wsEventMap[pattern] = append(
+			app.wsEventMap[pattern],
+			catchMiddleware,
+		)
+	}
+
+	// main REST handler
+	for _, moduleHandler := range app.module.RESTMainHandlers {
 		app.route.AddInjectableHandler(moduleHandler.Route, moduleHandler.Method, moduleHandler.Handler)
+	}
+
+	// main WS handler
+	for _, moduleHandler := range app.module.WSMainHandlers {
+		app.wsMainHandlerMap[moduleHandler.EventName] = moduleHandler.Handler
 	}
 }
 
@@ -324,7 +551,7 @@ func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionF
 func (app *App) Use(handlers ...context.Handler) *App {
 	for _, handler := range handlers {
 		middleware := globalMiddleware{
-			route:   "ALL",
+			route:   "*",
 			handler: handler,
 		}
 		app.globalMiddlewares = append(app.globalMiddlewares, middleware)
@@ -362,10 +589,20 @@ func (app *App) Get(p Provider) any {
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := app.pool.Get().(*context.Context)
+	c := app.ctxPool.Get().(*context.Context)
 	c.Timestamp = time.Now()
-	defer app.pool.Put(c)
-	app.handleRequest(w, r, c)
+	defer app.ctxPool.Put(c)
+
+	if utils.ArrIncludes[string](wsPaths, r.URL.Path) {
+		c.SetType(context.WSType)
+		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
+			app.handleWSRequest(wsConn, w, r, c)
+		}, w, r)
+	} else {
+		c.SetType(context.HTTPType)
+		app.handleRESTRequest(w, r, c)
+	}
+
 	c.Reset()
 }
 
@@ -378,16 +615,36 @@ func (app *App) Listen(port int) error {
 		)
 	})
 
+	for eventName := range insertedEvents {
+		p, e := context.ResolveWSEventname(eventName)
+		app.Logger.Info(
+			"WebSocketEvent",
+			"subprotocol", p,
+			"subscribe", e,
+		)
+	}
+
 	addr := fmt.Sprintf(":%v", port)
 	logBoostrap(port)
 	return http.ListenAndServe(addr, app)
 }
 
-func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
+func (app *App) handleRESTRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
 	var catchEvent string
+
 	defer func() {
 		if rec := recover(); rec != nil {
-			if _, ok := app.catchFnsMap[catchEvent]; ok {
+			if _, ok := app.catchRESTFnsMap[catchEvent]; ok {
+
+				// Pipe errors run first
+				// then exception filter
+				totalErrorAggregations := len(c.ErrorAggregationOperators)
+
+				for i := totalErrorAggregations - 1; i >= 0; i-- {
+					aggregation := c.ErrorAggregationOperators[i]
+					rec = aggregation(rec)
+				}
+
 				// 3rd param is index of catch function
 				c.Event.Emit(catchEvent, c, rec, 0)
 			}
@@ -424,7 +681,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 					// data return from main handler
 					data := app.provideAndInvoke(injectableHandler, c)
 
-					if aggregations, ok := app.aggregationMap[matchedRoute]; ok {
+					if aggregations, ok := app.restAggregationMap[matchedRoute]; ok {
 						var aggregatedData any
 						isMainHandlerCalled := true
 
@@ -441,7 +698,7 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 									if len(data) == 1 {
 										aggregatedData = data[0].Interface()
 									} else if len(data) > 1 {
-										selectStatusCode(c, data[0])
+										setStatusCode(c, data[0])
 										aggregatedData = data[1].Interface()
 									}
 								}
@@ -450,20 +707,20 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 								aggregatedData = aggregation.Aggregate()
 							} else {
 								isMainHandlerCalled = false
-								selectData(c, reflect.ValueOf(aggregation.InterceptorData))
+								returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
 								break
 							}
 						}
 
 						if isMainHandlerCalled {
-							selectData(c, reflect.ValueOf(aggregatedData))
+							returnREST(c, reflect.ValueOf(aggregatedData))
 						}
 					} else {
 						if len(data) == 1 {
-							selectData(c, data[0])
+							returnREST(c, data[0])
 						} else if len(data) > 1 {
-							selectStatusCode(c, data[0])
-							selectData(c, data[1])
+							setStatusCode(c, data[0])
+							returnREST(c, data[1])
 						}
 					}
 				} else {
@@ -472,7 +729,6 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 			}
 		}
 	} else {
-
 		// Invoke middlewares
 		for _, middleware := range app.route.GlobalMiddlewares {
 			if isNext {
@@ -494,6 +750,166 @@ func (app *App) handleRequest(w http.ResponseWriter, r *http.Request, c *context
 	}
 }
 
+func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r *http.Request, c *context.Context) {
+	wsInstance := context.NewWS(wsConn)
+	c.WS = wsInstance
+	isNext := true
+	c.ResponseWriter = w
+	c.Request = r
+	c.Next = func() {
+		isNext = true
+	}
+	wsid := wsInstance.GetConnID()
+	wsSubscribedEvents := wsInstance.GetSubscribedEvents()
+
+	defer func() {
+		for _, subscribedEventName := range wsSubscribedEvents {
+			app.removeWSEvent(subscribedEventName, wsid, c)
+		}
+		wsConn.Close()
+	}()
+
+	if !wsInstance.CanEstablish(insertedEvents) {
+		return
+	}
+
+	for _, subscribedEventName := range wsSubscribedEvents {
+		app.addWSEvent(subscribedEventName, wsid, c, func(args ...any) {
+			wsInstance.SendToConn(c, wsConn, args[0].(string))
+		})
+	}
+
+	for {
+
+		// listen on comming messages
+		var message []byte
+		err := websocket.Message.Receive(wsConn, &message)
+
+		// reset timestamp
+		// based on time when receive message
+		c.Timestamp = time.Now()
+
+		if err != nil {
+
+			// client close connection
+			if err == io.EOF {
+				break
+			}
+			app.wsInvokeMiddlewares(c, exception.UnsupportedMediaTypeException(err.Error()))
+			continue
+		}
+
+		var wsMsg context.WSMessage
+		err = json.Unmarshal(message, &wsMsg)
+		if err != nil {
+			app.wsInvokeMiddlewares(c, exception.UnsupportedMediaTypeException(err.Error()))
+			continue
+		}
+
+		// event was registered by controller
+		var publishEventName string
+		defer func() {
+			if rec := recover(); rec != nil {
+				if _, ok := app.catchWSFnsMap[publishEventName]; ok {
+
+					// Pipe errors run first
+					// then exception filter
+					totalErrorAggregations := len(c.ErrorAggregationOperators)
+					for i := totalErrorAggregations - 1; i >= 0; i-- {
+						aggregation := c.ErrorAggregationOperators[i]
+						rec = aggregation(rec)
+					}
+
+					// 3rd param is index of catch function
+					c.Event.Emit(publishEventName, c, rec, 0)
+				}
+
+				// reset ErrorAggregationOperators
+				// to prevent duplicate error aggregation
+				// due to error will be added
+				// whenever interceptor triggered
+				// but WS 1 connection use 1 ctx
+				c.ErrorAggregationOperators = nil
+
+				// clean all events before recursion
+				// prevent emit duplicate event
+				for _, eventName := range wsSubscribedEvents {
+					app.removeWSEvent(eventName, wsid, c)
+				}
+
+				// recursion to keep connection alive
+				app.handleWSRequest(wsConn, w, r, c)
+			}
+		}()
+
+		c.WS.Message = wsMsg
+		publishEventName = common.ToWSEventName(wsInstance.GetSubprotocol(), wsMsg.Event)
+
+		if handlers, isMatched := app.wsEventMap[publishEventName]; isMatched {
+			for index, handler := range handlers {
+				if isNext {
+					isNext = false
+					handler(c)
+
+					// when ran through all middlewares
+					// then invoke mainhandler
+					if index == len(handlers)-1 && isNext {
+						injectableHandler := app.wsMainHandlerMap[publishEventName]
+
+						// data return from main handler
+						data := app.provideAndInvoke(injectableHandler, c)
+						if len(data) == 1 {
+							data = append(data, reflect.ValueOf("*"))
+							data[1], data[0] = data[0], data[1]
+						}
+						configPublishedEventName := data[0].String()
+
+						if aggregations, ok := app.wsAggregationMap[publishEventName]; ok {
+							var aggregatedData any
+							isMainHandlerCalled := true
+
+							totalAggregations := len(aggregations)
+
+							for i := totalAggregations - 1; i >= 0; i-- {
+								aggregation := aggregations[i]
+
+								if aggregation.IsMainHandlerCalled {
+
+									// set data from main handler into
+									// first interceptor
+									if i == totalAggregations-1 && len(data) > 1 {
+										aggregatedData = data[1].Interface()
+									}
+
+									aggregation.SetMainData(aggregatedData)
+									aggregatedData = aggregation.Aggregate()
+								} else {
+									isMainHandlerCalled = false
+									wsMsg := toWSMessage(reflect.ValueOf(aggregation.InterceptorData))
+									app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+									break
+								}
+							}
+
+							if isMainHandlerCalled {
+								wsMsg := toWSMessage(reflect.ValueOf(aggregatedData))
+								app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+							}
+						} else {
+							if len(data) > 1 {
+								wsMsg := toWSMessage(data[1])
+								app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+							}
+						}
+					}
+				}
+			}
+		} else {
+			app.wsInvokeMiddlewares(c, exception.NotFoundException(fmt.Sprintf("Cannot emit %v event", wsMsg.Event)))
+		}
+	}
+}
+
 func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	args := []reflect.Value{}
 	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
@@ -509,4 +925,67 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	})
 
 	return reflect.ValueOf(f).Call(args)
+}
+
+func (app *App) addWSEvent(subscribedEventName, wsid string, c *context.Context, cb func(args ...any)) {
+
+	// actual event = eventName + Sec-Websocket-Key + uuid
+	c.Event.On(subscribedEventName+wsid, cb)
+	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
+		wsids := wsids.([]string)
+		wsids = append(wsids, wsid)
+		app.wsEventToID.Store(subscribedEventName, wsids)
+	} else {
+		app.wsEventToID.Store(subscribedEventName, []string{wsid})
+	}
+}
+
+func (app *App) removeWSEvent(subscribedEventName, wsid string, c *context.Context) {
+	c.Event.RemoveAllListeners(subscribedEventName + wsid)
+	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
+		wsids = utils.ArrFilter[string](wsids.([]string), func(el string, i int) bool {
+			return el != wsid
+		})
+		app.wsEventToID.Swap(subscribedEventName, wsids)
+	}
+}
+
+func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *context.Context) {
+	app.wsEventToID.Range(func(subscribedEventName, wsids any) bool {
+		if subscribedEventName == configPublishedEventName {
+			for _, wsid := range wsids.([]string) {
+				c.Event.Emit(configPublishedEventName+wsid, wsMsg)
+			}
+		}
+		return true
+	})
+
+	// reset ErrorAggregationOperators
+	// to prevent duplicate error aggregation
+	// due to error will be added
+	// whenever interceptor triggered
+	// but WS 1 connection use 1 ctx
+	c.ErrorAggregationOperators = nil
+}
+
+func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTPException) {
+	isNext := true
+	c.Next = func() {
+		isNext = true
+	}
+
+	for _, globalMiddleware := range app.globalMiddlewares {
+		if globalMiddleware.route == "*" && isNext {
+			isNext = false
+			globalMiddleware.handler(c)
+		}
+	}
+
+	if isNext {
+		c.WS.SendSelf(c, context.Map{
+			"code":    exception.GetCode(),
+			"error":   exception.Error(),
+			"message": exception.GetResponse(),
+		})
+	}
 }

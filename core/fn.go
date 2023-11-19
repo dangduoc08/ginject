@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"go/token"
 	"net"
@@ -47,6 +48,9 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
 			newArg = injectDependencies(paramPipeable, "pipe", injectedProviders)
 			cb(PARAM_PIPEABLE, i, newArg)
+		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
+			newArg = injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
+			cb(WS_PAYLOAD_PIPEABLE, i, newArg)
 		} else {
 			cb(arg, i, newArg)
 		}
@@ -59,7 +63,7 @@ func isInjectableHandler(handler any, injectedProviders map[string]Provider) err
 	getFnArgs(handler, injectedProviders, func(arg string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[arg]; !ok {
 			e = fmt.Errorf(
-				"can't resolve dependencies of '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
+				"can't resolve dependencies of the '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
 				reflect.TypeOf(handler).String(),
 				i,
 			)
@@ -230,8 +234,8 @@ func getLocalIP() string {
 func logBoostrap(port int) {
 	accessURLs := utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GOOH! Here Are Your Access URLs: "))) + "\n"
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
-	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("http://%v:%v", "localhost", port) + "\n"
-	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("http://%v:%v", getLocalIP(), port)) + "\n"
+	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
+	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
 	close := utils.FmtItalic(utils.FmtGreen("Press CTRL+C to stop")) + "\n\n"
 
 	os.Stdout.Write([]byte(accessURLs))
@@ -246,6 +250,8 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 	switch k {
 	case CONTEXT:
 		return c
+	case WS_CONNECTION:
+		return c.WS.Connection
 	case REQUEST:
 		return c.Request
 	case RESPONSE:
@@ -260,6 +266,8 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 		return c.Header()
 	case PARAM:
 		return c.Param()
+	case WS_PAYLOAD:
+		return c.WS.Message.Payload
 	case NEXT:
 		return c.Next
 	case REDIRECT:
@@ -294,12 +302,18 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 			Transform(c.Param(), common.ArgumentMetadata{
 				ParamType: PARAM_PIPEABLE,
 			})
+	case WS_PAYLOAD_PIPEABLE:
+		return pipeValue.
+			Interface().(common.WSPayloadPipeable).
+			Transform(c.WS.Message.Payload, common.ArgumentMetadata{
+				ParamType: WS_PAYLOAD_PIPEABLE,
+			})
 	}
 
 	return dependencies
 }
 
-func selectData(c *context.Context, data reflect.Value) {
+func returnREST(c *context.Context, data reflect.Value) {
 	switch data.Type().Kind() {
 	case
 		reflect.Map,
@@ -337,7 +351,48 @@ func selectData(c *context.Context, data reflect.Value) {
 	}
 }
 
-func selectStatusCode(c *context.Context, statusCode reflect.Value) {
+func toWSMessage(data reflect.Value) string {
+	switch data.Type().Kind() {
+	case
+		reflect.Map,
+		reflect.Slice,
+		reflect.Struct,
+		reflect.Interface:
+		jsonBuf, _ := json.Marshal(data.Interface())
+		return string(jsonBuf)
+	case
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128:
+		return fmt.Sprint(data)
+	case
+		reflect.Pointer,
+		reflect.UnsafePointer:
+		return fmt.Sprint(data.UnsafePointer())
+	case
+		reflect.String:
+		return data.Interface().(string)
+	case
+		reflect.Func:
+		return data.Type().String()
+	default:
+		return data.String()
+	}
+}
+
+func setStatusCode(c *context.Context, statusCode reflect.Value) {
 	statusCodeKind := statusCode.Type().Kind()
 
 	if statusCodeKind == reflect.Int {
