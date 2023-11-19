@@ -1,7 +1,9 @@
 package utils
 
 import (
-	"math/rand"
+	cryptoRand "crypto/rand"
+	"fmt"
+	mathRand "math/rand"
 	"regexp"
 	"strings"
 	"time"
@@ -66,7 +68,7 @@ func StrRemoveEnd(str, subStr string) string {
 
 func StrWithCharset(length int, charset string) string {
 	b := make([]byte, length)
-	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	seededRand := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
 
 	for i := range b {
 		b[i] = charset[seededRand.Intn(len(charset))]
@@ -125,6 +127,19 @@ func StrIsUpper(str string) []bool {
 	}
 
 	return res
+}
+
+func StrUUID() (string, error) {
+	uuid := make([]byte, 16)
+	_, err := cryptoRand.Read(uuid)
+	if err != nil {
+		return "", err
+	}
+
+	uuid[6] = (uuid[6] & 0x0f) | 0x40
+	uuid[8] = (uuid[8] & 0x3f) | 0x80
+
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
 }
 
 func ErrorMessage(actual, expected any, desc string) string {

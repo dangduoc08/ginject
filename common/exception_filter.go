@@ -20,8 +20,13 @@ type ExceptionFilterHandler struct {
 }
 
 type ExceptionFilterItem struct {
-	Method  string
-	Route   string
+	// for REST
+	Method string
+	Route  string
+
+	// for WS
+	EventName string
+
 	Handler any
 }
 
@@ -39,7 +44,7 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 	return e
 }
 
-func (e *ExceptionFilter) InjectProvidersIntoExceptionFilters(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
+func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
 	exceptionFilterItemArr := []ExceptionFilterItem{}
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
@@ -64,7 +69,7 @@ func (e *ExceptionFilter) InjectProvidersIntoExceptionFilters(r *Rest, cb func(i
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.Handlers {
 			fnName := GetFnName(handler)
-			httpMethod, route := ParseFnNameToURL(fnName)
+			httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
 			shouldAddExceptionFilter[routing.AddMethodToRoute(route, httpMethod)] = true
 		}
@@ -76,6 +81,49 @@ func (e *ExceptionFilter) InjectProvidersIntoExceptionFilters(r *Rest, cb func(i
 					Method:  httpMethod,
 					Route:   routing.ToEndpoint(route),
 					Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
+				})
+			}
+		}
+	}
+
+	return exceptionFilterItemArr
+}
+
+func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
+	exceptionFilterItemArr := []ExceptionFilterItem{}
+
+	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
+
+		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.ExceptionFilterable)
+		exceptionFilterableValue := reflect.ValueOf(exceptionFilterHandler.ExceptionFilterable)
+		newExceptionFilter := reflect.New(exceptionFilterableType)
+
+		for i := 0; i < exceptionFilterableType.NumField(); i++ {
+
+			// callback use to inject providers
+			cb(i, exceptionFilterableType, exceptionFilterableValue, newExceptionFilter)
+		}
+
+		// invoke exceptionFilter constructor
+		// if NewExceptionFilter was declared
+		newExceptionFilterable := newExceptionFilter.Interface()
+		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
+
+		exceptionFilterHandler.ExceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
+
+		shouldAddExceptionFilter := map[string]bool{}
+		for _, handler := range exceptionFilterHandler.Handlers {
+			fnName := GetFnName(handler)
+			_, eventName := ParseFnNameToURL(fnName, WSOperations)
+			eventName = ToWSEventName(ws.subprotocol, eventName)
+			shouldAddExceptionFilter[eventName] = true
+		}
+
+		for pattern := range ws.patternToFnNameMap {
+			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
+				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
+					EventName: pattern,
+					Handler:   exceptionFilterHandler.ExceptionFilterable.Catch,
 				})
 			}
 		}

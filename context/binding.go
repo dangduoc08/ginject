@@ -30,7 +30,6 @@ func BindStruct(d map[string]any, s any) any {
 			if len(bindParams) > 0 {
 				_, bindedField := getTagParamIndex(bindParams[0])
 				if bindedValue, ok := d[bindedField]; ok {
-					// fmt.Println(bindedField, bindedValue, reflect.TypeOf(bindedValue).Kind())
 					switch structField.Type.Kind() {
 
 					case reflect.Bool:

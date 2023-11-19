@@ -29,6 +29,11 @@ func (e *event) Once(eventName string, listener func(args ...interface{})) {
 	e.onceOpts.Store(eventName, listener)
 }
 
+func (e *event) RemoveAllListeners(eventName string) {
+	e.opts.Delete(eventName)
+	e.onceOpts.Delete(eventName)
+}
+
 func (e *event) Emit(eventName string, args ...interface{}) {
 	ch := make(chan bool, 2)
 
