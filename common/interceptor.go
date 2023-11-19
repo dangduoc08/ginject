@@ -20,8 +20,13 @@ type InterceptorHandler struct {
 }
 
 type InterceptorItem struct {
-	Method  string
-	Route   string
+	// for REST
+	Method string
+	Route  string
+
+	// for WS
+	EventName string
+
 	Handler any
 }
 
@@ -40,7 +45,7 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 	return i
 }
 
-func (i *Interceptor) InjectProvidersIntoInterceptors(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
+func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
 	interceptorItemArr := []InterceptorItem{}
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
@@ -65,7 +70,7 @@ func (i *Interceptor) InjectProvidersIntoInterceptors(r *Rest, cb func(int, refl
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.Handlers {
 			fnName := GetFnName(handler)
-			httpMethod, route := ParseFnNameToURL(fnName)
+			httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
 			shouldAddInterceptors[routing.AddMethodToRoute(route, httpMethod)] = true
 		}
@@ -77,6 +82,49 @@ func (i *Interceptor) InjectProvidersIntoInterceptors(r *Rest, cb func(int, refl
 					Method:  httpMethod,
 					Route:   routing.ToEndpoint(route),
 					Handler: interceptorHandler.Interceptable.Intercept,
+				})
+			}
+		}
+	}
+
+	return interceptorItemArr
+}
+
+func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
+	interceptorItemArr := []InterceptorItem{}
+
+	for _, interceptorHandler := range i.InterceptorHandlers {
+
+		interceptableType := reflect.TypeOf(interceptorHandler.Interceptable)
+		interceptableValue := reflect.ValueOf(interceptorHandler.Interceptable)
+		newInterceptor := reflect.New(interceptableType)
+
+		for i := 0; i < interceptableType.NumField(); i++ {
+
+			// callback use to inject providers
+			cb(i, interceptableType, interceptableValue, newInterceptor)
+		}
+
+		// invoke interceptor constructor
+		// if NewInterceptor was declared
+		newInterceptable := newInterceptor.Interface()
+		newInterceptable = Construct(newInterceptable, "NewInterceptor")
+
+		interceptorHandler.Interceptable = newInterceptable.(Interceptable)
+
+		shouldAddInterceptors := map[string]bool{}
+		for _, handler := range interceptorHandler.Handlers {
+			fnName := GetFnName(handler)
+			_, eventName := ParseFnNameToURL(fnName, WSOperations)
+			eventName = ToWSEventName(ws.subprotocol, eventName)
+			shouldAddInterceptors[eventName] = true
+		}
+
+		for pattern := range ws.patternToFnNameMap {
+			if _, ok := shouldAddInterceptors[pattern]; ok || len(shouldAddInterceptors) == 0 {
+				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
+					EventName: pattern,
+					Handler:   interceptorHandler.Interceptable.Intercept,
 				})
 			}
 		}

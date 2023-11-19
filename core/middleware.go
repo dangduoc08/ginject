@@ -15,19 +15,26 @@ type MiddlewareConfig struct {
 }
 
 type Middleware struct {
-	middlewares       []context.Handler
-	inclusion         []string
-	exclusion         []string
-	middlewareItemArr []struct {
+	middlewares           []context.Handler
+	inclusion             []string
+	exclusion             []string
+	restMiddlewareItemArr []struct {
 		method   string
 		route    string
 		handlers []context.Handler
 	}
+	wsMiddlewareItemArr []struct {
+		eventName string
+		handlers  []context.Handler
+	}
 }
 
 func (mw *Middleware) Apply(middlewares ...context.Handler) *MiddlewareConfig {
+
+	// when Apply invoked twice on same module
 	if len(mw.middlewares) > 0 {
-		mw.add([]map[string]string{})
+		mw.addREST([]map[string]string{})
+		mw.addWS()
 	}
 
 	mw.middlewares = middlewares
@@ -40,8 +47,8 @@ func (mw *Middleware) Apply(middlewares ...context.Handler) *MiddlewareConfig {
 	}
 }
 
-func (mw *Middleware) include(methodName string) *Middleware {
-	httpMethod, _ := common.ParseFnNameToURL(methodName)
+func (mw *Middleware) includeREST(methodName string) *Middleware {
+	httpMethod, _ := common.ParseFnNameToURL(methodName, common.RestOperations)
 	if httpMethod != "" {
 		mw.inclusion = append(mw.inclusion, methodName)
 	}
@@ -49,22 +56,22 @@ func (mw *Middleware) include(methodName string) *Middleware {
 	return mw
 }
 
-func (mw *Middleware) add(prefixes []map[string]string) {
+func (mw *Middleware) addREST(prefixes []map[string]string) {
 	for _, fnNameInclusion := range mw.inclusion {
 
 		if !utils.ArrIncludes[string](mw.exclusion, fnNameInclusion) {
-			httpMethod, route := common.ParseFnNameToURL(fnNameInclusion)
+			httpMethod, route := common.ParseFnNameToURL(fnNameInclusion, common.RestOperations)
 			if httpMethod != "" {
 				for _, prefix := range prefixes {
 					for prefixValue, prefixFnName := range prefix {
-						if prefixFnName == "ALL" || prefixFnName == fnNameInclusion {
+						if prefixFnName == "*" || prefixFnName == fnNameInclusion {
 							route = prefixValue + route
 						}
 					}
 				}
 
 				// apply for all
-				mw.middlewareItemArr = append(mw.middlewareItemArr, struct {
+				mw.restMiddlewareItemArr = append(mw.restMiddlewareItemArr, struct {
 					method   string
 					route    string
 					handlers []func(*context.Context)
@@ -78,7 +85,38 @@ func (mw *Middleware) add(prefixes []map[string]string) {
 	}
 }
 
-func (mc *MiddlewareConfig) Exclude(configExclusion []any) *Middleware {
+func (mw *Middleware) addWS() {
+	for _, patternFNNameInclusion := range mw.inclusion {
+
+		// because line 113
+		// have to resolve to get fnName and subprotocol
+		opr, eventname := common.ParseFnNameToURL(patternFNNameInclusion, common.WSOperations)
+		if opr != "" {
+			eventname = utils.StrRemoveEnd(utils.StrRemoveBegin(eventname, "/"), "/")
+			_, fnNameInclusion := context.ResolveWSEventname(eventname)
+			if !utils.ArrIncludes[string](mw.exclusion, fnNameInclusion) {
+				mw.wsMiddlewareItemArr = append(mw.wsMiddlewareItemArr, struct {
+					eventName string
+					handlers  []func(*context.Context)
+				}{
+					eventName: eventname,
+					handlers:  mw.middlewares,
+				})
+			}
+		}
+	}
+}
+
+func (mw *Middleware) includeWS(subprotocol, methodName string) *Middleware {
+	opr, event := common.ParseFnNameToURL(methodName, common.WSOperations)
+	if opr != "" {
+		mw.inclusion = append(mw.inclusion, opr+"_"+common.ToWSEventName(subprotocol, event))
+	}
+
+	return mw
+}
+
+func (mc *MiddlewareConfig) Exclude(configExclusion ...any) *Middleware {
 	for _, handler := range configExclusion {
 		handlerKind := reflect.TypeOf(handler).Kind()
 		if handler == nil || handlerKind != reflect.Func {

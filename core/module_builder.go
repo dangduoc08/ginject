@@ -88,30 +88,56 @@ func (m *moduleBuilder) Build() *Module {
 		providers:      m.providers,
 		controllers:    m.controllers,
 		Middleware:     &Middleware{},
-		Middlewares: []struct {
+		RESTMiddlewares: []struct {
 			Method   string
 			Route    string
 			Handlers []func(*context.Context)
 		}{},
-		Guards: []struct {
+		RESTGuards: []struct {
 			Method  string
 			Route   string
 			Handler any
 		}{},
-		Interceptors: []struct {
+		RESTInterceptors: []struct {
 			Method  string
 			Route   string
 			Handler any
 		}{},
-		ExceptionFilters: []struct {
+		RESTExceptionFilters: []struct {
 			Method  string
 			Route   string
 			Handler any
 		}{},
-		MainHandlers: []struct {
+		RESTMainHandlers: []struct {
 			Method  string
 			Route   string
 			Handler any
+		}{},
+
+		WSMiddlewares: []struct {
+			Subprotocol string
+			EventName   string
+			Handlers    []func(*context.Context)
+		}{},
+		WSGuards: []struct {
+			Subprotocol string
+			EventName   string
+			Handler     any
+		}{},
+		WSInterceptors: []struct {
+			Subprotocol string
+			EventName   string
+			Handler     any
+		}{},
+		WSExceptionFilters: []struct {
+			Subprotocol string
+			EventName   string
+			Handler     any
+		}{},
+		WSMainHandlers: []struct {
+			Subprotocol string
+			EventName   string
+			Handler     any
 		}{},
 	}
 }

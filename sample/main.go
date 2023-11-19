@@ -7,8 +7,9 @@ import (
 	"github.com/dangduoc08/gooh/log"
 	"github.com/dangduoc08/gooh/middlewares"
 	"github.com/dangduoc08/gooh/modules/config"
+	"github.com/dangduoc08/gooh/sample/friend"
 	"github.com/dangduoc08/gooh/sample/global"
-	"github.com/dangduoc08/gooh/sample/list"
+	"github.com/dangduoc08/gooh/sample/messenger"
 )
 
 func main() {
@@ -21,9 +22,7 @@ func main() {
 	app.
 		UseLogger(logger).
 		Use(middlewares.RequestLogger(logger)).
-		BindGlobalGuards(global.PermissionGuard{}).
-		BindGlobalInterceptors(global.LoggingInterceptor{}, global.ResponseInterceptor{}).
-		BindGlobalExceptionFilters(global.AllExceptionsFilter{})
+		BindGlobalInterceptors(global.LoggingInterceptor{}, global.ResponseInterceptor{})
 
 	app.Create(
 		core.ModuleBuilder().
@@ -44,7 +43,8 @@ func main() {
 						},
 					},
 				}),
-				list.ListModule,
+				friend.FriendModule,
+				messenger.MessengerModule,
 			).
 			Build(),
 	)

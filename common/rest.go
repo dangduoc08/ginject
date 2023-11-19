@@ -9,7 +9,7 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
-var Operations = map[string]string{
+var RestOperations = map[string]string{
 	"READ":   http.MethodGet,
 	"CREATE": http.MethodPost,
 	"UPDATE": http.MethodPut,
@@ -69,7 +69,7 @@ func (r *Rest) GetPrefixes() []map[string]string {
 		// if no handlers were binded
 		// then prefix will be applied for all handlers
 		if len(prefixHandlers) == 0 {
-			prefixMap[prefixValue] = "ALL"
+			prefixMap[prefixValue] = "*"
 		} else {
 			for _, handler := range prefixHandlers {
 				prefixMap[prefixValue] = GetFnName(handler)
@@ -85,7 +85,7 @@ func (r *Rest) GetPrefixes() []map[string]string {
 func (r *Rest) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
 	for _, prefix := range prefixes {
 		for prefixValue, prefixFnName := range prefix {
-			if prefixFnName == "ALL" || prefixFnName == fnName {
+			if prefixFnName == "*" || prefixFnName == fnName {
 				route = prefixValue + route
 			}
 		}
@@ -108,7 +108,7 @@ func (r *Rest) Prefix(v string, handlers ...any) *Rest {
 func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, handler any) {
 	prefixes := r.GetPrefixes()
 
-	httpMethod, route := ParseFnNameToURL(fnName)
+	httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
 

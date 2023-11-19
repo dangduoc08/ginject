@@ -18,14 +18,15 @@ type (
 	HTTPException = *exception.HTTPException
 
 	// decorators
-	Context  = *context.Context
-	Request  = *http.Request
-	Response = http.ResponseWriter
-	Body     = context.Body
-	Form     = context.Form
-	Query    = context.Query
-	Header   = context.Header
-	Param    = context.Param
-	Next     = context.Next
-	Redirect = context.Redirect
+	Context   = *context.Context
+	Request   = *http.Request
+	Response  = http.ResponseWriter
+	Body      = context.Body
+	Form      = context.Form
+	Query     = context.Query
+	Header    = context.Header
+	Param     = context.Param
+	WSPayload = context.WSPayload
+	Next      = context.Next
+	Redirect  = context.Redirect
 )
