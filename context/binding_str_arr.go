@@ -49,7 +49,7 @@ Support types:
   - Slice
 */
 
-func bindStrArr(d map[string][]string, s any) any {
+func BindStrArr(d map[string][]string, s any) any {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)

@@ -141,7 +141,7 @@ func TestBindStrArr(t *testing.T) {
 		panic(err)
 	}
 
-	d := bindStrArr(testData, TestStrArrDTO{})
+	d := BindStrArr(testData, TestStrArrDTO{})
 	dto := d.(TestStrArrDTO)
 
 	actual1 := dto.Bool1

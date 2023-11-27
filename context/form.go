@@ -59,5 +59,5 @@ func (f Form) Has(k string) bool {
 }
 
 func (f Form) Bind(s any) any {
-	return bindStrArr(f, s)
+	return BindStrArr(f, s)
 }
