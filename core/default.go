@@ -11,13 +11,33 @@ import (
 
 type globalExceptionFilter struct{}
 
-func (g globalExceptionFilter) Catch(c *context.Context, e *exception.HTTPException) {
+func (g globalExceptionFilter) Catch(c *context.Context, ex *exception.HTTPException) {
 	internalServerErrorException := exception.InternalServerErrorException("Unhandled exception has occurred")
-	httpCode, _ := internalServerErrorException.GetHTTPStatus()
+
+	code := ex.GetCode()
+	if code == "" {
+		code = internalServerErrorException.GetCode()
+	}
+
+	err := ex.Error()
+	if err == "" {
+		err = internalServerErrorException.Error()
+	}
+
+	messages := ex.GetResponse()
+	if messages == "" {
+		messages = internalServerErrorException.GetResponse()
+	}
+
+	httpCode, httpText := ex.GetHTTPStatus()
+	if httpText == "" {
+		httpCode, _ = internalServerErrorException.GetHTTPStatus()
+	}
+
 	data := context.Map{
-		"code":    internalServerErrorException.GetCode(),
-		"error":   internalServerErrorException.Error(),
-		"message": internalServerErrorException.GetResponse(),
+		"code":     code,
+		"error":    err,
+		"messages": messages,
 	}
 	requestType := c.GetType()
 	if requestType == context.HTTPType {

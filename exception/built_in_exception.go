@@ -5,86 +5,86 @@ import (
 	"strconv"
 )
 
-func BadRequestException(response string, opts ...any) HTTPException {
+func BadRequestException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusBadRequest), opts...)
 }
 
-func ConflictException(response string, opts ...any) HTTPException {
+func ConflictException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusConflict), opts...)
 }
 
-func ForbiddenException(response string, opts ...any) HTTPException {
+func ForbiddenException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusForbidden), opts...)
 }
 
-func GoneException(response string, opts ...any) HTTPException {
+func GoneException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusGone), opts...)
 }
 
-func InternalServerErrorException(response string, opts ...any) HTTPException {
+func InternalServerErrorException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusInternalServerError), opts...)
 }
 
-func MethodNotAllowedException(response string, opts ...any) HTTPException {
+func MethodNotAllowedException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusMethodNotAllowed), opts...)
 }
 
-func NotAcceptableException(response string, opts ...any) HTTPException {
+func NotAcceptableException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusNotAcceptable), opts...)
 }
 
-func NotFoundException(response string, opts ...any) HTTPException {
+func NotFoundException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusNotFound), opts...)
 }
 
-func RequestTimeoutException(response string, opts ...any) HTTPException {
+func RequestTimeoutException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusRequestTimeout), opts...)
 }
 
-func UnauthorizedException(response string, opts ...any) HTTPException {
+func UnauthorizedException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusUnauthorized), opts...)
 }
 
-func RequestEntityTooLargeException(response string, opts ...any) HTTPException {
+func RequestEntityTooLargeException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusRequestEntityTooLarge), opts...)
 }
 
-func UnsupportedMediaTypeException(response string, opts ...any) HTTPException {
+func UnsupportedMediaTypeException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusUnsupportedMediaType), opts...)
 }
 
-func UnprocessableEntityException(response string, opts ...any) HTTPException {
+func UnprocessableEntityException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusUnprocessableEntity), opts...)
 }
 
-func NotImplementedException(response string, opts ...any) HTTPException {
+func NotImplementedException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusNotImplemented), opts...)
 }
 
-func HTTPVersionNotSupportedException(response string, opts ...any) HTTPException {
+func HTTPVersionNotSupportedException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusHTTPVersionNotSupported), opts...)
 }
 
-func BadGatewayException(response string, opts ...any) HTTPException {
+func BadGatewayException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusBadGateway), opts...)
 }
 
-func ServiceUnavailableException(response string, opts ...any) HTTPException {
+func ServiceUnavailableException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusServiceUnavailable), opts...)
 }
 
-func GatewayTimeoutException(response string, opts ...any) HTTPException {
+func GatewayTimeoutException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusGatewayTimeout), opts...)
 }
 
-func TeapotException(response string, opts ...any) HTTPException {
+func TeapotException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusTeapot), opts...)
 }
 
-func PreconditionFailedException(response string, opts ...any) HTTPException {
+func PreconditionFailedException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusPreconditionFailed), opts...)
 }
 
-func MisdirectedRequestException(response string, opts ...any) HTTPException {
+func MisdirectedRequestException(response any, opts ...any) HTTPException {
 	return NewHTTPException(response, strconv.Itoa(http.StatusMisdirectedRequest), opts...)
 }
