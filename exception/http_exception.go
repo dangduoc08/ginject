@@ -6,8 +6,8 @@ import (
 )
 
 type HTTPException struct {
+	response any
 	error    string
-	response string
 	code     string
 }
 
@@ -30,11 +30,11 @@ func (httpException HTTPException) GetHTTPStatus() (int, string) {
 	return 0, ""
 }
 
-func (httpException HTTPException) GetResponse() string {
+func (httpException HTTPException) GetResponse() any {
 	return httpException.response
 }
 
-func (httpException HTTPException) errorBuilder(response string, code string, opts ...any) HTTPException {
+func (httpException HTTPException) errorBuilder(response any, code string, opts ...any) HTTPException {
 	httpException.response = response
 	httpException.code = code
 
@@ -67,6 +67,6 @@ func (httpException HTTPException) errorBuilder(response string, code string, op
 	return httpException
 }
 
-func NewHTTPException(response string, code string, opts ...any) HTTPException {
+func NewHTTPException(response any, code string, opts ...any) HTTPException {
 	return HTTPException{}.errorBuilder(response, code, opts...)
 }
