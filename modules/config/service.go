@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/core"
 )
 
@@ -18,4 +19,12 @@ func (configService *ConfigService) Get(k string) any {
 
 func (configService *ConfigService) Set(k string, v any) {
 	configService.Config[k] = v
+}
+
+func (configService *ConfigService) Transform(s any) any {
+	conf := map[string][]string{}
+	for key, val := range configService.Config {
+		conf[key] = append(conf[key], val.(string))
+	}
+	return context.BindStrArr(conf, s)
 }
