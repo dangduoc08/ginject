@@ -175,7 +175,11 @@ func (app *App) Create(m *Module) {
 
 	// global guards
 	for _, globalGuard := range app.globalGuarders {
-		newGlobalGuard := injectDependencies(globalGuard, "guard", injectedProviders)
+		newGlobalGuard, err := injectDependencies(globalGuard, "guard", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+
 		globalGuard = common.Construct(newGlobalGuard.Interface(), "NewGuard").(common.Guarder)
 
 		canActivateMiddleware := func(guard common.Guarder) context.Handler {
@@ -227,7 +231,11 @@ func (app *App) Create(m *Module) {
 
 	// global interceptors
 	for _, globalInterceptor := range app.globalInterceptors {
-		newGlobalInterceptor := injectDependencies(globalInterceptor, "interceptor", injectedProviders)
+		newGlobalInterceptor, err := injectDependencies(globalInterceptor, "interceptor", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+
 		globalInterceptor = common.Construct(newGlobalInterceptor.Interface(), "NewInterceptor").(common.Interceptable)
 
 		// REST global interceptors
@@ -385,7 +393,11 @@ func (app *App) Create(m *Module) {
 	totalGlobalExceptionFilters := len(app.globalExceptionFilters)
 	for i := totalGlobalExceptionFilters - 1; i >= 0; i-- {
 		globalExceptionFilter := app.globalExceptionFilters[i]
-		newGlobalExceptionFilter := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
+		newGlobalExceptionFilter, err := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+
 		globalExceptionFilter = common.Construct(newGlobalExceptionFilter.Interface(), "NewExceptionFilter").(common.ExceptionFilterable)
 
 		// REST global exception filters
