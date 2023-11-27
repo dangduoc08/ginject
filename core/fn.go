@@ -122,6 +122,8 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 			// if an injected provider doesn't exist, check if a global provider with the same type exists
 			// if a global provider exists, append it to the list of arguments
 			globalArgs = append(globalArgs, reflect.ValueOf(globalProviders[dynamicArgKey]))
+		} else if globalInterfaces[dynamicArgKey] != nil {
+			globalArgs = append(globalArgs, reflect.ValueOf(globalInterfaces[dynamicArgKey]))
 		} else {
 			panic(genError(dynamicModuleType, dynamicArgKey, i))
 		}
