@@ -21,7 +21,7 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		Use(middlewares.RequestLogger(logger)).
+		Use(middlewares.CORS(), middlewares.RequestLogger(logger)).
 		BindGlobalInterceptors(global.LoggingInterceptor{}, global.ResponseInterceptor{})
 
 	app.Create(
