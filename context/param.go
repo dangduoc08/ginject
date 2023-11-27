@@ -46,5 +46,5 @@ func (p Param) Has(k string) bool {
 }
 
 func (p Param) Bind(s any) any {
-	return bindStrArr(p, s)
+	return BindStrArr(p, s)
 }

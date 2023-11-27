@@ -37,5 +37,5 @@ func (q Query) Has(k string) bool {
 }
 
 func (q Query) Bind(s any) any {
-	return bindStrArr(q, s)
+	return BindStrArr(q, s)
 }

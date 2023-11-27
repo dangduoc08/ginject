@@ -37,5 +37,5 @@ func (h Header) Has(k string) bool {
 }
 
 func (h Header) Bind(s any) any {
-	return bindStrArr(h, s)
+	return BindStrArr(h, s)
 }
