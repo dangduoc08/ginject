@@ -34,22 +34,46 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 		argAnyValue := newArg.Interface()
 
 		if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
-			newArg = injectDependencies(bodyPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(bodyPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(BODY_PIPEABLE, i, newArg)
 		} else if formPipeable, isImplFormPipeable := argAnyValue.(common.FormPipeable); isImplFormPipeable {
-			newArg = injectDependencies(formPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(formPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(FORM_PIPEABLE, i, newArg)
 		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
-			newArg = injectDependencies(queryPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(queryPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(QUERY_PIPEABLE, i, newArg)
 		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
-			newArg = injectDependencies(headerPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(headerPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(HEADER_PIPEABLE, i, newArg)
 		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
-			newArg = injectDependencies(paramPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(paramPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(PARAM_PIPEABLE, i, newArg)
 		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
-			newArg = injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
+			newArg, err := injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
 			cb(WS_PAYLOAD_PIPEABLE, i, newArg)
 		} else {
 			cb(arg, i, newArg)
@@ -159,7 +183,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 	return staticModule
 }
 
-func injectDependencies(component any, kind string, dependencies map[string]Provider) reflect.Value {
+func injectDependencies(component any, kind string, dependencies map[string]Provider) (reflect.Value, error) {
 	componentType := reflect.TypeOf(component)
 	componentValue := reflect.ValueOf(component)
 	newComponent := reflect.New(componentType)
@@ -202,7 +226,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 			// other wise state = nil
 			newComponent.Elem().Field(j).Set(componentValue.Field(j))
 		} else {
-			panic(fmt.Errorf(
+			return reflect.ValueOf(nil), fmt.Errorf(
 				utils.FmtRed(
 					"can't resolve dependencies of the '%v' %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					componentFieldType.String(),
@@ -211,11 +235,11 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 					componentType.Name(),
 					kind,
 				),
-			))
+			)
 		}
 	}
 
-	return newComponent
+	return newComponent, nil
 }
 
 func getLocalIP() string {

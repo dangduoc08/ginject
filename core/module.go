@@ -167,6 +167,9 @@ func (m *Module) NewModule() *Module {
 
 			for _, dynamicModule := range m.dynamicModules {
 				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(dynamicModule).Pointer())
+
+				// dynamic module cannot be injected as globally
+				// initially cannot resolve all dependencies
 			}
 		}
 
@@ -198,21 +201,21 @@ func (m *Module) NewModule() *Module {
 		}
 
 		// inject local providers
+		// from static modules
 		var injectedProviders map[string]Provider = make(map[string]Provider)
 		for _, provider := range m.providers {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
 
-		// inject local providers
-		// from dynamic modules
-		// line 94 already inject (not bug)
-		for _, provider := range m.providers {
-			injectedProviders[genProviderKey(provider)] = provider
-		}
-
 		// inject providers into providers
+		injectedErrorProviders := []Provider{}
 		for i, provider := range m.providers {
-			newProvider := injectDependencies(provider, "provider", injectedProviders)
+			newProvider, err := injectDependencies(provider, "provider", injectedProviders)
+			if err != nil {
+				injectedErrorProviders = append(injectedErrorProviders, provider)
+				continue
+			}
+
 			providerKey := genProviderKey(provider)
 
 			if providerInjectCheck[providerKey] == nil {
@@ -240,7 +243,11 @@ func (m *Module) NewModule() *Module {
 			}
 
 			if staticModule.IsGlobal {
-				staticModule.injectGlobalProviders()
+				panic(fmt.Errorf(
+					utils.FmtRed(
+						"can't set dynamic module as global module",
+					),
+				))
 			}
 
 			injectModule := staticModule.NewModule()
@@ -265,11 +272,39 @@ func (m *Module) NewModule() *Module {
 				m.WSMainHandlers = append(m.WSMainHandlers, injectModule.WSMainHandlers...)
 			}
 		}
+		// inject local providers
+		// from dynamic modules
+		for _, provider := range m.providers {
+			injectedProviders[genProviderKey(provider)] = provider
+		}
+
+		// inject error providers
+		// this can happen
+		// due to inject dynamic providers into static providers
+		for i, provider := range injectedErrorProviders {
+			newProvider, err := injectDependencies(provider, "provider", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
+			providerKey := genProviderKey(provider)
+
+			if providerInjectCheck[providerKey] == nil {
+				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
+			}
+
+			m.providers[i] = providerInjectCheck[providerKey]
+			injectedProviders[providerKey] = providerInjectCheck[providerKey]
+		}
 
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
 			for i, controller := range m.controllers {
-				newController := injectDependencies(controller, "controller", injectedProviders)
+				newController, err := injectDependencies(controller, "controller", injectedProviders)
+				if err != nil {
+					panic(err)
+				}
+
 				m.controllers[i] = newController.Interface().(Controller).NewController()
 
 				// Handle REST
