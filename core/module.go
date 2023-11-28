@@ -370,6 +370,8 @@ func (m *Module) NewModule() *Module {
 								newGuard.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newGuard.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newGuard.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(guardFieldType) {
 								newGuard.Elem().Field(i).Set(guarderValue.Field(i))
 							} else {
@@ -430,6 +432,8 @@ func (m *Module) NewModule() *Module {
 								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(interceptorFieldType) {
 								newInterceptor.Elem().Field(i).Set(interceptableValue.Field(i))
 							} else {
@@ -490,6 +494,8 @@ func (m *Module) NewModule() *Module {
 								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(exceptionFilterFieldType) {
 								newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
 							} else {
@@ -600,6 +606,8 @@ func (m *Module) NewModule() *Module {
 								newGuard.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newGuard.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newGuard.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(guardFieldType) {
 								newGuard.Elem().Field(i).Set(guarderValue.Field(i))
 							} else {
@@ -660,6 +668,8 @@ func (m *Module) NewModule() *Module {
 								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newInterceptor.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(interceptorFieldType) {
 								newInterceptor.Elem().Field(i).Set(interceptableValue.Field(i))
 							} else {
@@ -720,6 +730,8 @@ func (m *Module) NewModule() *Module {
 								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
 							} else if globalProviders[injectProviderKey] != nil {
 								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
 							} else if !isInjectedProvider(exceptionFilterFieldType) {
 								newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
 							} else {
