@@ -620,6 +620,9 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) Listen(port int) error {
 	app.route.Range(func(method, route string) {
+		if route == "" {
+			route = "/"
+		}
 		app.Logger.Info(
 			"RouteExplorer",
 			"method", method,
