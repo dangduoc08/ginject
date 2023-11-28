@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"strings"
+
+	"github.com/dangduoc08/gooh/utils"
 )
 
 type Body map[string]any
@@ -31,6 +33,46 @@ func (c *Context) Body() Body {
 	}
 
 	return c.body
+}
+
+func (b Body) Set(k string, v any) {
+	b[k] = v
+}
+
+func (b Body) Get(k string) any {
+	keys := strings.Split(k, ".")
+	keys = utils.ArrFilter[string](keys, func(el string, i int) bool {
+		return strings.TrimSpace(el) != ""
+	})
+	obj := b
+	if len(keys) == 0 {
+		return obj
+	}
+
+	for i, key := range keys {
+		if val, ok := obj[key]; ok {
+			if deeperObj, ok := val.(map[string]any); ok {
+				obj = deeperObj
+				if i == len(keys)-1 {
+					return obj
+				}
+			} else if i == len(keys)-1 {
+				return obj[key]
+			} else {
+				return nil
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b Body) Del(k string) {
+	delete(b, k)
+}
+
+func (b Body) Has(k string) bool {
+	return b.Get(k) != nil
 }
 
 func (b Body) Bind(s any) any {
