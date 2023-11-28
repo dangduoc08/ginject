@@ -141,6 +141,163 @@ func (app *App) Create(m *Module) {
 	// module interceptors (pre)
 	// main handler
 
+	// REST module exception filters
+	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
+	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
+		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
+		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, moduleExceptionFilter.Method))
+		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+	}
+
+	// WS module exception filters
+	totalWSModuleExceptionFilers := len(app.module.WSExceptionFilters)
+	for i := totalWSModuleExceptionFilers - 1; i >= 0; i-- {
+		moduleExceptionFilter := app.module.WSExceptionFilters[i]
+		app.catchWSFnsMap[moduleExceptionFilter.EventName] = append(app.catchWSFnsMap[moduleExceptionFilter.EventName], moduleExceptionFilter.Handler.(common.Catch))
+	}
+
+	// global exception filters
+	totalGlobalExceptionFilters := len(app.globalExceptionFilters)
+	for i := totalGlobalExceptionFilters - 1; i >= 0; i-- {
+		globalExceptionFilter := app.globalExceptionFilters[i]
+		newGlobalExceptionFilter, err := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+
+		globalExceptionFilter = common.Construct(newGlobalExceptionFilter.Interface(), "NewExceptionFilter").(common.ExceptionFilterable)
+
+		// REST global exception filters
+		for _, mainHandlerItem := range app.module.RESTMainHandlers {
+			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
+			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
+		}
+
+		// WS global exception filters
+		for eventName := range insertedEvents {
+			app.catchWSFnsMap[eventName] = append(
+				app.catchWSFnsMap[eventName],
+				globalExceptionFilter.Catch,
+			)
+		}
+	}
+
+	for pattern, catchFns := range app.catchRESTFnsMap {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
+			return func(ctx *context.Context) {
+				ctx.Event.Once(catchEvent, func(args ...any) {
+					catchFnIndex := args[2].(int)
+
+					defer func() {
+						if rec := recover(); rec != nil {
+							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+						}
+					}()
+
+					newC := args[0].(*context.Context)
+					catchFn := catchFns[catchFnIndex]
+
+					response := http.StatusText(http.StatusInternalServerError)
+
+					switch arg := args[1].(type) {
+					case exception.HTTPException:
+						catchFn(newC, &arg)
+						return
+					case error:
+						response = arg.Error()
+					case string:
+						response = arg
+					case int:
+					case int8:
+					case int16:
+					case int32:
+					case int64:
+					case uint:
+					case uint8:
+					case uint16:
+					case uint32:
+					case uint64:
+					case float32:
+					case float64:
+					case complex64:
+					case complex128:
+					case uintptr:
+						response = strconv.Itoa(args[1].(int))
+					}
+					httpException := exception.InternalServerErrorException(response, map[string]any{
+						"description": "Unknown exception",
+					})
+					catchFn(newC, &httpException)
+				})
+
+				ctx.Next()
+			}
+		}(pattern, catchFns)
+
+		// add catch middleware
+		httpMethod, route := routing.SplitRoute(pattern)
+		app.route.For(route, []string{httpMethod})(catchMiddleware)
+	}
+
+	for pattern, catchFns := range app.catchWSFnsMap {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
+			return func(ctx *context.Context) {
+				ctx.Event.Once(catchEvent, func(args ...any) {
+					catchFnIndex := args[2].(int)
+
+					defer func() {
+						if rec := recover(); rec != nil {
+							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+						}
+					}()
+
+					newC := args[0].(*context.Context)
+					catchFn := catchFns[catchFnIndex]
+
+					response := http.StatusText(http.StatusInternalServerError)
+
+					switch arg := args[1].(type) {
+					case exception.HTTPException:
+						catchFn(newC, &arg)
+						return
+					case error:
+						response = arg.Error()
+					case string:
+						response = arg
+					case int:
+					case int8:
+					case int16:
+					case int32:
+					case int64:
+					case uint:
+					case uint8:
+					case uint16:
+					case uint32:
+					case uint64:
+					case float32:
+					case float64:
+					case complex64:
+					case complex128:
+					case uintptr:
+						response = strconv.Itoa(args[1].(int))
+					}
+					httpException := exception.InternalServerErrorException(response, map[string]any{
+						"description": "Unknown exception",
+					})
+					catchFn(newC, &httpException)
+				})
+
+				ctx.Next()
+			}
+		}(pattern, catchFns)
+
+		// add catch middleware
+		app.wsEventMap[pattern] = append(
+			app.wsEventMap[pattern],
+			catchMiddleware,
+		)
+	}
+
 	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
 		if globalMiddleware.route != "*" {
@@ -371,163 +528,6 @@ func (app *App) Create(m *Module) {
 		app.wsEventMap[moduleInterceptor.EventName] = append(
 			app.wsEventMap[moduleInterceptor.EventName],
 			interceptMiddleware,
-		)
-	}
-
-	// REST module exception filters
-	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
-	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
-		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
-		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, moduleExceptionFilter.Method))
-		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
-	}
-
-	// WS module exception filters
-	totalWSModuleExceptionFilers := len(app.module.WSExceptionFilters)
-	for i := totalWSModuleExceptionFilers - 1; i >= 0; i-- {
-		moduleExceptionFilter := app.module.WSExceptionFilters[i]
-		app.catchWSFnsMap[moduleExceptionFilter.EventName] = append(app.catchWSFnsMap[moduleExceptionFilter.EventName], moduleExceptionFilter.Handler.(common.Catch))
-	}
-
-	// global exception filters
-	totalGlobalExceptionFilters := len(app.globalExceptionFilters)
-	for i := totalGlobalExceptionFilters - 1; i >= 0; i-- {
-		globalExceptionFilter := app.globalExceptionFilters[i]
-		newGlobalExceptionFilter, err := injectDependencies(globalExceptionFilter, "exceptionFilter", injectedProviders)
-		if err != nil {
-			panic(err)
-		}
-
-		globalExceptionFilter = common.Construct(newGlobalExceptionFilter.Interface(), "NewExceptionFilter").(common.ExceptionFilterable)
-
-		// REST global exception filters
-		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
-			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
-		}
-
-		// WS global exception filters
-		for eventName := range insertedEvents {
-			app.catchWSFnsMap[eventName] = append(
-				app.catchWSFnsMap[eventName],
-				globalExceptionFilter.Catch,
-			)
-		}
-	}
-
-	for pattern, catchFns := range app.catchRESTFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
-			return func(ctx *context.Context) {
-				ctx.Event.Once(catchEvent, func(args ...any) {
-					catchFnIndex := args[2].(int)
-
-					defer func() {
-						if rec := recover(); rec != nil {
-							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
-						}
-					}()
-
-					newC := args[0].(*context.Context)
-					catchFn := catchFns[catchFnIndex]
-
-					response := http.StatusText(http.StatusInternalServerError)
-
-					switch arg := args[1].(type) {
-					case exception.HTTPException:
-						catchFn(newC, &arg)
-						return
-					case error:
-						response = arg.Error()
-					case string:
-						response = arg
-					case int:
-					case int8:
-					case int16:
-					case int32:
-					case int64:
-					case uint:
-					case uint8:
-					case uint16:
-					case uint32:
-					case uint64:
-					case float32:
-					case float64:
-					case complex64:
-					case complex128:
-					case uintptr:
-						response = strconv.Itoa(args[1].(int))
-					}
-					httpException := exception.InternalServerErrorException(response, map[string]any{
-						"description": "Unknown exception",
-					})
-					catchFn(newC, &httpException)
-				})
-
-				ctx.Next()
-			}
-		}(pattern, catchFns)
-
-		// add catch middleware
-		httpMethod, route := routing.SplitRoute(pattern)
-		app.route.For(route, []string{httpMethod})(catchMiddleware)
-	}
-
-	for pattern, catchFns := range app.catchWSFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
-			return func(ctx *context.Context) {
-				ctx.Event.Once(catchEvent, func(args ...any) {
-					catchFnIndex := args[2].(int)
-
-					defer func() {
-						if rec := recover(); rec != nil {
-							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
-						}
-					}()
-
-					newC := args[0].(*context.Context)
-					catchFn := catchFns[catchFnIndex]
-
-					response := http.StatusText(http.StatusInternalServerError)
-
-					switch arg := args[1].(type) {
-					case exception.HTTPException:
-						catchFn(newC, &arg)
-						return
-					case error:
-						response = arg.Error()
-					case string:
-						response = arg
-					case int:
-					case int8:
-					case int16:
-					case int32:
-					case int64:
-					case uint:
-					case uint8:
-					case uint16:
-					case uint32:
-					case uint64:
-					case float32:
-					case float64:
-					case complex64:
-					case complex128:
-					case uintptr:
-						response = strconv.Itoa(args[1].(int))
-					}
-					httpException := exception.InternalServerErrorException(response, map[string]any{
-						"description": "Unknown exception",
-					})
-					catchFn(newC, &httpException)
-				})
-
-				ctx.Next()
-			}
-		}(pattern, catchFns)
-
-		// add catch middleware
-		app.wsEventMap[pattern] = append(
-			app.wsEventMap[pattern],
-			catchMiddleware,
 		)
 	}
 
