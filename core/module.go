@@ -234,11 +234,20 @@ func (m *Module) NewModule() *Module {
 			}
 			injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
 			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
+
+			// to replace dynamic module pointer
+			// with new static module pointer
+			// to make it able to create controller
 			matchedIndex := utils.ArrFindIndex[uintptr](modulesInjectedFromMain, func(el uintptr, i int) bool {
 				return el == reflect.ValueOf(dynamicModule).Pointer()
 			})
 
 			if matchedIndex > -1 {
+
+				// re-assign controllers
+				if len(staticModule.controllers) > 0 {
+					m.controllers = staticModule.controllers
+				}
 				modulesInjectedFromMain[matchedIndex] = reflect.ValueOf(staticModule).Pointer()
 			}
 
