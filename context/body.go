@@ -36,7 +36,37 @@ func (c *Context) Body() Body {
 }
 
 func (b Body) Set(k string, v any) {
-	b[k] = v
+	keys := strings.Split(k, ".")
+	keys = utils.ArrFilter[string](keys, func(el string, i int) bool {
+		return strings.TrimSpace(el) != ""
+	})
+	obj := b
+	if len(keys) == 0 {
+		return
+	}
+
+	for i, key := range keys {
+		if val, ok := obj[key]; ok {
+			if deeperObj, ok := val.(map[string]any); ok {
+				obj = deeperObj
+				if i == len(keys)-1 {
+					obj[key] = v
+					return
+				}
+			} else if i == len(keys)-1 {
+				obj[key] = v
+				return
+			}
+		} else {
+			if i == len(keys)-1 {
+				obj[key] = v
+				return
+			} else {
+				obj[key] = make(map[string]any)
+				obj = obj[key].(map[string]any)
+			}
+		}
+	}
 }
 
 func (b Body) Get(k string) any {
