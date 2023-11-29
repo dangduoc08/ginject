@@ -32,6 +32,7 @@ type Context struct {
 	ParamValues []string
 
 	route string
+	ID    string
 	Type  string
 
 	Next      Next
@@ -119,6 +120,7 @@ func (c *Context) Reset() {
 	c.Code = http.StatusOK
 	c.route = ""
 	c.Type = ""
+	c.ID = ""
 	c.WS = nil
 	c.body = nil
 	c.form = nil
@@ -146,4 +148,15 @@ func (c *Context) SetType(t string) *Context {
 
 func (c *Context) GetType() string {
 	return c.Type
+}
+
+func (c *Context) SetID(id string) *Context {
+	if c.ID == "" {
+		c.ID = id
+	}
+	return c
+}
+
+func (c *Context) GetID() string {
+	return c.ID
 }

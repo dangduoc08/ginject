@@ -23,6 +23,7 @@ func RequestLogger(logger common.Logger) func(*context.Context) {
 					"Time", fmt.Sprintf("%v ms", responseTime),
 					"Protocol", newC.Request.Proto,
 					"User-Agent", newC.UserAgent(),
+					"X-Request-ID", newC.GetID(),
 				)
 			} else if requestType == context.WSType {
 				logger.Info(

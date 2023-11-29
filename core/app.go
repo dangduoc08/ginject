@@ -603,6 +603,11 @@ func (app *App) Get(p Provider) any {
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := app.ctxPool.Get().(*context.Context)
 	c.Timestamp = time.Now()
+	c.ResponseWriter = w
+	c.Request = r
+	ctxID := app.getContextID(c)
+	c.SetID(ctxID)
+
 	defer app.ctxPool.Put(c)
 
 	if utils.ArrIncludes[string](wsPaths, r.URL.Path) {
@@ -612,7 +617,9 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}, w, r)
 	} else {
 		c.SetType(context.HTTPType)
-		app.handleRESTRequest(w, r, c)
+		c.ResponseWriter.Header().Set("X-Request-ID", c.GetID())
+
+		app.handleRESTRequest(c)
 	}
 
 	c.Reset()
@@ -644,7 +651,7 @@ func (app *App) Listen(port int) error {
 	return http.ListenAndServe(addr, app)
 }
 
-func (app *App) handleRESTRequest(w http.ResponseWriter, r *http.Request, c *context.Context) {
+func (app *App) handleRESTRequest(c *context.Context) {
 	var catchEvent string
 
 	defer func() {
@@ -667,20 +674,18 @@ func (app *App) handleRESTRequest(w http.ResponseWriter, r *http.Request, c *con
 	}()
 
 	isNext := true
-	c.ResponseWriter = w
-	c.Request = r
 	c.Next = func() {
 		isNext = true
 	}
 
-	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(r.URL.Path, r.Method)
+	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Request.URL.Path, c.Request.Method)
 	catchEvent = matchedRoute
 
 	if isMatched {
 		c.SetRoute(matchedRoute)
 		c.ParamKeys = paramKeys
 		c.ParamValues = paramValues
-		if r.Method == http.MethodPost {
+		if c.Request.Method == http.MethodPost {
 			c.Status(http.StatusCreated)
 		}
 
@@ -769,8 +774,6 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 	wsInstance := context.NewWS(wsConn)
 	c.WS = wsInstance
 	isNext := true
-	c.ResponseWriter = w
-	c.Request = r
 	c.Next = func() {
 		isNext = true
 	}
@@ -1003,4 +1006,14 @@ func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTP
 			"message": exception.GetResponse(),
 		})
 	}
+}
+
+func (app *App) getContextID(c *context.Context) string {
+	reqID := c.Header().Get("X-Request-ID")
+	if reqID == "" {
+		uuid, _ := utils.StrUUID()
+		return uuid
+	}
+
+	return reqID
 }
