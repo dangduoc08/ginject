@@ -229,10 +229,9 @@ func (m *Module) NewModule() *Module {
 		// inject dynamic modules
 		for _, dynamicModule := range m.dynamicModules {
 			dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
-			if utils.ArrIncludes(injectedDynamicModules, dynamicModulePtr) {
-				continue
+			if !utils.ArrIncludes(injectedDynamicModules, dynamicModulePtr) {
+				injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
 			}
-			injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
 			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
 
 			// to replace dynamic module pointer
