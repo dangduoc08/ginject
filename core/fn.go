@@ -111,9 +111,8 @@ func genFieldKey(t reflect.Type) string {
 	return t.PkgPath() + "/" + t.String()
 }
 
-func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders map[string]Provider) *Module {
+func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	dynamicModuleType := reflect.TypeOf(dynamicModule)
-	localArgsIndex := make(map[string]int)
 	localArgs := []reflect.Value{}
 	globalArgs := []reflect.Value{}
 	args := []reflect.Value{}
@@ -136,12 +135,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 		// inner packages
 
 		// check if an injected provider with the same type exists
-		if injectedProviders[dynamicArgKey] != nil {
-
-			// if an injected provider exists, append it to the list of arguments
-			localArgs = append(localArgs, reflect.ValueOf(injectedProviders[dynamicArgKey]))
-			localArgsIndex[dynamicArgKey] = i
-		} else if globalProviders[dynamicArgKey] != nil {
+		if globalProviders[dynamicArgKey] != nil {
 
 			// if an injected provider doesn't exist, check if a global provider with the same type exists
 			// if a global provider exists, append it to the list of arguments
@@ -157,28 +151,6 @@ func createStaticModuleFromDynamicModule(dynamicModule any, injectedProviders ma
 
 	// call the dynamic module with the list of arguments and convert the result to a static module
 	staticModule := reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
-
-	// recursion injection
-	injectModule := staticModule.NewModule()
-
-	// only import providers which exported
-	if len(injectModule.exports) > 0 {
-		staticModule.providers = append(staticModule.providers, injectModule.exports...)
-	}
-
-	// recheck inject dependencies
-	actualLocalProviderMap := make(map[string]bool)
-	for _, provider := range staticModule.providers {
-		actualLocalProviderMap[genProviderKey(provider)] = true
-	}
-
-	for _, localProviders := range localArgs {
-		dynamicArgKey := genProviderKey(localProviders.Interface().(Provider))
-
-		if !actualLocalProviderMap[dynamicArgKey] && globalProviders[dynamicArgKey] == nil {
-			panic(genError(dynamicModuleType, dynamicArgKey, localArgsIndex[dynamicArgKey]))
-		}
-	}
 
 	return staticModule
 }
