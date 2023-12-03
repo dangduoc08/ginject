@@ -14,7 +14,7 @@ import (
 
 var mainModule uintptr
 var modulesInjectedFromMain []uintptr
-var injectedDynamicModules []uintptr
+var injectedDynamicModules = make(map[uintptr]*Module)
 var globalProviders map[string]Provider = make(map[string]Provider)
 var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
@@ -120,13 +120,6 @@ type Module struct {
 	}
 }
 
-func (m *Module) injectMainModules() {
-
-	// append module pointer to a list of modules
-	// which injected from the main function
-	modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
-}
-
 func (m *Module) injectGlobalProviders() {
 	for _, provider := range m.exports {
 
@@ -150,31 +143,45 @@ func (m *Module) NewModule() *Module {
 		// only modules injected by main module
 		// are able to use controllers
 		if mainModule == 0 {
-			m.injectMainModules()
+			modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
 			mainModule = reflect.ValueOf(m).Pointer()
 
 			// main module's provider
 			// alway inject globally
 			m.injectGlobalProviders()
 
+			// static modules which inject in main.go
 			for _, staticModule := range m.staticModules {
-				staticModule.injectMainModules()
+				m.controllers = append(m.controllers, staticModule.controllers...)
 
+				// static modules which set as globally
+				// have to be injected in main module
 				if staticModule.IsGlobal {
 					staticModule.injectGlobalProviders()
 				}
 			}
 
+			// dynamic modules which inject in main.go
 			for _, dynamicModule := range m.dynamicModules {
-				modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(dynamicModule).Pointer())
+				staticModule := createStaticModuleFromDynamicModule(dynamicModule)
+				injectedDynamicModules[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
+				m.controllers = append(m.controllers, staticModule.controllers...)
 
-				// dynamic module cannot be injected as globally
-				// initially cannot resolve all dependencies
+				// dynamic modules which set as globally
+				// have to be injected in main module
+				if staticModule.IsGlobal {
+					staticModule.injectGlobalProviders()
+				}
 			}
 		}
 
 		// inject static modules
 		for _, staticModule := range m.staticModules {
+
+			// no need inject global here
+			// since globally static modules
+			// shoule be injected from main
+			// to make it injectable
 
 			// recursion injection
 			injectModule := staticModule.NewModule()
@@ -200,96 +207,49 @@ func (m *Module) NewModule() *Module {
 			}
 		}
 
+		// inject dynamic modules
+		for _, dynamicModule := range m.dynamicModules {
+			var staticModule *Module
+
+			dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
+
+			if storedInjectModule, ok := injectedDynamicModules[dynamicModulePtr]; ok {
+				staticModule = storedInjectModule
+			} else {
+				staticModule = createStaticModuleFromDynamicModule(dynamicModule)
+				injectedDynamicModules[dynamicModulePtr] = staticModule
+			}
+
+			// only import providers which exported
+			if len(staticModule.exports) > 0 {
+				m.providers = append(m.providers, staticModule.exports...)
+				m.exports = append(m.exports, staticModule.exports...)
+			}
+
+			if reflect.ValueOf(m).Pointer() == mainModule {
+				m.RESTMiddlewares = append(m.RESTMiddlewares, staticModule.RESTMiddlewares...)
+				m.RESTGuards = append(m.RESTGuards, staticModule.RESTGuards...)
+				m.RESTInterceptors = append(m.RESTInterceptors, staticModule.RESTInterceptors...)
+				m.RESTExceptionFilters = append(m.RESTExceptionFilters, staticModule.RESTExceptionFilters...)
+				m.RESTMainHandlers = append(m.RESTMainHandlers, staticModule.RESTMainHandlers...)
+
+				m.WSMiddlewares = append(m.WSMiddlewares, staticModule.WSMiddlewares...)
+				m.WSGuards = append(m.WSGuards, staticModule.WSGuards...)
+				m.WSInterceptors = append(m.WSInterceptors, staticModule.WSInterceptors...)
+				m.WSExceptionFilters = append(m.WSExceptionFilters, staticModule.WSExceptionFilters...)
+				m.WSMainHandlers = append(m.WSMainHandlers, staticModule.WSMainHandlers...)
+			}
+		}
+
 		// inject local providers
-		// from static modules
+		// from static/dynamic modules
 		var injectedProviders map[string]Provider = make(map[string]Provider)
 		for _, provider := range m.providers {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
 
 		// inject providers into providers
-		injectedErrorProviders := []Provider{}
 		for i, provider := range m.providers {
-			newProvider, err := injectDependencies(provider, "provider", injectedProviders)
-			if err != nil {
-				injectedErrorProviders = append(injectedErrorProviders, provider)
-				continue
-			}
-
-			providerKey := genProviderKey(provider)
-
-			if providerInjectCheck[providerKey] == nil {
-				providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
-			}
-
-			m.providers[i] = providerInjectCheck[providerKey]
-			injectedProviders[providerKey] = providerInjectCheck[providerKey]
-		}
-
-		// inject dynamic modules
-		for _, dynamicModule := range m.dynamicModules {
-			dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
-			if !utils.ArrIncludes(injectedDynamicModules, dynamicModulePtr) {
-				injectedDynamicModules = append(injectedDynamicModules, dynamicModulePtr)
-			}
-			staticModule := createStaticModuleFromDynamicModule(dynamicModule, injectedProviders)
-
-			// to replace dynamic module pointer
-			// with new static module pointer
-			// to make it able to create controller
-			matchedIndex := utils.ArrFindIndex[uintptr](modulesInjectedFromMain, func(el uintptr, i int) bool {
-				return el == reflect.ValueOf(dynamicModule).Pointer()
-			})
-
-			if matchedIndex > -1 {
-
-				// re-assign controllers
-				if len(staticModule.controllers) > 0 {
-					m.controllers = staticModule.controllers
-				}
-				modulesInjectedFromMain[matchedIndex] = reflect.ValueOf(staticModule).Pointer()
-			}
-
-			if staticModule.IsGlobal {
-				panic(fmt.Errorf(
-					utils.FmtRed(
-						"can't set dynamic module as global module",
-					),
-				))
-			}
-
-			injectModule := staticModule.NewModule()
-
-			// only import providers which exported
-			if len(injectModule.exports) > 0 {
-				m.providers = append(m.providers, injectModule.exports...)
-				m.exports = append(m.exports, injectModule.exports...)
-			}
-
-			if reflect.ValueOf(m).Pointer() == mainModule {
-				m.RESTMiddlewares = append(m.RESTMiddlewares, injectModule.RESTMiddlewares...)
-				m.RESTGuards = append(m.RESTGuards, injectModule.RESTGuards...)
-				m.RESTInterceptors = append(m.RESTInterceptors, injectModule.RESTInterceptors...)
-				m.RESTExceptionFilters = append(m.RESTExceptionFilters, injectModule.RESTExceptionFilters...)
-				m.RESTMainHandlers = append(m.RESTMainHandlers, injectModule.RESTMainHandlers...)
-
-				m.WSMiddlewares = append(m.WSMiddlewares, injectModule.WSMiddlewares...)
-				m.WSGuards = append(m.WSGuards, injectModule.WSGuards...)
-				m.WSInterceptors = append(m.WSInterceptors, injectModule.WSInterceptors...)
-				m.WSExceptionFilters = append(m.WSExceptionFilters, injectModule.WSExceptionFilters...)
-				m.WSMainHandlers = append(m.WSMainHandlers, injectModule.WSMainHandlers...)
-			}
-		}
-		// inject local providers
-		// from dynamic modules
-		for _, provider := range m.providers {
-			injectedProviders[genProviderKey(provider)] = provider
-		}
-
-		// inject error providers
-		// this can happen
-		// due to inject dynamic providers into static providers
-		for i, provider := range injectedErrorProviders {
 			newProvider, err := injectDependencies(provider, "provider", injectedProviders)
 			if err != nil {
 				panic(err)
