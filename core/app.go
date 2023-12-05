@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	stdContext "context"
+
 	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/common"
 	"github.com/dangduoc08/gooh/context"
@@ -91,6 +93,8 @@ var wsPaths = []string{
 	"/ws",
 	"/ws/",
 }
+
+type WithValueKey string
 
 func New() *App {
 	event := context.NewEvent()
@@ -413,12 +417,7 @@ func (app *App) Create(m *Module) {
 					// depend on Intercept invoked at run time
 					value := interceptor.Intercept(ctx, aggregationInstance)
 					aggregationInstance.InterceptorData = value
-
-					// to handle error operator
-					errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
-					if errorAggregationOpr != nil {
-						ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
-					}
+					app.setErrorAggregationOperators(ctx, aggregationInstance)
 
 					ctx.Next()
 				}
@@ -444,12 +443,7 @@ func (app *App) Create(m *Module) {
 					// depend on Intercept invoked at run time
 					value := interceptor.Intercept(ctx, aggregationInstance)
 					aggregationInstance.InterceptorData = value
-
-					// to handle error operator
-					errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
-					if errorAggregationOpr != nil {
-						ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
-					}
+					app.setErrorAggregationOperators(ctx, aggregationInstance)
 
 					ctx.Next()
 				}
@@ -481,12 +475,7 @@ func (app *App) Create(m *Module) {
 				// depend on Intercept invoked at run time
 				value := interceptFn(ctx, aggregationInstance)
 				aggregationInstance.InterceptorData = value
-
-				// to handle error operator
-				errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
-				if errorAggregationOpr != nil {
-					ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
-				}
+				app.setErrorAggregationOperators(ctx, aggregationInstance)
 
 				ctx.Next()
 			}
@@ -514,12 +503,7 @@ func (app *App) Create(m *Module) {
 				// depend on Intercept invoked at run time
 				value := interceptFn(ctx, aggregationInstance)
 				aggregationInstance.InterceptorData = value
-
-				// to handle error operator
-				errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
-				if errorAggregationOpr != nil {
-					ctx.ErrorAggregationOperators = append(ctx.ErrorAggregationOperators, errorAggregationOpr)
-				}
+				app.setErrorAggregationOperators(ctx, aggregationInstance)
 
 				ctx.Next()
 			}
@@ -660,11 +644,12 @@ func (app *App) handleRESTRequest(c *context.Context) {
 
 				// Pipe errors run first
 				// then exception filter
-				totalErrorAggregations := len(c.ErrorAggregationOperators)
+				errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator)
+				totalErrorAggregations := len(errorAggregationOperators)
 
 				for i := totalErrorAggregations - 1; i >= 0; i-- {
-					aggregation := c.ErrorAggregationOperators[i]
-					rec = aggregation(rec)
+					aggregation := errorAggregationOperators[i]
+					rec = aggregation(c, rec)
 				}
 
 				// 3rd param is index of catch function
@@ -724,7 +709,7 @@ func (app *App) handleRESTRequest(c *context.Context) {
 								}
 
 								aggregation.SetMainData(aggregatedData)
-								aggregatedData = aggregation.Aggregate()
+								aggregatedData = aggregation.Aggregate(c)
 							} else {
 								isMainHandlerCalled = false
 								returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
@@ -832,10 +817,12 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 
 					// Pipe errors run first
 					// then exception filter
-					totalErrorAggregations := len(c.ErrorAggregationOperators)
+					errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator)
+					totalErrorAggregations := len(errorAggregationOperators)
+
 					for i := totalErrorAggregations - 1; i >= 0; i-- {
-						aggregation := c.ErrorAggregationOperators[i]
-						rec = aggregation(rec)
+						aggregation := errorAggregationOperators[i]
+						rec = aggregation(c, rec)
 					}
 
 					// 3rd param is index of catch function
@@ -847,7 +834,8 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 				// due to error will be added
 				// whenever interceptor triggered
 				// but WS 1 connection use 1 ctx
-				c.ErrorAggregationOperators = nil
+				newCtx := stdContext.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+				c.Request = c.Request.WithContext(newCtx)
 
 				// clean all events before recursion
 				// prevent emit duplicate event
@@ -900,7 +888,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 									}
 
 									aggregation.SetMainData(aggregatedData)
-									aggregatedData = aggregation.Aggregate()
+									aggregatedData = aggregation.Aggregate(c)
 								} else {
 									isMainHandlerCalled = false
 									wsMsg := toWSMessage(reflect.ValueOf(aggregation.InterceptorData))
@@ -983,7 +971,8 @@ func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *
 	// due to error will be added
 	// whenever interceptor triggered
 	// but WS 1 connection use 1 ctx
-	c.ErrorAggregationOperators = nil
+	newCtx := stdContext.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+	c.Request = c.Request.WithContext(newCtx)
 }
 
 func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTPException) {
@@ -1016,4 +1005,18 @@ func (app *App) getContextID(c *context.Context) string {
 	}
 
 	return reqID
+}
+
+func (app *App) setErrorAggregationOperators(ctx *context.Context, aggregationInstance *aggregation.Aggregation) {
+	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
+	if errorAggregationOpr != nil {
+		errorAggregationOperators := ctx.Request.Context().Value(WithValueKey("ErrorAggregationOperators"))
+		if errorAggregationOperators == nil {
+			errorAggregationOperators = []aggregation.AggregationOperator{}
+		}
+		errorAggregationOperators = append(errorAggregationOperators.([]aggregation.AggregationOperator), errorAggregationOpr)
+
+		newCtx := stdContext.WithValue(ctx.Request.Context(), WithValueKey("ErrorAggregationOperators"), errorAggregationOperators)
+		ctx.Request = ctx.Request.WithContext(newCtx)
+	}
 }

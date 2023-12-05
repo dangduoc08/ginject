@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -43,8 +42,6 @@ type Context struct {
 	// Extend context
 	// WebSocket
 	WS *WS
-
-	ErrorAggregationOperators []aggregation.AggregationOperator
 }
 
 const (
@@ -56,8 +53,7 @@ const (
 
 func NewContext() *Context {
 	return &Context{
-		Code:                      http.StatusOK,
-		ErrorAggregationOperators: []aggregation.AggregationOperator{},
+		Code: http.StatusOK,
 	}
 }
 
@@ -132,7 +128,6 @@ func (c *Context) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
-	c.ErrorAggregationOperators = nil
 }
 
 func (c *Context) SetType(t string) *Context {
