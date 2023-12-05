@@ -200,7 +200,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 		} else {
 			return reflect.ValueOf(nil), fmt.Errorf(
 				utils.FmtRed(
-					"can't resolve dependencies of the '%v' %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
+					"can't resolve dependency '%v' of the %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					componentFieldType.String(),
 					kind,
 					j,
