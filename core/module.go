@@ -153,6 +153,7 @@ func (m *Module) NewModule() *Module {
 			// static modules which inject in main.go
 			for _, staticModule := range m.staticModules {
 				m.controllers = append(m.controllers, staticModule.controllers...)
+				m.providers = append(m.providers, staticModule.providers...)
 
 				// static modules which set as globally
 				// have to be injected in main module
@@ -166,6 +167,7 @@ func (m *Module) NewModule() *Module {
 				staticModule := createStaticModuleFromDynamicModule(dynamicModule)
 				injectedDynamicModules[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
 				m.controllers = append(m.controllers, staticModule.controllers...)
+				m.providers = append(m.providers, staticModule.providers...)
 
 				// dynamic modules which set as globally
 				// have to be injected in main module
