@@ -54,28 +54,45 @@ func (i LoggingInterceptor) Intercept(c gooh.Context, aggregation gooh.Aggregati
 		datas = append(datas, "param", nil)
 	}
 
+	datas = append(datas, "X-Request-ID", c.GetID())
 	i.Logger.Debug(
 		"Request",
 		datas...,
 	)
 
 	return aggregation.Pipe(
-		aggregation.Consume(func(data any) any {
-
+		aggregation.Consume(func(ctx gooh.Context, data any) any {
 			resJSON, _ := json.Marshal(data)
 			resJSONStr := string(resJSON)
 			if resJSONStr != "{}" {
-				i.Logger.Debug("Success", "data", resJSONStr)
+				i.Logger.Debug(
+					"Success",
+					"data", resJSONStr,
+					"X-Request-ID", ctx.GetID(),
+				)
 			} else {
-				i.Logger.Debug("Success", "data", nil)
+				i.Logger.Debug(
+					"Success",
+					"data", nil,
+					"X-Request-ID", ctx.GetID(),
+				)
 			}
 			return data
 		}),
-		aggregation.Error(func(err any) any {
+		aggregation.Error(func(ctx gooh.Context, err any) any {
 			if httpException, ok := err.(exception.HTTPException); ok {
-				i.Logger.Debug("Error", "data", err, "message", httpException.GetResponse())
+				i.Logger.Debug(
+					"Error",
+					"data", err,
+					"message", httpException.GetResponse(),
+					"X-Request-ID", ctx.GetID(),
+				)
 			} else {
-				i.Logger.Debug("Error", "data", err)
+				i.Logger.Debug(
+					"Error",
+					"data", err,
+					"X-Request-ID", ctx.GetID(),
+				)
 			}
 
 			return err
