@@ -644,12 +644,13 @@ func (app *App) handleRESTRequest(c *context.Context) {
 
 				// Pipe errors run first
 				// then exception filter
-				errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator)
-				totalErrorAggregations := len(errorAggregationOperators)
+				if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
+					totalErrorAggregations := len(errorAggregationOperators)
 
-				for i := totalErrorAggregations - 1; i >= 0; i-- {
-					aggregation := errorAggregationOperators[i]
-					rec = aggregation(c, rec)
+					for i := totalErrorAggregations - 1; i >= 0; i-- {
+						aggregation := errorAggregationOperators[i]
+						rec = aggregation(c, rec)
+					}
 				}
 
 				// 3rd param is index of catch function
@@ -817,12 +818,13 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 
 					// Pipe errors run first
 					// then exception filter
-					errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator)
-					totalErrorAggregations := len(errorAggregationOperators)
+					if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
+						totalErrorAggregations := len(errorAggregationOperators)
 
-					for i := totalErrorAggregations - 1; i >= 0; i-- {
-						aggregation := errorAggregationOperators[i]
-						rec = aggregation(c, rec)
+						for i := totalErrorAggregations - 1; i >= 0; i-- {
+							aggregation := errorAggregationOperators[i]
+							rec = aggregation(c, rec)
+						}
 					}
 
 					// 3rd param is index of catch function
