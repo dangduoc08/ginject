@@ -50,7 +50,7 @@ func TestParseFnNameToURL(t *testing.T) {
 	}
 
 	for fn, results := range testCases {
-		method, route := ParseFnNameToURL(fn, RestOperations)
+		method, route := ParseFnNameToURL(fn, RESTOperations)
 		if method != results[0] {
 			t.Errorf(utils.ErrorMessage(results[0], method, "method should be equal"))
 		}
