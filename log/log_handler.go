@@ -30,6 +30,7 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	h.writer.Write([]byte("\n"))
 	level := levelLabel[record.Level]
 	space := " "
 
@@ -86,7 +87,7 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 		return true
 	})
 
-	h.writer.Write([]byte("\n\n"))
+	h.writer.Write([]byte("\n"))
 	return nil
 }
 

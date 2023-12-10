@@ -33,7 +33,14 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 		newArg := reflect.New(argType).Elem()
 		argAnyValue := newArg.Interface()
 
-		if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
+		if contextPipeable, isImplContextPipeable := argAnyValue.(common.ContextPipeable); isImplContextPipeable {
+			newArg, err := injectDependencies(contextPipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
+			cb(CONTEXT_PIPEABLE, i, newArg)
+		} else if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
 			newArg, err := injectDependencies(bodyPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
@@ -234,8 +241,9 @@ func logBoostrap(port int) {
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
 	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
 	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
-	close := utils.FmtItalic(utils.FmtGreen("Press CTRL+C to stop")) + "\n\n"
+	close := utils.FmtItalic(utils.FmtGreen("Press CTRL+C to stop")) + "\n"
 
+	os.Stdout.Write([]byte("\n"))
 	os.Stdout.Write([]byte(accessURLs))
 	os.Stdout.Write([]byte(divider))
 	os.Stdout.Write([]byte(host))
@@ -270,6 +278,12 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 		return c.Next
 	case REDIRECT:
 		return c.Redirect
+	case CONTEXT_PIPEABLE:
+		return pipeValue.
+			Interface().(common.ContextPipeable).
+			Transform(c, common.ArgumentMetadata{
+				ParamType: CONTEXT_PIPEABLE,
+			})
 	case BODY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.BodyPipeable).

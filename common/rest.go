@@ -9,7 +9,7 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
-var RestOperations = map[string]string{
+var RESTOperations = map[string]string{
 	"READ":   http.MethodGet,
 	"CREATE": http.MethodPost,
 	"UPDATE": http.MethodPut,
@@ -33,7 +33,7 @@ var TokenMap = map[string]string{
 	TOKEN_FILE: TOKEN_FILE,
 }
 
-type Rest struct {
+type REST struct {
 	prefixes           []Prefix
 	patternToFnNameMap map[string]string
 	RouterMap          map[string]any
@@ -44,7 +44,7 @@ type Prefix struct {
 	Handlers []any
 }
 
-func (r *Rest) addToRouters(fnName, path, method string, injectableHandler any) {
+func (r *REST) addToRouters(fnName, path, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
@@ -58,7 +58,7 @@ func (r *Rest) addToRouters(fnName, path, method string, injectableHandler any) 
 	r.patternToFnNameMap[pattern] = fnName
 }
 
-func (r *Rest) GetPrefixes() []map[string]string {
+func (r *REST) GetPrefixes() []map[string]string {
 	prefixes := []map[string]string{}
 
 	for _, prefixConf := range r.prefixes {
@@ -82,7 +82,7 @@ func (r *Rest) GetPrefixes() []map[string]string {
 	return prefixes
 }
 
-func (r *Rest) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
+func (r *REST) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
 	for _, prefix := range prefixes {
 		for prefixValue, prefixFnName := range prefix {
 			if prefixFnName == "*" || prefixFnName == fnName {
@@ -94,7 +94,7 @@ func (r *Rest) addPrefixesToRoute(route, fnName string, prefixes []map[string]st
 	return route
 }
 
-func (r *Rest) Prefix(v string, handlers ...any) *Rest {
+func (r *REST) Prefix(v string, handlers ...any) *REST {
 	r.prefixes = append([]Prefix{
 		{
 			Value:    v,
@@ -105,10 +105,10 @@ func (r *Rest) Prefix(v string, handlers ...any) *Rest {
 	return r
 }
 
-func (r *Rest) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, handler any) {
+func (r *REST) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, handler any) {
 	prefixes := r.GetPrefixes()
 
-	httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
+	httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
 

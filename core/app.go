@@ -60,6 +60,7 @@ const (
 	WS_PAYLOAD          = "github.com/dangduoc08/gooh/context/context.WSPayload"
 	NEXT                = "/func()"
 	REDIRECT            = "/func(string)"
+	CONTEXT_PIPEABLE    = "context"
 	BODY_PIPEABLE       = "body"
 	FORM_PIPEABLE       = "form"
 	QUERY_PIPEABLE      = "query"
@@ -81,6 +82,7 @@ var dependencies = map[string]int{
 	WS_PAYLOAD:          1,
 	NEXT:                1,
 	REDIRECT:            1,
+	CONTEXT_PIPEABLE:    1,
 	BODY_PIPEABLE:       1,
 	FORM_PIPEABLE:       1,
 	QUERY_PIPEABLE:      1,

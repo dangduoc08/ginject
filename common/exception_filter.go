@@ -44,7 +44,7 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 	return e
 }
 
-func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
+func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
 	exceptionFilterItemArr := []ExceptionFilterItem{}
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
@@ -69,7 +69,7 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *Rest, cb fu
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.Handlers {
 			fnName := GetFnName(handler)
-			httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
+			httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
 			shouldAddExceptionFilter[routing.AddMethodToRoute(route, httpMethod)] = true
 		}

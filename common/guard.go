@@ -44,7 +44,7 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 	return g
 }
 
-func (g *Guard) InjectProvidersIntoRESTGuards(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
+func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
 	guardItemArr := []GuardItem{}
 
 	for _, guardHandler := range g.GuardHandlers {
@@ -68,7 +68,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *Rest, cb func(int, reflect.Type
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.Handlers {
 			fnName := GetFnName(handler)
-			httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
+			httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
 			shouldAddGuard[routing.AddMethodToRoute(route, httpMethod)] = true
 		}

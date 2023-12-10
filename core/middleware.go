@@ -48,7 +48,7 @@ func (mw *Middleware) Apply(middlewares ...context.Handler) *MiddlewareConfig {
 }
 
 func (mw *Middleware) includeREST(methodName string) *Middleware {
-	httpMethod, _ := common.ParseFnNameToURL(methodName, common.RestOperations)
+	httpMethod, _ := common.ParseFnNameToURL(methodName, common.RESTOperations)
 	if httpMethod != "" {
 		mw.inclusion = append(mw.inclusion, methodName)
 	}
@@ -60,7 +60,7 @@ func (mw *Middleware) addREST(prefixes []map[string]string) {
 	for _, fnNameInclusion := range mw.inclusion {
 
 		if !utils.ArrIncludes[string](mw.exclusion, fnNameInclusion) {
-			httpMethod, route := common.ParseFnNameToURL(fnNameInclusion, common.RestOperations)
+			httpMethod, route := common.ParseFnNameToURL(fnNameInclusion, common.RESTOperations)
 			if httpMethod != "" {
 				for _, prefix := range prefixes {
 					for prefixValue, prefixFnName := range prefix {
