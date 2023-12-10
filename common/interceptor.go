@@ -45,7 +45,7 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 	return i
 }
 
-func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *Rest, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
+func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
 	interceptorItemArr := []InterceptorItem{}
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
@@ -70,7 +70,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *Rest, cb func(int, 
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.Handlers {
 			fnName := GetFnName(handler)
-			httpMethod, route := ParseFnNameToURL(fnName, RestOperations)
+			httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
 			shouldAddInterceptors[routing.AddMethodToRoute(route, httpMethod)] = true
 		}

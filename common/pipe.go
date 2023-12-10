@@ -4,6 +4,10 @@ import (
 	"github.com/dangduoc08/gooh/context"
 )
 
+type ContextPipeable interface {
+	Transform(*context.Context, ArgumentMetadata) any
+}
+
 type BodyPipeable interface {
 	Transform(context.Body, ArgumentMetadata) any
 }

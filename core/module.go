@@ -21,8 +21,8 @@ var providerInjectCheck map[string]Provider = make(map[string]Provider)
 var insertedRoutes = make(map[string]string)
 var insertedEvents = make(map[string]string)
 var noInjectedFields = []string{
-	"Rest",
-	"common.Rest",
+	"REST",
+	"common.REST",
 	"Guard",
 	"common.Guard",
 	"Interceptor",
@@ -279,7 +279,7 @@ func (m *Module) NewModule() *Module {
 
 				// Handle REST
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
-					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.Rest)
+					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.REST)
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
