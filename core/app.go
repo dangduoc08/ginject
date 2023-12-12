@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,11 +11,9 @@ import (
 	"sync"
 	"time"
 
-	stdContext "context"
-
 	"github.com/dangduoc08/gooh/aggregation"
 	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/exception"
 	"github.com/dangduoc08/gooh/log"
 	"github.com/dangduoc08/gooh/routing"
@@ -24,14 +23,14 @@ import (
 
 type globalMiddleware struct {
 	route   string
-	handler context.Handler
+	handler ctx.Handler
 }
 
 type App struct {
 	route                  *routing.Router
-	wsEventMap             map[string][]context.Handler // to store WS layers, key = subscribe event name
-	wsMainHandlerMap       map[string]any               // to store WS main handler
-	wsEventToID            sync.Map                     // to store WS ID, key = emit event
+	wsEventMap             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
+	wsMainHandlerMap       map[string]any           // to store WS main handler
+	wsEventToID            sync.Map                 // to store WS ID, key = emit event
 	module                 *Module
 	ctxPool                sync.Pool
 	globalMiddlewares      []globalMiddleware
@@ -48,17 +47,17 @@ type App struct {
 
 // link to aliases
 const (
-	CONTEXT             = "/*context.Context"
+	CONTEXT             = "/*ctx.Context"
 	WS_CONNECTION       = "/*websocket.Conn"
 	REQUEST             = "/*http.Request"
 	RESPONSE            = "net/http/http.ResponseWriter"
-	BODY                = "github.com/dangduoc08/gooh/context/context.Body"
-	FORM                = "github.com/dangduoc08/gooh/context/context.Form"
-	QUERY               = "github.com/dangduoc08/gooh/context/context.Query"
-	HEADER              = "github.com/dangduoc08/gooh/context/context.Header"
-	PARAM               = "github.com/dangduoc08/gooh/context/context.Param"
-	FILE                = "github.com/dangduoc08/gooh/context/context.File"
-	WS_PAYLOAD          = "github.com/dangduoc08/gooh/context/context.WSPayload"
+	BODY                = "github.com/dangduoc08/gooh/ctx/ctx.Body"
+	FORM                = "github.com/dangduoc08/gooh/ctx/ctx.Form"
+	QUERY               = "github.com/dangduoc08/gooh/ctx/ctx.Query"
+	HEADER              = "github.com/dangduoc08/gooh/ctx/ctx.Header"
+	PARAM               = "github.com/dangduoc08/gooh/ctx/ctx.Param"
+	FILE                = "github.com/dangduoc08/gooh/ctx/ctx.File"
+	WS_PAYLOAD          = "github.com/dangduoc08/gooh/ctx/ctx.WSPayload"
 	NEXT                = "/func()"
 	REDIRECT            = "/func(string)"
 	CONTEXT_PIPEABLE    = "context"
@@ -103,7 +102,7 @@ var wsPaths = []string{
 type WithValueKey string
 
 func New() *App {
-	event := context.NewEvent()
+	event := ctx.NewEvent()
 
 	app := App{
 		route:              routing.NewRouter(),
@@ -111,11 +110,11 @@ func New() *App {
 		wsAggregationMap:   make(map[string][]*aggregation.Aggregation),
 		catchRESTFnsMap:    make(map[string][]common.Catch),
 		catchWSFnsMap:      make(map[string][]common.Catch),
-		wsEventMap:         make(map[string][]func(*context.Context)),
+		wsEventMap:         make(map[string][]func(*ctx.Context)),
 		wsMainHandlerMap:   make(map[string]any),
 		ctxPool: sync.Pool{
 			New: func() any {
-				c := context.NewContext()
+				c := ctx.NewContext()
 				c.Event = event
 
 				return c
@@ -193,18 +192,18 @@ func (app *App) Create(m *Module) {
 	}
 
 	for pattern, catchFns := range app.catchRESTFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
-			return func(ctx *context.Context) {
-				ctx.Event.Once(catchEvent, func(args ...any) {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
+			return func(c *ctx.Context) {
+				c.Event.Once(catchEvent, func(args ...any) {
 					catchFnIndex := args[2].(int)
 
 					defer func() {
 						if rec := recover(); rec != nil {
-							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+							c.Event.Emit(catchEvent, c, rec, catchFnIndex+1)
 						}
 					}()
 
-					newC := args[0].(*context.Context)
+					newC := args[0].(*ctx.Context)
 					catchFn := catchFns[catchFnIndex]
 
 					response := http.StatusText(http.StatusInternalServerError)
@@ -240,7 +239,7 @@ func (app *App) Create(m *Module) {
 					catchFn(newC, &httpException)
 				})
 
-				ctx.Next()
+				c.Next()
 			}
 		}(pattern, catchFns)
 
@@ -250,18 +249,18 @@ func (app *App) Create(m *Module) {
 	}
 
 	for pattern, catchFns := range app.catchWSFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) context.Handler {
-			return func(ctx *context.Context) {
-				ctx.Event.Once(catchEvent, func(args ...any) {
+		catchMiddleware := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
+			return func(c *ctx.Context) {
+				c.Event.Once(catchEvent, func(args ...any) {
 					catchFnIndex := args[2].(int)
 
 					defer func() {
 						if rec := recover(); rec != nil {
-							ctx.Event.Emit(catchEvent, ctx, rec, catchFnIndex+1)
+							c.Event.Emit(catchEvent, c, rec, catchFnIndex+1)
 						}
 					}()
 
-					newC := args[0].(*context.Context)
+					newC := args[0].(*ctx.Context)
 					catchFn := catchFns[catchFnIndex]
 
 					response := http.StatusText(http.StatusInternalServerError)
@@ -297,7 +296,7 @@ func (app *App) Create(m *Module) {
 					catchFn(newC, &httpException)
 				})
 
-				ctx.Next()
+				c.Next()
 			}
 		}(pattern, catchFns)
 
@@ -349,9 +348,9 @@ func (app *App) Create(m *Module) {
 
 		globalGuard = common.Construct(newGlobalGuard.Interface(), "NewGuard").(common.Guarder)
 
-		canActivateMiddleware := func(guard common.Guarder) context.Handler {
-			return func(ctx *context.Context) {
-				common.HandleGuard(ctx, guard.CanActivate(ctx))
+		canActivateMiddleware := func(guard common.Guarder) ctx.Handler {
+			return func(c *ctx.Context) {
+				common.HandleGuard(c, guard.CanActivate(c))
 			}
 		}(globalGuard)
 
@@ -372,9 +371,9 @@ func (app *App) Create(m *Module) {
 	// REST module guards
 	for _, moduleGuard := range app.module.RESTGuards {
 
-		canActivateMiddleware := func(canActiveFn common.CanActivate) context.Handler {
-			return func(ctx *context.Context) {
-				common.HandleGuard(ctx, canActiveFn(ctx))
+		canActivateMiddleware := func(canActiveFn common.CanActivate) ctx.Handler {
+			return func(c *ctx.Context) {
+				common.HandleGuard(c, canActiveFn(c))
 			}
 		}(moduleGuard.Handler.(common.CanActivate))
 
@@ -384,9 +383,9 @@ func (app *App) Create(m *Module) {
 	// WS module guards
 	for _, moduleGuard := range app.module.WSGuards {
 
-		canActivateMiddleware := func(canActiveFn common.CanActivate) context.Handler {
-			return func(ctx *context.Context) {
-				common.HandleGuard(ctx, canActiveFn(ctx))
+		canActivateMiddleware := func(canActiveFn common.CanActivate) ctx.Handler {
+			return func(c *ctx.Context) {
+				common.HandleGuard(c, canActiveFn(c))
 			}
 		}(moduleGuard.Handler.(common.CanActivate))
 
@@ -410,8 +409,8 @@ func (app *App) Create(m *Module) {
 			aggregationInstance := aggregation.NewAggregation()
 			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
 			app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
-			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) context.Handler {
-				return func(ctx *context.Context) {
+			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+				return func(c *ctx.Context) {
 
 					// IsMainHandlerCalled will be = true
 					// if Pipe was invoked in Intercept function
@@ -421,11 +420,11 @@ func (app *App) Create(m *Module) {
 					// invoke intercept function
 					// value may returned from Pipe function
 					// depend on Intercept invoked at run time
-					value := interceptor.Intercept(ctx, aggregationInstance)
+					value := interceptor.Intercept(c, aggregationInstance)
 					aggregationInstance.InterceptorData = value
-					app.setErrorAggregationOperators(ctx, aggregationInstance)
+					app.setErrorAggregationOperators(c, aggregationInstance)
 
-					ctx.Next()
+					c.Next()
 				}
 			}(globalInterceptor, aggregationInstance)
 
@@ -436,8 +435,8 @@ func (app *App) Create(m *Module) {
 		for eventName := range insertedEvents {
 			aggregationInstance := aggregation.NewAggregation()
 			app.wsAggregationMap[eventName] = append(app.wsAggregationMap[eventName], aggregationInstance)
-			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) context.Handler {
-				return func(ctx *context.Context) {
+			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+				return func(c *ctx.Context) {
 
 					// IsMainHandlerCalled will be = true
 					// if Pipe was invoked in Intercept function
@@ -447,11 +446,11 @@ func (app *App) Create(m *Module) {
 					// invoke intercept function
 					// value may returned from Pipe function
 					// depend on Intercept invoked at run time
-					value := interceptor.Intercept(ctx, aggregationInstance)
+					value := interceptor.Intercept(c, aggregationInstance)
 					aggregationInstance.InterceptorData = value
-					app.setErrorAggregationOperators(ctx, aggregationInstance)
+					app.setErrorAggregationOperators(c, aggregationInstance)
 
-					ctx.Next()
+					c.Next()
 				}
 			}(globalInterceptor, aggregationInstance)
 
@@ -468,8 +467,8 @@ func (app *App) Create(m *Module) {
 		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, moduleInterceptor.Method))
 		app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 
-		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) context.Handler {
-			return func(ctx *context.Context) {
+		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+			return func(c *ctx.Context) {
 
 				// IsMainHandlerCalled will be = true
 				// if Pipe was invoked in Intercept function
@@ -479,11 +478,11 @@ func (app *App) Create(m *Module) {
 				// invoke intercept function
 				// value may returned from Pipe function
 				// depend on Intercept invoked at run time
-				value := interceptFn(ctx, aggregationInstance)
+				value := interceptFn(c, aggregationInstance)
 				aggregationInstance.InterceptorData = value
-				app.setErrorAggregationOperators(ctx, aggregationInstance)
+				app.setErrorAggregationOperators(c, aggregationInstance)
 
-				ctx.Next()
+				c.Next()
 			}
 		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
 
@@ -496,8 +495,8 @@ func (app *App) Create(m *Module) {
 		aggregationInstance := aggregation.NewAggregation()
 		app.wsAggregationMap[moduleInterceptor.EventName] = append(app.wsAggregationMap[moduleInterceptor.EventName], aggregationInstance)
 
-		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) context.Handler {
-			return func(ctx *context.Context) {
+		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+			return func(c *ctx.Context) {
 
 				// IsMainHandlerCalled will be = true
 				// if Pipe was invoked in Intercept function
@@ -507,11 +506,11 @@ func (app *App) Create(m *Module) {
 				// invoke intercept function
 				// value may returned from Pipe function
 				// depend on Intercept invoked at run time
-				value := interceptFn(ctx, aggregationInstance)
+				value := interceptFn(c, aggregationInstance)
 				aggregationInstance.InterceptorData = value
-				app.setErrorAggregationOperators(ctx, aggregationInstance)
+				app.setErrorAggregationOperators(c, aggregationInstance)
 
-				ctx.Next()
+				c.Next()
 			}
 		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
 
@@ -550,7 +549,7 @@ func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionF
 	return app
 }
 
-func (app *App) Use(handlers ...context.Handler) *App {
+func (app *App) Use(handlers ...ctx.Handler) *App {
 	for _, handler := range handlers {
 		middleware := globalMiddleware{
 			route:   "*",
@@ -569,8 +568,8 @@ func (app *App) UseLogger(logger common.Logger) *App {
 	return app
 }
 
-func (app *App) For(route string) func(handlers ...context.Handler) *App {
-	return func(handlers ...context.Handler) *App {
+func (app *App) For(route string) func(handlers ...ctx.Handler) *App {
+	return func(handlers ...ctx.Handler) *App {
 		for _, handler := range handlers {
 			middleware := globalMiddleware{
 				route:   route,
@@ -591,7 +590,7 @@ func (app *App) Get(p Provider) any {
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := app.ctxPool.Get().(*context.Context)
+	c := app.ctxPool.Get().(*ctx.Context)
 	c.Timestamp = time.Now()
 	c.ResponseWriter = w
 	c.Request = r
@@ -601,12 +600,12 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer app.ctxPool.Put(c)
 
 	if utils.ArrIncludes[string](wsPaths, r.URL.Path) {
-		c.SetType(context.WSType)
+		c.SetType(ctx.WSType)
 		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
 			app.handleWSRequest(wsConn, w, r, c)
 		}, w, r)
 	} else {
-		c.SetType(context.HTTPType)
+		c.SetType(ctx.HTTPType)
 		c.ResponseWriter.Header().Set("X-Request-ID", c.GetID())
 
 		app.handleRESTRequest(c)
@@ -628,7 +627,7 @@ func (app *App) Listen(port int) error {
 	})
 
 	for eventName := range insertedEvents {
-		p, e := context.ResolveWSEventname(eventName)
+		p, e := ctx.ResolveWSEventname(eventName)
 		app.Logger.Info(
 			"WebSocketEvent",
 			"subprotocol", p,
@@ -641,7 +640,7 @@ func (app *App) Listen(port int) error {
 	return http.ListenAndServe(addr, app)
 }
 
-func (app *App) handleRESTRequest(c *context.Context) {
+func (app *App) handleRESTRequest(c *ctx.Context) {
 	var catchEvent string
 
 	defer func() {
@@ -753,7 +752,7 @@ func (app *App) handleRESTRequest(c *context.Context) {
 			notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
 			httpCode, _ := notFoundException.GetHTTPStatus()
 			c.Status(httpCode)
-			c.JSON(context.Map{
+			c.JSON(ctx.Map{
 				"code":    notFoundException.GetCode(),
 				"error":   notFoundException.Error(),
 				"message": notFoundException.GetResponse(),
@@ -762,8 +761,8 @@ func (app *App) handleRESTRequest(c *context.Context) {
 	}
 }
 
-func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r *http.Request, c *context.Context) {
-	wsInstance := context.NewWS(wsConn)
+func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r *http.Request, c *ctx.Context) {
+	wsInstance := ctx.NewWS(wsConn)
 	c.WS = wsInstance
 	isNext := true
 	c.Next = func() {
@@ -809,7 +808,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 			continue
 		}
 
-		var wsMsg context.WSMessage
+		var wsMsg ctx.WSMessage
 		err = json.Unmarshal(message, &wsMsg)
 		if err != nil {
 			app.wsInvokeMiddlewares(c, exception.UnsupportedMediaTypeException(err.Error()))
@@ -842,7 +841,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 				// due to error will be added
 				// whenever interceptor triggered
 				// but WS 1 connection use 1 ctx
-				newCtx := stdContext.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+				newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
 				c.Request = c.Request.WithContext(newCtx)
 
 				// clean all events before recursion
@@ -924,7 +923,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 	}
 }
 
-func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
+func (app *App) provideAndInvoke(f any, c *ctx.Context) []reflect.Value {
 	args := []reflect.Value{}
 	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
@@ -941,7 +940,7 @@ func (app *App) provideAndInvoke(f any, c *context.Context) []reflect.Value {
 	return reflect.ValueOf(f).Call(args)
 }
 
-func (app *App) addWSEvent(subscribedEventName, wsid string, c *context.Context, cb func(args ...any)) {
+func (app *App) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(args ...any)) {
 
 	// actual event = eventName + Sec-Websocket-Key + uuid
 	c.Event.On(subscribedEventName+wsid, cb)
@@ -954,7 +953,7 @@ func (app *App) addWSEvent(subscribedEventName, wsid string, c *context.Context,
 	}
 }
 
-func (app *App) removeWSEvent(subscribedEventName, wsid string, c *context.Context) {
+func (app *App) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) {
 	c.Event.RemoveAllListeners(subscribedEventName + wsid)
 	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
 		wsids = utils.ArrFilter[string](wsids.([]string), func(el string, i int) bool {
@@ -964,7 +963,7 @@ func (app *App) removeWSEvent(subscribedEventName, wsid string, c *context.Conte
 	}
 }
 
-func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *context.Context) {
+func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *ctx.Context) {
 	app.wsEventToID.Range(func(subscribedEventName, wsids any) bool {
 		if subscribedEventName == configPublishedEventName {
 			for _, wsid := range wsids.([]string) {
@@ -979,11 +978,11 @@ func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *
 	// due to error will be added
 	// whenever interceptor triggered
 	// but WS 1 connection use 1 ctx
-	newCtx := stdContext.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+	newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
 	c.Request = c.Request.WithContext(newCtx)
 }
 
-func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTPException) {
+func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.HTTPException) {
 	isNext := true
 	c.Next = func() {
 		isNext = true
@@ -997,7 +996,7 @@ func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTP
 	}
 
 	if isNext {
-		c.WS.SendSelf(c, context.Map{
+		c.WS.SendSelf(c, ctx.Map{
 			"code":    exception.GetCode(),
 			"error":   exception.Error(),
 			"message": exception.GetResponse(),
@@ -1005,7 +1004,7 @@ func (app *App) wsInvokeMiddlewares(c *context.Context, exception exception.HTTP
 	}
 }
 
-func (app *App) getContextID(c *context.Context) string {
+func (app *App) getContextID(c *ctx.Context) string {
 	reqID := c.Header().Get("X-Request-ID")
 	if reqID == "" {
 		uuid, _ := utils.StrUUID()
@@ -1015,16 +1014,16 @@ func (app *App) getContextID(c *context.Context) string {
 	return reqID
 }
 
-func (app *App) setErrorAggregationOperators(ctx *context.Context, aggregationInstance *aggregation.Aggregation) {
+func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
 	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
 	if errorAggregationOpr != nil {
-		errorAggregationOperators := ctx.Request.Context().Value(WithValueKey("ErrorAggregationOperators"))
+		errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators"))
 		if errorAggregationOperators == nil {
 			errorAggregationOperators = []aggregation.AggregationOperator{}
 		}
 		errorAggregationOperators = append(errorAggregationOperators.([]aggregation.AggregationOperator), errorAggregationOpr)
 
-		newCtx := stdContext.WithValue(ctx.Request.Context(), WithValueKey("ErrorAggregationOperators"), errorAggregationOperators)
-		ctx.Request = ctx.Request.WithContext(newCtx)
+		newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), errorAggregationOperators)
+		c.Request = c.Request.WithContext(newCtx)
 	}
 }

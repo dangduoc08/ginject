@@ -5,17 +5,17 @@ import (
 	"time"
 
 	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 )
 
-func RequestLogger(logger common.Logger) func(*context.Context) {
-	return func(c *context.Context) {
-		c.Event.On(context.REQUEST_FINISHED, func(args ...any) {
-			newC := args[0].(*context.Context)
+func RequestLogger(logger common.Logger) func(*ctx.Context) {
+	return func(c *ctx.Context) {
+		c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
+			newC := args[0].(*ctx.Context)
 			requestType := newC.GetType()
 			responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
 
-			if requestType == context.HTTPType {
+			if requestType == ctx.HTTPType {
 				logger.Info(
 					newC.URL.String(),
 					"Method", newC.Method,
@@ -25,7 +25,7 @@ func RequestLogger(logger common.Logger) func(*context.Context) {
 					"User-Agent", newC.UserAgent(),
 					"X-Request-ID", newC.GetID(),
 				)
-			} else if requestType == context.WSType {
+			} else if requestType == ctx.WSType {
 				logger.Info(
 					newC.WS.Message.Event,
 					"Time", fmt.Sprintf("%v ms", responseTime),
