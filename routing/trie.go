@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -17,7 +17,7 @@ type (
 
 type Trie struct {
 	Children  Node
-	Handlers  []context.Handler
+	Handlers  []ctx.Handler
 	ParamKeys map[string][]int
 	Index     int
 }
@@ -43,7 +43,7 @@ func (tr *Trie) len() int {
 	return counter
 }
 
-func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []context.Handler) *Trie {
+func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []ctx.Handler) *Trie {
 	node := tr
 	start := strings.IndexByte(path, sep)
 
@@ -65,7 +65,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	return tr
 }
 
-func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []string, []context.Handler) {
+func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
 	node := tr
 	var matchedNode *Trie
 	var lastWildcardNode *Trie
@@ -74,7 +74,7 @@ func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []st
 	i := -1
 	paramKeys := make(map[string][]int)
 	paramVals := make([]string, 0)
-	handlers := []context.Handler{}
+	handlers := []ctx.Handler{}
 	methodPattern := fromMethodtoPattern(method)
 
 	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {

@@ -1,4 +1,4 @@
-package context
+package ctx
 
 type Query map[string][]string
 

@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -53,7 +53,7 @@ type Module struct {
 	RESTMiddlewares []struct {
 		Method   string
 		Route    string
-		Handlers []context.Handler
+		Handlers []ctx.Handler
 	}
 
 	// store REST module guards
@@ -88,7 +88,7 @@ type Module struct {
 	WSMiddlewares []struct {
 		Subprotocol string
 		EventName   string
-		Handlers    []context.Handler
+		Handlers    []ctx.Handler
 	}
 
 	// store WS module guards
@@ -300,7 +300,7 @@ func (m *Module) NewModule() *Module {
 						m.RESTMiddlewares = append(m.RESTMiddlewares, struct {
 							Method   string
 							Route    string
-							Handlers []func(*context.Context)
+							Handlers []func(*ctx.Context)
 						}{
 							Method:   middlewareItem.method,
 							Route:    middlewareItem.route,
@@ -536,7 +536,7 @@ func (m *Module) NewModule() *Module {
 						m.WSMiddlewares = append(m.WSMiddlewares, struct {
 							Subprotocol string
 							EventName   string
-							Handlers    []func(*context.Context)
+							Handlers    []func(*ctx.Context)
 						}{
 							Subprotocol: ws.GetSubprotocol(),
 							EventName:   middlewareItem.eventName,

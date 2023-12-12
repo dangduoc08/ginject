@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/dangduoc08/gooh/context"
 	"github.com/dangduoc08/gooh/core"
+	"github.com/dangduoc08/gooh/ctx"
 )
 
 type ConfigService struct {
@@ -26,5 +26,5 @@ func (configService *ConfigService) Transform(s any) any {
 	for key, val := range configService.Config {
 		conf[key] = append(conf[key], val.(string))
 	}
-	return context.BindStrArr(conf, s)
+	return ctx.BindStrArr(conf, s)
 }

@@ -1,8 +1,8 @@
 package aggregation
 
-import "github.com/dangduoc08/gooh/context"
+import "github.com/dangduoc08/gooh/ctx"
 
-type AggregationOperator = func(*context.Context, any) any
+type AggregationOperator = func(*ctx.Context, any) any
 
 type Aggregation struct {
 	IsMainHandlerCalled bool
@@ -47,7 +47,7 @@ func (aggregation *Aggregation) GetAggregationOperator(oprName string) Aggregati
 	return nil
 }
 
-func (aggregation *Aggregation) Aggregate(ctx *context.Context) any {
+func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
 
 	// handle operators
 	for name, operator := range aggregation.operators {
@@ -102,7 +102,7 @@ func (aggregation *Aggregation) Aggregate(ctx *context.Context) any {
 		// 	aggregation.mainData = operator(aggregation.mainData)
 
 		case OPERATOR_CONSUME:
-			aggregation.mainData = operator(ctx, aggregation.mainData)
+			aggregation.mainData = operator(c, aggregation.mainData)
 
 		case OPERATOR_ERROR:
 			continue

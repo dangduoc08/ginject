@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/exception"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -149,22 +149,22 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 	return method, "/" + route
 }
 
-func HandleGuard(ctx *context.Context, canActive bool) {
+func HandleGuard(c *ctx.Context, canActive bool) {
 	if canActive {
-		ctx.Next()
+		c.Next()
 	} else {
 		forbiddenException := exception.ForbiddenException("Access denied")
 		httpCode, _ := forbiddenException.GetHTTPStatus()
-		data := context.Map{
+		data := ctx.Map{
 			"code":    forbiddenException.GetCode(),
 			"error":   forbiddenException.Error(),
 			"message": forbiddenException.GetResponse(),
 		}
-		requestType := ctx.GetType()
-		if requestType == context.HTTPType {
-			ctx.Status(httpCode).JSON(data)
-		} else if requestType == context.WSType {
-			ctx.WS.SendSelf(ctx, data)
+		requestType := c.GetType()
+		if requestType == ctx.HTTPType {
+			c.Status(httpCode).JSON(data)
+		} else if requestType == ctx.WSType {
+			c.WS.SendSelf(c, data)
 		}
 	}
 }

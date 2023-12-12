@@ -3,14 +3,14 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 )
 
-type CanActivate = func(*context.Context) bool
+type CanActivate = func(*ctx.Context) bool
 
 type Guarder interface {
-	CanActivate(*context.Context) bool
+	CanActivate(*ctx.Context) bool
 }
 
 type GuardHandler struct {

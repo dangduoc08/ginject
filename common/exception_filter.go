@@ -3,15 +3,15 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/exception"
 	"github.com/dangduoc08/gooh/routing"
 )
 
-type Catch = func(*context.Context, *exception.HTTPException)
+type Catch = func(*ctx.Context, *exception.HTTPException)
 
 type ExceptionFilterable interface {
-	Catch(*context.Context, *exception.HTTPException)
+	Catch(*ctx.Context, *exception.HTTPException)
 }
 
 type ExceptionFilterHandler struct {
