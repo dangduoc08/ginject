@@ -28,10 +28,15 @@ type ParamPipeable interface {
 	Transform(context.Param, ArgumentMetadata) any
 }
 
+type FilePipeable interface {
+	Transform(context.File, ArgumentMetadata) any
+}
+
 type WSPayloadPipeable interface {
 	Transform(context.WSPayload, ArgumentMetadata) any
 }
 
 type ArgumentMetadata struct {
-	ParamType string
+	ContextType string
+	ParamType   string
 }

@@ -57,6 +57,7 @@ const (
 	QUERY               = "github.com/dangduoc08/gooh/context/context.Query"
 	HEADER              = "github.com/dangduoc08/gooh/context/context.Header"
 	PARAM               = "github.com/dangduoc08/gooh/context/context.Param"
+	FILE                = "github.com/dangduoc08/gooh/context/context.File"
 	WS_PAYLOAD          = "github.com/dangduoc08/gooh/context/context.WSPayload"
 	NEXT                = "/func()"
 	REDIRECT            = "/func(string)"
@@ -66,6 +67,7 @@ const (
 	QUERY_PIPEABLE      = "query"
 	HEADER_PIPEABLE     = "header"
 	PARAM_PIPEABLE      = "param"
+	FILE_PIPEABLE       = "file"
 	WS_PAYLOAD_PIPEABLE = "wsPayload"
 )
 
@@ -79,6 +81,7 @@ var dependencies = map[string]int{
 	QUERY:               1,
 	HEADER:              1,
 	PARAM:               1,
+	FILE:                1,
 	WS_PAYLOAD:          1,
 	NEXT:                1,
 	REDIRECT:            1,
@@ -88,6 +91,7 @@ var dependencies = map[string]int{
 	QUERY_PIPEABLE:      1,
 	HEADER_PIPEABLE:     1,
 	PARAM_PIPEABLE:      1,
+	FILE_PIPEABLE:       1,
 	WS_PAYLOAD_PIPEABLE: 1,
 }
 

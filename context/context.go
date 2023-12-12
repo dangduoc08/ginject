@@ -24,6 +24,7 @@ type Context struct {
 
 	body        Body
 	form        Form
+	file        File
 	query       Query
 	header      Header
 	param       Param
@@ -120,6 +121,7 @@ func (c *Context) Reset() {
 	c.WS = nil
 	c.body = nil
 	c.form = nil
+	c.file = nil
 	c.query = nil
 	c.header = nil
 	c.param = nil
