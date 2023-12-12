@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 	"github.com/dangduoc08/gooh/utils"
 )
@@ -15,21 +15,21 @@ type MiddlewareConfig struct {
 }
 
 type Middleware struct {
-	middlewares           []context.Handler
+	middlewares           []ctx.Handler
 	inclusion             []string
 	exclusion             []string
 	restMiddlewareItemArr []struct {
 		method   string
 		route    string
-		handlers []context.Handler
+		handlers []ctx.Handler
 	}
 	wsMiddlewareItemArr []struct {
 		eventName string
-		handlers  []context.Handler
+		handlers  []ctx.Handler
 	}
 }
 
-func (mw *Middleware) Apply(middlewares ...context.Handler) *MiddlewareConfig {
+func (mw *Middleware) Apply(middlewares ...ctx.Handler) *MiddlewareConfig {
 
 	// when Apply invoked twice on same module
 	if len(mw.middlewares) > 0 {
@@ -74,7 +74,7 @@ func (mw *Middleware) addREST(prefixes []map[string]string) {
 				mw.restMiddlewareItemArr = append(mw.restMiddlewareItemArr, struct {
 					method   string
 					route    string
-					handlers []func(*context.Context)
+					handlers []func(*ctx.Context)
 				}{
 					method:   httpMethod,
 					route:    routing.ToEndpoint(route),
@@ -93,11 +93,11 @@ func (mw *Middleware) addWS() {
 		opr, eventname := common.ParseFnNameToURL(patternFNNameInclusion, common.WSOperations)
 		if opr != "" {
 			eventname = utils.StrRemoveEnd(utils.StrRemoveBegin(eventname, "/"), "/")
-			_, fnNameInclusion := context.ResolveWSEventname(eventname)
+			_, fnNameInclusion := ctx.ResolveWSEventname(eventname)
 			if !utils.ArrIncludes[string](mw.exclusion, fnNameInclusion) {
 				mw.wsMiddlewareItemArr = append(mw.wsMiddlewareItemArr, struct {
 					eventName string
-					handlers  []func(*context.Context)
+					handlers  []func(*ctx.Context)
 				}{
 					eventName: eventname,
 					handlers:  mw.middlewares,

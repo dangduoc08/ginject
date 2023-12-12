@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/exception"
 )
 
@@ -14,7 +14,7 @@ import (
 
 type globalExceptionFilter struct{}
 
-func (g globalExceptionFilter) Catch(c *context.Context, ex *exception.HTTPException) {
+func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.HTTPException) {
 	internalServerErrorException := exception.InternalServerErrorException("Unhandled exception has occurred")
 
 	code := ex.GetCode()
@@ -26,7 +26,7 @@ func (g globalExceptionFilter) Catch(c *context.Context, ex *exception.HTTPExcep
 	if err == "" {
 		err = internalServerErrorException.Error()
 	}
-	data := context.Map{
+	data := ctx.Map{
 		"code":  code,
 		"error": err,
 	}
@@ -51,9 +51,9 @@ func (g globalExceptionFilter) Catch(c *context.Context, ex *exception.HTTPExcep
 	}
 
 	requestType := c.GetType()
-	if requestType == context.HTTPType {
+	if requestType == ctx.HTTPType {
 		c.Status(httpCode).JSON(data)
-	} else if requestType == context.WSType {
+	} else if requestType == ctx.WSType {
 		c.WS.SendSelf(c, data)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -124,22 +124,22 @@ func TestRouterGroup(t *testing.T) {
 func TestRouterMiddleware(t *testing.T) {
 	counter := 0
 
-	handler1 := func(c *context.Context) {
+	handler1 := func(c *ctx.Context) {
 		counter++
 		c.Next()
 	}
 
-	handler2 := func(c *context.Context) {
+	handler2 := func(c *ctx.Context) {
 		counter += 2
 		c.Next()
 	}
 
-	handler3 := func(c *context.Context) {
+	handler3 := func(c *ctx.Context) {
 		counter += 3
 		c.Next()
 	}
 
-	handler4 := func(c *context.Context) {
+	handler4 := func(c *ctx.Context) {
 		counter += 4
 		c.Next()
 	}
@@ -158,7 +158,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext := true
-	c := context.NewContext()
+	c := ctx.NewContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -197,7 +197,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = context.NewContext()
+	c = ctx.NewContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -243,7 +243,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = context.NewContext()
+	c = ctx.NewContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -285,7 +285,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = context.NewContext()
+	c = ctx.NewContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -346,7 +346,7 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRouter()
 
 		for _, path := range paths {
-			r.Add(path, "", func(c *context.Context) {})
+			r.Add(path, "", func(c *ctx.Context) {})
 		}
 
 		json, err := r.ToJSON()

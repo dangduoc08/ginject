@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -91,7 +91,7 @@ func (m *moduleBuilder) Build() *Module {
 		RESTMiddlewares: []struct {
 			Method   string
 			Route    string
-			Handlers []func(*context.Context)
+			Handlers []func(*ctx.Context)
 		}{},
 		RESTGuards: []struct {
 			Method  string
@@ -117,7 +117,7 @@ func (m *moduleBuilder) Build() *Module {
 		WSMiddlewares: []struct {
 			Subprotocol string
 			EventName   string
-			Handlers    []func(*context.Context)
+			Handlers    []func(*ctx.Context)
 		}{},
 		WSGuards: []struct {
 			Subprotocol string

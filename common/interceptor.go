@@ -4,14 +4,14 @@ import (
 	"reflect"
 
 	"github.com/dangduoc08/gooh/aggregation"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/routing"
 )
 
-type Intercept = func(*context.Context, *aggregation.Aggregation) any
+type Intercept = func(*ctx.Context, *aggregation.Aggregation) any
 
 type Interceptable interface {
-	Intercept(*context.Context, *aggregation.Aggregation) any
+	Intercept(*ctx.Context, *aggregation.Aggregation) any
 }
 
 type InterceptorHandler struct {

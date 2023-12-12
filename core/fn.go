@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -259,7 +259,7 @@ func logBoostrap(port int) {
 	os.Stdout.Write([]byte(close))
 }
 
-func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
+func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 	switch k {
 	case CONTEXT:
 		return c
@@ -348,7 +348,7 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 	return dependencies
 }
 
-func returnREST(c *context.Context, data reflect.Value) {
+func returnREST(c *ctx.Context, data reflect.Value) {
 	switch data.Type().Kind() {
 	case
 		reflect.Map,
@@ -427,7 +427,7 @@ func toWSMessage(data reflect.Value) string {
 	}
 }
 
-func setStatusCode(c *context.Context, statusCode reflect.Value) {
+func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
 	statusCodeKind := statusCode.Type().Kind()
 
 	if statusCodeKind == reflect.Int {

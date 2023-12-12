@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/dangduoc08/gooh/context"
+	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
 )
 
@@ -31,7 +31,7 @@ const (
 type RouterItem struct {
 	Index                 int
 	HandlerIndex          int
-	Handlers              []context.Handler
+	Handlers              []ctx.Handler
 	isRouteContainsParams bool
 }
 
@@ -39,7 +39,7 @@ type Router struct {
 	*Trie
 	Hash               map[string]RouterItem
 	List               []string
-	GlobalMiddlewares  []context.Handler
+	GlobalMiddlewares  []ctx.Handler
 	InjectableHandlers map[string]any
 }
 
@@ -47,12 +47,12 @@ func NewRouter() *Router {
 	return &Router{
 		Trie:               NewTrie(),
 		Hash:               make(map[string]RouterItem),
-		GlobalMiddlewares:  []context.Handler{},
+		GlobalMiddlewares:  []ctx.Handler{},
 		InjectableHandlers: make(map[string]any),
 	}
 }
 
-func (r *Router) push(route, method string, caller int, handlers ...context.Handler) *Router {
+func (r *Router) push(route, method string, caller int, handlers ...ctx.Handler) *Router {
 	endpoint := ToEndpoint(AddMethodToRoute(route, method))
 	var item RouterItem
 
@@ -129,7 +129,7 @@ func (r *Router) push(route, method string, caller int, handlers ...context.Hand
 	return r
 }
 
-func (r *Router) Match(route, method string) (bool, string, map[string][]int, []string, []context.Handler) {
+func (r *Router) Match(route, method string) (bool, string, map[string][]int, []string, []ctx.Handler) {
 	route = AddMethodToRoute(route, method)
 
 	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
@@ -174,7 +174,7 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 	return r
 }
 
-func (r *Router) Use(handlers ...context.Handler) *Router {
+func (r *Router) Use(handlers ...ctx.Handler) *Router {
 
 	// use for global middlewares
 	// once no route matched
@@ -189,8 +189,8 @@ func (r *Router) Use(handlers ...context.Handler) *Router {
 	return r
 }
 
-func (r *Router) For(path string, inclusions []string) func(handlers ...context.Handler) *Router {
-	return func(handlers ...context.Handler) *Router {
+func (r *Router) For(path string, inclusions []string) func(handlers ...ctx.Handler) *Router {
+	return func(handlers ...ctx.Handler) *Router {
 		for _, method := range inclusions {
 			r.push(path, method, FOR, handlers...)
 		}
@@ -200,7 +200,7 @@ func (r *Router) For(path string, inclusions []string) func(handlers ...context.
 }
 
 // alway use latest add
-func (r *Router) Add(route, method string, handler context.Handler) *Router {
+func (r *Router) Add(route, method string, handler ctx.Handler) *Router {
 	r.push(route, method, ADD, handler)
 
 	return r

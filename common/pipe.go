@@ -1,39 +1,37 @@
 package common
 
-import (
-	"github.com/dangduoc08/gooh/context"
-)
+import "github.com/dangduoc08/gooh/ctx"
 
 type ContextPipeable interface {
-	Transform(*context.Context, ArgumentMetadata) any
+	Transform(*ctx.Context, ArgumentMetadata) any
 }
 
 type BodyPipeable interface {
-	Transform(context.Body, ArgumentMetadata) any
+	Transform(ctx.Body, ArgumentMetadata) any
 }
 
 type FormPipeable interface {
-	Transform(context.Form, ArgumentMetadata) any
+	Transform(ctx.Form, ArgumentMetadata) any
 }
 
 type QueryPipeable interface {
-	Transform(context.Query, ArgumentMetadata) any
+	Transform(ctx.Query, ArgumentMetadata) any
 }
 
 type HeaderPipeable interface {
-	Transform(context.Header, ArgumentMetadata) any
+	Transform(ctx.Header, ArgumentMetadata) any
 }
 
 type ParamPipeable interface {
-	Transform(context.Param, ArgumentMetadata) any
+	Transform(ctx.Param, ArgumentMetadata) any
 }
 
 type FilePipeable interface {
-	Transform(context.File, ArgumentMetadata) any
+	Transform(ctx.File, ArgumentMetadata) any
 }
 
 type WSPayloadPipeable interface {
-	Transform(context.WSPayload, ArgumentMetadata) any
+	Transform(ctx.WSPayload, ArgumentMetadata) any
 }
 
 type ArgumentMetadata struct {
