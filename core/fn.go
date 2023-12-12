@@ -75,6 +75,13 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 			}
 
 			cb(PARAM_PIPEABLE, i, newArg)
+		} else if filePipeable, isImplFilePipeable := argAnyValue.(common.FilePipeable); isImplFilePipeable {
+			newArg, err := injectDependencies(filePipeable, "pipe", injectedProviders)
+			if err != nil {
+				panic(err)
+			}
+
+			cb(FILE_PIPEABLE, i, newArg)
 		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
 			newArg, err := injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
 			if err != nil {
@@ -272,6 +279,8 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 		return c.Header()
 	case PARAM:
 		return c.Param()
+	case FILE:
+		return c.File()
 	case WS_PAYLOAD:
 		return c.WS.Message.Payload
 	case NEXT:
@@ -282,43 +291,57 @@ func getDependency(k string, c *context.Context, pipeValue reflect.Value) any {
 		return pipeValue.
 			Interface().(common.ContextPipeable).
 			Transform(c, common.ArgumentMetadata{
-				ParamType: CONTEXT_PIPEABLE,
+				ParamType:   CONTEXT_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case BODY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.BodyPipeable).
 			Transform(c.Body(), common.ArgumentMetadata{
-				ParamType: BODY_PIPEABLE,
+				ParamType:   BODY_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case FORM_PIPEABLE:
 		return pipeValue.
 			Interface().(common.FormPipeable).
 			Transform(c.Form(), common.ArgumentMetadata{
-				ParamType: FORM_PIPEABLE,
+				ParamType:   FORM_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case QUERY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.QueryPipeable).
 			Transform(c.Query(), common.ArgumentMetadata{
-				ParamType: QUERY_PIPEABLE,
+				ParamType:   QUERY_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case HEADER_PIPEABLE:
 		return pipeValue.
 			Interface().(common.HeaderPipeable).
 			Transform(c.Header(), common.ArgumentMetadata{
-				ParamType: HEADER_PIPEABLE,
+				ParamType:   HEADER_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case PARAM_PIPEABLE:
 		return pipeValue.
 			Interface().(common.ParamPipeable).
 			Transform(c.Param(), common.ArgumentMetadata{
-				ParamType: PARAM_PIPEABLE,
+				ParamType:   PARAM_PIPEABLE,
+				ContextType: c.GetType(),
+			})
+	case FILE_PIPEABLE:
+		return pipeValue.
+			Interface().(common.FilePipeable).
+			Transform(c.File(), common.ArgumentMetadata{
+				ParamType:   FILE_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	case WS_PAYLOAD_PIPEABLE:
 		return pipeValue.
 			Interface().(common.WSPayloadPipeable).
 			Transform(c.WS.Message.Payload, common.ArgumentMetadata{
-				ParamType: WS_PAYLOAD_PIPEABLE,
+				ParamType:   WS_PAYLOAD_PIPEABLE,
+				ContextType: c.GetType(),
 			})
 	}
 
