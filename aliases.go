@@ -23,6 +23,7 @@ type (
 	Response  = http.ResponseWriter
 	Body      = context.Body
 	Form      = context.Form
+	File      = context.File
 	Query     = context.Query
 	Header    = context.Header
 	Param     = context.Param

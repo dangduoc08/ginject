@@ -9,6 +9,7 @@ type Form map[string][]string
 const (
 	multipartFormData             = "multipart/form-data"
 	applicationXWWWFormUrlencoded = "application/x-www-form-urlencoded"
+	defaultMaxMemory              = 32 << 20
 )
 
 func (c *Context) Form() Form {
@@ -20,7 +21,7 @@ func (c *Context) Form() Form {
 	contentType := c.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, multipartFormData) {
-		e = c.Request.ParseMultipartForm(32 << 20)
+		e = c.Request.ParseMultipartForm(defaultMaxMemory)
 	} else if strings.Contains(contentType, applicationXWWWFormUrlencoded) {
 		e = c.Request.ParseForm()
 	}
