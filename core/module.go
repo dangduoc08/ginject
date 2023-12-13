@@ -18,8 +18,6 @@ var injectedDynamicModules = make(map[uintptr]*Module)
 var globalProviders map[string]Provider = make(map[string]Provider)
 var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
-var insertedRoutes = make(map[string]string)
-var insertedEvents = make(map[string]string)
 var noInjectedFields = []string{
 	"REST",
 	"common.REST",
@@ -289,7 +287,7 @@ func (m *Module) NewModule() *Module {
 
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-						rest.AddHandlerToRouterMap(methodName, insertedRoutes, handler)
+						rest.AddHandlerToRouterMap(methodName, handler)
 					}
 
 					// create middlewareItemArr
@@ -525,7 +523,7 @@ func (m *Module) NewModule() *Module {
 
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-						ws.AddHandlerToEventMap(ws.GetSubprotocol(), methodName, insertedEvents, handler)
+						ws.AddHandlerToEventMap(ws.GetSubprotocol(), methodName, handler)
 					}
 
 					// create middlewareItemArr
