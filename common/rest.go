@@ -17,6 +17,8 @@ var RESTOperations = map[string]string{
 	"DELETE": http.MethodDelete,
 }
 
+var InsertedRoutes = make(map[string]string)
+
 const (
 	TOKEN_BY   = "BY"
 	TOKEN_AND  = "AND"
@@ -31,6 +33,12 @@ var TokenMap = map[string]string{
 	TOKEN_OF:   TOKEN_OF,
 	TOKEN_ANY:  TOKEN_ANY,
 	TOKEN_FILE: TOKEN_FILE,
+}
+
+type RESTConfiguration struct {
+	Method string
+	Route  string
+	Func   string
 }
 
 type REST struct {
@@ -105,26 +113,40 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 	return r
 }
 
-func (r *REST) AddHandlerToRouterMap(fnName string, insertedRoutes map[string]string, handler any) {
+func (r *REST) AddHandlerToRouterMap(fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
 	httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
-
-		parsedRoute, _ := routing.ParseToParamKey(routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod))
-		if insertedRoutes[parsedRoute] == "" {
-			insertedRoutes[parsedRoute] = fnName
+		routeMethod := routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod)
+		if InsertedRoutes[routeMethod] == "" {
+			InsertedRoutes[routeMethod] = fnName
 		} else {
 			panic(fmt.Errorf(
 				utils.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,
-					insertedRoutes[parsedRoute],
+					InsertedRoutes[routeMethod],
 				),
 			))
 		}
 
 		r.addToRouters(fnName, route, httpMethod, handler)
 	}
+}
+
+func (r *REST) GetConfigurations() []RESTConfiguration {
+	routes := []RESTConfiguration{}
+
+	for routeMethod, fn := range InsertedRoutes {
+		method, route := routing.SplitRoute(routeMethod)
+		routes = append(routes, RESTConfiguration{
+			Method: method,
+			Route:  route,
+			Func:   fn,
+		})
+	}
+
+	return routes
 }
