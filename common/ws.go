@@ -11,6 +11,8 @@ var WSOperations = map[string]string{
 	"SUBSCRIBE": "SUBSCRIBE",
 }
 
+var InsertedEvents = make(map[string]string)
+
 type WS struct {
 	patternToFnNameMap map[string]string
 	EventMap           map[string]any
@@ -30,20 +32,20 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 	ws.EventMap[event] = injectableHandler
 }
 
-func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, insertedEvents map[string]string, handler any) {
+func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler any) {
 	opr, eventName := ParseFnNameToURL(fnName, WSOperations)
 
 	if opr != "" && WSOperations[opr] != "" {
 		eventName = ToWSEventName(subprotocol, eventName)
 
-		if insertedEvents[eventName] == "" {
-			insertedEvents[eventName] = fnName
+		if InsertedEvents[eventName] == "" {
+			InsertedEvents[eventName] = fnName
 		} else {
 			panic(fmt.Errorf(
 				utils.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,
-					insertedEvents[eventName],
+					InsertedEvents[eventName],
 				),
 			))
 		}

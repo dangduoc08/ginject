@@ -183,7 +183,7 @@ func (app *App) Create(m *Module) {
 		}
 
 		// WS global exception filters
-		for eventName := range insertedEvents {
+		for eventName := range common.InsertedEvents {
 			app.catchWSFnsMap[eventName] = append(
 				app.catchWSFnsMap[eventName],
 				globalExceptionFilter.Catch,
@@ -317,7 +317,7 @@ func (app *App) Create(m *Module) {
 			app.route.Use(globalMiddleware.handler)
 
 			// WS global middlewares
-			for eventName := range insertedEvents {
+			for eventName := range common.InsertedEvents {
 				app.wsEventMap[eventName] = append(
 					app.wsEventMap[eventName],
 					globalMiddleware.handler,
@@ -360,7 +360,7 @@ func (app *App) Create(m *Module) {
 		}
 
 		// WS global guards
-		for eventName := range insertedEvents {
+		for eventName := range common.InsertedEvents {
 			app.wsEventMap[eventName] = append(
 				app.wsEventMap[eventName],
 				canActivateMiddleware,
@@ -432,7 +432,7 @@ func (app *App) Create(m *Module) {
 		}
 
 		// WS global interceptors
-		for eventName := range insertedEvents {
+		for eventName := range common.InsertedEvents {
 			aggregationInstance := aggregation.NewAggregation()
 			app.wsAggregationMap[eventName] = append(app.wsAggregationMap[eventName], aggregationInstance)
 			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
@@ -626,7 +626,7 @@ func (app *App) Listen(port int) error {
 		)
 	})
 
-	for eventName := range insertedEvents {
+	for eventName := range common.InsertedEvents {
 		p, e := ctx.ResolveWSEventname(eventName)
 		app.Logger.Info(
 			"WebSocketEvent",
@@ -778,7 +778,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 		wsConn.Close()
 	}()
 
-	if !wsInstance.CanEstablish(insertedEvents) {
+	if !wsInstance.CanEstablish(common.InsertedEvents) {
 		return
 	}
 
