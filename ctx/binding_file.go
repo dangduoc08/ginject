@@ -2,16 +2,17 @@ package ctx
 
 import (
 	"go/token"
+	"mime/multipart"
 	"reflect"
 
 	"github.com/dangduoc08/gooh/utils"
 )
 
-func BindFile(f File, s any) ([]string, any) {
+func BindFile(f File, s any) (map[string][]*DataFile, any) {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)
-	keys := []string{}
+	filteredFile := map[string][]*DataFile{}
 
 	for i := 0; i < structureType.NumField(); i++ {
 		structField := structureType.Field(i)
@@ -24,21 +25,47 @@ func BindFile(f File, s any) ([]string, any) {
 			bindParams := getTagParams(bindValues)
 			if len(bindParams) > 0 {
 				bindedIndex, bindedField := getTagParamIndex(bindParams[0])
-				keys = append(keys, bindedField)
-
 				if bindedValue, ok := f[bindedField]; ok {
 					switch structField.Type.Kind() {
 
 					case reflect.Ptr:
 						if len(bindedValue) > 0 {
 							if fileHeader, ok := utils.ArrGet(bindedValue, bindedIndex); ok {
-								setValueToStructField(fileHeader)
+								dataFile := []*DataFile{
+									{
+										FileHeader: fileHeader,
+										Index:      bindedIndex,
+										Size:       fileHeader.Size,
+										Total:      1,
+										Key:        bindedField,
+										Filename:   fileHeader.Filename,
+										Type:       fileHeader.Header.Get("Content-Type"),
+									},
+								}
+
+								filteredFile[bindedField] = dataFile
+								setValueToStructField(dataFile[0])
 							}
 						}
 						continue
 
 					case reflect.Slice:
-						setValueToStructField(bindedValue)
+						dataFile := utils.ArrMap[*multipart.FileHeader, *DataFile](
+							bindedValue,
+							func(fileHeader *multipart.FileHeader, index int) *DataFile {
+								return &DataFile{
+									FileHeader: fileHeader,
+									Index:      index,
+									Size:       fileHeader.Size,
+									Total:      len(bindedValue),
+									Key:        bindedField,
+									Filename:   fileHeader.Filename,
+									Type:       fileHeader.Header.Get("Content-Type"),
+								}
+							})
+
+						filteredFile[bindedField] = dataFile
+						setValueToStructField(dataFile)
 						continue
 					}
 				}
@@ -46,5 +73,5 @@ func BindFile(f File, s any) ([]string, any) {
 		}
 	}
 
-	return keys, reflect.Indirect(newStructuredData).Interface()
+	return filteredFile, reflect.Indirect(newStructuredData).Interface()
 }
