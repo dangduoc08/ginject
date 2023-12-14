@@ -36,8 +36,10 @@ func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.HTTPException
 	case reflect.String:
 		data["message"] = message
 	case reflect.Slice:
-		if messages, ok := message.([]string); ok {
-			data["message"] = strings.Join(messages, ", ")
+		if messageArr, ok := message.([]string); ok {
+			data["message"] = strings.Join(messageArr, ", ")
+		} else if messageObj, ok := message.([]map[string]any); ok {
+			data["messages"] = messageObj
 		} else {
 			data["message"] = internalServerErrorException.GetResponse()
 		}
