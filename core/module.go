@@ -188,8 +188,8 @@ func (m *Module) NewModule() *Module {
 
 			// only import providers which exported
 			if len(injectModule.exports) > 0 {
-				m.providers = append(m.providers, injectModule.exports...)
-				m.exports = append(m.exports, injectModule.exports...)
+				m.providers = append(injectModule.exports, m.providers...)
+				m.exports = append(injectModule.exports, m.exports...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {
@@ -222,8 +222,8 @@ func (m *Module) NewModule() *Module {
 
 			// only import providers which exported
 			if len(staticModule.exports) > 0 {
-				m.providers = append(m.providers, staticModule.exports...)
-				m.exports = append(m.exports, staticModule.exports...)
+				m.providers = append(staticModule.exports, m.providers...)
+				m.exports = append(staticModule.exports, m.exports...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {
