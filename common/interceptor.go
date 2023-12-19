@@ -75,7 +75,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 			shouldAddInterceptors[routing.AddMethodToRoute(route, httpMethod)] = true
 		}
 
-		for pattern := range r.patternToFnNameMap {
+		for pattern := range r.PatternToFnNameMap {
 			if _, ok := shouldAddInterceptors[pattern]; ok || len(shouldAddInterceptors) == 0 {
 				httpMethod, route := routing.SplitRoute(pattern)
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
