@@ -49,9 +49,10 @@ type Module struct {
 
 	// store REST module middlewares
 	RESTMiddlewares []struct {
-		Method   string
-		Route    string
-		Handlers []ctx.Handler
+		controllerName string
+		Method         string
+		Route          string
+		Handlers       []ctx.Handler
 	}
 
 	// store REST module guards
@@ -84,9 +85,10 @@ type Module struct {
 
 	// store WS module middlewares
 	WSMiddlewares []struct {
-		Subprotocol string
-		EventName   string
-		Handlers    []ctx.Handler
+		controllerName string
+		Subprotocol    string
+		EventName      string
+		Handlers       []ctx.Handler
 	}
 
 	// store WS module guards
@@ -172,6 +174,14 @@ func (m *Module) NewModule() *Module {
 				if staticModule.IsGlobal {
 					staticModule.injectGlobalProviders()
 				}
+			}
+		}
+
+		if len(m.Middleware.middlewares) > 0 {
+			for _, controller := range m.controllers {
+				controllerName := reflect.TypeOf(controller).PkgPath()
+				m.Middleware.addREST(controllerName, &m.RESTMiddlewares)
+				m.Middleware.addWS(controllerName, &m.WSMiddlewares)
 			}
 		}
 
@@ -267,6 +277,20 @@ func (m *Module) NewModule() *Module {
 
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
+			newRESTMiddlewares := []struct {
+				controllerName string
+				Method         string
+				Route          string
+				Handlers       []func(*ctx.Context)
+			}{}
+
+			newWSMiddlewares := []struct {
+				controllerName string
+				Subprotocol    string
+				EventName      string
+				Handlers       []func(*ctx.Context)
+			}{}
+
 			for i, controller := range m.controllers {
 				newController, err := injectDependencies(controller, "controller", injectedProviders)
 				if err != nil {
@@ -278,32 +302,57 @@ func (m *Module) NewModule() *Module {
 				// Handle REST
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
 					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.REST)
+					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
-
-						// for module middleware inclusion
-						m.Middleware.includeREST(methodName)
 
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
 						rest.AddHandlerToRouterMap(methodName, handler)
 					}
 
-					// create middlewareItemArr
-					m.Middleware.addREST(rest.GetPrefixes())
+					// apply controller bound middlewares
+					for _, restModuleMiddleware := range m.RESTMiddlewares {
+						if restModuleMiddleware.controllerName == controllerName {
+							for pattern := range rest.RouterMap {
+								if restModuleMiddleware.Method == "*" {
+									splittedHTTPMethod, splittedRoute := routing.SplitRoute(pattern)
 
-					// apply module bound middlewares
-					for _, middlewareItem := range m.Middleware.restMiddlewareItemArr {
-						m.RESTMiddlewares = append(m.RESTMiddlewares, struct {
-							Method   string
-							Route    string
-							Handlers []func(*ctx.Context)
-						}{
-							Method:   middlewareItem.method,
-							Route:    middlewareItem.route,
-							Handlers: middlewareItem.handlers,
-						})
+									newRESTMiddlewares = append(
+										newRESTMiddlewares,
+										struct {
+											controllerName string
+											Method         string
+											Route          string
+											Handlers       []func(*ctx.Context)
+										}{
+											controllerName: controllerName,
+											Method:         splittedHTTPMethod,
+											Route:          splittedRoute,
+											Handlers:       restModuleMiddleware.Handlers,
+										},
+									)
+								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.Route {
+									splittedHTTPMethod, splittedRoute := routing.SplitRoute(pattern)
+
+									newRESTMiddlewares = append(
+										newRESTMiddlewares,
+										struct {
+											controllerName string
+											Method         string
+											Route          string
+											Handlers       []func(*ctx.Context)
+										}{
+											controllerName: controllerName,
+											Method:         splittedHTTPMethod,
+											Route:          splittedRoute,
+											Handlers:       restModuleMiddleware.Handlers,
+										},
+									)
+								}
+							}
+						}
 					}
 
 					// apply controller bound guard
@@ -514,32 +563,54 @@ func (m *Module) NewModule() *Module {
 				// Handle WS
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[8]); ok {
 					ws := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[8]).Interface().(common.WS)
+					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
-
-						// for module middleware inclusion
-						m.Middleware.includeWS(ws.GetSubprotocol(), methodName)
 
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
 						ws.AddHandlerToEventMap(ws.GetSubprotocol(), methodName, handler)
 					}
 
-					// create middlewareItemArr
-					m.Middleware.addWS()
+					// apply controller bound middlewares
+					for _, wsModuleMiddleware := range m.WSMiddlewares {
+						if wsModuleMiddleware.controllerName == controllerName {
+							for pattern := range ws.EventMap {
 
-					// apply module bound middlewares
-					for _, middlewareItem := range m.Middleware.wsMiddlewareItemArr {
-						m.WSMiddlewares = append(m.WSMiddlewares, struct {
-							Subprotocol string
-							EventName   string
-							Handlers    []func(*ctx.Context)
-						}{
-							Subprotocol: ws.GetSubprotocol(),
-							EventName:   middlewareItem.eventName,
-							Handlers:    middlewareItem.handlers,
-						})
+								if wsModuleMiddleware.Subprotocol == "*" {
+									newWSMiddlewares = append(
+										newWSMiddlewares,
+										struct {
+											controllerName string
+											Subprotocol    string
+											EventName      string
+											Handlers       []func(*ctx.Context)
+										}{
+											controllerName: controllerName,
+											Subprotocol:    ws.GetSubprotocol(),
+											EventName:      pattern,
+											Handlers:       wsModuleMiddleware.Handlers,
+										},
+									)
+								} else if pattern == common.ToWSEventName(ws.GetSubprotocol(), wsModuleMiddleware.EventName) {
+									newWSMiddlewares = append(
+										newWSMiddlewares,
+										struct {
+											controllerName string
+											Subprotocol    string
+											EventName      string
+											Handlers       []func(*ctx.Context)
+										}{
+											controllerName: controllerName,
+											Subprotocol:    ws.GetSubprotocol(),
+											EventName:      pattern,
+											Handlers:       wsModuleMiddleware.Handlers,
+										},
+									)
+								}
+							}
+						}
 					}
 
 					// apply controller bound guard
@@ -747,6 +818,9 @@ func (m *Module) NewModule() *Module {
 					}
 				}
 			}
+
+			m.RESTMiddlewares = newRESTMiddlewares
+			m.WSMiddlewares = newWSMiddlewares
 		}
 	}
 

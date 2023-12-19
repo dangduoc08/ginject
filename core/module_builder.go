@@ -89,9 +89,10 @@ func (m *moduleBuilder) Build() *Module {
 		controllers:    m.controllers,
 		Middleware:     &Middleware{},
 		RESTMiddlewares: []struct {
-			Method   string
-			Route    string
-			Handlers []func(*ctx.Context)
+			controllerName string
+			Method         string
+			Route          string
+			Handlers       []func(*ctx.Context)
 		}{},
 		RESTGuards: []struct {
 			Method  string
@@ -115,9 +116,10 @@ func (m *moduleBuilder) Build() *Module {
 		}{},
 
 		WSMiddlewares: []struct {
-			Subprotocol string
-			EventName   string
-			Handlers    []func(*ctx.Context)
+			controllerName string
+			Subprotocol    string
+			EventName      string
+			Handlers       []func(*ctx.Context)
 		}{},
 		WSGuards: []struct {
 			Subprotocol string

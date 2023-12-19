@@ -43,7 +43,7 @@ type RESTConfiguration struct {
 
 type REST struct {
 	prefixes           []Prefix
-	patternToFnNameMap map[string]string
+	PatternToFnNameMap map[string]string
 	RouterMap          map[string]any
 }
 
@@ -57,13 +57,13 @@ func (r *REST) addToRouters(fnName, path, method string, injectableHandler any) 
 		r.RouterMap = make(map[string]any)
 	}
 
-	if r.patternToFnNameMap == nil {
-		r.patternToFnNameMap = map[string]string{}
+	if r.PatternToFnNameMap == nil {
+		r.PatternToFnNameMap = map[string]string{}
 	}
 	pattern := routing.AddMethodToRoute(routing.ToEndpoint(path), method)
 
 	r.RouterMap[pattern] = injectableHandler
-	r.patternToFnNameMap[pattern] = fnName
+	r.PatternToFnNameMap[pattern] = fnName
 }
 
 func (r *REST) GetPrefixes() []map[string]string {
