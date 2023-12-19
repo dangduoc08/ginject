@@ -74,7 +74,7 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 			shouldAddExceptionFilter[routing.AddMethodToRoute(route, httpMethod)] = true
 		}
 
-		for pattern := range r.patternToFnNameMap {
+		for pattern := range r.PatternToFnNameMap {
 			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
 				httpMethod, route := routing.SplitRoute(pattern)
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
