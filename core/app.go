@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -615,19 +616,38 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) Listen(port int) error {
-	app.route.Range(func(method, route string) {
-		if route == "" {
-			route = "/"
+
+	// REST logs
+	routeArr := []string{}
+	for r, item := range app.route.Hash {
+		if item.HandlerIndex > -1 {
+			routeArr = append(routeArr, r)
+		}
+	}
+	sort.Strings(routeArr)
+
+	for _, routName := range routeArr {
+		m, r := routing.SplitRoute(routName)
+		if r == "" {
+			r = "/"
 		}
 		app.Logger.Info(
 			"RouteExplorer",
-			"method", method,
-			"route", route,
+			"method", m,
+			"route", r,
 		)
-	})
+	}
 
-	for eventName := range common.InsertedEvents {
+	// WS logs
+	eventArr := []string{}
+	for e := range common.InsertedEvents {
+		eventArr = append(eventArr, e)
+	}
+	sort.Strings(eventArr)
+
+	for _, eventName := range eventArr {
 		p, e := ctx.ResolveWSEventname(eventName)
+
 		app.Logger.Info(
 			"WebSocketEvent",
 			"subprotocol", p,
