@@ -36,6 +36,6 @@ func (h Header) Has(k string) bool {
 	return ok
 }
 
-func (h Header) Bind(s any) any {
-	return BindStrArr(h, s)
+func (h Header) Bind(s any) (any, []FieldLevel) {
+	return BindStrArr(h, &[]FieldLevel{}, s)
 }
