@@ -105,6 +105,6 @@ func (b Body) Has(k string) bool {
 	return b.Get(k) != nil
 }
 
-func (b Body) Bind(s any) any {
-	return BindStruct(b, s)
+func (b Body) Bind(s any) (any, []FieldLevel) {
+	return BindStruct(b, &[]FieldLevel{}, s, "")
 }

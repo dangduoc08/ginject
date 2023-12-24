@@ -64,7 +64,7 @@ func setValueToStructField(s reflect.Value) func(i int) func(v any) {
 	}
 }
 
-func bindArray(arr []any, typ reflect.Type) any {
+func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string) any {
 	switch typ.Elem().Kind() {
 
 	case reflect.Bool:
@@ -366,14 +366,19 @@ func bindArray(arr []any, typ reflect.Type) any {
 					eachElemArr[dimensions-currentDimension] = reflect.Append(eachElemArr[dimensions-currentDimension], reflect.ValueOf(
 						bindMap(
 							el.(map[string]any),
+							fls,
 							declaredElem,
+							parentNS,
 						)))
 				} else if declaredTyp == reflect.Struct {
-					eachElemArr[dimensions-currentDimension] = reflect.Append(eachElemArr[dimensions-currentDimension], reflect.ValueOf(
-						BindStruct(
-							el.(map[string]any),
-							reflect.Indirect(reflect.New(declaredElem)).Interface(),
-						)))
+					newS, _ := BindStruct(
+						el.(map[string]any),
+						fls,
+						reflect.Indirect(reflect.New(declaredElem)).Interface(),
+						parentNS,
+					)
+
+					eachElemArr[dimensions-currentDimension] = reflect.Append(eachElemArr[dimensions-currentDimension], reflect.ValueOf(newS))
 				}
 			}
 		})
@@ -386,11 +391,14 @@ func bindArray(arr []any, typ reflect.Type) any {
 		mapType := reflect.SliceOf(typ.Elem())
 		mapStruct := reflect.MakeSlice(mapType, 0, 0)
 
-		for _, el := range arr {
+		for i, el := range arr {
 			if obj, ok := el.(map[string]any); ok {
+				parentNSWithIndex := fmt.Sprintf("%v.%v", parentNS, i)
 				eachArrayValue := bindMap(
 					obj,
+					fls,
 					typ.Elem(),
+					parentNSWithIndex,
 				)
 
 				// set value to sub-map
@@ -405,11 +413,14 @@ func bindArray(arr []any, typ reflect.Type) any {
 		sliceType := reflect.SliceOf(typ.Elem())
 		sliceStruct := reflect.MakeSlice(sliceType, 0, 0)
 
-		for _, el := range arr {
+		for i, el := range arr {
 			if obj, ok := el.(map[string]any); ok {
-				eachArrayValue := BindStruct(
+				parentNSWithIndex := fmt.Sprintf("%v.%v", parentNS, i)
+				eachArrayValue, _ := BindStruct(
 					obj,
+					fls,
 					reflect.Indirect(reflect.New(typ.Elem())).Interface(),
+					parentNSWithIndex,
 				)
 
 				// set value to sub-struct
@@ -422,7 +433,7 @@ func bindArray(arr []any, typ reflect.Type) any {
 	return nil
 }
 
-func bindMap(obj map[string]any, typ reflect.Type) any {
+func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS string) any {
 	switch typ.Elem().Kind() {
 
 	case reflect.Bool:
@@ -644,7 +655,8 @@ func bindMap(obj map[string]any, typ reflect.Type) any {
 
 		for objKey, objValue := range obj {
 			if arr, ok := objValue.([]any); ok {
-				eachSliceValue := bindArray(arr, typ.Elem())
+				parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, objKey)
+				eachSliceValue := bindArray(arr, fls, typ.Elem(), parentNSWithKey)
 
 				// set value to sub-slice
 				mapSlice.SetMapIndex(reflect.ValueOf(objKey), reflect.ValueOf(eachSliceValue))
@@ -816,7 +828,8 @@ func bindMap(obj map[string]any, typ reflect.Type) any {
 
 				for subObjKey, subObjValue := range objValue.(map[string]any) {
 					if subObjValue, ok := subObjValue.([]any); ok {
-						eachSliceValue := bindArray(subObjValue, subElem)
+						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
+						eachSliceValue := bindArray(subObjValue, fls, subElem, parentNSWithKey)
 						mapSlice.SetMapIndex(reflect.ValueOf(subObjKey), reflect.ValueOf(eachSliceValue))
 					}
 				}
@@ -830,7 +843,8 @@ func bindMap(obj map[string]any, typ reflect.Type) any {
 
 				for subObjKey, subObjValue := range objValue.(map[string]any) {
 					if subObjValue, ok := subObjValue.(map[string]any); ok {
-						eachSliceValue := bindMap(subObjValue, subElem)
+						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
+						eachSliceValue := bindMap(subObjValue, fls, subElem, parentNSWithKey)
 						mapMapMap.SetMapIndex(reflect.ValueOf(subObjKey), reflect.ValueOf(eachSliceValue))
 					}
 				}
@@ -844,9 +858,12 @@ func bindMap(obj map[string]any, typ reflect.Type) any {
 
 				for subObjKey, subObjValue := range objValue.(map[string]any) {
 					if subObjValue, ok := subObjValue.(map[string]any); ok {
-						eachMapValue := BindStruct(
+						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
+						eachMapValue, _ := BindStruct(
 							subObjValue,
+							fls,
 							reflect.Indirect(reflect.New(subElem)).Interface(),
+							parentNSWithKey,
 						)
 
 						mapStruct.SetMapIndex(reflect.ValueOf(subObjKey), reflect.ValueOf(eachMapValue))
@@ -867,9 +884,12 @@ func bindMap(obj map[string]any, typ reflect.Type) any {
 
 		for objKey, objValue := range obj {
 			if subObj, ok := objValue.(map[string]any); ok {
-				eachMapValue := BindStruct(
+				parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, objKey)
+				eachMapValue, _ := BindStruct(
 					subObj,
+					fls,
 					reflect.Indirect(reflect.New(typ.Elem())).Interface(),
+					parentNSWithKey,
 				)
 
 				// set value to sub-struct

@@ -28,7 +28,7 @@ func (fl *FieldLevel) Index() int {
 	return fl.index
 }
 
-func (fl *FieldLevel) Val() any {
+func (fl *FieldLevel) Value() any {
 	return fl.val
 }
 

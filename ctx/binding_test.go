@@ -2,7 +2,6 @@ package ctx
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 )
 
@@ -82,6 +81,8 @@ type TestDTO struct {
 	ThreeDimensionsStringArray [][][]string `bind:"3_dimensions_string_array"`
 
 	MapStringStringArray []map[string]string `bind:"map_string_string_array"`
+
+	MapPerson map[string]Person `bind:"map_person"`
 
 	NestedStructArray []Person `bind:"nested_struct_array"`
 
@@ -234,6 +235,28 @@ func TestBindStruct(t *testing.T) {
 				"city": "Villagetown",
 				"zip_code": "67890"
 			}
+		},
+		"map_person": {
+			"person_1": {
+				"name": "John Doe",
+				"age": 30,
+				"address": {
+					"street": "123 Main St",
+					"city": "Anytown",
+					"zip_code": "12345"
+				},
+				"email": "john.doe@example.com"
+			},
+			"person_2": {
+				"name": "Jane Doe",
+				"age": 32,
+				"address": {
+					"street": "123 Main St",
+					"city": "Anytown",
+					"zip_code": "12345"
+				},
+				"email": "john.doe@example.com"
+			}
 		}
 	}`), &testData)
 
@@ -241,7 +264,7 @@ func TestBindStruct(t *testing.T) {
 		panic(err)
 	}
 
-	d := BindStruct(testData, TestDTO{})
+	d, _ := BindStruct(testData, &[]FieldLevel{}, TestDTO{}, "")
 	bindedDTO := d.(TestDTO)
 
 	expected1 := true
@@ -254,5 +277,4 @@ func TestBindStruct(t *testing.T) {
 		t.Errorf("Bool2 should %v but got %v", expected2, bindedDTO.Bool2)
 	}
 
-	fmt.Println(bindedDTO.Complex128 == 18446744073709551615)
 }

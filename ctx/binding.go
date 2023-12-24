@@ -11,7 +11,7 @@ const (
 	tagBind = "bind"
 )
 
-func BindStruct(d map[string]any, s any) any {
+func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (any, []FieldLevel) {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)
@@ -30,11 +30,28 @@ func BindStruct(d map[string]any, s any) any {
 			if len(bindParams) > 0 {
 				_, bindedField := getTagParamIndex(bindParams[0])
 				if bindedValue, ok := d[bindedField]; ok {
+					ns := ""
+					if parentNS != "" {
+						ns = parentNS + "."
+					}
+					ns = ns + structureType.Name() + "." + structField.Name
+
+					fl := FieldLevel{
+						tag:   bindedField,
+						ns:    ns,
+						field: structField.Name,
+						kind:  structField.Type.Kind(),
+						typ:   structField.Type,
+					}
+
 					switch structField.Type.Kind() {
 
 					case reflect.Bool:
 						if boolean, ok := bindedValue.(bool); ok {
-							setValueToStructField(boolean)
+							val := boolean
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 						}
 						continue
 
@@ -54,48 +71,67 @@ func BindStruct(d map[string]any, s any) any {
 						reflect.Complex64,
 						reflect.Complex128:
 						if f64, ok := bindedValue.(float64); ok {
-							setValueToStructField(utils.NumF64ToAnyNum(f64, structField.Type.Kind()))
+							val := utils.NumF64ToAnyNum(f64, structField.Type.Kind())
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 						}
 						continue
 
 					case reflect.String:
 						if str, ok := bindedValue.(string); ok {
-							setValueToStructField(str)
+							val := str
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 						}
 						continue
 
 					case reflect.Interface:
-						setValueToStructField(bindedValue)
+						val := bindedValue
+						fl.val = val
+						*fls = append(*fls, fl)
+						setValueToStructField(val)
 						continue
 
 					case reflect.Slice:
 						if bindedValue, ok := bindedValue.([]any); ok {
-							setValueToStructField(
-								bindArray(
-									bindedValue,
-									structField.Type,
-								),
+							val := bindArray(
+								bindedValue,
+								fls,
+								structField.Type,
+								ns,
 							)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 						}
 						continue
 
 					case reflect.Map:
 						if bindedValue, ok := bindedValue.(map[string]any); ok {
-							setValueToStructField(
-								bindMap(
-									bindedValue,
-									structField.Type,
-								),
+							val := bindMap(
+								bindedValue,
+								fls,
+								structField.Type,
+								ns,
 							)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 						}
 						continue
 
 					case reflect.Struct:
-						setValueToStructField(
-							BindStruct(
-								bindedValue.(map[string]any),
-								newStructuredData.Elem().Field(i).Interface(),
-							))
+						val, _ := BindStruct(
+							bindedValue.(map[string]any),
+							fls,
+							newStructuredData.Elem().Field(i).Interface(),
+							ns,
+						)
+						fl.val = val
+						*fls = append(*fls, fl)
+						setValueToStructField(val)
 						continue
 					}
 				}
@@ -103,5 +139,5 @@ func BindStruct(d map[string]any, s any) any {
 		}
 	}
 
-	return reflect.Indirect(newStructuredData).Interface()
+	return reflect.Indirect(newStructuredData).Interface(), *fls
 }
