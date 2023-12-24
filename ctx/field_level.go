@@ -8,6 +8,7 @@ type FieldLevel struct {
 	field string
 	index int
 	val   any
+	isVal bool
 	kind  reflect.Kind
 	typ   reflect.Type
 }
@@ -30,6 +31,10 @@ func (fl *FieldLevel) Index() int {
 
 func (fl *FieldLevel) Value() any {
 	return fl.val
+}
+
+func (fl *FieldLevel) IsValue() bool {
+	return fl.isVal
 }
 
 func (fl *FieldLevel) Kind() reflect.Kind {
