@@ -145,8 +145,8 @@ func TestBindStrArr(t *testing.T) {
 	dto := d.(TestStrArrDTO)
 
 	for _, fl := range fls {
-		if fl.fieldName == "Complex1" && dto.Complex1 != fl.val {
-			t.Errorf(utils.ErrorMessage(dto.Complex1, fl.val, "Complex1 should be binded"))
+		if fl.Field() == "Complex1" && dto.Complex1 != fl.Value() {
+			t.Errorf(utils.ErrorMessage(dto.Complex1, fl.Value(), "Complex1 should be binded"))
 		}
 	}
 
