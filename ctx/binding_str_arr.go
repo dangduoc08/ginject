@@ -74,6 +74,7 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 						index: bindedIndex,
 						kind:  structField.Type.Kind(),
 						typ:   structField.Type,
+						isVal: true,
 					}
 
 					// check each type of struct
@@ -529,6 +530,17 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 							continue
 						}
 					}
+				} else {
+					*fls = append(*fls, FieldLevel{
+						tag:   bindedField,
+						ns:    structureType.Name() + "." + structField.Name,
+						field: structField.Name,
+						index: bindedIndex,
+						kind:  structField.Type.Kind(),
+						typ:   structField.Type,
+						val:   nil,
+						isVal: false,
+					})
 				}
 			}
 		}

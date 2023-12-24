@@ -42,6 +42,7 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 						field: structField.Name,
 						kind:  structField.Type.Kind(),
 						typ:   structField.Type,
+						isVal: true,
 					}
 
 					switch structField.Type.Kind() {
@@ -134,6 +135,21 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 						setValueToStructField(val)
 						continue
 					}
+				} else {
+					ns := ""
+					if parentNS != "" {
+						ns = parentNS + "."
+					}
+					ns = ns + structureType.Name() + "." + structField.Name
+					*fls = append(*fls, FieldLevel{
+						tag:   bindedField,
+						ns:    ns,
+						field: structField.Name,
+						kind:  structField.Type.Kind(),
+						typ:   structField.Type,
+						val:   nil,
+						isVal: false,
+					})
 				}
 			}
 		}
