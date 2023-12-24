@@ -49,7 +49,7 @@ Support types:
   - Slice
 */
 
-func BindStrArr(d map[string][]string, s any) any {
+func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLevel) {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)
@@ -67,259 +67,465 @@ func BindStrArr(d map[string][]string, s any) any {
 			if len(bindParams) > 0 {
 				bindedIndex, bindedField := getTagParamIndex(bindParams[0])
 				if bindedValues, ok := d[bindedField]; ok {
+					fl := FieldLevel{
+						tag:   bindedField,
+						ns:    structureType.Name() + "." + structField.Name,
+						field: structField.Name,
+						index: bindedIndex,
+						kind:  structField.Type.Kind(),
+						typ:   structField.Type,
+					}
 
 					// check each type of struct
 					switch structField.Type.Kind() {
 					case reflect.Bool:
 						if boolStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(false)
+							val := false
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if boolean, err := strconv.ParseBool(boolStr); err != nil {
-							setValueToStructField(false)
+							val := false
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(boolean)
+							val := boolean
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Int:
 						if intStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(0)
+							val := 0
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if intNum, err := strconv.Atoi(intStr); err != nil {
-							setValueToStructField(0)
+							val := 0
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(intNum)
+							val := intNum
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Int8:
 						if intStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(int8(0))
+							val := int8(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if i64, err := strconv.ParseInt(intStr, 10, 8); err != nil {
-							setValueToStructField(int8(0))
+							val := int8(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(int8(i64))
+							val := int8(i64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Int16:
 						if intStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(int16(0))
+							val := int16(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if i64, err := strconv.ParseInt(intStr, 10, 16); err != nil {
-							setValueToStructField(int16(0))
+							val := int16(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(int16(i64))
+							val := int16(i64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Int32:
 						if intStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(int32(0))
+							val := int32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if i64, err := strconv.ParseInt(intStr, 10, 32); err != nil {
-							setValueToStructField(int32(0))
+							val := int32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(int32(i64))
+							val := int32(i64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Int64:
 						if intStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(int64(0))
+							val := int64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if i64, err := strconv.ParseInt(intStr, 10, 64); err != nil {
-							setValueToStructField(int64(0))
+							val := int64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(i64)
+							val := i64
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Uint:
 						if uintStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(uint(0))
+							val := uint(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if u64, err := strconv.ParseUint(uintStr, 10, 0); err != nil {
-							setValueToStructField(uint(0))
+							val := uint(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(uint(u64))
+							val := uint(u64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Uint8:
 						if uintStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(uint8(0))
+							val := uint8(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if u64, err := strconv.ParseUint(uintStr, 10, 8); err != nil {
-							setValueToStructField(uint8(0))
+							val := uint8(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(uint8(u64))
+							val := uint8(u64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Uint16:
 						if uintStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(uint16(0))
+							val := uint16(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if u64, err := strconv.ParseUint(uintStr, 10, 16); err != nil {
-							setValueToStructField(uint16(0))
+							val := uint16(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(uint16(u64))
+							val := uint16(u64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Uint32:
 						if uintStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(uint32(0))
+							val := uint32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if u64, err := strconv.ParseUint(uintStr, 10, 32); err != nil {
-							setValueToStructField(uint32(0))
+							val := uint32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(uint32(u64))
+							val := uint32(u64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Uint64:
 						if uintStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(uint64(0))
+							val := uint64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if u64, err := strconv.ParseUint(uintStr, 10, 64); err != nil {
-							setValueToStructField(uint64(0))
+							val := uint64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(u64)
+							val := u64
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Float32:
 						if fStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(float32(0))
+							val := float32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if f64, err := strconv.ParseFloat(fStr, 32); err != nil {
-							setValueToStructField(float32(0))
+							val := float32(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(float32(f64))
+							val := float32(f64)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Float64:
 						if fStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(float64(0))
+							val := float64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if f64, err := strconv.ParseFloat(fStr, 64); err != nil {
-							setValueToStructField(float64(0))
+							val := float64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(f64)
+							val := f64
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Complex64:
 						if cStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(complex64(0))
+							val := complex64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if c128, err := strconv.ParseComplex(strings.ReplaceAll(cStr, " ", ""), 64); err != nil {
-							setValueToStructField(complex64(0))
+							val := complex64(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(complex64(c128))
+							val := complex64(c128)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Complex128:
 						if cStr, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField(complex128(0))
+							val := complex128(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else if c128, err := strconv.ParseComplex(strings.ReplaceAll(cStr, " ", ""), 128); err != nil {
-							setValueToStructField(complex128(0))
+							val := complex128(0)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(c128)
+							val := c128
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.String:
 						if str, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField("")
+							val := ""
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(str)
+							val := str
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Interface:
 						if strVal, ok := utils.ArrGet(bindedValues, bindedIndex); !ok {
-							setValueToStructField("")
+							val := ""
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						} else {
-							setValueToStructField(strVal)
+							val := strVal
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 
 					case reflect.Slice:
 						switch structField.Type.Elem().Kind() {
 						case reflect.Bool:
-							setValueToStructField(utils.ArrStrParseBool(bindedValues))
+							val := utils.ArrStrParseBool(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Int:
-							setValueToStructField(utils.ArrStrParseInt(bindedValues))
+							val := utils.ArrStrParseInt(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Int8:
-							setValueToStructField(utils.ArrStrParseInt8(bindedValues))
+							val := utils.ArrStrParseInt8(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Int16:
-							setValueToStructField(utils.ArrStrParseInt16(bindedValues))
+							val := utils.ArrStrParseInt16(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Int32:
-							setValueToStructField(utils.ArrStrParseInt32(bindedValues))
+							val := utils.ArrStrParseInt32(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Int64:
-							setValueToStructField(utils.ArrStrParseInt64(bindedValues))
+							val := utils.ArrStrParseInt64(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Uint:
-							setValueToStructField(utils.ArrStrParseUint(bindedValues))
+							val := utils.ArrStrParseUint(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Uint8:
-							setValueToStructField(utils.ArrStrParseUint8(bindedValues))
+							val := utils.ArrStrParseUint8(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Uint16:
-							setValueToStructField(utils.ArrStrParseUint16(bindedValues))
+							val := utils.ArrStrParseUint16(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Uint32:
-							setValueToStructField(utils.ArrStrParseUint32(bindedValues))
+							val := utils.ArrStrParseUint32(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Uint64:
-							setValueToStructField(utils.ArrStrParseUint64(bindedValues))
+							val := utils.ArrStrParseUint64(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Float32:
-							setValueToStructField(utils.ArrStrParseFloat32(bindedValues))
+							val := utils.ArrStrParseFloat32(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Float64:
-							setValueToStructField(utils.ArrStrParseFloat64(bindedValues))
+							val := utils.ArrStrParseFloat64(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Complex64:
-							setValueToStructField(utils.ArrStrParseComplex64(bindedValues))
+							val := utils.ArrStrParseComplex64(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Complex128:
-							setValueToStructField(utils.ArrStrParseComplex128(bindedValues))
+							val := utils.ArrStrParseComplex128(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.String:
-							setValueToStructField(bindedValues)
+							val := bindedValues
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						case reflect.Interface:
-							setValueToStructField(utils.ArrStrParseAny(bindedValues))
+							val := utils.ArrStrParseAny(bindedValues)
+							fl.val = val
+							*fls = append(*fls, fl)
+							setValueToStructField(val)
 							continue
 						}
 					}
@@ -328,5 +534,5 @@ func BindStrArr(d map[string][]string, s any) any {
 		}
 	}
 
-	return reflect.Indirect(newStructuredData).Interface()
+	return reflect.Indirect(newStructuredData).Interface(), *fls
 }

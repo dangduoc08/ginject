@@ -45,6 +45,6 @@ func (p Param) Has(k string) bool {
 	return ok
 }
 
-func (p Param) Bind(s any) any {
-	return BindStrArr(p, s)
+func (p Param) Bind(s any) (any, []FieldLevel) {
+	return BindStrArr(p, &[]FieldLevel{}, s)
 }

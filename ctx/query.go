@@ -36,6 +36,6 @@ func (q Query) Has(k string) bool {
 	return ok
 }
 
-func (q Query) Bind(s any) any {
-	return BindStrArr(q, s)
+func (q Query) Bind(s any) (any, []FieldLevel) {
+	return BindStrArr(q, &[]FieldLevel{}, s)
 }
