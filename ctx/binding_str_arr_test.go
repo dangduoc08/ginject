@@ -141,8 +141,14 @@ func TestBindStrArr(t *testing.T) {
 		panic(err)
 	}
 
-	d := BindStrArr(testData, TestStrArrDTO{})
+	d, fls := BindStrArr(testData, &[]FieldLevel{}, TestStrArrDTO{})
 	dto := d.(TestStrArrDTO)
+
+	for _, fl := range fls {
+		if fl.fieldName == "Complex1" && dto.Complex1 != fl.val {
+			t.Errorf(utils.ErrorMessage(dto.Complex1, fl.val, "Complex1 should be binded"))
+		}
+	}
 
 	actual1 := dto.Bool1
 	expected1 := true

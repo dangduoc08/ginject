@@ -21,10 +21,10 @@ func (configService *ConfigService) Set(k string, v any) {
 	configService.Config[k] = v
 }
 
-func (configService *ConfigService) Transform(s any) any {
+func (configService *ConfigService) Transform(s any) (any, []ctx.FieldLevel) {
 	conf := map[string][]string{}
 	for key, val := range configService.Config {
 		conf[key] = append(conf[key], val.(string))
 	}
-	return ctx.BindStrArr(conf, s)
+	return ctx.BindStrArr(conf, &[]ctx.FieldLevel{}, s)
 }

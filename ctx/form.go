@@ -59,6 +59,6 @@ func (f Form) Has(k string) bool {
 	return ok
 }
 
-func (f Form) Bind(s any) any {
-	return BindStrArr(f, s)
+func (f Form) Bind(s any) (any, []FieldLevel) {
+	return BindStrArr(f, &[]FieldLevel{}, s)
 }
