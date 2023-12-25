@@ -40,7 +40,6 @@ type Module struct {
 	staticModules  []*Module
 	dynamicModules []any
 	providers      []Provider
-	exports        []Provider
 	controllers    []Controller
 
 	Middleware *Middleware
@@ -121,7 +120,7 @@ type Module struct {
 }
 
 func (m *Module) injectGlobalProviders() {
-	for _, provider := range m.exports {
+	for _, provider := range m.providers {
 
 		// generate a unique key for the provider
 		globalProviders[genProviderKey(provider)] = provider
@@ -196,10 +195,8 @@ func (m *Module) NewModule() *Module {
 			// recursion injection
 			injectModule := staticModule.NewModule()
 
-			// only import providers which exported
-			if len(injectModule.exports) > 0 {
-				m.providers = append(injectModule.exports, m.providers...)
-				m.exports = append(injectModule.exports, m.exports...)
+			if len(injectModule.providers) > 0 {
+				m.providers = append(injectModule.providers, m.providers...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {
@@ -230,10 +227,8 @@ func (m *Module) NewModule() *Module {
 				injectedDynamicModules[dynamicModulePtr] = staticModule
 			}
 
-			// only import providers which exported
-			if len(staticModule.exports) > 0 {
-				m.providers = append(staticModule.exports, m.providers...)
-				m.exports = append(staticModule.exports, m.exports...)
+			if len(staticModule.providers) > 0 {
+				m.providers = append(staticModule.providers, m.providers...)
 			}
 
 			if reflect.ValueOf(m).Pointer() == mainModule {

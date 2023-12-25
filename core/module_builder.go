@@ -13,7 +13,6 @@ import (
 type moduleBuilder struct {
 	imports     []any
 	providers   []Provider
-	exports     []Provider
 	controllers []Controller
 }
 
@@ -21,7 +20,6 @@ func ModuleBuilder() *moduleBuilder {
 	return &moduleBuilder{
 		imports:     []any{},
 		providers:   []Provider{},
-		exports:     []Provider{},
 		controllers: []Controller{},
 	}
 }
@@ -62,11 +60,6 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 	return staticModules, dynamicModules
 }
 
-func (m *moduleBuilder) Exports(providers ...Provider) *moduleBuilder {
-	m.exports = append(m.exports, providers...)
-	return m
-}
-
 func (m *moduleBuilder) Providers(providers ...Provider) *moduleBuilder {
 	m.providers = append(m.providers, providers...)
 	return m
@@ -84,7 +77,6 @@ func (m *moduleBuilder) Build() *Module {
 		Mutex:          &sync.Mutex{},
 		staticModules:  staticModules,
 		dynamicModules: dynamicModules,
-		exports:        m.exports,
 		providers:      m.providers,
 		controllers:    m.controllers,
 		Middleware:     &Middleware{},
