@@ -135,7 +135,7 @@ func Register(opts *ConfigModuleOptions) *core.Module {
 	}
 
 	module := core.ModuleBuilder().
-		Exports(configService).
+		Providers(configService).
 		Build()
 
 	module.IsGlobal = configOptions.IsGlobal
