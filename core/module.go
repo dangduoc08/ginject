@@ -253,6 +253,22 @@ func (m *Module) NewModule() *Module {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
 
+		// sort injected providers at head of provider list
+		// to make it run NewProvider first
+		for _, provider := range m.providers {
+			componentType := reflect.TypeOf(provider)
+
+			for j := 0; j < componentType.NumField(); j++ {
+				componentField := componentType.Field(j)
+				componentFieldType := componentField.Type
+				componentFieldKey := genFieldKey(componentFieldType)
+
+				if injectedProviders[componentFieldKey] != nil {
+					m.providers = append([]Provider{injectedProviders[componentFieldKey]}, m.providers...)
+				}
+			}
+		}
+
 		// inject providers into providers
 		for i, provider := range m.providers {
 			newProvider, err := injectDependencies(provider, "provider", injectedProviders)
