@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path"
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,22 +31,23 @@ type globalMiddleware struct {
 }
 
 type App struct {
-	route                  *routing.Router
-	wsEventMap             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
-	wsMainHandlerMap       map[string]any           // to store WS main handler
-	wsEventToID            sync.Map                 // to store WS ID, key = emit event
-	module                 *Module
-	ctxPool                sync.Pool
-	globalMiddlewares      []globalMiddleware
-	globalGuarders         []common.Guarder
-	globalInterceptors     []common.Interceptable
-	globalExceptionFilters []common.ExceptionFilterable
-	injectedProviders      map[string]Provider
-	restAggregationMap     map[string][]*aggregation.Aggregation
-	wsAggregationMap       map[string][]*aggregation.Aggregation
-	catchRESTFnsMap        map[string][]common.Catch
-	catchWSFnsMap          map[string][]common.Catch
-	Logger                 common.Logger
+	route                                  *routing.Router
+	wsEventMap                             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
+	wsMainHandlerMap                       map[string]any           // to store WS main handler
+	wsEventToID                            sync.Map                 // to store WS ID, key = emit event
+	serveStaticMapToLastWildcardSlashIndex map[string]int           // to check public dir URL if has * at last
+	module                                 *Module
+	ctxPool                                sync.Pool
+	globalMiddlewares                      []globalMiddleware
+	globalGuarders                         []common.Guarder
+	globalInterceptors                     []common.Interceptable
+	globalExceptionFilters                 []common.ExceptionFilterable
+	injectedProviders                      map[string]Provider
+	restAggregationMap                     map[string][]*aggregation.Aggregation
+	wsAggregationMap                       map[string][]*aggregation.Aggregation
+	catchRESTFnsMap                        map[string][]common.Catch
+	catchWSFnsMap                          map[string][]common.Catch
+	Logger                                 common.Logger
 }
 
 // link to aliases
@@ -106,13 +110,14 @@ func New() *App {
 	event := ctx.NewEvent()
 
 	app := App{
-		route:              routing.NewRouter(),
-		restAggregationMap: make(map[string][]*aggregation.Aggregation),
-		wsAggregationMap:   make(map[string][]*aggregation.Aggregation),
-		catchRESTFnsMap:    make(map[string][]common.Catch),
-		catchWSFnsMap:      make(map[string][]common.Catch),
-		wsEventMap:         make(map[string][]func(*ctx.Context)),
-		wsMainHandlerMap:   make(map[string]any),
+		route:                                  routing.NewRouter(),
+		restAggregationMap:                     make(map[string][]*aggregation.Aggregation),
+		wsAggregationMap:                       make(map[string][]*aggregation.Aggregation),
+		catchRESTFnsMap:                        make(map[string][]common.Catch),
+		catchWSFnsMap:                          make(map[string][]common.Catch),
+		wsEventMap:                             make(map[string][]func(*ctx.Context)),
+		wsMainHandlerMap:                       make(map[string]any),
+		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
@@ -155,7 +160,9 @@ func (app *App) Create(m *Module) {
 	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
 	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
 		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
-		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, moduleExceptionFilter.Method))
+		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.Method]
+
+		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, httpMethod))
 		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
 	}
 
@@ -179,7 +186,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global exception filters
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+
+			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, httpMethod))
 			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
 		}
 
@@ -245,7 +254,9 @@ func (app *App) Create(m *Module) {
 		}(pattern, catchFns)
 
 		// add catch middleware
-		httpMethod, route := routing.SplitRoute(pattern)
+		method, route := routing.SplitRoute(pattern)
+		httpMethod := routing.OperationsMapHTTPMethods[method]
+
 		app.route.For(route, []string{httpMethod})(catchMiddleware)
 	}
 
@@ -311,7 +322,11 @@ func (app *App) Create(m *Module) {
 	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
 		if globalMiddleware.route != "*" {
-			app.route.For(globalMiddleware.route, routing.HTTPMethods)(globalMiddleware.handler)
+			httpMethods := utils.ArrMap(routing.HTTPMethods, func(el string, i int) string {
+				return routing.OperationsMapHTTPMethods[el]
+			})
+
+			app.route.For(globalMiddleware.route, httpMethods)(globalMiddleware.handler)
 		} else {
 
 			// REST global middlewares
@@ -329,7 +344,9 @@ func (app *App) Create(m *Module) {
 
 	// REST module middlewares
 	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
-		app.route.For(restModuleMiddleware.Route, []string{restModuleMiddleware.Method})(restModuleMiddleware.Handlers...)
+		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.Method]
+
+		app.route.For(restModuleMiddleware.Route, []string{httpMethod})(restModuleMiddleware.Handlers...)
 	}
 
 	// WS module middlewares
@@ -357,7 +374,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global guards
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(canActivateMiddleware)
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+
+			app.route.For(mainHandlerItem.Route, []string{httpMethod})(canActivateMiddleware)
 		}
 
 		// WS global guards
@@ -378,7 +397,8 @@ func (app *App) Create(m *Module) {
 			}
 		}(moduleGuard.Handler.(common.CanActivate))
 
-		app.route.For(moduleGuard.Route, []string{moduleGuard.Method})(canActivateMiddleware)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.Method]
+		app.route.For(moduleGuard.Route, []string{httpMethod})(canActivateMiddleware)
 	}
 
 	// WS module guards
@@ -408,7 +428,8 @@ func (app *App) Create(m *Module) {
 		// REST global interceptors
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			aggregationInstance := aggregation.NewAggregation()
-			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, mainHandlerItem.Method))
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, httpMethod))
 			app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
 				return func(c *ctx.Context) {
@@ -429,7 +450,7 @@ func (app *App) Create(m *Module) {
 				}
 			}(globalInterceptor, aggregationInstance)
 
-			app.route.For(mainHandlerItem.Route, []string{mainHandlerItem.Method})(interceptMiddleware)
+			app.route.For(mainHandlerItem.Route, []string{httpMethod})(interceptMiddleware)
 		}
 
 		// WS global interceptors
@@ -465,7 +486,8 @@ func (app *App) Create(m *Module) {
 	// REST module interceptors
 	for _, moduleInterceptor := range app.module.RESTInterceptors {
 		aggregationInstance := aggregation.NewAggregation()
-		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, moduleInterceptor.Method))
+		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.Method]
+		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, httpMethod))
 		app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 
 		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) ctx.Handler {
@@ -488,7 +510,7 @@ func (app *App) Create(m *Module) {
 		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
 
 		// add interceptor middleware
-		app.route.For(moduleInterceptor.Route, []string{moduleInterceptor.Method})(interceptMiddleware)
+		app.route.For(moduleInterceptor.Route, []string{httpMethod})(interceptMiddleware)
 	}
 
 	// WS module interceptors
@@ -523,7 +545,18 @@ func (app *App) Create(m *Module) {
 
 	// main REST handler
 	for _, moduleHandler := range app.module.RESTMainHandlers {
-		app.route.AddInjectableHandler(moduleHandler.Route, moduleHandler.Method, moduleHandler.Handler)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
+		if moduleHandler.Method == routing.SERVE {
+			r := moduleHandler.Route
+			lr := len(r)
+			lastWildcardSlashIndex := 0 // zero mean use config dir
+			if lr >= 2 && r[lr-2:] == "*/" {
+				lastWildcardSlashIndex = strings.Count(r, "/") - 1
+			}
+
+			app.serveStaticMapToLastWildcardSlashIndex[routing.AddMethodToRoute(moduleHandler.Route, httpMethod)] = lastWildcardSlashIndex
+		}
+		app.route.AddInjectableHandler(moduleHandler.Route, httpMethod, moduleHandler.Handler)
 	}
 
 	// main WS handler
@@ -738,20 +771,54 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 								aggregatedData = aggregation.Aggregate(c)
 							} else {
 								isMainHandlerCalled = false
-								returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
+								if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+									var dir any
+
+									if len(data) == 1 {
+										dir = data[0].Interface()
+									} else if len(data) > 1 {
+										setStatusCode(c, data[0])
+										dir = data[1].Interface()
+									}
+									app.serveContent(c, lastWildcardSlashIndex, dir)
+								} else {
+									returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
+								}
 								break
 							}
 						}
 
 						if isMainHandlerCalled {
-							returnREST(c, reflect.ValueOf(aggregatedData))
+							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+								var dir any
+
+								if len(data) == 1 {
+									dir = data[0].Interface()
+								} else if len(data) > 1 {
+									setStatusCode(c, data[0])
+									dir = data[1].Interface()
+								}
+								app.serveContent(c, lastWildcardSlashIndex, dir)
+							} else {
+								returnREST(c, reflect.ValueOf(aggregatedData))
+							}
 						}
 					} else {
 						if len(data) == 1 {
-							returnREST(c, data[0])
+							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+								dir := data[0].Interface()
+								app.serveContent(c, lastWildcardSlashIndex, dir)
+							} else {
+								returnREST(c, data[0])
+							}
 						} else if len(data) > 1 {
 							setStatusCode(c, data[0])
-							returnREST(c, data[1])
+							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+								dir := data[1].Interface()
+								app.serveContent(c, lastWildcardSlashIndex, dir)
+							} else {
+								returnREST(c, data[1])
+							}
 						}
 					}
 				} else {
@@ -769,14 +836,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 		}
 
 		if isNext {
-			notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
-			httpCode, _ := notFoundException.GetHTTPStatus()
-			c.Status(httpCode)
-			c.JSON(ctx.Map{
-				"code":    notFoundException.GetCode(),
-				"error":   notFoundException.Error(),
-				"message": notFoundException.GetResponse(),
-			})
+			app.returnNotFound(c)
 		}
 	}
 }
@@ -1034,6 +1094,28 @@ func (app *App) getContextID(c *ctx.Context) string {
 	return reqID
 }
 
+func (app *App) returnNotFound(c *ctx.Context) {
+	notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
+	httpCode, _ := notFoundException.GetHTTPStatus()
+	c.Status(httpCode)
+	c.JSON(ctx.Map{
+		"code":    notFoundException.GetCode(),
+		"error":   notFoundException.Error(),
+		"message": notFoundException.GetResponse(),
+	})
+}
+
+func (app *App) returnInvalidURL(c *ctx.Context) {
+	badRequestException := exception.BadRequestException("Invalid URL path")
+	httpCode, _ := badRequestException.GetHTTPStatus()
+	c.Status(httpCode)
+	c.JSON(ctx.Map{
+		"code":    badRequestException.GetCode(),
+		"error":   badRequestException.Error(),
+		"message": badRequestException.GetResponse(),
+	})
+}
+
 func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
 	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
 	if errorAggregationOpr != nil {
@@ -1045,5 +1127,31 @@ func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance
 
 		newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), errorAggregationOperators)
 		c.Request = c.Request.WithContext(newCtx)
+	}
+}
+
+func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
+	if dir, ok := dir.(string); ok {
+		if lastWildcardSlashIndex != 0 {
+			urlPath := utils.StrRemoveDup(c.Request.URL.Path, "/")
+			urlPathArr := strings.Split(urlPath, "/")
+			suffix := strings.Join(urlPathArr[lastWildcardSlashIndex:], "/")
+			oldDir := dir
+			dir = path.Join(dir, suffix)
+
+			if len(dir) < len(oldDir) {
+				app.returnInvalidURL(c)
+				return
+			}
+		}
+
+		if _, err := os.Stat(dir); os.IsNotExist(err) || err != nil {
+			app.returnNotFound(c)
+		} else {
+			http.ServeFile(c.ResponseWriter, c.Request, dir)
+			c.Event.Emit(ctx.REQUEST_FINISHED, c)
+		}
+	} else {
+		app.returnNotFound(c)
 	}
 }

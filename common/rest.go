@@ -10,11 +10,12 @@ import (
 )
 
 var RESTOperations = map[string]string{
-	"READ":   http.MethodGet,
-	"CREATE": http.MethodPost,
-	"UPDATE": http.MethodPut,
-	"MODIFY": http.MethodPatch,
-	"DELETE": http.MethodDelete,
+	"READ":        http.MethodGet,
+	"CREATE":      http.MethodPost,
+	"UPDATE":      http.MethodPut,
+	"MODIFY":      http.MethodPatch,
+	"DELETE":      http.MethodDelete,
+	routing.SERVE: routing.SERVE,
 }
 
 var InsertedRoutes = make(map[string]string)
