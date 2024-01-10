@@ -9,6 +9,21 @@ import (
 	"github.com/dangduoc08/gooh/utils"
 )
 
+const SERVE = "SERVE" // Serving static files directive
+
+var OperationsMapHTTPMethods = map[string]string{
+	http.MethodGet:     http.MethodGet,
+	http.MethodHead:    http.MethodHead,
+	http.MethodPost:    http.MethodPost,
+	http.MethodPut:     http.MethodPut,
+	http.MethodPatch:   http.MethodPatch,
+	http.MethodDelete:  http.MethodDelete,
+	http.MethodConnect: http.MethodConnect,
+	http.MethodOptions: http.MethodOptions,
+	http.MethodTrace:   http.MethodTrace,
+	SERVE:              http.MethodGet,
+}
+
 var HTTPMethods = []string{
 	http.MethodGet,
 	http.MethodHead,
@@ -19,6 +34,7 @@ var HTTPMethods = []string{
 	http.MethodConnect,
 	http.MethodOptions,
 	http.MethodTrace,
+	SERVE,
 }
 
 const (
