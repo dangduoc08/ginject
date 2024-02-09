@@ -71,21 +71,22 @@ func (r *REST) GetPrefixes() []map[string]string {
 	prefixes := []map[string]string{}
 
 	for _, prefixConf := range r.prefixes {
-		prefixMap := make(map[string]string)
 		prefixValue := utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(prefixConf.Value), "/"), "/")
 		prefixHandlers := prefixConf.Handlers
 
 		// if no handlers were binded
 		// then prefix will be applied for all handlers
 		if len(prefixHandlers) == 0 {
+			prefixMap := make(map[string]string)
 			prefixMap[prefixValue] = "*"
+			prefixes = append(prefixes, prefixMap)
 		} else {
 			for _, handler := range prefixHandlers {
+				prefixMap := make(map[string]string)
 				prefixMap[prefixValue] = GetFnName(handler)
+				prefixes = append(prefixes, prefixMap)
 			}
 		}
-
-		prefixes = append(prefixes, prefixMap)
 	}
 
 	return prefixes
