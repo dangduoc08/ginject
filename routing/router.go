@@ -3,7 +3,9 @@ package routing
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/dangduoc08/gooh/ctx"
 	"github.com/dangduoc08/gooh/utils"
@@ -146,13 +148,13 @@ func (r *Router) push(route, method string, caller int, handlers ...ctx.Handler)
 }
 
 func (r *Router) Match(route, method string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	route = AddMethodToRoute(route, method)
+	route = strings.Join([]string{filepath.Clean(route), "/[", method, "]/"}, "")
 
 	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}
 
-	i, paramKeys, paramVals, handlers := r.Trie.find(ToEndpoint(route), method, '/')
+	i, paramKeys, paramVals, handlers := r.Trie.find(route, method, '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {
