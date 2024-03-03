@@ -1,6 +1,7 @@
 package routing
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/dangduoc08/gooh/utils"
@@ -53,5 +54,14 @@ func BenchmarkTrieFind(b *testing.B) {
 			j = 0
 		}
 		tr.find("", arr[j], '/')
+	}
+}
+
+func BenchmarkRouterMatch(b *testing.B) {
+	r := NewRouter()
+	r.Add("/users/{userId}/all", http.MethodGet, nil)
+
+	for i := 0; i < b.N; i++ {
+		r.Match("/users/123/all", http.MethodGet)
 	}
 }
