@@ -43,8 +43,6 @@ type App struct {
 	globalInterceptors                     []common.Interceptable
 	globalExceptionFilters                 []common.ExceptionFilterable
 	injectedProviders                      map[string]Provider
-	restAggregationMap                     map[string][]*aggregation.Aggregation
-	wsAggregationMap                       map[string][]*aggregation.Aggregation
 	catchRESTFnsMap                        map[string][]common.Catch
 	catchWSFnsMap                          map[string][]common.Catch
 	Logger                                 common.Logger
@@ -111,8 +109,6 @@ func New() *App {
 
 	app := App{
 		route:                                  routing.NewRouter(),
-		restAggregationMap:                     make(map[string][]*aggregation.Aggregation),
-		wsAggregationMap:                       make(map[string][]*aggregation.Aggregation),
 		catchRESTFnsMap:                        make(map[string][]common.Catch),
 		catchWSFnsMap:                          make(map[string][]common.Catch),
 		wsEventMap:                             make(map[string][]func(*ctx.Context)),
@@ -427,17 +423,27 @@ func (app *App) Create(m *Module) {
 
 		// REST global interceptors
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			aggregationInstance := aggregation.NewAggregation()
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, httpMethod))
-			app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
-			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+
+			interceptMiddleware := func(interceptor common.Interceptable) ctx.Handler {
 				return func(c *ctx.Context) {
+					aggregationInstance := aggregation.NewAggregation()
+
+					if aggregations, ok := c.Request.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
+						aggregations = append(aggregations, aggregationInstance)
+
+						newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), aggregations)
+						c.Request = c.Request.WithContext(newCtx)
+					} else {
+						newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
+						c.Request = c.Request.WithContext(newCtx)
+					}
 
 					// IsMainHandlerCalled will be = true
 					// if Pipe was invoked in Intercept function
 					aggregationInstance.IsMainHandlerCalled = false
-					aggregationInstance.SetMainData(nil)
+					aggregationInstance.SetMainData(nil) // this is problem
 
 					// invoke intercept function
 					// value may returned from Pipe function
@@ -448,17 +454,26 @@ func (app *App) Create(m *Module) {
 
 					c.Next()
 				}
-			}(globalInterceptor, aggregationInstance)
+			}(globalInterceptor)
 
 			app.route.For(mainHandlerItem.Route, []string{httpMethod})(interceptMiddleware)
 		}
 
 		// WS global interceptors
 		for eventName := range common.InsertedEvents {
-			aggregationInstance := aggregation.NewAggregation()
-			app.wsAggregationMap[eventName] = append(app.wsAggregationMap[eventName], aggregationInstance)
-			interceptMiddleware := func(interceptor common.Interceptable, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+			interceptMiddleware := func(interceptor common.Interceptable) ctx.Handler {
 				return func(c *ctx.Context) {
+					aggregationInstance := aggregation.NewAggregation()
+
+					if aggregations, ok := c.Request.Context().Value(WithValueKey(eventName)).([]*aggregation.Aggregation); ok {
+						aggregations = append(aggregations, aggregationInstance)
+
+						newCtx := context.WithValue(c.Request.Context(), WithValueKey(eventName), aggregations)
+						c.Request = c.Request.WithContext(newCtx)
+					} else {
+						newCtx := context.WithValue(c.Request.Context(), WithValueKey(eventName), []*aggregation.Aggregation{aggregationInstance})
+						c.Request = c.Request.WithContext(newCtx)
+					}
 
 					// IsMainHandlerCalled will be = true
 					// if Pipe was invoked in Intercept function
@@ -474,7 +489,7 @@ func (app *App) Create(m *Module) {
 
 					c.Next()
 				}
-			}(globalInterceptor, aggregationInstance)
+			}(globalInterceptor)
 
 			app.wsEventMap[eventName] = append(
 				app.wsEventMap[eventName],
@@ -485,13 +500,22 @@ func (app *App) Create(m *Module) {
 
 	// REST module interceptors
 	for _, moduleInterceptor := range app.module.RESTInterceptors {
-		aggregationInstance := aggregation.NewAggregation()
 		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.Method]
 		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, httpMethod))
-		app.restAggregationMap[endpoint] = append(app.restAggregationMap[endpoint], aggregationInstance)
 
-		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+		interceptMiddleware := func(interceptFn common.Intercept) ctx.Handler {
 			return func(c *ctx.Context) {
+				aggregationInstance := aggregation.NewAggregation()
+
+				if aggregations, ok := c.Request.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
+					aggregations = append(aggregations, aggregationInstance)
+
+					newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), aggregations)
+					c.Request = c.Request.WithContext(newCtx)
+				} else {
+					newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
+					c.Request = c.Request.WithContext(newCtx)
+				}
 
 				// IsMainHandlerCalled will be = true
 				// if Pipe was invoked in Intercept function
@@ -507,7 +531,7 @@ func (app *App) Create(m *Module) {
 
 				c.Next()
 			}
-		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
+		}(moduleInterceptor.Handler.(common.Intercept))
 
 		// add interceptor middleware
 		app.route.For(moduleInterceptor.Route, []string{httpMethod})(interceptMiddleware)
@@ -515,11 +539,19 @@ func (app *App) Create(m *Module) {
 
 	// WS module interceptors
 	for _, moduleInterceptor := range app.module.WSInterceptors {
-		aggregationInstance := aggregation.NewAggregation()
-		app.wsAggregationMap[moduleInterceptor.EventName] = append(app.wsAggregationMap[moduleInterceptor.EventName], aggregationInstance)
-
-		interceptMiddleware := func(interceptFn common.Intercept, aggregationInstance *aggregation.Aggregation) ctx.Handler {
+		interceptMiddleware := func(interceptFn common.Intercept) ctx.Handler {
 			return func(c *ctx.Context) {
+				aggregationInstance := aggregation.NewAggregation()
+
+				if aggregations, ok := c.Request.Context().Value(WithValueKey(moduleInterceptor.EventName)).([]*aggregation.Aggregation); ok {
+					aggregations = append(aggregations, aggregationInstance)
+
+					newCtx := context.WithValue(c.Request.Context(), WithValueKey(moduleInterceptor.EventName), aggregations)
+					c.Request = c.Request.WithContext(newCtx)
+				} else {
+					newCtx := context.WithValue(c.Request.Context(), WithValueKey(moduleInterceptor.EventName), []*aggregation.Aggregation{aggregationInstance})
+					c.Request = c.Request.WithContext(newCtx)
+				}
 
 				// IsMainHandlerCalled will be = true
 				// if Pipe was invoked in Intercept function
@@ -535,7 +567,7 @@ func (app *App) Create(m *Module) {
 
 				c.Next()
 			}
-		}(moduleInterceptor.Handler.(common.Intercept), aggregationInstance)
+		}(moduleInterceptor.Handler.(common.Intercept))
 
 		app.wsEventMap[moduleInterceptor.EventName] = append(
 			app.wsEventMap[moduleInterceptor.EventName],
@@ -745,7 +777,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 					// data return from main handler
 					data := app.provideAndInvoke(injectableHandler, c)
 
-					if aggregations, ok := app.restAggregationMap[matchedRoute]; ok {
+					if aggregations, ok := c.Request.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
 						var aggregatedData any
 						isMainHandlerCalled := true
 
@@ -957,7 +989,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 						}
 						configPublishedEventName := data[0].String()
 
-						if aggregations, ok := app.wsAggregationMap[publishEventName]; ok {
+						if aggregations, ok := c.Request.Context().Value(WithValueKey(publishEventName)).([]*aggregation.Aggregation); ok {
 							var aggregatedData any
 							isMainHandlerCalled := true
 
@@ -979,19 +1011,19 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 								} else {
 									isMainHandlerCalled = false
 									wsMsg := toWSMessage(reflect.ValueOf(aggregation.InterceptorData))
-									app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+									app.publishWSEvent(configPublishedEventName, wsMsg, c)
 									break
 								}
 							}
 
 							if isMainHandlerCalled {
 								wsMsg := toWSMessage(reflect.ValueOf(aggregatedData))
-								app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+								app.publishWSEvent(configPublishedEventName, wsMsg, c)
 							}
 						} else {
 							if len(data) > 1 {
 								wsMsg := toWSMessage(data[1])
-								app.publishWSEvent(configPublishedEventName, wsid, wsMsg, c)
+								app.publishWSEvent(configPublishedEventName, wsMsg, c)
 							}
 						}
 					}
@@ -1043,7 +1075,7 @@ func (app *App) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) 
 	}
 }
 
-func (app *App) publishWSEvent(configPublishedEventName, wsid, wsMsg string, c *ctx.Context) {
+func (app *App) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Context) {
 	app.wsEventToID.Range(func(subscribedEventName, wsids any) bool {
 		if subscribedEventName == configPublishedEventName {
 			for _, wsid := range wsids.([]string) {
