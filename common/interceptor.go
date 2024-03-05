@@ -3,9 +3,9 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gooh/aggregation"
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gogo/aggregation"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/routing"
 )
 
 type Intercept = func(*ctx.Context, *aggregation.Aggregation) any

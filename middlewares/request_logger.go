@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/ctx"
+	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/gogo/ctx"
 )
 
 func RequestLogger(logger common.Logger) func(*ctx.Context) {

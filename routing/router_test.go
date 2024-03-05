@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 func TestRouteAdd(t *testing.T) {

@@ -1,6 +1,6 @@
 package middlewares
 
-import "github.com/dangduoc08/gooh/ctx"
+import "github.com/dangduoc08/gogo/ctx"
 
 func CORS() func(*ctx.Context) {
 	return func(c *ctx.Context) {

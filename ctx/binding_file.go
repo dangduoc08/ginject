@@ -5,7 +5,7 @@ import (
 	"mime/multipart"
 	"reflect"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 func BindFile(f File, s any) (map[string][]*DataFile, any) {

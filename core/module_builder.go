@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 type moduleBuilder struct {
