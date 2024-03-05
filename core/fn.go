@@ -11,9 +11,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 func isDynamicModule(moduleType string) (bool, error) {
@@ -244,7 +244,7 @@ func getLocalIP() string {
 }
 
 func logBoostrap(port int) {
-	accessURLs := utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GOOH! Here Are Your Access URLs: "))) + "\n"
+	accessURLs := utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GG! Here Are Your Access URLs: "))) + "\n"
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
 	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
 	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"

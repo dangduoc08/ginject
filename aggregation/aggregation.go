@@ -1,6 +1,6 @@
 package aggregation
 
-import "github.com/dangduoc08/gooh/ctx"
+import "github.com/dangduoc08/gogo/ctx"
 
 type AggregationOperator = func(*ctx.Context, any) any
 

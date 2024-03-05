@@ -1,13 +1,13 @@
-package gooh
+package gogo
 
 import (
 	"net/http"
 
-	"github.com/dangduoc08/gooh/aggregation"
-	"github.com/dangduoc08/gooh/core"
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/exception"
-	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gogo/aggregation"
+	"github.com/dangduoc08/gogo/core"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/exception"
+	"github.com/dangduoc08/gogo/routing"
 )
 
 type (

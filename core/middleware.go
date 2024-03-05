@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 type Middleware struct {
