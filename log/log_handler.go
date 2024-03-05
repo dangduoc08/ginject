@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 type PrettyHandlerOptions struct {

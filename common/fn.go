@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/exception"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/exception"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 // to ensure constructor only run once

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 var tr = NewTrie()

@@ -1,4 +1,4 @@
-module github.com/dangduoc08/gooh
+module github.com/dangduoc08/gogo
 
 go 1.22
 

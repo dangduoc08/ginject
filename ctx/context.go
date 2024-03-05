@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 type (

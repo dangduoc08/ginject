@@ -3,7 +3,7 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 func TestParseFnNameToURL(t *testing.T) {

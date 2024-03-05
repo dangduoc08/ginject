@@ -3,8 +3,8 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/routing"
 )
 
 type CanActivate = func(*ctx.Context) bool

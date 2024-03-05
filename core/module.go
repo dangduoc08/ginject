@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/dangduoc08/gooh/common"
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/routing"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/routing"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 var mainModule uintptr
@@ -31,7 +31,7 @@ var noInjectedFields = []string{
 	"common.WS",
 }
 var injectableInterfaces = []string{
-	"github.com/dangduoc08/gooh/common/common.Logger",
+	"github.com/dangduoc08/gogo/common/common.Logger",
 }
 
 type Module struct {

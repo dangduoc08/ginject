@@ -3,9 +3,9 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gooh/ctx"
-	"github.com/dangduoc08/gooh/exception"
-	"github.com/dangduoc08/gooh/routing"
+	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/exception"
+	"github.com/dangduoc08/gogo/routing"
 )
 
 type Catch = func(*ctx.Context, *exception.HTTPException)

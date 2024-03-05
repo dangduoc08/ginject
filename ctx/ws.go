@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/dangduoc08/gooh/exception"
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/exception"
+	"github.com/dangduoc08/gogo/utils"
 	"golang.org/x/net/websocket"
 )
 

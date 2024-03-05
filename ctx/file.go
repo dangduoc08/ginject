@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"mime/multipart"
 
-	"github.com/dangduoc08/gooh/exception"
+	"github.com/dangduoc08/gogo/exception"
 )
 
 type fileValidator interface {

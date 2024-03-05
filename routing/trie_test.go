@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dangduoc08/gooh/utils"
+	"github.com/dangduoc08/gogo/utils"
 )
 
 func TestTrieLen(t *testing.T) {
