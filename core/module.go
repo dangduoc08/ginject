@@ -155,7 +155,7 @@ func (m *Module) NewModule() *Module {
 				m.providers = append(m.providers, staticModule.providers...)
 
 				// static modules which set as globally
-				// have to be injected in main module
+				// must be injected in main module
 				if staticModule.IsGlobal {
 					staticModule.injectGlobalProviders()
 				}
@@ -198,20 +198,6 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.providers) > 0 {
 				m.providers = append(injectModule.providers, m.providers...)
 			}
-
-			if reflect.ValueOf(m).Pointer() == mainModule {
-				m.RESTMiddlewares = append(m.RESTMiddlewares, injectModule.RESTMiddlewares...)
-				m.RESTGuards = append(m.RESTGuards, injectModule.RESTGuards...)
-				m.RESTInterceptors = append(m.RESTInterceptors, injectModule.RESTInterceptors...)
-				m.RESTExceptionFilters = append(m.RESTExceptionFilters, injectModule.RESTExceptionFilters...)
-				m.RESTMainHandlers = append(m.RESTMainHandlers, injectModule.RESTMainHandlers...)
-
-				m.WSMiddlewares = append(m.WSMiddlewares, injectModule.WSMiddlewares...)
-				m.WSGuards = append(m.WSGuards, injectModule.WSGuards...)
-				m.WSInterceptors = append(m.WSInterceptors, injectModule.WSInterceptors...)
-				m.WSExceptionFilters = append(m.WSExceptionFilters, injectModule.WSExceptionFilters...)
-				m.WSMainHandlers = append(m.WSMainHandlers, injectModule.WSMainHandlers...)
-			}
 		}
 
 		// inject dynamic modules
@@ -229,20 +215,6 @@ func (m *Module) NewModule() *Module {
 
 			if len(staticModule.providers) > 0 {
 				m.providers = append(staticModule.providers, m.providers...)
-			}
-
-			if reflect.ValueOf(m).Pointer() == mainModule {
-				m.RESTMiddlewares = append(m.RESTMiddlewares, staticModule.RESTMiddlewares...)
-				m.RESTGuards = append(m.RESTGuards, staticModule.RESTGuards...)
-				m.RESTInterceptors = append(m.RESTInterceptors, staticModule.RESTInterceptors...)
-				m.RESTExceptionFilters = append(m.RESTExceptionFilters, staticModule.RESTExceptionFilters...)
-				m.RESTMainHandlers = append(m.RESTMainHandlers, staticModule.RESTMainHandlers...)
-
-				m.WSMiddlewares = append(m.WSMiddlewares, staticModule.WSMiddlewares...)
-				m.WSGuards = append(m.WSGuards, staticModule.WSGuards...)
-				m.WSInterceptors = append(m.WSInterceptors, staticModule.WSInterceptors...)
-				m.WSExceptionFilters = append(m.WSExceptionFilters, staticModule.WSExceptionFilters...)
-				m.WSMainHandlers = append(m.WSMainHandlers, staticModule.WSMainHandlers...)
 			}
 		}
 
