@@ -442,3 +442,17 @@ func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
 		}
 	}
 }
+
+func toUniqueControllers(controllers *[]Controller) {
+	duplicatedControllers := map[string]bool{}
+	uniqueControllers := []Controller{}
+	for _, controller := range *controllers {
+		controllerKey := genFieldKey(reflect.TypeOf(controller))
+		if _, ok := duplicatedControllers[controllerKey]; !ok {
+			duplicatedControllers[controllerKey] = true
+			uniqueControllers = append(uniqueControllers, controller)
+		}
+	}
+
+	*controllers = uniqueControllers
+}

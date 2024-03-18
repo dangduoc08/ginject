@@ -165,6 +165,7 @@ func (m *Module) NewModule() *Module {
 			for _, dynamicModule := range m.dynamicModules {
 				staticModule := createStaticModuleFromDynamicModule(dynamicModule)
 				injectedDynamicModules[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
+
 				m.controllers = append(m.controllers, staticModule.controllers...)
 				m.providers = append(m.providers, staticModule.providers...)
 
@@ -198,6 +199,11 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.providers) > 0 {
 				m.providers = append(injectModule.providers, m.providers...)
 			}
+
+			if len(injectModule.controllers) > 0 {
+				m.controllers = append(injectModule.controllers, m.controllers...)
+			}
+			toUniqueControllers(&m.controllers)
 		}
 
 		// inject dynamic modules
@@ -216,6 +222,11 @@ func (m *Module) NewModule() *Module {
 			if len(staticModule.providers) > 0 {
 				m.providers = append(staticModule.providers, m.providers...)
 			}
+
+			if len(staticModule.controllers) > 0 {
+				m.controllers = append(staticModule.controllers, m.controllers...)
+			}
+			toUniqueControllers(&m.controllers)
 		}
 
 		// inject local providers
