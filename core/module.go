@@ -195,11 +195,9 @@ func (m *Module) NewModule() *Module {
 
 			// recursion injection
 			injectModule := staticModule.NewModule()
-
 			if len(injectModule.providers) > 0 {
 				m.providers = append(injectModule.providers, m.providers...)
 			}
-
 			if len(injectModule.controllers) > 0 {
 				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
@@ -219,12 +217,12 @@ func (m *Module) NewModule() *Module {
 				injectedDynamicModules[dynamicModulePtr] = staticModule
 			}
 
-			if len(staticModule.providers) > 0 {
-				m.providers = append(staticModule.providers, m.providers...)
+			injectModule := staticModule.NewModule()
+			if len(injectModule.providers) > 0 {
+				m.providers = append(injectModule.providers, m.providers...)
 			}
-
-			if len(staticModule.controllers) > 0 {
-				m.controllers = append(staticModule.controllers, m.controllers...)
+			if len(injectModule.controllers) > 0 {
+				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
 			toUniqueControllers(&m.controllers)
 		}
