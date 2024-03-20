@@ -12,9 +12,10 @@ import (
 	"github.com/dangduoc08/gogo/utils"
 )
 
-var mainModule uintptr
+var mainModulePtr uintptr
 var modulesInjectedFromMain []uintptr
 var injectedDynamicModules = make(map[uintptr]*Module)
+var globalPrefixes = map[string][]string{}
 var globalProviders map[string]Provider = make(map[string]Provider)
 var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
@@ -35,6 +36,9 @@ var injectableInterfaces = []string{
 }
 
 type Module struct {
+	id       string
+	prefixes []string
+
 	*sync.Mutex
 	singleInstance *Module
 	staticModules  []*Module
@@ -127,6 +131,16 @@ func (m *Module) injectGlobalProviders() {
 	}
 }
 
+func (m *Module) Prefix(prefix string) *Module {
+	m.prefixes = append([]string{routing.ToEndpoint(prefix)}, m.prefixes...)
+
+	return m
+}
+
+func (m *Module) ID() string {
+	return m.id
+}
+
 func (m *Module) NewModule() *Module {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
@@ -141,9 +155,9 @@ func (m *Module) NewModule() *Module {
 		// invoked by create function.
 		// only modules injected by main module
 		// are able to use controllers
-		if mainModule == 0 {
+		if mainModulePtr == 0 {
 			modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
-			mainModule = reflect.ValueOf(m).Pointer()
+			mainModulePtr = reflect.ValueOf(m).Pointer()
 
 			// main module's provider
 			// alway inject globally
@@ -177,14 +191,6 @@ func (m *Module) NewModule() *Module {
 			}
 		}
 
-		if len(m.Middleware.middlewares) > 0 {
-			for _, controller := range m.controllers {
-				controllerName := reflect.TypeOf(controller).PkgPath()
-				m.Middleware.addREST(controllerName, &m.RESTMiddlewares)
-				m.Middleware.addWS(controllerName, &m.WSMiddlewares)
-			}
-		}
-
 		// inject static modules
 		for _, staticModule := range m.staticModules {
 
@@ -201,7 +207,10 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.controllers) > 0 {
 				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
-			toUniqueControllers(&m.controllers)
+			if len(injectModule.RESTMiddlewares) > 0 {
+				m.RESTMiddlewares = append(injectModule.RESTMiddlewares, m.RESTMiddlewares...)
+			}
+			toUniqueControllers(m, &m.controllers)
 		}
 
 		// inject dynamic modules
@@ -224,7 +233,23 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.controllers) > 0 {
 				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
-			toUniqueControllers(&m.controllers)
+			if len(injectModule.RESTMiddlewares) > 0 {
+				m.RESTMiddlewares = append(injectModule.RESTMiddlewares, m.RESTMiddlewares...)
+			}
+			toUniqueControllers(m, &m.controllers)
+		}
+
+		if len(m.Middleware.middlewares) > 0 {
+			for _, controller := range m.controllers {
+				controllerName := reflect.TypeOf(controller).PkgPath()
+				m.Middleware.addREST(controllerName, &m.RESTMiddlewares)
+				m.Middleware.addWS(controllerName, &m.WSMiddlewares)
+			}
+		}
+
+		// set module prefixes
+		for _, controller := range m.controllers {
+			globalPrefixes[genControllerKey(m, controller)] = m.prefixes
 		}
 
 		// inject local providers
@@ -295,13 +320,20 @@ func (m *Module) NewModule() *Module {
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
 					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.REST)
 					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
+					modulePrefixes := []string{}
+
+					for controllerKey, globalPrefixValues := range globalPrefixes {
+						if getPkgFromControllerKey(controllerKey) == genFieldKey(reflect.TypeOf(controller)) {
+							modulePrefixes = append(modulePrefixes, globalPrefixValues...)
+						}
+					}
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
 
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-						rest.AddHandlerToRouterMap(methodName, handler)
+						rest.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
 					}
 
 					// apply controller bound middlewares

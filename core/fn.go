@@ -121,6 +121,15 @@ func genProviderKey(p Provider) string {
 	return genFieldKey(reflect.TypeOf(p))
 }
 
+func genControllerKey(m *Module, c Controller) string {
+	return fmt.Sprintf("[%v]%v", m.ID(), genFieldKey(reflect.TypeOf(c)))
+}
+
+func getPkgFromControllerKey(k string) string {
+	reg := regexp.MustCompile(`\[.*?\]`)
+	return reg.ReplaceAllString(k, "")
+}
+
 func genFieldKey(t reflect.Type) string {
 	return t.PkgPath() + "/" + t.String()
 }
@@ -443,11 +452,11 @@ func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
 	}
 }
 
-func toUniqueControllers(controllers *[]Controller) {
+func toUniqueControllers(module *Module, controllers *[]Controller) {
 	duplicatedControllers := map[string]bool{}
 	uniqueControllers := []Controller{}
 	for _, controller := range *controllers {
-		controllerKey := genFieldKey(reflect.TypeOf(controller))
+		controllerKey := genControllerKey(module, controller)
 		if _, ok := duplicatedControllers[controllerKey]; !ok {
 			duplicatedControllers[controllerKey] = true
 			uniqueControllers = append(uniqueControllers, controller)
