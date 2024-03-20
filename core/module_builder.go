@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -73,7 +74,7 @@ func (m *moduleBuilder) Controllers(controllers ...Controller) *moduleBuilder {
 func (m *moduleBuilder) Build() *Module {
 	staticModules, dynamicModules := m.getModuleType()
 
-	return &Module{
+	module := &Module{
 		Mutex:          &sync.Mutex{},
 		staticModules:  staticModules,
 		dynamicModules: dynamicModules,
@@ -134,4 +135,7 @@ func (m *moduleBuilder) Build() *Module {
 			Handler     any
 		}{},
 	}
+
+	module.id = strconv.FormatUint(uint64(reflect.ValueOf(module).Pointer()), 10)
+	return module
 }

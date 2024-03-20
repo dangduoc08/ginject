@@ -71,7 +71,7 @@ func (r *REST) GetPrefixes() []map[string]string {
 	prefixes := []map[string]string{}
 
 	for _, prefixConf := range r.prefixes {
-		prefixValue := utils.StrAddBegin(utils.StrRemoveEnd(utils.StrRemoveSpace(prefixConf.Value), "/"), "/")
+		prefixValue := routing.ToEndpoint(prefixConf.Value)
 		prefixHandlers := prefixConf.Handlers
 
 		// if no handlers were binded
@@ -115,12 +115,16 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 	return r
 }
 
-func (r *REST) AddHandlerToRouterMap(fnName string, handler any) {
+func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
 	httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
+		for _, modulePrefix := range modulePrefixes {
+			route = modulePrefix + route
+		}
+
 		routeMethod := routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod)
 		if InsertedRoutes[routeMethod] == "" {
 			InsertedRoutes[routeMethod] = fnName
