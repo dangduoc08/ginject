@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"reflect"
 	"regexp"
 	"strings"
@@ -191,13 +192,14 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 		componentFieldType := componentField.Type
 		componentFieldKey := genFieldKey(componentFieldType)
 		componentFieldName := componentField.Name
+		componentName := path.Base(componentType.PkgPath()) + "." + componentType.Name()
 
 		if !token.IsExported(componentFieldName) {
 			panic(fmt.Errorf(
 				utils.FmtRed(
 					"can't set value to unexported '%v' field of the %v %v",
 					componentFieldName,
-					componentType.Name(),
+					componentName,
 					kind,
 				),
 			))
@@ -227,7 +229,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 					componentFieldType.String(),
 					kind,
 					j,
-					componentType.Name(),
+					componentName,
 					kind,
 				),
 			)
