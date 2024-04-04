@@ -7,14 +7,26 @@ import (
 	"github.com/dangduoc08/gogo/utils"
 )
 
-func SplitRoute(str string) (string, string) {
+func PatternToMethodRouteVersion(pattern string) (string, string, string) {
 	matchMethodReg := regexp.MustCompile(strings.Join(utils.ArrMap(HTTPMethods, func(el string, i int) string {
 		return "/" + "\\" + "[" + el + "\\" + "]"
 	}), "|"))
 
-	method := matchMethodReg.FindString(str)
-	noMethodRoute := matchMethodReg.ReplaceAllString(str, "")
-	return method[2 : len(method)-1], noMethodRoute[:len(noMethodRoute)-1]
+	method := matchMethodReg.FindString(pattern)
+	noMethodRoute := matchMethodReg.ReplaceAllString(pattern, "")
+
+	route := noMethodRoute[:len(noMethodRoute)-1]
+
+	lastSlashIndex := strings.LastIndex(route, "/")
+	version := ""
+	if lastSlashIndex < len(route)-1 {
+		version = route[lastSlashIndex+2 : len(route)-1]
+	}
+
+	route = route[:lastSlashIndex]
+	method = method[2 : len(method)-1]
+
+	return method, route, version
 }
 
 func ToEndpoint(str string) string {
@@ -31,8 +43,8 @@ func ToEndpoint(str string) string {
 	)
 }
 
-func AddMethodToRoute(str, method string) string {
-	return ToEndpoint(str) + fromMethodtoPattern(method) + "/"
+func MethodRouteVersionToPattern(method, route, version string) string {
+	return ToEndpoint(route) + fromVersiontoPattern(version) + "/" + fromMethodtoPattern(method) + "/"
 }
 
 func ParseToParamKey(str string) (string, map[string][]int) {
@@ -93,9 +105,13 @@ func matchWildcard(str, route string) bool {
 }
 
 // get node which has * at last
-func getLastWildcardNode(node *Trie, methodPattern string) *Trie {
+func getLastWildcardNode(node *Trie, versionPattern, methodPattern string) *Trie {
+
 	if node.Children["*"] != nil {
 		wildcardNode := node.Children["*"]
+		if wildcardNode.Children[versionPattern] != nil {
+			wildcardNode = wildcardNode.Children[versionPattern]
+		}
 
 		if wildcardNode.Children[methodPattern] != nil &&
 			wildcardNode.Children[methodPattern].Index > -1 {
@@ -112,4 +128,11 @@ func checkRouteContainsParams(route string) bool {
 
 func fromMethodtoPattern(method string) string {
 	return utils.StrAddEnd(utils.StrAddBegin(method, "["), "]")
+}
+
+func fromVersiontoPattern(version string) string {
+	if version == "" {
+		return "||"
+	}
+	return utils.StrAddEnd(utils.StrAddBegin(version, "|"), "|")
 }

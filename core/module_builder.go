@@ -25,6 +25,34 @@ func ModuleBuilder() *moduleBuilder {
 	}
 }
 
+type RESTMiddlewareLayer struct {
+	controllerName string
+	Route          string
+	Version        string
+	Method         string
+	Handlers       []func(*ctx.Context)
+}
+
+type RESTCommonLayer struct {
+	Route   string
+	Version string
+	Method  string
+	Handler any
+}
+
+type WSMiddlewareLayer struct {
+	controllerName string
+	Subprotocol    string
+	EventName      string
+	Handlers       []func(*ctx.Context)
+}
+
+type WSCommonLayer struct {
+	Subprotocol string
+	EventName   string
+	Handler     any
+}
+
 func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {
 	m.imports = append(m.imports, modules...)
 	return m
@@ -75,38 +103,17 @@ func (m *moduleBuilder) Build() *Module {
 	staticModules, dynamicModules := m.getModuleType()
 
 	module := &Module{
-		Mutex:          &sync.Mutex{},
-		staticModules:  staticModules,
-		dynamicModules: dynamicModules,
-		providers:      m.providers,
-		controllers:    m.controllers,
-		Middleware:     &Middleware{},
-		RESTMiddlewares: []struct {
-			controllerName string
-			Method         string
-			Route          string
-			Handlers       []func(*ctx.Context)
-		}{},
-		RESTGuards: []struct {
-			Method  string
-			Route   string
-			Handler any
-		}{},
-		RESTInterceptors: []struct {
-			Method  string
-			Route   string
-			Handler any
-		}{},
-		RESTExceptionFilters: []struct {
-			Method  string
-			Route   string
-			Handler any
-		}{},
-		RESTMainHandlers: []struct {
-			Method  string
-			Route   string
-			Handler any
-		}{},
+		Mutex:                &sync.Mutex{},
+		staticModules:        staticModules,
+		dynamicModules:       dynamicModules,
+		providers:            m.providers,
+		controllers:          m.controllers,
+		Middleware:           &Middleware{},
+		RESTMiddlewares:      []RESTMiddlewareLayer{},
+		RESTGuards:           []RESTCommonLayer{},
+		RESTInterceptors:     []RESTCommonLayer{},
+		RESTExceptionFilters: []RESTCommonLayer{},
+		RESTMainHandlers:     []RESTCommonLayer{},
 
 		WSMiddlewares: []struct {
 			controllerName string

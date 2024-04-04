@@ -53,15 +53,15 @@ func BenchmarkTrieFind(b *testing.B) {
 		if j == l-1 {
 			j = 0
 		}
-		tr.find("", arr[j], '/')
+		tr.find("", arr[j], "", '/')
 	}
 }
 
 func BenchmarkRouterMatch(b *testing.B) {
 	r := NewRouter()
-	r.Add("/users/{userId}/all", http.MethodGet, nil)
+	r.Add(http.MethodGet, "/users/{userId}/all", "", nil)
 
 	for i := 0; i < b.N; i++ {
-		r.Match("/users/123/all", http.MethodGet)
+		r.Match(http.MethodGet, "/users/123/all/", "")
 	}
 }
