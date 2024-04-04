@@ -21,8 +21,9 @@ type GuardHandler struct {
 type GuardItem struct {
 
 	// for REST
-	Method string
-	Route  string
+	Method  string
+	Route   string
+	Version string
 
 	// for WS
 	EventName string
@@ -68,21 +69,22 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.Handlers {
 			fnName := GetFnName(handler)
-			method, route := ParseFnNameToURL(fnName, RESTOperations)
+			method, route, version := ParseFnNameToURL(fnName, RESTOperations)
 			httpMethod := routing.OperationsMapHTTPMethods[method]
 
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
-			shouldAddGuard[routing.AddMethodToRoute(route, httpMethod)] = true
+			shouldAddGuard[routing.MethodRouteVersionToPattern(httpMethod, route, version)] = true
 		}
 
 		for pattern := range r.PatternToFnNameMap {
 			if _, ok := shouldAddGuard[pattern]; ok || len(shouldAddGuard) == 0 {
-				method, route := routing.SplitRoute(pattern)
+				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				guardItemArr = append(guardItemArr, GuardItem{
 					Method:  httpMethod,
 					Route:   routing.ToEndpoint(route),
+					Version: version,
 					Handler: guardHandler.Guarder.CanActivate,
 				})
 			}
@@ -116,7 +118,7 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.Handlers {
 			fnName := GetFnName(handler)
-			_, eventName := ParseFnNameToURL(fnName, WSOperations)
+			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddGuard[eventName] = true
 		}

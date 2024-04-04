@@ -22,6 +22,7 @@ import (
 	"github.com/dangduoc08/gogo/log"
 	"github.com/dangduoc08/gogo/routing"
 	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/gogo/versioning"
 	"golang.org/x/net/websocket"
 )
 
@@ -46,6 +47,8 @@ type App struct {
 	catchRESTFnsMap                        map[string][]common.Catch
 	catchWSFnsMap                          map[string][]common.Catch
 	Logger                                 common.Logger
+	versioning                             versioning.Versioning
+	isEnableVersioning                     bool
 }
 
 // link to aliases
@@ -158,7 +161,7 @@ func (app *App) Create(m *Module) {
 		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
 		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.Method]
 
-		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleExceptionFilter.Route, httpMethod))
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.Route, moduleExceptionFilter.Version)
 		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
 	}
 
@@ -184,7 +187,7 @@ func (app *App) Create(m *Module) {
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, httpMethod))
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
 			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
 		}
 
@@ -250,10 +253,10 @@ func (app *App) Create(m *Module) {
 		}(pattern, catchFns)
 
 		// add catch middleware
-		method, route := routing.SplitRoute(pattern)
+		method, route, version := routing.PatternToMethodRouteVersion(pattern)
 		httpMethod := routing.OperationsMapHTTPMethods[method]
 
-		app.route.For(route, []string{httpMethod})(catchMiddleware)
+		app.route.For([]string{httpMethod}, route, version)(catchMiddleware)
 	}
 
 	for pattern, catchFns := range app.catchWSFnsMap {
@@ -318,11 +321,15 @@ func (app *App) Create(m *Module) {
 	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
 		if globalMiddleware.route != "*" {
-			httpMethods := utils.ArrMap(routing.HTTPMethods, func(el string, i int) string {
+			httpMethods := utils.ArrToUnique(utils.ArrMap(routing.HTTPMethods, func(el string, i int) string {
 				return routing.OperationsMapHTTPMethods[el]
-			})
+			}))
 
-			app.route.For(globalMiddleware.route, httpMethods)(globalMiddleware.handler)
+			for _, mainHandlerItem := range app.module.RESTMainHandlers {
+				if routing.ToEndpoint(globalMiddleware.route) == mainHandlerItem.Route {
+					app.route.For(httpMethods, globalMiddleware.route, mainHandlerItem.Version)(globalMiddleware.handler)
+				}
+			}
 		} else {
 
 			// REST global middlewares
@@ -342,7 +349,7 @@ func (app *App) Create(m *Module) {
 	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
 		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.Method]
 
-		app.route.For(restModuleMiddleware.Route, []string{httpMethod})(restModuleMiddleware.Handlers...)
+		app.route.For([]string{httpMethod}, restModuleMiddleware.Route, restModuleMiddleware.Version)(restModuleMiddleware.Handlers...)
 	}
 
 	// WS module middlewares
@@ -372,7 +379,7 @@ func (app *App) Create(m *Module) {
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			app.route.For(mainHandlerItem.Route, []string{httpMethod})(canActivateMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(canActivateMiddleware)
 		}
 
 		// WS global guards
@@ -394,7 +401,7 @@ func (app *App) Create(m *Module) {
 		}(moduleGuard.Handler.(common.CanActivate))
 
 		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.Method]
-		app.route.For(moduleGuard.Route, []string{httpMethod})(canActivateMiddleware)
+		app.route.For([]string{httpMethod}, moduleGuard.Route, moduleGuard.Version)(canActivateMiddleware)
 	}
 
 	// WS module guards
@@ -424,7 +431,7 @@ func (app *App) Create(m *Module) {
 		// REST global interceptors
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
-			endpoint := routing.ToEndpoint(routing.AddMethodToRoute(mainHandlerItem.Route, httpMethod))
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
 
 			interceptMiddleware := func(interceptor common.Interceptable) ctx.Handler {
 				return func(c *ctx.Context) {
@@ -456,7 +463,7 @@ func (app *App) Create(m *Module) {
 				}
 			}(globalInterceptor)
 
-			app.route.For(mainHandlerItem.Route, []string{httpMethod})(interceptMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(interceptMiddleware)
 		}
 
 		// WS global interceptors
@@ -501,7 +508,7 @@ func (app *App) Create(m *Module) {
 	// REST module interceptors
 	for _, moduleInterceptor := range app.module.RESTInterceptors {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.Method]
-		endpoint := routing.ToEndpoint(routing.AddMethodToRoute(moduleInterceptor.Route, httpMethod))
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleInterceptor.Route, moduleInterceptor.Version)
 
 		interceptMiddleware := func(interceptFn common.Intercept) ctx.Handler {
 			return func(c *ctx.Context) {
@@ -534,7 +541,7 @@ func (app *App) Create(m *Module) {
 		}(moduleInterceptor.Handler.(common.Intercept))
 
 		// add interceptor middleware
-		app.route.For(moduleInterceptor.Route, []string{httpMethod})(interceptMiddleware)
+		app.route.For([]string{httpMethod}, moduleInterceptor.Route, moduleInterceptor.Version)(interceptMiddleware)
 	}
 
 	// WS module interceptors
@@ -586,9 +593,9 @@ func (app *App) Create(m *Module) {
 				lastWildcardSlashIndex = strings.Count(r, "/") - 1
 			}
 
-			app.serveStaticMapToLastWildcardSlashIndex[routing.AddMethodToRoute(moduleHandler.Route, httpMethod)] = lastWildcardSlashIndex
+			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
 		}
-		app.route.AddInjectableHandler(moduleHandler.Route, httpMethod, moduleHandler.Handler)
+		app.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
 	}
 
 	// main WS handler
@@ -611,6 +618,13 @@ func (app *App) BindGlobalInterceptors(interceptors ...common.Interceptable) *Ap
 
 func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionFilterable) *App {
 	app.globalExceptionFilters = append(app.globalExceptionFilters, exceptionFilters...)
+
+	return app
+}
+
+func (app *App) EnableVersioning(v versioning.Versioning) *App {
+	app.versioning = v
+	app.isEnableVersioning = true
 
 	return app
 }
@@ -691,15 +705,18 @@ func (app *App) Listen(port int) error {
 	}
 	sort.Strings(routeArr)
 
-	for _, routName := range routeArr {
-		m, r := routing.SplitRoute(routName)
+	for _, routeName := range routeArr {
+		m, r, v := routing.PatternToMethodRouteVersion(routeName)
 		if r == "" {
 			r = "/"
 		}
+		args := []any{"method", m, "route", r}
+		if v != "" {
+			args = append(args, "version", v)
+		}
 		app.Logger.Info(
 			"RouteExplorer",
-			"method", m,
-			"route", r,
+			args...,
 		)
 	}
 
@@ -754,7 +771,34 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 		isNext = true
 	}
 
-	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Request.URL.Path, c.Request.Method)
+	version := ""
+	if app.isEnableVersioning {
+		version = app.versioning.GetVersion(c)
+	}
+
+	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Request.Method, c.Request.URL.Path, version)
+	if !isMatched {
+		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Request.Method, c.Request.URL.Path, versioning.NEUTRAL)
+	}
+
+	if app.isEnableVersioning {
+		if version == "" && isMatched {
+			// Invoke middlewares
+			for _, middleware := range app.route.GlobalMiddlewares {
+				if isNext {
+					isNext = false
+					middleware(c)
+				}
+			}
+
+			if isNext {
+				app.returnDeprecatedURL(c)
+			}
+
+			return
+		}
+	}
+
 	catchEvent = matchedRoute
 
 	if isMatched {
@@ -1145,6 +1189,17 @@ func (app *App) returnInvalidURL(c *ctx.Context) {
 		"code":    badRequestException.GetCode(),
 		"error":   badRequestException.Error(),
 		"message": badRequestException.GetResponse(),
+	})
+}
+
+func (app *App) returnDeprecatedURL(c *ctx.Context) {
+	goneException := exception.GoneException("Deprecated URL usage")
+	httpCode, _ := goneException.GetHTTPStatus()
+	c.Status(httpCode)
+	c.JSON(ctx.Map{
+		"code":    goneException.GetCode(),
+		"error":   goneException.Error(),
+		"message": goneException.GetResponse(),
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/dangduoc08/gogo/ctx"
 	"github.com/dangduoc08/gogo/exception"
 	"github.com/dangduoc08/gogo/routing"
+	"github.com/dangduoc08/gogo/versioning"
 )
 
 type (
@@ -16,19 +17,20 @@ type (
 	Router        = *routing.Router
 	Aggregation   = *aggregation.Aggregation
 	HTTPException = *exception.HTTPException
+	Versioning    = versioning.Versioning
+	FieldLevel    = ctx.FieldLevel
 
 	// decorators
-	Context    = *ctx.Context
-	Request    = *http.Request
-	Response   = http.ResponseWriter
-	Body       = ctx.Body
-	Form       = ctx.Form
-	File       = ctx.File
-	Query      = ctx.Query
-	Header     = ctx.Header
-	Param      = ctx.Param
-	WSPayload  = ctx.WSPayload
-	Next       = ctx.Next
-	Redirect   = ctx.Redirect
-	FieldLevel = ctx.FieldLevel
+	Context   = *ctx.Context
+	Request   = *http.Request
+	Response  = http.ResponseWriter
+	Body      = ctx.Body
+	Form      = ctx.Form
+	File      = ctx.File
+	Query     = ctx.Query
+	Header    = ctx.Header
+	Param     = ctx.Param
+	WSPayload = ctx.WSPayload
+	Next      = ctx.Next
+	Redirect  = ctx.Redirect
 )

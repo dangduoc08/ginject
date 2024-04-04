@@ -20,10 +20,10 @@ func TestRouteAdd(t *testing.T) {
 	r := NewRouter()
 
 	for _, path := range cases {
-		r.Add(path, http.MethodGet, nil)
+		r.Add(http.MethodGet, path, "v2", nil)
 	}
 
-	expected1 := 15
+	expected1 := 19
 	actual1 := r.Trie.len()
 	if actual1 != expected1 {
 		t.Errorf(utils.ErrorMessage(actual1, expected1, "trie length should be equal"))
@@ -33,7 +33,7 @@ func TestRouteAdd(t *testing.T) {
 		"schoolId":  {0, 2},
 		"subjectId": {1},
 	}
-	actual2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].Children[fromMethodtoPattern(http.MethodGet)].ParamKeys
+	actual2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].Children["|v2|"].Children[fromMethodtoPattern(http.MethodGet)].ParamKeys
 
 	for key, indexs := range expected2 {
 		if actual2[key] == nil {
@@ -50,37 +50,37 @@ func TestRouteAdd(t *testing.T) {
 
 func TestRouterMatch(t *testing.T) {
 	cases := map[string]string{
-		"/lv1/ping":                             "/lv1/ping",
-		"/lv1/642e948adef44c303cdd2df3":         "/lv1/{id1}",
-		"/lv1/foo/bar":                          "/lv1/*",
-		"/lv1":                                  "/lv1/*",
-		"/lv1/lv2/pong":                         "/lv1/lv2/pong",
-		"/lv1/lv2/642e951525714c1ec609b338":     "/lv1/lv2/{id2}",
-		"/lv1/lv2/foo/bar":                      "/lv1/lv2/*",
-		"/lv1/lv2/file/index.html":              "lv1/lv2/file/in*.html",
-		"/lv1/lv2/file/in.html":                 "lv1/lv2/file/in*.html",
-		"/lv1/lv2/file/image.png":               "lv1/lv2/file/image.*",
-		"/lv1/lv2/lv3/peng":                     "/lv1/lv2/lv3/peng",
-		"/lv1/lv2/lv3/642e95c4fbb2ad847ca96840": "/lv1/lv2/lv3/{id3}",
-		"/lv1/lv2/lv3/foo/bar":                  "/lv1/lv2/lv3/*",
-		"/lv1/lv2/lv3":                          "/lv1/lv2/lv3/*",
-		"/lv1/lv2/lv3/file/index.html":          "lv1/lv2/lv3/file/in*.html",
-		"/lv1/lv2/lv3/file/in.html":             "lv1/lv2/lv3/file/in*.html",
-		"/lv1/lv2/lv3/file/image.jpeg":          "lv1/lv2/lv3/file/image.*",
-		"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after": "/*/feeds/{feed*Id}/*/files/*.html/*/",
-		"/users/633b0aa5d7fc3578b655b9bd/friends/633b0af45f4fe7d45b00fba5":       "/users/{userId}/friends/{friendId}",
+		"/lv1/ping/":                             "/lv1/ping",
+		"/lv1/642e948adef44c303cdd2df3/":         "/lv1/{id1}",
+		"/lv1/foo/bar/":                          "/lv1/*",
+		"/lv1/":                                  "/lv1/*",
+		"/lv1/lv2/pong/":                         "/lv1/lv2/pong",
+		"/lv1/lv2/642e951525714c1ec609b338/":     "/lv1/lv2/{id2}",
+		"/lv1/lv2/foo/bar/":                      "/lv1/lv2/*",
+		"/lv1/lv2/file/index.html/":              "lv1/lv2/file/in*.html",
+		"/lv1/lv2/file/in.html/":                 "lv1/lv2/file/in*.html",
+		"/lv1/lv2/file/image.png/":               "lv1/lv2/file/image.*",
+		"/lv1/lv2/lv3/peng/":                     "/lv1/lv2/lv3/peng",
+		"/lv1/lv2/lv3/642e95c4fbb2ad847ca96840/": "/lv1/lv2/lv3/{id3}",
+		"/lv1/lv2/lv3/foo/bar/":                  "/lv1/lv2/lv3/*",
+		"/lv1/lv2/lv3/":                          "/lv1/lv2/lv3/*",
+		"/lv1/lv2/lv3/file/index.html/":          "lv1/lv2/lv3/file/in*.html",
+		"/lv1/lv2/lv3/file/in.html/":             "lv1/lv2/lv3/file/in*.html",
+		"/lv1/lv2/lv3/file/image.jpeg/":          "lv1/lv2/lv3/file/image.*",
+		"/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/": "/*/feeds/{feed*Id}/*/files/*.html/*/",
+		"/users/633b0aa5d7fc3578b655b9bd/friends/633b0af45f4fe7d45b00fba5/":       "/users/{userId}/friends/{friendId}",
 	}
 
 	r := NewRouter()
 	for _, path := range cases {
 		for _, httpMethod := range HTTPMethods {
-			r.Add(path, httpMethod, nil)
+			r.Add(httpMethod, path, "", nil)
 		}
 	}
 
 	for requestedRoute, expectedRoute := range cases {
-		expectedRoute = AddMethodToRoute(expectedRoute, http.MethodPost)
-		_, actualRoute, _, _, _ := r.Match(requestedRoute, http.MethodPost)
+		expectedRoute = MethodRouteVersionToPattern(http.MethodPost, expectedRoute, "")
+		_, actualRoute, _, _, _ := r.Match(http.MethodPost, requestedRoute, "")
 
 		if actualRoute != expectedRoute {
 			t.Errorf(utils.ErrorMessage(actualRoute, expectedRoute, "routes should be matched"))
@@ -96,7 +96,7 @@ func TestRouterGroup(t *testing.T) {
 	}
 	for _, route := range case1 {
 		for _, httpMethod := range HTTPMethods {
-			r1.Add(route, httpMethod, nil)
+			r1.Add(httpMethod, route, "", nil)
 		}
 	}
 
@@ -107,15 +107,15 @@ func TestRouterGroup(t *testing.T) {
 	}
 	for _, route := range case2 {
 		for _, httpMethod := range HTTPMethods {
-			r2.Add(route, httpMethod, nil)
+			r2.Add(httpMethod, route, "", nil)
 		}
 	}
 
 	gr := NewRouter()
 	gr.Group("/v1", r1, r2)
 
-	_, actualRoute1, _, _, _ := gr.Match("/v1/users/update/123", http.MethodPatch)
-	expectedRoute1 := AddMethodToRoute("/v1"+case2[0], http.MethodPatch)
+	_, actualRoute1, _, _, _ := gr.Match(http.MethodPatch, "/v1/users/update/123/", "")
+	expectedRoute1 := MethodRouteVersionToPattern(http.MethodPatch, "/v1"+case2[0], "")
 	if actualRoute1 != expectedRoute1 {
 		t.Errorf(utils.ErrorMessage(actualRoute1, expectedRoute1, "routes should be matched"))
 	}
@@ -146,12 +146,12 @@ func TestRouterMiddleware(t *testing.T) {
 
 	r0 := NewRouter()
 	r0.Use(handler1)
-	r0.For("/test0", HTTPMethods)(handler1)
+	r0.For(HTTPMethods, "/test0", "")(handler1)
 	for _, httpMethod := range HTTPMethods {
-		r0.Add("/test0", httpMethod, handler1)
+		r0.Add(httpMethod, "/test0", "", handler1)
 	}
 
-	_, _, _, _, handlers := r0.Match("/test0", http.MethodHead)
+	_, _, _, _, handlers := r0.Match(http.MethodHead, "/test0/", "")
 
 	if len(handlers) != 3 {
 		t.Errorf(utils.ErrorMessage(len(handlers), 3, "router 0 handlers total should be equal"))
@@ -185,12 +185,12 @@ func TestRouterMiddleware(t *testing.T) {
 	r1.Use(handler1)
 	r1.Use(handler2)
 	for _, httpMethod := range HTTPMethods {
-		r1.Add("/test1", httpMethod, handler4)
+		r1.Add(httpMethod, "/test1", "", handler4)
 	}
-	r1.For("/test1", HTTPMethods)(handler3)
+	r1.For(HTTPMethods, "/test1", "")(handler3)
 	r1.Use(handler1)
 
-	_, _, _, _, handlers = r1.Match("/test1", http.MethodPatch)
+	_, _, _, _, handlers = r1.Match(http.MethodPatch, "/test1/", "")
 
 	if len(handlers) != 5 {
 		t.Errorf(utils.ErrorMessage(len(handlers), 5, "router 1 handlers total should be equal"))
@@ -229,14 +229,14 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	r2 := NewRouter()
-	r2.For("/test2/{param}", HTTPMethods)(handler1)
+	r2.For(HTTPMethods, "/test2/{param}", "")(handler1)
 	r2.Use(handler2)
 	for _, httpMethod := range HTTPMethods {
-		r2.Add("/test2/{param}", httpMethod, handler3)
+		r2.Add(httpMethod, "/test2/{param}", "", handler3)
 	}
-	r2.For("/test2/{param}", HTTPMethods)(handler4)
+	r2.For(HTTPMethods, "/test2/{param}", "")(handler4)
 
-	_, _, _, _, handlers = r2.Match("/test2/123", http.MethodOptions)
+	_, _, _, _, handlers = r2.Match(http.MethodOptions, "/test2/123/", "")
 
 	if len(handlers) != 4 {
 		t.Errorf(utils.ErrorMessage(len(handlers), 4, "router 2 handlers total should be equal"))
@@ -272,13 +272,13 @@ func TestRouterMiddleware(t *testing.T) {
 
 	gr := NewRouter()
 	for _, httpMethod := range HTTPMethods {
-		gr.Add("/group/test1", httpMethod, handler3)
+		gr.Add(httpMethod, "/group/test1", "", handler3)
 	}
 	gr.Use(handler4).Use(handler2).Use(handler1)
 	gr.Group("/group", r1, r2)
-	gr.For("/group/test2/{param}", HTTPMethods)(handler3)
+	gr.For(HTTPMethods, "/group/test2/{param}", "")(handler3)
 
-	_, _, _, _, handlers = gr.Match("/group/test2/123", http.MethodOptions)
+	_, _, _, _, handlers = gr.Match(http.MethodOptions, "/group/test2/123/", "")
 
 	if len(handlers) != 8 {
 		t.Errorf(utils.ErrorMessage(len(handlers), 8, "router group handlers total should be equal"))
@@ -346,7 +346,7 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRouter()
 
 		for _, path := range paths {
-			r.Add(path, "", func(c *ctx.Context) {})
+			r.Add("", path, "", func(c *ctx.Context) {})
 		}
 
 		json, err := r.ToJSON()
