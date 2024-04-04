@@ -33,7 +33,7 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 }
 
 func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler any) {
-	opr, eventName := ParseFnNameToURL(fnName, WSOperations)
+	opr, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 
 	if opr != "" && WSOperations[opr] != "" {
 		eventName = ToWSEventName(subprotocol, eventName)

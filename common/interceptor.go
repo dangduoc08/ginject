@@ -21,8 +21,9 @@ type InterceptorHandler struct {
 
 type InterceptorItem struct {
 	// for REST
-	Method string
-	Route  string
+	Method  string
+	Route   string
+	Version string
 
 	// for WS
 	EventName string
@@ -70,21 +71,22 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.Handlers {
 			fnName := GetFnName(handler)
-			method, route := ParseFnNameToURL(fnName, RESTOperations)
+			method, route, version := ParseFnNameToURL(fnName, RESTOperations)
 			httpMethod := routing.OperationsMapHTTPMethods[method]
 
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
-			shouldAddInterceptors[routing.AddMethodToRoute(route, httpMethod)] = true
+			shouldAddInterceptors[routing.MethodRouteVersionToPattern(httpMethod, route, version)] = true
 		}
 
 		for pattern := range r.PatternToFnNameMap {
 			if _, ok := shouldAddInterceptors[pattern]; ok || len(shouldAddInterceptors) == 0 {
-				method, route := routing.SplitRoute(pattern)
+				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
 					Method:  httpMethod,
 					Route:   routing.ToEndpoint(route),
+					Version: version,
 					Handler: interceptorHandler.Interceptable.Intercept,
 				})
 			}
@@ -119,7 +121,7 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.Handlers {
 			fnName := GetFnName(handler)
-			_, eventName := ParseFnNameToURL(fnName, WSOperations)
+			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddInterceptors[eventName] = true
 		}

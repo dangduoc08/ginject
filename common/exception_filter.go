@@ -21,8 +21,9 @@ type ExceptionFilterHandler struct {
 
 type ExceptionFilterItem struct {
 	// for REST
-	Method string
-	Route  string
+	Method  string
+	Route   string
+	Version string
 
 	// for WS
 	EventName string
@@ -69,21 +70,22 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.Handlers {
 			fnName := GetFnName(handler)
-			method, route := ParseFnNameToURL(fnName, RESTOperations)
+			method, route, version := ParseFnNameToURL(fnName, RESTOperations)
 			httpMethod := routing.OperationsMapHTTPMethods[method]
 
 			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
-			shouldAddExceptionFilter[routing.AddMethodToRoute(route, httpMethod)] = true
+			shouldAddExceptionFilter[routing.MethodRouteVersionToPattern(httpMethod, route, version)] = true
 		}
 
 		for pattern := range r.PatternToFnNameMap {
 			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
-				method, route := routing.SplitRoute(pattern)
+				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
 					Method:  httpMethod,
 					Route:   routing.ToEndpoint(route),
+					Version: version,
 					Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
 				})
 			}
@@ -118,7 +120,7 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.Handlers {
 			fnName := GetFnName(handler)
-			_, eventName := ParseFnNameToURL(fnName, WSOperations)
+			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddExceptionFilter[eventName] = true
 		}

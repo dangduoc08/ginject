@@ -70,8 +70,9 @@ func NewRouter() *Router {
 	}
 }
 
-func (r *Router) push(route, method string, caller int, handlers ...ctx.Handler) *Router {
-	endpoint := ToEndpoint(AddMethodToRoute(route, method))
+func (r *Router) push(method, route, version string, caller int, handlers ...ctx.Handler) *Router {
+	endpoint := MethodRouteVersionToPattern(method, route, version)
+
 	var item RouterItem
 
 	if matchedRouterHash, ok := r.Hash[endpoint]; !ok {
@@ -147,14 +148,13 @@ func (r *Router) push(route, method string, caller int, handlers ...ctx.Handler)
 	return r
 }
 
-func (r *Router) Match(route, method string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	route = strings.Join([]string{filepath.Clean(route), "/[", method, "]/"}, "")
-
+func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
+	route = strings.Join([]string{filepath.Clean(route), "/|", version, "|/[", method, "]/"}, "")
 	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}
 
-	i, paramKeys, paramVals, handlers := r.Trie.find(route, method, '/')
+	i, paramKeys, paramVals, handlers := r.Trie.find(route, method, version, '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {
@@ -168,11 +168,11 @@ func (r *Router) Match(route, method string) (bool, string, map[string][]int, []
 func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 	for _, subRouter := range subRouters {
 		for route, routerItem := range subRouter.Hash {
-			method, path := SplitRoute(route)
+			method, path, version := PatternToMethodRouteVersion(route)
 			groupPath := prefix + path
 
 			if routerItem.HandlerIndex > -1 {
-				endpoint := ToEndpoint(AddMethodToRoute(groupPath, method))
+				endpoint := MethodRouteVersionToPattern(method, groupPath, version)
 				r.List = append(r.List, endpoint)
 				r.Hash[endpoint] = RouterItem{
 					Index:        len(r.List) - 1,
@@ -181,7 +181,7 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 			}
 
 			handlers := append(r.GlobalMiddlewares, routerItem.Handlers...)
-			r.push(groupPath, method, GROUP, handlers...)
+			r.push(method, groupPath, version, GROUP, handlers...)
 		}
 
 		for route, injectableHandler := range subRouter.InjectableHandlers {
@@ -200,17 +200,17 @@ func (r *Router) Use(handlers ...ctx.Handler) *Router {
 	r.GlobalMiddlewares = append(r.GlobalMiddlewares, handlers...)
 
 	for route := range r.Hash {
-		method, path := SplitRoute(route)
-		r.push(path, method, USE, handlers...)
+		method, path, version := PatternToMethodRouteVersion(route)
+		r.push(method, path, version, USE, handlers...)
 	}
 
 	return r
 }
 
-func (r *Router) For(path string, inclusions []string) func(handlers ...ctx.Handler) *Router {
+func (r *Router) For(methodInclusions []string, route string, version string) func(handlers ...ctx.Handler) *Router {
 	return func(handlers ...ctx.Handler) *Router {
-		for _, method := range inclusions {
-			r.push(path, method, FOR, handlers...)
+		for _, method := range methodInclusions {
+			r.push(method, route, version, FOR, handlers...)
 		}
 
 		return r
@@ -218,13 +218,13 @@ func (r *Router) For(path string, inclusions []string) func(handlers ...ctx.Hand
 }
 
 // alway use latest add
-func (r *Router) Add(route, method string, handler ctx.Handler) *Router {
-	r.push(route, method, ADD, handler)
+func (r *Router) Add(method, route, version string, handler ctx.Handler) *Router {
+	r.push(method, route, version, ADD, handler)
 
 	return r
 }
 
-func (r *Router) AddInjectableHandler(route, method string, handler any) *Router {
+func (r *Router) AddInjectableHandler(method, route, version string, handler any) *Router {
 	handlerKind := reflect.TypeOf(handler).Kind()
 	if handler == nil || handlerKind != reflect.Func {
 		panic(fmt.Errorf(
@@ -235,8 +235,8 @@ func (r *Router) AddInjectableHandler(route, method string, handler any) *Router
 		))
 	}
 
-	r.InjectableHandlers[ToEndpoint(AddMethodToRoute(route, method))] = handler
-	r.Add(route, method, nil)
+	r.InjectableHandlers[MethodRouteVersionToPattern(method, route, version)] = handler
+	r.Add(method, route, version, nil)
 
 	return r
 }

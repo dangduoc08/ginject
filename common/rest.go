@@ -21,25 +21,28 @@ var RESTOperations = map[string]string{
 var InsertedRoutes = make(map[string]string)
 
 const (
-	TOKEN_BY   = "BY"
-	TOKEN_AND  = "AND"
-	TOKEN_OF   = "OF"
-	TOKEN_ANY  = "ANY"
-	TOKEN_FILE = "FILE"
+	TOKEN_BY      = "BY"
+	TOKEN_AND     = "AND"
+	TOKEN_OF      = "OF"
+	TOKEN_ANY     = "ANY"
+	TOKEN_FILE    = "FILE"
+	TOKEN_VERSION = "VERSION"
 )
 
 var TokenMap = map[string]string{
-	TOKEN_BY:   TOKEN_BY,
-	TOKEN_AND:  TOKEN_AND,
-	TOKEN_OF:   TOKEN_OF,
-	TOKEN_ANY:  TOKEN_ANY,
-	TOKEN_FILE: TOKEN_FILE,
+	TOKEN_BY:      TOKEN_BY,
+	TOKEN_AND:     TOKEN_AND,
+	TOKEN_OF:      TOKEN_OF,
+	TOKEN_ANY:     TOKEN_ANY,
+	TOKEN_FILE:    TOKEN_FILE,
+	TOKEN_VERSION: TOKEN_VERSION,
 }
 
 type RESTConfiguration struct {
-	Method string
-	Route  string
-	Func   string
+	Method  string
+	Route   string
+	Version string
+	Func    string
 }
 
 type REST struct {
@@ -53,7 +56,7 @@ type Prefix struct {
 	Handlers []any
 }
 
-func (r *REST) addToRouters(fnName, path, method string, injectableHandler any) {
+func (r *REST) addToRouters(fnName, route, version, method string, injectableHandler any) {
 	if reflect.ValueOf(r.RouterMap).IsNil() {
 		r.RouterMap = make(map[string]any)
 	}
@@ -61,7 +64,7 @@ func (r *REST) addToRouters(fnName, path, method string, injectableHandler any) 
 	if r.PatternToFnNameMap == nil {
 		r.PatternToFnNameMap = map[string]string{}
 	}
-	pattern := routing.AddMethodToRoute(routing.ToEndpoint(path), method)
+	pattern := routing.MethodRouteVersionToPattern(method, route, version)
 
 	r.RouterMap[pattern] = injectableHandler
 	r.PatternToFnNameMap[pattern] = fnName
@@ -118,27 +121,27 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
-	httpMethod, route := ParseFnNameToURL(fnName, RESTOperations)
+	httpMethod, route, version := ParseFnNameToURL(fnName, RESTOperations)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
 		for _, modulePrefix := range modulePrefixes {
 			route = modulePrefix + route
 		}
 
-		routeMethod := routing.AddMethodToRoute(routing.ToEndpoint(route), httpMethod)
-		if InsertedRoutes[routeMethod] == "" {
-			InsertedRoutes[routeMethod] = fnName
+		pattern := routing.MethodRouteVersionToPattern(httpMethod, route, version)
+		if InsertedRoutes[pattern] == "" {
+			InsertedRoutes[pattern] = fnName
 		} else {
 			panic(fmt.Errorf(
 				utils.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,
-					InsertedRoutes[routeMethod],
+					InsertedRoutes[pattern],
 				),
 			))
 		}
 
-		r.addToRouters(fnName, route, httpMethod, handler)
+		r.addToRouters(fnName, route, version, httpMethod, handler)
 	}
 }
 
@@ -146,11 +149,12 @@ func (r *REST) GetConfigurations() []RESTConfiguration {
 	routes := []RESTConfiguration{}
 
 	for routeMethod, fn := range InsertedRoutes {
-		method, route := routing.SplitRoute(routeMethod)
+		method, route, version := routing.PatternToMethodRouteVersion(routeMethod)
 		routes = append(routes, RESTConfiguration{
-			Method: method,
-			Route:  route,
-			Func:   fn,
+			Method:  method,
+			Route:   route,
+			Version: version,
+			Func:    fn,
 		})
 	}
 

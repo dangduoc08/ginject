@@ -151,3 +151,12 @@ func ErrorMessage(actual, expected any, desc string) string {
 		FmtDim("\nExpected: %v", FmtRed("%v", expected)) +
 		FmtDim("\nActual: %v", FmtRed("%v", actual))
 }
+
+func StrCapitalizeFirstLetter(str string) string {
+	if len(str) == 0 {
+		return str
+	}
+	firstLetter := string(str[0] - 32)
+
+	return firstLetter + str[1:]
+}

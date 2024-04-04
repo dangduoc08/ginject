@@ -65,7 +65,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	return tr
 }
 
-func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
+func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
 	node := tr
 	var matchedNode *Trie
 	var lastWildcardNode *Trie
@@ -76,6 +76,7 @@ func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []st
 	paramVals := make([]string, 0)
 	handlers := []ctx.Handler{}
 	methodPattern := fromMethodtoPattern(method)
+	versionPattern := fromVersiontoPattern(version)
 
 	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {
 		if node.Children[seg] == nil {
@@ -89,7 +90,7 @@ func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []st
 				// then cannot fallback to wildcard
 				// due to trie already be traversed
 				// we will store temp node and return if no route matched
-				lastWildcardNode = getLastWildcardNode(node, methodPattern)
+				lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
 
 				// pushed /lv1 => /lv/{id}
 				// but still matched
@@ -103,7 +104,7 @@ func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []st
 				node = node.Children["$"]
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
-				lastWildcardNode = getLastWildcardNode(node, methodPattern)
+				lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
 				node = node.Children["*"]
 			} else {
 				isNotMatchAnythings := true
@@ -141,7 +142,7 @@ func (tr *Trie) find(path, method string, sep byte) (int, map[string][]int, []st
 			// then cannot fallback to wildcard
 			// due to trie already be traversed
 			// we will store temp node and return if no route matched
-			lastWildcardNode = getLastWildcardNode(node, methodPattern)
+			lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
 			node = node.Children[seg]
 		}
 

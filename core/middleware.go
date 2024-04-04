@@ -49,36 +49,20 @@ func (mw *Middleware) Apply(middleware ctx.Handler, handlers ...any) *Middleware
 
 func (mw *Middleware) addREST(
 	controllerName string,
-	restMiddlewares *[]struct {
-		controllerName string
-		Method         string
-		Route          string
-		Handlers       []ctx.Handler
-	},
+	restMiddlewares *[]RESTMiddlewareLayer,
 ) {
 	for key, middlewareHandlers := range mw.middlewares {
-
 		// apply for all
 		if key == "*" {
-			middlewareStruct := struct {
-				controllerName string
-				Method         string
-				Route          string
-				Handlers       []ctx.Handler
-			}{
+			middlewareStruct := RESTMiddlewareLayer{
 				controllerName: controllerName,
 				Method:         key,
 				Route:          key,
 				Handlers:       middlewareHandlers,
 			}
 			*restMiddlewares = append(*restMiddlewares, middlewareStruct)
-		} else if httpMethod, _ := common.ParseFnNameToURL(key, common.RESTOperations); httpMethod != "" {
-			middlewareStruct := struct {
-				controllerName string
-				Method         string
-				Route          string
-				Handlers       []ctx.Handler
-			}{
+		} else if httpMethod, _, _ := common.ParseFnNameToURL(key, common.RESTOperations); httpMethod != "" {
+			middlewareStruct := RESTMiddlewareLayer{
 				controllerName: controllerName,
 				Method:         httpMethod,
 				Route:          key,
@@ -114,7 +98,7 @@ func (mw *Middleware) addWS(
 				Handlers:       middlewareHandlers,
 			}
 			*wsMiddlewares = append(*wsMiddlewares, middlewareStruct)
-		} else if opr, eventName := common.ParseFnNameToURL(key, common.WSOperations); opr != "" {
+		} else if opr, eventName, _ := common.ParseFnNameToURL(key, common.WSOperations); opr != "" {
 			middlewareStruct := struct {
 				controllerName string
 				Subprotocol    string

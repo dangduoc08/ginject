@@ -94,7 +94,7 @@ func TestTrieFind(t *testing.T) {
 	friendId1 := "633b0af45f4fe7d45b00fba5"
 	testPath1 := fmt.Sprintf("/users/%v/friends/%v/[%v]/", userId1, friendId1, http.MethodGet)
 
-	actualIndex1, _, actualParams1, _ := tr.find(testPath1, http.MethodGet, '/')
+	actualIndex1, _, actualParams1, _ := tr.find(testPath1, http.MethodGet, "", '/')
 	expectedIndex1 := 2
 	if actualIndex1 != expectedIndex1 {
 		t.Errorf(utils.ErrorMessage(actualIndex1, expectedIndex1, "trie node index should be equal"))
@@ -109,21 +109,21 @@ func TestTrieFind(t *testing.T) {
 	}
 
 	testPath2 := fmt.Sprintf("/users/%v/friends/[%v]/", userId1, http.MethodGet)
-	actualIndex2, _, _, _ := tr.find(testPath2, http.MethodGet, '/')
+	actualIndex2, _, _, _ := tr.find(testPath2, http.MethodGet, "", '/')
 	expectedIndex2 := -1
 	if actualIndex2 != expectedIndex2 {
 		t.Errorf(utils.ErrorMessage(actualIndex2, expectedIndex2, "trie node index should be equal"))
 	}
 
 	testPath3 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/[%v]/", http.MethodGet)
-	actualIndex3, _, _, _ := tr.find(testPath3, http.MethodGet, '/')
+	actualIndex3, _, _, _ := tr.find(testPath3, http.MethodGet, "", '/')
 	expectedIndex3 := 3
 	if actualIndex3 != expectedIndex3 {
 		t.Errorf(utils.ErrorMessage(actualIndex3, expectedIndex3, "trie node index should be equal"))
 	}
 
 	testPath4 := fmt.Sprintf("/api/feeds/{feedApiId}/next/files/index.html/endpoint/any/things/after/[%v]/", http.MethodGet)
-	actualIndex4, _, _, _ := tr.find(testPath4, http.MethodGet, '/')
+	actualIndex4, _, _, _ := tr.find(testPath4, http.MethodGet, "", '/')
 	expectedIndex4 := 3
 	if actualIndex4 != expectedIndex4 {
 		t.Errorf(utils.ErrorMessage(actualIndex4, expectedIndex4, "trie node index should be equal"))

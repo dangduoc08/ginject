@@ -20,14 +20,21 @@ func GetFnName(handler any) string {
 	return fnName[:len(fnName)-3]
 }
 
-func ParseFnNameToURL(fnName string, operations map[string]string) (string, string) {
+func ParseFnNameToURL(fnName string, operations map[string]string) (string, string, string) {
 	method := ""
 	route := ""
+	version := ""
 
 	subStr := strings.Split(fnName, "_")
+	subStr = utils.ArrFilter(subStr, func(el string, i int) bool {
+		return el != ""
+	})
 	j := -1
 
 	for i, b := range subStr {
+
+		// when set j = i
+		// mean it's skip
 		if j >= 0 && i < j {
 			continue
 		}
@@ -36,11 +43,26 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 
 		// function name is not satisfied statements
 		if _, ok := operations[s]; !ok && i == 0 {
-			return "", ""
+			return "", "", version
 		}
 
 		if _, ok := operations[s]; ok && i == 0 {
 			method = operations[s]
+		}
+
+		if s == TOKEN_VERSION {
+			if i+1 < len(subStr) {
+				z := i + 1
+				for subStr[z] != "" {
+					version += "_" + subStr[z]
+					if z == len(subStr)-1 {
+						break
+					}
+					z++
+				}
+			}
+			version = strings.Replace(version, "_", "", 1)
+			break
 		}
 
 		if _, ok := operations[s]; ok || s == TOKEN_OF {
@@ -51,7 +73,8 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 			for i < len(subStr) &&
 				subStr[i] != TOKEN_BY &&
 				subStr[i] != TOKEN_AND &&
-				subStr[i] != TOKEN_OF {
+				subStr[i] != TOKEN_OF &&
+				subStr[i] != TOKEN_VERSION {
 
 				// READ_ANY
 				// or OF_ANY
@@ -146,7 +169,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 		}
 	}
 
-	return method, "/" + route
+	return method, "/" + route, version
 }
 
 func HandleGuard(c *ctx.Context, canActive bool) {

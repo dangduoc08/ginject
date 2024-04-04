@@ -51,40 +51,19 @@ type Module struct {
 	OnInit     func()
 
 	// store REST module middlewares
-	RESTMiddlewares []struct {
-		controllerName string
-		Method         string
-		Route          string
-		Handlers       []ctx.Handler
-	}
+	RESTMiddlewares []RESTMiddlewareLayer
 
 	// store REST module guards
-	RESTGuards []struct {
-		Method  string
-		Route   string
-		Handler any
-	}
+	RESTGuards []RESTCommonLayer
 
 	// store REST module interceptors
-	RESTInterceptors []struct {
-		Method  string
-		Route   string
-		Handler any
-	}
+	RESTInterceptors []RESTCommonLayer
 
 	// store REST module exception filters
-	RESTExceptionFilters []struct {
-		Method  string
-		Route   string
-		Handler any
-	}
+	RESTExceptionFilters []RESTCommonLayer
 
 	// store REST main handlers
-	RESTMainHandlers []struct {
-		Method  string
-		Route   string
-		Handler any
-	}
+	RESTMainHandlers []RESTCommonLayer
 
 	// store WS module middlewares
 	WSMiddlewares []struct {
@@ -294,12 +273,7 @@ func (m *Module) NewModule() *Module {
 
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
-			newRESTMiddlewares := []struct {
-				controllerName string
-				Method         string
-				Route          string
-				Handlers       []func(*ctx.Context)
-			}{}
+			newRESTMiddlewares := []RESTMiddlewareLayer{}
 
 			newWSMiddlewares := []struct {
 				controllerName string
@@ -341,36 +315,28 @@ func (m *Module) NewModule() *Module {
 						if restModuleMiddleware.controllerName == controllerName {
 							for pattern := range rest.RouterMap {
 								if restModuleMiddleware.Method == "*" {
-									splittedHTTPMethod, splittedRoute := routing.SplitRoute(pattern)
+									method, route, version := routing.PatternToMethodRouteVersion(pattern)
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
-										struct {
-											controllerName string
-											Method         string
-											Route          string
-											Handlers       []func(*ctx.Context)
-										}{
+										RESTMiddlewareLayer{
 											controllerName: controllerName,
-											Method:         splittedHTTPMethod,
-											Route:          splittedRoute,
+											Route:          route,
+											Version:        version,
+											Method:         method,
 											Handlers:       restModuleMiddleware.Handlers,
 										},
 									)
 								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.Route {
-									splittedHTTPMethod, splittedRoute := routing.SplitRoute(pattern)
+									method, route, version := routing.PatternToMethodRouteVersion(pattern)
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
-										struct {
-											controllerName string
-											Method         string
-											Route          string
-											Handlers       []func(*ctx.Context)
-										}{
+										RESTMiddlewareLayer{
 											controllerName: controllerName,
-											Method:         splittedHTTPMethod,
-											Route:          splittedRoute,
+											Route:          route,
+											Version:        version,
+											Method:         method,
 											Handlers:       restModuleMiddleware.Handlers,
 										},
 									)
@@ -429,13 +395,10 @@ func (m *Module) NewModule() *Module {
 
 						// apply controller bound guards
 						for _, guardItem := range guardItemArr {
-							m.RESTGuards = append(m.RESTGuards, struct {
-								Method  string
-								Route   string
-								Handler any
-							}{
+							m.RESTGuards = append(m.RESTGuards, RESTCommonLayer{
 								Method:  guardItem.Method,
 								Route:   guardItem.Route,
+								Version: guardItem.Version,
 								Handler: guardItem.Handler,
 							})
 						}
@@ -491,13 +454,10 @@ func (m *Module) NewModule() *Module {
 
 						// apply controller bound interceptors
 						for _, interceptorItem := range interceptorItemArr {
-							m.RESTInterceptors = append(m.RESTInterceptors, struct {
-								Method  string
-								Route   string
-								Handler any
-							}{
+							m.RESTInterceptors = append(m.RESTInterceptors, RESTCommonLayer{
 								Method:  interceptorItem.Method,
 								Route:   interceptorItem.Route,
+								Version: interceptorItem.Version,
 								Handler: interceptorItem.Handler,
 							})
 						}
@@ -553,13 +513,10 @@ func (m *Module) NewModule() *Module {
 
 						// apply controller bound exceptionFilters
 						for _, exceptionFilterItem := range exceptionFilterItemArr {
-							m.RESTExceptionFilters = append(m.RESTExceptionFilters, struct {
-								Method  string
-								Route   string
-								Handler any
-							}{
+							m.RESTExceptionFilters = append(m.RESTExceptionFilters, RESTCommonLayer{
 								Method:  exceptionFilterItem.Method,
 								Route:   exceptionFilterItem.Route,
+								Version: exceptionFilterItem.Version,
 								Handler: exceptionFilterItem.Handler,
 							})
 						}
@@ -571,14 +528,11 @@ func (m *Module) NewModule() *Module {
 							panic(utils.FmtRed(err.Error()))
 						}
 
-						method, route := routing.SplitRoute(pattern)
-						m.RESTMainHandlers = append(m.RESTMainHandlers, struct {
-							Method  string
-							Route   string
-							Handler any
-						}{
+						method, route, version := routing.PatternToMethodRouteVersion(pattern)
+						m.RESTMainHandlers = append(m.RESTMainHandlers, RESTCommonLayer{
 							Method:  method,
 							Route:   routing.ToEndpoint(route),
+							Version: version,
 							Handler: handler,
 						})
 					}
