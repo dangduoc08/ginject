@@ -14,7 +14,7 @@ const (
 	MEDIA_TYPE
 )
 
-const NEUTRAL = "NEUTRAL"
+const NEUTRAL_VERSION = "NEUTRAL"
 
 type ExtractorHandler = func(*ctx.Context) string
 

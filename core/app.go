@@ -778,7 +778,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 
 	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Request.Method, c.Request.URL.Path, version)
 	if !isMatched {
-		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Request.Method, c.Request.URL.Path, versioning.NEUTRAL)
+		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Request.Method, c.Request.URL.Path, versioning.NEUTRAL_VERSION)
 	}
 
 	if app.isEnableVersioning {
