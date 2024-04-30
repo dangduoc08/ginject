@@ -69,11 +69,9 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.Handlers {
 			fnName := GetFnName(handler)
-			method, route, version := ParseFnNameToURL(fnName, RESTOperations)
-			httpMethod := routing.OperationsMapHTTPMethods[method]
-
-			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
-			shouldAddGuard[routing.MethodRouteVersionToPattern(httpMethod, route, version)] = true
+			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
+				shouldAddGuard[pattern] = true
+			}
 		}
 
 		for pattern := range r.PatternToFnNameMap {
