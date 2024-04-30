@@ -70,11 +70,9 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.Handlers {
 			fnName := GetFnName(handler)
-			method, route, version := ParseFnNameToURL(fnName, RESTOperations)
-			httpMethod := routing.OperationsMapHTTPMethods[method]
-
-			route = r.addPrefixesToRoute(route, fnName, r.GetPrefixes())
-			shouldAddExceptionFilter[routing.MethodRouteVersionToPattern(httpMethod, route, version)] = true
+			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
+				shouldAddExceptionFilter[pattern] = true
+			}
 		}
 
 		for pattern := range r.PatternToFnNameMap {
