@@ -15,7 +15,7 @@ import (
 var mainModulePtr uintptr
 var modulesInjectedFromMain []uintptr
 var injectedDynamicModules = make(map[uintptr]*Module)
-var globalPrefixes = map[string][]string{}
+var globalPrefixArr = []map[string][]string{}
 var globalProviders map[string]Provider = make(map[string]Provider)
 var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
@@ -228,7 +228,9 @@ func (m *Module) NewModule() *Module {
 
 		// set module prefixes
 		for _, controller := range m.controllers {
-			globalPrefixes[genControllerKey(m, controller)] = m.prefixes
+			globalPrefixArr = append(globalPrefixArr, map[string][]string{
+				genControllerKey(m, controller): m.prefixes,
+			})
 		}
 
 		// inject local providers
@@ -296,9 +298,11 @@ func (m *Module) NewModule() *Module {
 					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 					modulePrefixes := []string{}
 
-					for controllerKey, globalPrefixValues := range globalPrefixes {
-						if getPkgFromControllerKey(controllerKey) == genFieldKey(reflect.TypeOf(controller)) {
-							modulePrefixes = append(modulePrefixes, globalPrefixValues...)
+					for _, globalPrefixes := range globalPrefixArr {
+						for controllerKey, globalPrefixValues := range globalPrefixes {
+							if getPkgFromControllerKey(controllerKey) == genFieldKey(reflect.TypeOf(controller)) {
+								modulePrefixes = append(modulePrefixes, globalPrefixValues...)
+							}
 						}
 					}
 
