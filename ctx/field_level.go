@@ -3,18 +3,23 @@ package ctx
 import "reflect"
 
 type FieldLevel struct {
-	tag   string
-	ns    string
-	field string
-	index int
-	val   any
-	isVal bool
-	kind  reflect.Kind
-	typ   reflect.Type
+	tag       string
+	nestedTag string
+	ns        string
+	field     string
+	index     int
+	val       any
+	isVal     bool
+	kind      reflect.Kind
+	typ       reflect.Type
 }
 
 func (fl *FieldLevel) Tag() string {
 	return fl.tag
+}
+
+func (fl *FieldLevel) NestedTag() string {
+	return fl.nestedTag
 }
 
 func (fl *FieldLevel) Namespace() string {

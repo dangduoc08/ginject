@@ -11,8 +11,24 @@ const (
 	tagBind = "bind"
 )
 
-func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (any, []FieldLevel) {
-	structureType := reflect.TypeOf(s)
+/*
+Support types:
+
+	- Struct pointer
+
+*/
+
+func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, parentTag string) (any, []FieldLevel) {
+
+	// check struct pointer case
+	// when recursive will pass s as reflect.Type
+	var structureType reflect.Type
+	if sType, ok := s.(reflect.Type); ok {
+		structureType = sType
+	} else {
+		structureType = reflect.TypeOf(s)
+	}
+
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)
 
@@ -36,13 +52,20 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 					}
 					ns = ns + structureType.Name() + "." + structField.Name
 
+					nestedTag := ""
+					if parentTag != "" {
+						nestedTag = parentTag + "."
+					}
+					nestedTag = nestedTag + bindedField
+
 					fl := FieldLevel{
-						tag:   bindedField,
-						ns:    ns,
-						field: structField.Name,
-						kind:  structField.Type.Kind(),
-						typ:   structField.Type,
-						isVal: true,
+						tag:       bindedField,
+						nestedTag: nestedTag,
+						ns:        ns,
+						field:     structField.Name,
+						kind:      structField.Type.Kind(),
+						typ:       structField.Type,
+						isVal:     true,
 					}
 
 					switch structField.Type.Kind() {
@@ -102,6 +125,7 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 								fls,
 								structField.Type,
 								ns,
+								nestedTag,
 							)
 							fl.val = val
 							*fls = append(*fls, fl)
@@ -116,6 +140,7 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 								fls,
 								structField.Type,
 								ns,
+								nestedTag,
 							)
 							fl.val = val
 							*fls = append(*fls, fl)
@@ -129,10 +154,40 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 							fls,
 							newStructuredData.Elem().Field(i).Interface(),
 							ns,
+							nestedTag,
 						)
 						fl.val = val
 						*fls = append(*fls, fl)
 						setValueToStructField(val)
+						continue
+
+					case reflect.Ptr:
+						// TODO: For the rest type pointers
+						// need to enhance later
+
+						// if structField.Type.Elem().Kind() == reflect.Float64 {
+						// 	if f64, ok := bindedValue.(float64); ok {
+						// 		val := utils.NumF64ToAnyNum(f64, structField.Type.Kind())
+						// 		fl.val = val
+						// 		*fls = append(*fls, fl)
+						// 		setValueToStructField(&f64)
+						// 	}
+						// }
+
+						if structField.Type.Elem().Kind() == reflect.Struct {
+							if bindedValue, ok := bindedValue.(map[string]any); ok {
+								val, _ := BindStruct(
+									bindedValue,
+									fls,
+									structField.Type.Elem(),
+									ns,
+									nestedTag,
+								)
+								fl.val = val
+								*fls = append(*fls, fl)
+								setValueToStructField(fromStrucValueToStructPointerValue(val))
+							}
+						}
 						continue
 					}
 				} else {
@@ -141,14 +196,22 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string) (an
 						ns = parentNS + "."
 					}
 					ns = ns + structureType.Name() + "." + structField.Name
+
+					nestedTag := ""
+					if parentTag != "" {
+						nestedTag = parentTag + "."
+					}
+					nestedTag = nestedTag + bindedField
+
 					*fls = append(*fls, FieldLevel{
-						tag:   bindedField,
-						ns:    ns,
-						field: structField.Name,
-						kind:  structField.Type.Kind(),
-						typ:   structField.Type,
-						val:   nil,
-						isVal: false,
+						tag:       bindedField,
+						nestedTag: nestedTag,
+						ns:        ns,
+						field:     structField.Name,
+						kind:      structField.Type.Kind(),
+						typ:       structField.Type,
+						val:       nil,
+						isVal:     false,
 					})
 				}
 			}

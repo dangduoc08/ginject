@@ -86,7 +86,8 @@ type TestDTO struct {
 
 	NestedStructArray []Person `bind:"nested_struct_array"`
 
-	EmbeddedStruct EmbeddedStruct `bind:"struct"`
+	EmbeddedStruct    EmbeddedStruct  `bind:"struct"`
+	EmbeddedStructPtr *EmbeddedStruct `bind:"struct"`
 }
 
 func TestBindStruct(t *testing.T) {
@@ -264,7 +265,7 @@ func TestBindStruct(t *testing.T) {
 		panic(err)
 	}
 
-	d, _ := BindStruct(testData, &[]FieldLevel{}, TestDTO{}, "")
+	d, _ := BindStruct(testData, &[]FieldLevel{}, TestDTO{}, "", "")
 	bindedDTO := d.(TestDTO)
 
 	expected1 := true

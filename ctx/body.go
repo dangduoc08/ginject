@@ -106,5 +106,5 @@ func (b Body) Has(k string) bool {
 }
 
 func (b Body) Bind(s any) (any, []FieldLevel) {
-	return BindStruct(b, &[]FieldLevel{}, s, "")
+	return BindStruct(b, &[]FieldLevel{}, s, "", "")
 }
