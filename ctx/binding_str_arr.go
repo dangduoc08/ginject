@@ -68,13 +68,14 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 				bindedIndex, bindedField := getTagParamIndex(bindParams[0])
 				if bindedValues, ok := d[bindedField]; ok {
 					fl := FieldLevel{
-						tag:   bindedField,
-						ns:    structureType.Name() + "." + structField.Name,
-						field: structField.Name,
-						index: bindedIndex,
-						kind:  structField.Type.Kind(),
-						typ:   structField.Type,
-						isVal: true,
+						tag:       bindedField,
+						nestedTag: bindedField,
+						ns:        structureType.Name() + "." + structField.Name,
+						field:     structField.Name,
+						index:     bindedIndex,
+						kind:      structField.Type.Kind(),
+						typ:       structField.Type,
+						isVal:     true,
 					}
 
 					// check each type of struct
@@ -532,14 +533,15 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 					}
 				} else {
 					*fls = append(*fls, FieldLevel{
-						tag:   bindedField,
-						ns:    structureType.Name() + "." + structField.Name,
-						field: structField.Name,
-						index: bindedIndex,
-						kind:  structField.Type.Kind(),
-						typ:   structField.Type,
-						val:   nil,
-						isVal: false,
+						tag:       bindedField,
+						nestedTag: bindedField,
+						ns:        structureType.Name() + "." + structField.Name,
+						field:     structField.Name,
+						index:     bindedIndex,
+						kind:      structField.Type.Kind(),
+						typ:       structField.Type,
+						val:       nil,
+						isVal:     false,
 					})
 				}
 			}
