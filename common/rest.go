@@ -15,6 +15,7 @@ var RESTOperations = map[string]string{
 	"UPDATE":      http.MethodPut,
 	"MODIFY":      http.MethodPatch,
 	"DELETE":      http.MethodDelete,
+	"PREFLIGHT":   http.MethodOptions,
 	routing.SERVE: routing.SERVE,
 }
 

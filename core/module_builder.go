@@ -41,10 +41,9 @@ type RESTCommonLayer struct {
 }
 
 type WSMiddlewareLayer struct {
-	controllerName string
-	Subprotocol    string
-	EventName      string
-	Handlers       []func(*ctx.Context)
+	Subprotocol string
+	EventName   string
+	Handlers    []func(*ctx.Context)
 }
 
 type WSCommonLayer struct {
