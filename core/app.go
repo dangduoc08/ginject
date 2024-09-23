@@ -754,6 +754,13 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 				if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
 					totalErrorAggregations := len(errorAggregationOperators)
 
+					// Handle case if pipe error panic
+					defer func() {
+						if rec := recover(); rec != nil {
+							c.Event.Emit(catchEvent, c, rec, 0)
+						}
+					}()
+
 					for i := totalErrorAggregations - 1; i >= 0; i-- {
 						aggregation := errorAggregationOperators[i]
 						rec = aggregation(c, rec)
@@ -981,6 +988,13 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 					// then exception filter
 					if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
 						totalErrorAggregations := len(errorAggregationOperators)
+
+						// Handle case if pipe error panic
+						defer func() {
+							if rec := recover(); rec != nil {
+								c.Event.Emit(publishEventName, c, rec, 0)
+							}
+						}()
 
 						for i := totalErrorAggregations - 1; i >= 0; i-- {
 							aggregation := errorAggregationOperators[i]
