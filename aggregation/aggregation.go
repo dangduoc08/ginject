@@ -1,6 +1,8 @@
 package aggregation
 
-import "github.com/dangduoc08/gogo/ctx"
+import (
+	"github.com/dangduoc08/gogo/ctx"
+)
 
 type AggregationOperator = func(*ctx.Context, any) any
 
@@ -105,6 +107,7 @@ func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
 			aggregation.mainData = operator(c, aggregation.mainData)
 
 		case OPERATOR_ERROR:
+			// error operator will be handle inside recover
 			continue
 
 		case OPERATOR_FIRST:
