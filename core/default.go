@@ -2,7 +2,6 @@ package core
 
 import (
 	"reflect"
-	"strings"
 
 	"github.com/dangduoc08/gogo/ctx"
 	"github.com/dangduoc08/gogo/exception"
@@ -14,7 +13,7 @@ import (
 
 type globalExceptionFilter struct{}
 
-func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.HTTPException) {
+func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
 	internalServerErrorException := exception.InternalServerErrorException("Unhandled exception has occurred")
 
 	code := ex.GetCode()
@@ -33,16 +32,8 @@ func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.HTTPException
 
 	message := ex.GetResponse()
 	switch reflect.TypeOf(message).Kind() {
-	case reflect.String:
+	case reflect.String, reflect.Map, reflect.Slice, reflect.Struct:
 		data["message"] = message
-	case reflect.Slice:
-		if messageArr, ok := message.([]string); ok {
-			data["message"] = strings.Join(messageArr, ", ")
-		} else if messageObj, ok := message.([]map[string]any); ok {
-			data["messages"] = messageObj
-		} else {
-			data["message"] = internalServerErrorException.GetResponse()
-		}
 	default:
 		data["message"] = internalServerErrorException.GetResponse()
 	}

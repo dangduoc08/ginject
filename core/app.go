@@ -218,7 +218,7 @@ func (app *App) Create(m *Module) {
 					response := http.StatusText(http.StatusInternalServerError)
 
 					switch arg := args[1].(type) {
-					case exception.HTTPException:
+					case exception.Exception:
 						catchFn(newC, &arg)
 						return
 					case error:
@@ -242,10 +242,10 @@ func (app *App) Create(m *Module) {
 					case uintptr:
 						response = strconv.Itoa(args[1].(int))
 					}
-					httpException := exception.InternalServerErrorException(response, map[string]any{
+					exception := exception.InternalServerErrorException(response, map[string]any{
 						"description": "Unknown exception",
 					})
-					catchFn(newC, &httpException)
+					catchFn(newC, &exception)
 				})
 
 				c.Next()
@@ -277,7 +277,7 @@ func (app *App) Create(m *Module) {
 					response := http.StatusText(http.StatusInternalServerError)
 
 					switch arg := args[1].(type) {
-					case exception.HTTPException:
+					case exception.Exception:
 						catchFn(newC, &arg)
 						return
 					case error:
@@ -301,10 +301,10 @@ func (app *App) Create(m *Module) {
 					case uintptr:
 						response = strconv.Itoa(args[1].(int))
 					}
-					httpException := exception.InternalServerErrorException(response, map[string]any{
+					exception := exception.InternalServerErrorException(response, map[string]any{
 						"description": "Unknown exception",
 					})
-					catchFn(newC, &httpException)
+					catchFn(newC, &exception)
 				})
 
 				c.Next()
@@ -450,7 +450,7 @@ func (app *App) Create(m *Module) {
 					// IsMainHandlerCalled will be = true
 					// if Pipe was invoked in Intercept function
 					aggregationInstance.IsMainHandlerCalled = false
-					aggregationInstance.SetMainData(nil) // this is problem
+					aggregationInstance.SetMainData(nil)
 
 					// invoke intercept function
 					// value may returned from Pipe function
@@ -747,25 +747,29 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			if _, ok := app.catchRESTFnsMap[catchEvent]; ok {
 
-				// Pipe errors run first
-				// then exception filter
-				if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
-					totalErrorAggregations := len(errorAggregationOperators)
+			// Pipe errors run first
+			// then exception filter
+			if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+				totalErrorAggregations := len(errorAggregationOperators)
 
-					// Handle case if pipe error panic
-					defer func() {
-						if rec := recover(); rec != nil {
-							c.Event.Emit(catchEvent, c, rec, 0)
-						}
-					}()
-
-					for i := totalErrorAggregations - 1; i >= 0; i-- {
-						aggregation := errorAggregationOperators[i]
-						rec = aggregation(c, rec)
+				// Handle case if pipe error panic
+				defer func() {
+					if rec := recover(); rec != nil {
+						c.Event.Emit(catchEvent, c, rec, 0)
 					}
+				}()
+
+				for i := totalErrorAggregations - 1; i >= 0; i-- {
+					aggregation := errorAggregationOperators[i]
+					rec = aggregation(c, rec)
 				}
+			}
+
+			// Execute exception filters if any
+			// normally this one always ok
+			// since we always set global exception filter as default
+			if _, ok := app.catchRESTFnsMap[catchEvent]; ok && rec != nil {
 
 				// 3rd param is index of catch function
 				c.Event.Emit(catchEvent, c, rec, 0)
@@ -982,25 +986,29 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 		var publishEventName string
 		defer func() {
 			if rec := recover(); rec != nil {
-				if _, ok := app.catchWSFnsMap[publishEventName]; ok {
 
-					// Pipe errors run first
-					// then exception filter
-					if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators")).([]aggregation.AggregationOperator); ok {
-						totalErrorAggregations := len(errorAggregationOperators)
+				// Pipe errors run first
+				// then exception filter
+				if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+					totalErrorAggregations := len(errorAggregationOperators)
 
-						// Handle case if pipe error panic
-						defer func() {
-							if rec := recover(); rec != nil {
-								c.Event.Emit(publishEventName, c, rec, 0)
-							}
-						}()
-
-						for i := totalErrorAggregations - 1; i >= 0; i-- {
-							aggregation := errorAggregationOperators[i]
-							rec = aggregation(c, rec)
+					// Handle case if pipe error panic
+					defer func() {
+						if rec := recover(); rec != nil {
+							c.Event.Emit(publishEventName, c, rec, 0)
 						}
+					}()
+
+					for i := totalErrorAggregations - 1; i >= 0; i-- {
+						aggregation := errorAggregationOperators[i]
+						rec = aggregation(c, rec)
 					}
+				}
+
+				// Execute exception filters if any
+				// normally this one always ok
+				// since we always set global exception filter as default
+				if _, ok := app.catchWSFnsMap[publishEventName]; ok && rec != nil {
 
 					// 3rd param is index of catch function
 					c.Event.Emit(publishEventName, c, rec, 0)
@@ -1011,7 +1019,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 				// due to error will be added
 				// whenever interceptor triggered
 				// but WS 1 connection use 1 ctx
-				newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+				newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
 				c.Request = c.Request.WithContext(newCtx)
 
 				// clean all events before recursion
@@ -1148,11 +1156,11 @@ func (app *App) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Co
 	// due to error will be added
 	// whenever interceptor triggered
 	// but WS 1 connection use 1 ctx
-	newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), nil)
+	newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
 	c.Request = c.Request.WithContext(newCtx)
 }
 
-func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.HTTPException) {
+func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exception) {
 	isNext := true
 	c.Next = func() {
 		isNext = true
@@ -1220,13 +1228,13 @@ func (app *App) returnDeprecatedURL(c *ctx.Context) {
 func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
 	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
 	if errorAggregationOpr != nil {
-		errorAggregationOperators := c.Request.Context().Value(WithValueKey("ErrorAggregationOperators"))
+		errorAggregationOperators := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY))
 		if errorAggregationOperators == nil {
 			errorAggregationOperators = []aggregation.AggregationOperator{}
 		}
 		errorAggregationOperators = append(errorAggregationOperators.([]aggregation.AggregationOperator), errorAggregationOpr)
 
-		newCtx := context.WithValue(c.Request.Context(), WithValueKey("ErrorAggregationOperators"), errorAggregationOperators)
+		newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), errorAggregationOperators)
 		c.Request = c.Request.WithContext(newCtx)
 	}
 }

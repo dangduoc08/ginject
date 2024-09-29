@@ -12,13 +12,13 @@ import (
 )
 
 type (
-	App           = *core.App
-	Map           = ctx.Map
-	Router        = *routing.Router
-	Aggregation   = *aggregation.Aggregation
-	HTTPException = *exception.HTTPException
-	Versioning    = versioning.Versioning
-	FieldLevel    = ctx.FieldLevel
+	App         = *core.App
+	Map         = ctx.Map
+	Router      = *routing.Router
+	Aggregation = *aggregation.Aggregation
+	Exception   = *exception.Exception
+	Versioning  = versioning.Versioning
+	FieldLevel  = ctx.FieldLevel
 
 	// decorators
 	Context   = *ctx.Context

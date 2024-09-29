@@ -1,11 +1,12 @@
 package aggregation
 
 const (
-	OPERATOR_MAP     = "Map"
-	OPERATOR_OF      = "Of"
-	OPERATOR_CONSUME = "Consume"
-	OPERATOR_FIRST   = "First"
-	OPERATOR_ERROR   = "Error"
+	OPERATOR_MAP                    = "Map"
+	OPERATOR_OF                     = "Of"
+	OPERATOR_CONSUME                = "Consume"
+	OPERATOR_FIRST                  = "First"
+	OPERATOR_ERROR                  = "Error"
+	ERROR_AGGREGATION_CTX_VALUE_KEY = "ErrorAggregationOperators"
 )
 
 func (aggregation *Aggregation) Map(opr AggregationOperator) AggregationOperator {

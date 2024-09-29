@@ -8,10 +8,10 @@ import (
 	"github.com/dangduoc08/gogo/routing"
 )
 
-type Catch = func(*ctx.Context, *exception.HTTPException)
+type Catch = func(*ctx.Context, *exception.Exception)
 
 type ExceptionFilterable interface {
-	Catch(*ctx.Context, *exception.HTTPException)
+	Catch(*ctx.Context, *exception.Exception)
 }
 
 type ExceptionFilterHandler struct {
