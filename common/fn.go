@@ -177,18 +177,7 @@ func HandleGuard(c *ctx.Context, canActive bool) {
 		c.Next()
 	} else {
 		forbiddenException := exception.ForbiddenException("Access denied")
-		httpCode, _ := forbiddenException.GetHTTPStatus()
-		data := ctx.Map{
-			"code":    forbiddenException.GetCode(),
-			"error":   forbiddenException.Error(),
-			"message": forbiddenException.GetResponse(),
-		}
-		requestType := c.GetType()
-		if requestType == ctx.HTTPType {
-			c.Status(httpCode).JSON(data)
-		} else if requestType == ctx.WSType {
-			c.WS.SendSelf(c, data)
-		}
+		panic(forbiddenException)
 	}
 }
 
