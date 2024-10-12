@@ -686,7 +686,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}, w, r)
 	} else {
 		c.SetType(ctx.HTTPType)
-		c.ResponseWriter.Header().Set("X-Request-ID", c.GetID())
+		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
 
 		app.handleRESTRequest(c)
 	}
@@ -1183,7 +1183,7 @@ func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exceptio
 }
 
 func (app *App) getContextID(c *ctx.Context) string {
-	reqID := c.Header().Get("X-Request-ID")
+	reqID := c.Header().Get(ctx.REQUEST_ID)
 	if reqID == "" {
 		uuid, _ := utils.StrUUID()
 		return uuid
