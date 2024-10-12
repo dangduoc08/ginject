@@ -4,6 +4,11 @@ import (
 	"net/textproto"
 )
 
+// header keys
+const (
+	REQUEST_ID = "X-Request-Id"
+)
+
 type Header map[string][]string
 
 func (c *Context) Header() Header {
@@ -32,6 +37,7 @@ func (h Header) Del(k string) {
 }
 
 func (h Header) Has(k string) bool {
+	k = textproto.CanonicalMIMEHeaderKey(k)
 	_, ok := h[k]
 	return ok
 }

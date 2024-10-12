@@ -42,7 +42,6 @@ func (versioning *Versioning) GetVersion(c *ctx.Context) string {
 		}
 
 	case HEADER:
-		key = utils.StrCapitalizeFirstLetter(key)
 		if c.Header().Has(key) {
 			v = c.Header().Get(key)
 		} else {
