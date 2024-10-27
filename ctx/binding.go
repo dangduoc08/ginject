@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	tagBind = "bind"
+	TagBind = "bind"
 )
 
 /*
@@ -40,11 +40,11 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, par
 			continue
 		}
 
-		if bindValues, ok := structField.Tag.Lookup(tagBind); ok {
-			bindParams := getTagParams(bindValues)
+		if bindValues, ok := structField.Tag.Lookup(TagBind); ok {
+			bindParams := GetTagParams(bindValues)
 
 			if len(bindParams) > 0 {
-				_, bindedField := getTagParamIndex(bindParams[0])
+				_, bindedField := GetTagParamIndex(bindParams[0])
 				if bindedValue, ok := d[bindedField]; ok {
 					ns := ""
 					if parentNS != "" {
