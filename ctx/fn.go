@@ -26,7 +26,7 @@ func toJSONP(jsonStr, callback string) string {
 	return fmt.Sprintf("/**/ typeof %v === 'function' && %v(%v);", callback, callback, jsonStr)
 }
 
-func getTagParams(v string) []string {
+func GetTagParams(v string) []string {
 	return utils.ArrFilter[string](utils.ArrMap[string, string](
 		strings.Split(v, ","), func(el string, i int) string {
 			return strings.TrimSpace(el)
@@ -35,7 +35,7 @@ func getTagParams(v string) []string {
 	})
 }
 
-func getTagParamIndex(v string) (int, string) {
+func GetTagParamIndex(v string) (int, string) {
 	splittedBindParams := strings.Split(v, ".")
 	bindedField := v
 	bindedIndex := 0

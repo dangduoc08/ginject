@@ -21,10 +21,10 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 			continue
 		}
 
-		if bindValues, ok := structField.Tag.Lookup(tagBind); ok {
-			bindParams := getTagParams(bindValues)
+		if bindValues, ok := structField.Tag.Lookup(TagBind); ok {
+			bindParams := GetTagParams(bindValues)
 			if len(bindParams) > 0 {
-				bindedIndex, bindedField := getTagParamIndex(bindParams[0])
+				bindedIndex, bindedField := GetTagParamIndex(bindParams[0])
 				if bindedValue, ok := f[bindedField]; ok {
 					switch structField.Type.Kind() {
 
