@@ -1,6 +1,8 @@
 package common
 
-import "github.com/dangduoc08/gogo/ctx"
+import (
+	"github.com/dangduoc08/gogo/ctx"
+)
 
 type ContextPipeable interface {
 	Transform(*ctx.Context, ArgumentMetadata) any

@@ -62,10 +62,10 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 			continue
 		}
 
-		if bindValues, ok := structField.Tag.Lookup(tagBind); ok {
-			bindParams := getTagParams(bindValues)
+		if bindValues, ok := structField.Tag.Lookup(TagBind); ok {
+			bindParams := GetTagParams(bindValues)
 			if len(bindParams) > 0 {
-				bindedIndex, bindedField := getTagParamIndex(bindParams[0])
+				bindedIndex, bindedField := GetTagParamIndex(bindParams[0])
 				if bindedValues, ok := d[bindedField]; ok {
 					fl := FieldLevel{
 						tag:       bindedField,

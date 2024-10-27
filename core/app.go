@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -18,6 +19,7 @@ import (
 	"github.com/dangduoc08/gogo/aggregation"
 	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo/dashboard"
 	"github.com/dangduoc08/gogo/exception"
 	"github.com/dangduoc08/gogo/log"
 	"github.com/dangduoc08/gogo/routing"
@@ -49,6 +51,8 @@ type App struct {
 	Logger                                 common.Logger
 	versioning                             versioning.Versioning
 	isEnableVersioning                     bool
+	isEnableDashboard                      bool // TODO: test
+	dashboard                              *dashboard.Dashboard
 }
 
 // link to aliases
@@ -111,6 +115,7 @@ func New() *App {
 	event := ctx.NewEvent()
 
 	app := App{
+		isEnableDashboard:                      true, // TODO: test
 		route:                                  routing.NewRouter(),
 		catchRESTFnsMap:                        make(map[string][]common.Catch),
 		catchWSFnsMap:                          make(map[string][]common.Catch),
@@ -601,6 +606,11 @@ func (app *App) Create(m *Module) {
 	// main WS handler
 	for _, moduleHandler := range app.module.WSMainHandlers {
 		app.wsMainHandlerMap[moduleHandler.EventName] = moduleHandler.Handler
+	}
+
+	// TODO: test dashboard function
+	if app.isEnableDashboard {
+		app.createDashboard()
 	}
 }
 
@@ -1263,4 +1273,94 @@ func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any
 	} else {
 		app.returnNotFound(c)
 	}
+}
+
+func (app *App) createDashboard() {
+	dashboardBuilder := dashboard.NewDashboardBuilder()
+
+	// Build REST menu
+	for _, moduleHandler := range app.module.RESTMainHandlers {
+		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
+		restComponent := dashboard.RESTComponent{
+			HTTPMethod: httpMethod,
+			Route:      moduleHandler.Route,
+			Versioning: dashboard.RESTVersioning{
+				Value: moduleHandler.Version,
+				Key:   app.versioning.Key,
+				Type:  app.versioning.Type,
+			},
+			Request: dashboard.RESTRequest{},
+		}
+
+		funcType := reflect.TypeOf(moduleHandler.Handler)
+
+		for i := 0; i < funcType.NumIn(); i++ {
+			pipe := funcType.In(i)
+			pipeType, schemas := generateRequestPayload(pipe)
+			if pipeType != "" {
+				switch pipeType {
+				case BODY_PIPEABLE:
+					restComponent.Request.Body = schemas
+				case FORM_PIPEABLE:
+					restComponent.Request.Form = schemas
+				case QUERY_PIPEABLE:
+					restComponent.Request.Query = schemas
+				case HEADER_PIPEABLE:
+					restComponent.Request.Header = schemas
+				case PARAM_PIPEABLE:
+					restComponent.Request.Param = schemas
+				case FILE_PIPEABLE:
+					restComponent.Request.File = schemas
+				}
+			}
+		}
+		dashboardBuilder.AddRESTMenu(restComponent)
+	}
+
+	app.dashboard = dashboardBuilder.Build()
+
+	go app.serveNet()
+}
+
+func (app *App) serveNet() {
+	ln, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		fmt.Println("Error starting TCP server:", err)
+		return
+	}
+	defer ln.Close()
+
+	fmt.Println("TCP server listening on port 8080")
+
+	// Chấp nhận và xử lý từng kết nối
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection:", err)
+			continue
+		}
+
+		// Xử lý kết nối trong một goroutine riêng
+		go app.handleConnection(conn)
+	}
+}
+
+func (app *App) handleConnection(conn net.Conn) {
+	// Đảm bảo đóng kết nối sau khi xong
+	defer conn.Close()
+
+	fmt.Println("Client connected:", conn.RemoteAddr().String())
+
+	dashboardJSON, err := json.Marshal(app.dashboard)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = conn.Write([]byte(dashboardJSON))
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Client disconnected:", conn.RemoteAddr().String())
 }
