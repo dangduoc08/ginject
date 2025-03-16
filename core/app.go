@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path"
@@ -19,7 +18,7 @@ import (
 	"github.com/dangduoc08/gogo/aggregation"
 	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/dashboard"
+	"github.com/dangduoc08/gogo/devtool"
 	"github.com/dangduoc08/gogo/exception"
 	"github.com/dangduoc08/gogo/log"
 	"github.com/dangduoc08/gogo/routing"
@@ -51,8 +50,8 @@ type App struct {
 	Logger                                 common.Logger
 	versioning                             versioning.Versioning
 	isEnableVersioning                     bool
-	isEnableDashboard                      bool // TODO: test
-	dashboard                              *dashboard.Dashboard
+	isEnableDevtool                        bool
+	devtool                                *devtool.Devtool
 }
 
 // link to aliases
@@ -115,7 +114,6 @@ func New() *App {
 	event := ctx.NewEvent()
 
 	app := App{
-		isEnableDashboard:                      true, // TODO: test
 		route:                                  routing.NewRouter(),
 		catchRESTFnsMap:                        make(map[string][]common.Catch),
 		catchWSFnsMap:                          make(map[string][]common.Catch),
@@ -152,6 +150,8 @@ func (app *App) Create(m *Module) {
 	app.injectedProviders = injectedProviders
 
 	// Request cycles
+	// global exception filters
+	// module exception filters
 	// global middlewares
 	// module middlewares
 	// global guards
@@ -164,10 +164,10 @@ func (app *App) Create(m *Module) {
 	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
 	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
 		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
-		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.Method]
+		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.method]
 
-		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.Route, moduleExceptionFilter.Version)
-		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.route, moduleExceptionFilter.version)
+		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.handler.(common.Catch))
 	}
 
 	// WS module exception filters
@@ -190,9 +190,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global exception filters
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
 
-			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.route, mainHandlerItem.version)
 			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
 		}
 
@@ -331,8 +331,8 @@ func (app *App) Create(m *Module) {
 			}))
 
 			for _, mainHandlerItem := range app.module.RESTMainHandlers {
-				if routing.ToEndpoint(globalMiddleware.route) == mainHandlerItem.Route {
-					app.route.For(httpMethods, globalMiddleware.route, mainHandlerItem.Version)(globalMiddleware.handler)
+				if routing.ToEndpoint(globalMiddleware.route) == mainHandlerItem.route {
+					app.route.For(httpMethods, globalMiddleware.route, mainHandlerItem.version)(globalMiddleware.handler)
 				}
 			}
 		} else {
@@ -352,9 +352,9 @@ func (app *App) Create(m *Module) {
 
 	// REST module middlewares
 	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
-		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.Method]
+		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.method]
 
-		app.route.For([]string{httpMethod}, restModuleMiddleware.Route, restModuleMiddleware.Version)(restModuleMiddleware.Handlers...)
+		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(restModuleMiddleware.handlers...)
 	}
 
 	// WS module middlewares
@@ -382,9 +382,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global guards
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(canActivateMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(canActivateMiddleware)
 		}
 
 		// WS global guards
@@ -403,10 +403,10 @@ func (app *App) Create(m *Module) {
 			return func(c *ctx.Context) {
 				common.HandleGuard(c, canActiveFn(c))
 			}
-		}(moduleGuard.Handler.(common.CanActivate))
+		}(moduleGuard.handler.(common.CanActivate))
 
-		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.Method]
-		app.route.For([]string{httpMethod}, moduleGuard.Route, moduleGuard.Version)(canActivateMiddleware)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.method]
+		app.route.For([]string{httpMethod}, moduleGuard.route, moduleGuard.version)(canActivateMiddleware)
 	}
 
 	// WS module guards
@@ -435,8 +435,8 @@ func (app *App) Create(m *Module) {
 
 		// REST global interceptors
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
-			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.route, mainHandlerItem.version)
 
 			interceptMiddleware := func(interceptor common.Interceptable) ctx.Handler {
 				return func(c *ctx.Context) {
@@ -468,7 +468,7 @@ func (app *App) Create(m *Module) {
 				}
 			}(globalInterceptor)
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(interceptMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(interceptMiddleware)
 		}
 
 		// WS global interceptors
@@ -512,8 +512,8 @@ func (app *App) Create(m *Module) {
 
 	// REST module interceptors
 	for _, moduleInterceptor := range app.module.RESTInterceptors {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.Method]
-		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleInterceptor.Route, moduleInterceptor.Version)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.method]
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleInterceptor.route, moduleInterceptor.version)
 
 		interceptMiddleware := func(interceptFn common.Intercept) ctx.Handler {
 			return func(c *ctx.Context) {
@@ -543,10 +543,10 @@ func (app *App) Create(m *Module) {
 
 				c.Next()
 			}
-		}(moduleInterceptor.Handler.(common.Intercept))
+		}(moduleInterceptor.handler.(common.Intercept))
 
 		// add interceptor middleware
-		app.route.For([]string{httpMethod}, moduleInterceptor.Route, moduleInterceptor.Version)(interceptMiddleware)
+		app.route.For([]string{httpMethod}, moduleInterceptor.route, moduleInterceptor.version)(interceptMiddleware)
 	}
 
 	// WS module interceptors
@@ -589,18 +589,18 @@ func (app *App) Create(m *Module) {
 
 	// main REST handler
 	for _, moduleHandler := range app.module.RESTMainHandlers {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
-		if moduleHandler.Method == routing.SERVE {
-			r := moduleHandler.Route
+		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
+		if moduleHandler.method == routing.SERVE {
+			r := moduleHandler.route
 			lr := len(r)
 			lastWildcardSlashIndex := 0 // zero mean use config dir
 			if lr >= 2 && r[lr-2:] == "*/" {
 				lastWildcardSlashIndex = strings.Count(r, "/") - 1
 			}
 
-			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
+			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.route, moduleHandler.version)] = lastWildcardSlashIndex
 		}
-		app.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
+		app.route.AddInjectableHandler(httpMethod, moduleHandler.route, moduleHandler.version, moduleHandler.handler)
 	}
 
 	// main WS handler
@@ -608,9 +608,8 @@ func (app *App) Create(m *Module) {
 		app.wsMainHandlerMap[moduleHandler.EventName] = moduleHandler.Handler
 	}
 
-	// TODO: test dashboard function
-	if app.isEnableDashboard {
-		app.createDashboard()
+	if app.isEnableDevtool {
+		app.createDevtool()
 	}
 }
 
@@ -635,6 +634,12 @@ func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionF
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
 	app.versioning = v
 	app.isEnableVersioning = true
+
+	return app
+}
+
+func (app *App) EnableDevtool() *App {
+	app.isEnableDevtool = true
 
 	return app
 }
@@ -689,7 +694,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer app.ctxPool.Put(c)
 
-	if utils.ArrIncludes[string](wsPaths, r.URL.Path) {
+	if utils.ArrIncludes(wsPaths, r.URL.Path) {
 		c.SetType(ctx.WSType)
 		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
 			app.handleWSRequest(wsConn, w, r, c)
@@ -1144,7 +1149,7 @@ func (app *App) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb 
 func (app *App) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) {
 	c.Event.RemoveAllListeners(subscribedEventName + wsid)
 	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
-		wsids = utils.ArrFilter[string](wsids.([]string), func(el string, i int) bool {
+		wsids = utils.ArrFilter(wsids.([]string), func(el string, i int) bool {
 			return el != wsid
 		})
 		app.wsEventToID.Swap(subscribedEventName, wsids)
@@ -1275,24 +1280,29 @@ func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any
 	}
 }
 
-func (app *App) createDashboard() {
-	dashboardBuilder := dashboard.NewDashboardBuilder()
+func (app *App) createDevtool() {
+	devtoolBuilder := devtool.NewDevtoolBuilder()
 
 	// Build REST menu
+	sort.Slice(app.module.RESTMainHandlers, func(i, j int) bool {
+		return app.module.RESTMainHandlers[i].route < app.module.RESTMainHandlers[j].route
+	})
+
 	for _, moduleHandler := range app.module.RESTMainHandlers {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
-		restComponent := dashboard.RESTComponent{
+		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
+		restComponent := devtool.RESTComponent{
+			Handler:    moduleHandler.handlerName,
 			HTTPMethod: httpMethod,
-			Route:      moduleHandler.Route,
-			Versioning: dashboard.RESTVersioning{
-				Value: moduleHandler.Version,
+			Route:      moduleHandler.route,
+			Versioning: devtool.RESTVersioning{
+				Value: moduleHandler.version,
 				Key:   app.versioning.Key,
 				Type:  app.versioning.Type,
 			},
-			Request: dashboard.RESTRequest{},
+			Request: devtool.RESTRequest{},
 		}
 
-		funcType := reflect.TypeOf(moduleHandler.Handler)
+		funcType := reflect.TypeOf(moduleHandler.handler)
 
 		for i := 0; i < funcType.NumIn(); i++ {
 			pipe := funcType.In(i)
@@ -1314,53 +1324,8 @@ func (app *App) createDashboard() {
 				}
 			}
 		}
-		dashboardBuilder.AddRESTMenu(restComponent)
+		devtoolBuilder.AddRESTMenu(moduleHandler.controllerPath, restComponent)
 	}
 
-	app.dashboard = dashboardBuilder.Build()
-
-	go app.serveNet()
-}
-
-func (app *App) serveNet() {
-	ln, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		fmt.Println("Error starting TCP server:", err)
-		return
-	}
-	defer ln.Close()
-
-	fmt.Println("TCP server listening on port 8080")
-
-	// Chấp nhận và xử lý từng kết nối
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection:", err)
-			continue
-		}
-
-		// Xử lý kết nối trong một goroutine riêng
-		go app.handleConnection(conn)
-	}
-}
-
-func (app *App) handleConnection(conn net.Conn) {
-	// Đảm bảo đóng kết nối sau khi xong
-	defer conn.Close()
-
-	fmt.Println("Client connected:", conn.RemoteAddr().String())
-
-	dashboardJSON, err := json.Marshal(app.dashboard)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = conn.Write([]byte(dashboardJSON))
-
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Client disconnected:", conn.RemoteAddr().String())
+	app.devtool = devtoolBuilder.Build()
 }
