@@ -26,30 +26,40 @@ func ModuleBuilder() *moduleBuilder {
 }
 
 type RESTMiddlewareLayer struct {
-	controllerName string
-	Route          string
-	Version        string
-	Method         string
-	Handlers       []func(*ctx.Context)
+	controllerPath string
+	handlerName    string
+	route          string
+	version        string
+	method         string
+	handlers       []func(*ctx.Context)
 }
 
 type RESTCommonLayer struct {
-	Route   string
-	Version string
-	Method  string
-	Handler any
+	controllerPath string
+	handlerName    string
+	route          string
+	version        string
+	method         string
+	handler        any
 }
 
+// fix later
+// change to private fields
+// handle for devtool
 type WSMiddlewareLayer struct {
-	Subprotocol string
-	EventName   string
-	Handlers    []func(*ctx.Context)
+	controllerPath string
+	handlerName    string
+	Subprotocol    string
+	EventName      string
+	Handlers       []func(*ctx.Context)
 }
 
 type WSCommonLayer struct {
-	Subprotocol string
-	EventName   string
-	Handler     any
+	controllerPath string
+	handlerName    string
+	Subprotocol    string
+	EventName      string
+	Handler        any
 }
 
 func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {

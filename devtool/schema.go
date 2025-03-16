@@ -1,4 +1,4 @@
-package dashboard
+package devtool
 
 import (
 	"go/token"

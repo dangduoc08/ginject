@@ -1,4 +1,4 @@
-package dashboard
+package devtool
 
 type RESTRequest struct {
 	Body   []Schema `json:"body"`
@@ -16,6 +16,8 @@ type RESTVersioning struct {
 }
 
 type RESTComponent struct {
+	ID         string         `json:"id"`
+	Handler    string         `json:"handler"`
 	HTTPMethod string         `json:"http_method"`
 	Route      string         `json:"route"`
 	Versioning RESTVersioning `json:"versioning"`

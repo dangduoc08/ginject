@@ -14,7 +14,7 @@ import (
 
 	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/dashboard"
+	"github.com/dangduoc08/gogo/devtool"
 	"github.com/dangduoc08/gogo/utils"
 )
 
@@ -472,7 +472,7 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 // TODO:
 // shouldn't handle context since ctx quite generic
 // need to handle ws payload
-func generateRequestPayload(pipe reflect.Type) (string, []dashboard.Schema) {
+func generateRequestPayload(pipe reflect.Type) (string, []devtool.Schema) {
 	pipeableTypes := map[string]reflect.Type{
 		BODY_PIPEABLE:   reflect.TypeOf((*common.BodyPipeable)(nil)).Elem(),
 		FORM_PIPEABLE:   reflect.TypeOf((*common.FormPipeable)(nil)).Elem(),
@@ -484,7 +484,7 @@ func generateRequestPayload(pipe reflect.Type) (string, []dashboard.Schema) {
 
 	for pipeableKey, interfaceType := range pipeableTypes {
 		if pipe.Implements(interfaceType) {
-			return pipeableKey, dashboard.GenerateSchema(pipe, ctx.TagBind)
+			return pipeableKey, devtool.GenerateSchema(pipe, ctx.TagBind)
 		}
 	}
 

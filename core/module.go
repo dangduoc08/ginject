@@ -295,7 +295,7 @@ func (m *Module) NewModule() *Module {
 				// Handle REST
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
 					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.REST)
-					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
+					controllerPath := reflect.TypeOf(m.controllers[i]).PkgPath()
 					modulePrefixes := []string{}
 
 					for _, globalPrefixes := range globalPrefixArr {
@@ -316,32 +316,32 @@ func (m *Module) NewModule() *Module {
 
 					// apply controller bound middlewares
 					for _, restModuleMiddleware := range m.RESTMiddlewares {
-						if restModuleMiddleware.controllerName == controllerName {
+						if restModuleMiddleware.controllerPath == controllerPath {
 							for pattern := range rest.RouterMap {
-								if restModuleMiddleware.Method == "*" {
+								if restModuleMiddleware.method == "*" {
 									method, route, version := routing.PatternToMethodRouteVersion(pattern)
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
 										RESTMiddlewareLayer{
-											controllerName: controllerName,
-											Route:          route,
-											Version:        version,
-											Method:         method,
-											Handlers:       restModuleMiddleware.Handlers,
+											controllerPath: controllerPath,
+											route:          route,
+											version:        version,
+											method:         method,
+											handlers:       restModuleMiddleware.handlers,
 										},
 									)
-								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.Route {
+								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.route {
 									method, route, version := routing.PatternToMethodRouteVersion(pattern)
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
 										RESTMiddlewareLayer{
-											controllerName: controllerName,
-											Route:          route,
-											Version:        version,
-											Method:         method,
-											Handlers:       restModuleMiddleware.Handlers,
+											controllerPath: controllerPath,
+											route:          route,
+											version:        version,
+											method:         method,
+											handlers:       restModuleMiddleware.handlers,
 										},
 									)
 								}
@@ -400,10 +400,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound guards
 						for _, guardItem := range guardItemArr {
 							m.RESTGuards = append(m.RESTGuards, RESTCommonLayer{
-								Method:  guardItem.Method,
-								Route:   guardItem.Route,
-								Version: guardItem.Version,
-								Handler: guardItem.Handler,
+								controllerPath: controllerPath,
+								method:         guardItem.Method,
+								route:          guardItem.Route,
+								version:        guardItem.Version,
+								handler:        guardItem.Handler,
 							})
 						}
 					}
@@ -459,10 +460,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound interceptors
 						for _, interceptorItem := range interceptorItemArr {
 							m.RESTInterceptors = append(m.RESTInterceptors, RESTCommonLayer{
-								Method:  interceptorItem.Method,
-								Route:   interceptorItem.Route,
-								Version: interceptorItem.Version,
-								Handler: interceptorItem.Handler,
+								controllerPath: controllerPath,
+								method:         interceptorItem.Method,
+								route:          interceptorItem.Route,
+								version:        interceptorItem.Version,
+								handler:        interceptorItem.Handler,
 							})
 						}
 					}
@@ -518,10 +520,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound exceptionFilters
 						for _, exceptionFilterItem := range exceptionFilterItemArr {
 							m.RESTExceptionFilters = append(m.RESTExceptionFilters, RESTCommonLayer{
-								Method:  exceptionFilterItem.Method,
-								Route:   exceptionFilterItem.Route,
-								Version: exceptionFilterItem.Version,
-								Handler: exceptionFilterItem.Handler,
+								controllerPath: controllerPath,
+								method:         exceptionFilterItem.Method,
+								route:          exceptionFilterItem.Route,
+								version:        exceptionFilterItem.Version,
+								handler:        exceptionFilterItem.Handler,
 							})
 						}
 					}
@@ -534,10 +537,12 @@ func (m *Module) NewModule() *Module {
 
 						method, route, version := routing.PatternToMethodRouteVersion(pattern)
 						m.RESTMainHandlers = append(m.RESTMainHandlers, RESTCommonLayer{
-							Method:  method,
-							Route:   routing.ToEndpoint(route),
-							Version: version,
-							Handler: handler,
+							controllerPath: controllerPath,
+							handlerName:    rest.PatternToFnNameMap[pattern],
+							method:         method,
+							route:          routing.ToEndpoint(route),
+							version:        version,
+							handler:        handler,
 						})
 					}
 				}
