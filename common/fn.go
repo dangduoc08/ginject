@@ -17,7 +17,8 @@ var singletons = make(map[string]any)
 func GetFnName(handler any) string {
 	strs := strings.Split(runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(), ".")
 	fnName := strs[len(strs)-1]
-	return fnName[:len(fnName)-3]
+	fnName = strings.TrimSuffix(fnName, "-fm")
+	return fnName
 }
 
 func ParseFnNameToURL(fnName string, operations map[string]string) (string, string, string) {
