@@ -50,20 +50,20 @@ type Module struct {
 	IsGlobal   bool
 	OnInit     func()
 
+	// store REST module exception filters
+	RESTExceptionFilters []RESTLayer
+
 	// store REST module middlewares
-	RESTMiddlewares []RESTMiddlewareLayer
+	RESTMiddlewares []RESTLayer
 
 	// store REST module guards
-	RESTGuards []RESTCommonLayer
+	RESTGuards []RESTLayer
 
 	// store REST module interceptors
-	RESTInterceptors []RESTCommonLayer
-
-	// store REST module exception filters
-	RESTExceptionFilters []RESTCommonLayer
+	RESTInterceptors []RESTLayer
 
 	// store REST main handlers
-	RESTMainHandlers []RESTCommonLayer
+	RESTMainHandlers []RESTLayer
 
 	// store WS module middlewares
 	WSMiddlewares []struct {
@@ -275,7 +275,7 @@ func (m *Module) NewModule() *Module {
 
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
-			newRESTMiddlewares := []RESTMiddlewareLayer{}
+			newRESTMiddlewares := []RESTLayer{}
 
 			newWSMiddlewares := []struct {
 				controllerName string
@@ -314,6 +314,76 @@ func (m *Module) NewModule() *Module {
 						rest.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
 					}
 
+					// apply controller bound exception filers
+					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
+						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
+
+						exceptionFilterItemArr := exceptionFilter.
+							InjectProvidersIntoRESTExceptionFilters(
+								&rest,
+								func(
+									_ int,
+									exceptionFilterableType reflect.Type,
+									exceptionFilterableValue,
+									newExceptionFilter reflect.Value,
+								) {
+
+									// callback use to inject providers
+									// into exceptionFilter
+									exceptionFilterField := exceptionFilterableType.Field(i)
+									exceptionFilterFieldType := exceptionFilterField.Type
+									exceptionFilterFieldNameKey := exceptionFilterField.Name
+									injectProviderKey := exceptionFilterFieldType.PkgPath() + "/" + exceptionFilterFieldType.String()
+
+									if !token.IsExported(exceptionFilterFieldNameKey) {
+										panic(fmt.Errorf(
+											utils.FmtRed(
+												"can't set value to unexported '%v' field of the '%v' exceptionFilter",
+												exceptionFilterFieldNameKey,
+												exceptionFilterableType.Name(),
+											),
+										))
+									}
+
+									// Inject providers into exceptionFilter
+									// inject provider priorities
+									// local inject
+									// global inject
+									// inner packages
+									// resolve dependencies error
+									if injectedProviders[injectProviderKey] != nil {
+										newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+									} else if globalProviders[injectProviderKey] != nil {
+										newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+									} else if globalInterfaces[injectProviderKey] != nil {
+										newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
+									} else if !isInjectedProvider(exceptionFilterFieldType) {
+										newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
+									} else {
+										panic(fmt.Errorf(
+											utils.FmtRed(
+												"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' exceptionFilter",
+												exceptionFilterFieldType.String(),
+												i,
+												exceptionFilterableType.Name(),
+											),
+										))
+									}
+								})
+
+						// apply controller bound exceptionFilters
+						for _, exceptionFilterItem := range exceptionFilterItemArr {
+							m.RESTExceptionFilters = append(m.RESTExceptionFilters, RESTLayer{
+								controllerPath: controllerPath,
+								method:         exceptionFilterItem.REST.Method,
+								route:          exceptionFilterItem.REST.Route,
+								version:        exceptionFilterItem.REST.Version,
+								handler:        exceptionFilterItem.REST.Common.Handler,
+								name:           exceptionFilterItem.REST.Common.Name,
+							})
+						}
+					}
+
 					// apply controller bound middlewares
 					for _, restModuleMiddleware := range m.RESTMiddlewares {
 						if restModuleMiddleware.controllerPath == controllerPath {
@@ -323,12 +393,13 @@ func (m *Module) NewModule() *Module {
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
-										RESTMiddlewareLayer{
+										RESTLayer{
 											controllerPath: controllerPath,
 											route:          route,
 											version:        version,
 											method:         method,
-											handlers:       restModuleMiddleware.handlers,
+											handler:        restModuleMiddleware.handler,
+											name:           restModuleMiddleware.name,
 										},
 									)
 								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.route {
@@ -336,12 +407,13 @@ func (m *Module) NewModule() *Module {
 
 									newRESTMiddlewares = append(
 										newRESTMiddlewares,
-										RESTMiddlewareLayer{
+										RESTLayer{
 											controllerPath: controllerPath,
 											route:          route,
 											version:        version,
 											method:         method,
-											handlers:       restModuleMiddleware.handlers,
+											handler:        restModuleMiddleware.handler,
+											name:           restModuleMiddleware.name,
 										},
 									)
 								}
@@ -399,12 +471,13 @@ func (m *Module) NewModule() *Module {
 
 						// apply controller bound guards
 						for _, guardItem := range guardItemArr {
-							m.RESTGuards = append(m.RESTGuards, RESTCommonLayer{
+							m.RESTGuards = append(m.RESTGuards, RESTLayer{
 								controllerPath: controllerPath,
-								method:         guardItem.Method,
-								route:          guardItem.Route,
-								version:        guardItem.Version,
-								handler:        guardItem.Handler,
+								method:         guardItem.REST.Method,
+								route:          guardItem.REST.Route,
+								version:        guardItem.REST.Version,
+								handler:        guardItem.REST.Common.Handler,
+								name:           guardItem.REST.Common.Name,
 							})
 						}
 					}
@@ -459,72 +532,13 @@ func (m *Module) NewModule() *Module {
 
 						// apply controller bound interceptors
 						for _, interceptorItem := range interceptorItemArr {
-							m.RESTInterceptors = append(m.RESTInterceptors, RESTCommonLayer{
+							m.RESTInterceptors = append(m.RESTInterceptors, RESTLayer{
 								controllerPath: controllerPath,
-								method:         interceptorItem.Method,
-								route:          interceptorItem.Route,
-								version:        interceptorItem.Version,
-								handler:        interceptorItem.Handler,
-							})
-						}
-					}
-
-					// apply controller bound exception filer
-					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
-						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
-						exceptionFilterItemArr := exceptionFilter.InjectProvidersIntoRESTExceptionFilters(&rest, func(i int, exceptionFilterableType reflect.Type, exceptionFilterableValue, newExceptionFilter reflect.Value) {
-
-							// callback use to inject providers
-							// into exceptionFilter
-							exceptionFilterField := exceptionFilterableType.Field(i)
-							exceptionFilterFieldType := exceptionFilterField.Type
-							exceptionFilterFieldNameKey := exceptionFilterField.Name
-							injectProviderKey := exceptionFilterFieldType.PkgPath() + "/" + exceptionFilterFieldType.String()
-
-							if !token.IsExported(exceptionFilterFieldNameKey) {
-								panic(fmt.Errorf(
-									utils.FmtRed(
-										"can't set value to unexported '%v' field of the '%v' exceptionFilter",
-										exceptionFilterFieldNameKey,
-										exceptionFilterableType.Name(),
-									),
-								))
-							}
-
-							// Inject providers into exceptionFilter
-							// inject provider priorities
-							// local inject
-							// global inject
-							// inner packages
-							// resolve dependencies error
-							if injectedProviders[injectProviderKey] != nil {
-								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
-							} else if globalProviders[injectProviderKey] != nil {
-								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
-							} else if globalInterfaces[injectProviderKey] != nil {
-								newExceptionFilter.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
-							} else if !isInjectedProvider(exceptionFilterFieldType) {
-								newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
-							} else {
-								panic(fmt.Errorf(
-									utils.FmtRed(
-										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' exceptionFilter",
-										exceptionFilterFieldType.String(),
-										i,
-										exceptionFilterableType.Name(),
-									),
-								))
-							}
-						})
-
-						// apply controller bound exceptionFilters
-						for _, exceptionFilterItem := range exceptionFilterItemArr {
-							m.RESTExceptionFilters = append(m.RESTExceptionFilters, RESTCommonLayer{
-								controllerPath: controllerPath,
-								method:         exceptionFilterItem.Method,
-								route:          exceptionFilterItem.Route,
-								version:        exceptionFilterItem.Version,
-								handler:        exceptionFilterItem.Handler,
+								method:         interceptorItem.REST.Method,
+								route:          interceptorItem.REST.Route,
+								version:        interceptorItem.REST.Version,
+								handler:        interceptorItem.REST.Common.Handler,
+								name:           interceptorItem.REST.Common.Name,
 							})
 						}
 					}
@@ -536,9 +550,9 @@ func (m *Module) NewModule() *Module {
 						}
 
 						method, route, version := routing.PatternToMethodRouteVersion(pattern)
-						m.RESTMainHandlers = append(m.RESTMainHandlers, RESTCommonLayer{
+						m.RESTMainHandlers = append(m.RESTMainHandlers, RESTLayer{
 							controllerPath: controllerPath,
-							handlerName:    rest.PatternToFnNameMap[pattern],
+							name:           rest.PatternToFnNameMap[pattern],
 							method:         method,
 							route:          routing.ToEndpoint(route),
 							version:        version,
@@ -656,8 +670,8 @@ func (m *Module) NewModule() *Module {
 								Handler     any
 							}{
 								Subprotocol: ws.GetSubprotocol(),
-								EventName:   guardItem.EventName,
-								Handler:     guardItem.Handler,
+								EventName:   guardItem.WS.EventName,
+								Handler:     guardItem.WS.Common.Handler,
 							})
 						}
 					}
@@ -718,8 +732,8 @@ func (m *Module) NewModule() *Module {
 								Handler     any
 							}{
 								Subprotocol: ws.GetSubprotocol(),
-								EventName:   interceptorItem.EventName,
-								Handler:     interceptorItem.Handler,
+								EventName:   interceptorItem.WS.EventName,
+								Handler:     interceptorItem.WS.Common.Handler,
 							})
 						}
 					}
@@ -780,8 +794,8 @@ func (m *Module) NewModule() *Module {
 								Handler     any
 							}{
 								Subprotocol: ws.GetSubprotocol(),
-								EventName:   exceptionFilterItem.EventName,
-								Handler:     exceptionFilterItem.Handler,
+								EventName:   exceptionFilterItem.WS.EventName,
+								Handler:     exceptionFilterItem.WS.Common.Handler,
 							})
 						}
 					}

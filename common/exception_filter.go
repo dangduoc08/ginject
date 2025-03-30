@@ -19,16 +19,21 @@ type ExceptionFilterHandler struct {
 	Handlers            []any
 }
 
-type ExceptionFilterItem struct {
-	// for REST
+type RESTExceptionFilterItem struct {
 	Method  string
 	Route   string
 	Version string
+	Common  CommonItem
+}
 
-	// for WS
+type WSExceptionFilterItem struct {
 	EventName string
+	Common    CommonItem
+}
 
-	Handler any
+type ExceptionFilterItem struct {
+	REST RESTExceptionFilterItem
+	WS   WSExceptionFilterItem
 }
 
 type ExceptionFilter struct {
@@ -49,7 +54,6 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 	exceptionFilterItemArr := []ExceptionFilterItem{}
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
-
 		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.ExceptionFilterable)
 		exceptionFilterableValue := reflect.ValueOf(exceptionFilterHandler.ExceptionFilterable)
 		newExceptionFilter := reflect.New(exceptionFilterableType)
@@ -81,10 +85,15 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-					Method:  httpMethod,
-					Route:   routing.ToEndpoint(route),
-					Version: version,
-					Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
+					REST: RESTExceptionFilterItem{
+						Method:  httpMethod,
+						Route:   routing.ToEndpoint(route),
+						Version: version,
+						Common: CommonItem{
+							Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
+							Name:    exceptionFilterableType.String(),
+						},
+					},
 				})
 			}
 		}
@@ -126,8 +135,13 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 		for pattern := range ws.patternToFnNameMap {
 			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-					EventName: pattern,
-					Handler:   exceptionFilterHandler.ExceptionFilterable.Catch,
+					WS: WSExceptionFilterItem{
+						EventName: pattern,
+						Common: CommonItem{
+							Handler: exceptionFilterHandler.ExceptionFilterable.Catch,
+							Name:    exceptionFilterableType.String(),
+						},
+					},
 				})
 			}
 		}

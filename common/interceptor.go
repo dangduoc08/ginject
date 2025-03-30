@@ -19,16 +19,21 @@ type InterceptorHandler struct {
 	Handlers      []any
 }
 
-type InterceptorItem struct {
-	// for REST
+type RESTInterceptorItem struct {
 	Method  string
 	Route   string
 	Version string
+	Common  CommonItem
+}
 
-	// for WS
+type WSInterceptorItem struct {
 	EventName string
+	Common    CommonItem
+}
 
-	Handler any
+type InterceptorItem struct {
+	REST RESTInterceptorItem
+	WS   WSInterceptorItem
 }
 
 type Interceptor struct {
@@ -82,10 +87,15 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-					Method:  httpMethod,
-					Route:   routing.ToEndpoint(route),
-					Version: version,
-					Handler: interceptorHandler.Interceptable.Intercept,
+					REST: RESTInterceptorItem{
+						Method:  httpMethod,
+						Route:   routing.ToEndpoint(route),
+						Version: version,
+						Common: CommonItem{
+							Handler: interceptorHandler.Interceptable.Intercept,
+							Name:    interceptableType.String(),
+						},
+					},
 				})
 			}
 		}
@@ -127,8 +137,13 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 		for pattern := range ws.patternToFnNameMap {
 			if _, ok := shouldAddInterceptors[pattern]; ok || len(shouldAddInterceptors) == 0 {
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-					EventName: pattern,
-					Handler:   interceptorHandler.Interceptable.Intercept,
+					WS: WSInterceptorItem{
+						EventName: pattern,
+						Common: CommonItem{
+							Handler: interceptorHandler.Interceptable.Intercept,
+							Name:    interceptableType.String(),
+						},
+					},
 				})
 			}
 		}

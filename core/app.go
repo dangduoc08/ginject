@@ -353,8 +353,9 @@ func (app *App) Create(m *Module) {
 	// REST module middlewares
 	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
 		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.method]
+		middlewareHandlers := restModuleMiddleware.handler.(ctx.Handler)
 
-		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(restModuleMiddleware.handlers...)
+		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(middlewareHandlers)
 	}
 
 	// WS module middlewares
@@ -608,9 +609,9 @@ func (app *App) Create(m *Module) {
 		app.wsMainHandlerMap[moduleHandler.EventName] = moduleHandler.Handler
 	}
 
-	if app.isEnableDevtool {
-		app.createDevtool()
-	}
+	// if app.isEnableDevtool {
+	app.createDevtool()
+	// }
 }
 
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
@@ -1280,18 +1281,35 @@ func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any
 	}
 }
 
+// TODO:
+// exception filter co thể biết được nó thuộc main handler nào
 func (app *App) createDevtool() {
 	devtoolBuilder := devtool.NewDevtoolBuilder()
 
-	// Build REST menu
 	sort.Slice(app.module.RESTMainHandlers, func(i, j int) bool {
 		return app.module.RESTMainHandlers[i].route < app.module.RESTMainHandlers[j].route
 	})
 
+	// for _, restMiddleware := range app.module.RESTMiddlewares {
+	// 	fmt.Printf("%+v \n", restMiddleware.name)
+	// }
+
+	// for _, restExceptionFilter := range app.module.RESTExceptionFilters {
+	// 	fmt.Println("Exception filter name =", restExceptionFilter.name, restExceptionFilter.controllerPath, restExceptionFilter.method, restExceptionFilter.route, restExceptionFilter.version)
+	// }
+
+	// for _, restGuard := range app.module.RESTGuards {
+	// 	fmt.Println("Guard name =", restGuard.name)
+	// }
+
+	// for _, restInterceptor := range app.module.RESTInterceptors {
+	// 	fmt.Println("Intercepto name =", restInterceptor.name)
+	// }
+
 	for _, moduleHandler := range app.module.RESTMainHandlers {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
 		restComponent := devtool.RESTComponent{
-			Handler:    moduleHandler.handlerName,
+			Handler:    moduleHandler.name,
 			HTTPMethod: httpMethod,
 			Route:      moduleHandler.route,
 			Versioning: devtool.RESTVersioning{
@@ -1324,8 +1342,9 @@ func (app *App) createDevtool() {
 				}
 			}
 		}
-		devtoolBuilder.AddRESTMenu(moduleHandler.controllerPath, restComponent)
+		devtoolBuilder.AddREST(moduleHandler.controllerPath, restComponent)
 	}
 
 	app.devtool = devtoolBuilder.Build()
+	app.devtool.Serve()
 }
