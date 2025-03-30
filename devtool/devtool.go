@@ -1,41 +1,64 @@
 package devtool
 
-import (
-	"crypto/sha256"
-	"encoding/base64"
-)
-
-type DevtoolMenu struct {
+type DevtoolController struct {
 	REST []RESTComponent `json:"rest"`
 }
 
-type Devtool struct {
-	Menus DevtoolMenu `json:"menus"`
+type DevtoolBuilder struct {
+	Controller DevtoolController
 }
 
-type DevtoolBuilder struct {
-	Menus DevtoolMenu
+type Devtool struct {
+	Controller DevtoolController `json:"controllers"`
 }
 
 func NewDevtoolBuilder() *DevtoolBuilder {
 	return &DevtoolBuilder{}
 }
 
-func (d *DevtoolBuilder) AddRESTMenu(controllerPath string, restComponent RESTComponent) *DevtoolBuilder {
-	restComponent.ID = d.generateHandlerID(controllerPath + restComponent.Handler)
-	d.Menus.REST = append(d.Menus.REST, restComponent)
-	return d
+func (builder *DevtoolBuilder) AddREST(controllerPath string, restComponent RESTComponent) *DevtoolBuilder {
+	// restComponent.ID = d.generateHandlerID(controllerPath + restComponent.Handler)
+	builder.Controller.REST = append(builder.Controller.REST, restComponent)
+	return builder
 }
 
-func (d *DevtoolBuilder) Build() *Devtool {
+func (builder *DevtoolBuilder) Build() *Devtool {
 	return &Devtool{
-		Menus: d.Menus,
+		Controller: builder.Controller,
 	}
 }
 
-func (d *DevtoolBuilder) generateHandlerID(str string) string {
-	encoded := base64.RawURLEncoding.EncodeToString([]byte(str))
-	hash := sha256.Sum256([]byte(encoded))
-	encoded = base64.RawURLEncoding.EncodeToString(hash[:])
-	return encoded[:12]
+func (d *Devtool) Serve() {
+
+	// tls := flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
+
+	// fmt.Println(tls)
+
+	// listener, err := net.Listen("tcp", "localhost:50051")
+	// fmt.Println("server listen on: localhost:50051")
+
+	// if err != nil {
+	// 	log.Fatalf("error %v", err)
+	// }
+
+	// server := grpc.NewServer(grpc.)
+
+	// calculatorpb.RegisterCalculatorServiceServer(server, &Server{})
+
+	// if err := server.Serve(listener); err != nil {
+	// 	log.Fatalf("failed to listen: %v", err)
+	// }
+
+	// client := NewGreeterClient(conn)
+
+	// // Gửi request đến server
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// defer cancel()
+
+	// res, err := client.SayHello(ctx, &HelloRequest{Name: "Alice"})
+	// if err != nil {
+	// 	log.Fatalf("Error calling SayHello: %v", err)
+	// }
+
+	// fmt.Println("Response from server:", res.Message)
 }

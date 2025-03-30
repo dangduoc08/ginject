@@ -25,41 +25,32 @@ func ModuleBuilder() *moduleBuilder {
 	}
 }
 
-type RESTMiddlewareLayer struct {
-	controllerPath string
-	handlerName    string
-	route          string
-	version        string
-	method         string
-	handlers       []func(*ctx.Context)
-}
-
-type RESTCommonLayer struct {
-	controllerPath string
-	handlerName    string
-	route          string
-	version        string
-	method         string
+type RESTLayer struct {
 	handler        any
+	controllerPath string
+	name           string
+	route          string
+	version        string
+	method         string
 }
 
 // fix later
 // change to private fields
 // handle for devtool
 type WSMiddlewareLayer struct {
-	controllerPath string
-	handlerName    string
-	Subprotocol    string
-	EventName      string
-	Handlers       []func(*ctx.Context)
+	// controllerPath string
+	// handlerName    string
+	Subprotocol string
+	EventName   string
+	Handlers    []func(*ctx.Context)
 }
 
 type WSCommonLayer struct {
-	controllerPath string
-	handlerName    string
-	Subprotocol    string
-	EventName      string
-	Handler        any
+	// controllerPath string
+	// name           string
+	Subprotocol string
+	EventName   string
+	Handler     any
 }
 
 func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {
@@ -118,11 +109,11 @@ func (m *moduleBuilder) Build() *Module {
 		providers:            m.providers,
 		controllers:          m.controllers,
 		Middleware:           &Middleware{},
-		RESTMiddlewares:      []RESTMiddlewareLayer{},
-		RESTGuards:           []RESTCommonLayer{},
-		RESTInterceptors:     []RESTCommonLayer{},
-		RESTExceptionFilters: []RESTCommonLayer{},
-		RESTMainHandlers:     []RESTCommonLayer{},
+		RESTMiddlewares:      []RESTLayer{},
+		RESTGuards:           []RESTLayer{},
+		RESTInterceptors:     []RESTLayer{},
+		RESTExceptionFilters: []RESTLayer{},
+		RESTMainHandlers:     []RESTLayer{},
 
 		WSMiddlewares: []struct {
 			controllerName string

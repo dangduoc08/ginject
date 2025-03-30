@@ -49,26 +49,27 @@ func (mw *Middleware) Apply(middleware ctx.Handler, handlers ...any) *Middleware
 
 func (mw *Middleware) addREST(
 	controllerPath string,
-	restMiddlewares *[]RESTMiddlewareLayer,
+	restMiddlewares *[]RESTLayer,
 ) {
 	for key, middlewareHandlers := range mw.middlewares {
-		// apply for all
-		if key == "*" {
-			middlewareStruct := RESTMiddlewareLayer{
+
+		for _, middlewareHandler := range middlewareHandlers {
+			middlewareName := common.GetFnName(middlewareHandler)
+			middlewareLayer := RESTLayer{
 				controllerPath: controllerPath,
-				method:         key,
 				route:          key,
-				handlers:       middlewareHandlers,
+				name:           middlewareName,
+				handler:        middlewareHandler,
 			}
-			*restMiddlewares = append(*restMiddlewares, middlewareStruct)
-		} else if httpMethod, _, _ := common.ParseFnNameToURL(key, common.RESTOperations); httpMethod != "" {
-			middlewareStruct := RESTMiddlewareLayer{
-				controllerPath: controllerPath,
-				method:         httpMethod,
-				route:          key,
-				handlers:       middlewareHandlers,
+
+			// apply for all
+			if key == "*" {
+				middlewareLayer.method = key
+			} else if httpMethod, _, _ := common.ParseFnNameToURL(key, common.RESTOperations); httpMethod != "" {
+				middlewareLayer.method = httpMethod
 			}
-			*restMiddlewares = append(*restMiddlewares, middlewareStruct)
+
+			*restMiddlewares = append(*restMiddlewares, middlewareLayer)
 		}
 	}
 }

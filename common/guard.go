@@ -18,17 +18,21 @@ type GuardHandler struct {
 	Handlers []any
 }
 
-type GuardItem struct {
-
-	// for REST
+type RESTGuardItem struct {
 	Method  string
 	Route   string
 	Version string
+	Common  CommonItem
+}
 
-	// for WS
+type WSGuardItem struct {
 	EventName string
+	Common    CommonItem
+}
 
-	Handler any
+type GuardItem struct {
+	REST RESTGuardItem
+	WS   WSGuardItem
 }
 
 type Guard struct {
@@ -80,10 +84,15 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				guardItemArr = append(guardItemArr, GuardItem{
-					Method:  httpMethod,
-					Route:   routing.ToEndpoint(route),
-					Version: version,
-					Handler: guardHandler.Guarder.CanActivate,
+					REST: RESTGuardItem{
+						Method:  httpMethod,
+						Route:   routing.ToEndpoint(route),
+						Version: version,
+						Common: CommonItem{
+							Handler: guardHandler.Guarder.CanActivate,
+							Name:    guarderType.String(),
+						},
+					},
 				})
 			}
 		}
@@ -124,8 +133,13 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		for pattern := range ws.patternToFnNameMap {
 			if _, ok := shouldAddGuard[pattern]; ok || len(shouldAddGuard) == 0 {
 				guardItemArr = append(guardItemArr, GuardItem{
-					EventName: pattern,
-					Handler:   guardHandler.Guarder.CanActivate,
+					WS: WSGuardItem{
+						EventName: pattern,
+						Common: CommonItem{
+							Handler: guardHandler.Guarder.CanActivate,
+							Name:    guarderType.String(),
+						},
+					},
 				})
 			}
 		}
