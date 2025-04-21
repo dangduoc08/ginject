@@ -8,33 +8,35 @@ import (
 	"github.com/dangduoc08/gogo/ctx"
 )
 
-func RequestLogger(logger common.Logger) func(*ctx.Context) {
-	return func(c *ctx.Context) {
-		c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
-			newC := args[0].(*ctx.Context)
-			requestType := newC.GetType()
-			responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
+type RequestLogger struct {
+	common.Logger
+}
 
-			if requestType == ctx.HTTPType {
-				logger.Info(
-					newC.URL.String(),
-					"Method", newC.Method,
-					"Status", newC.Code,
-					"Time", fmt.Sprintf("%v ms", responseTime),
-					"Protocol", newC.Request.Proto,
-					"User-Agent", newC.UserAgent(),
-					ctx.REQUEST_ID, newC.GetID(),
-				)
-			} else if requestType == ctx.WSType {
-				logger.Info(
-					newC.WS.Message.Event,
-					"Time", fmt.Sprintf("%v ms", responseTime),
-					"Subprotocol", newC.WS.GetSubprotocol(),
-					"User-Agent", newC.UserAgent(),
-				)
-			}
-		})
+func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
+	c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
+		newC := args[0].(*ctx.Context)
+		requestType := newC.GetType()
+		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
 
-		c.Next()
-	}
+		if requestType == ctx.HTTPType {
+			instance.Info(
+				newC.URL.String(),
+				"Method", newC.Method,
+				"Status", newC.Code,
+				"Time", fmt.Sprintf("%v ms", responseTime),
+				"Protocol", newC.Request.Proto,
+				"User-Agent", newC.UserAgent(),
+				ctx.REQUEST_ID, newC.GetID(),
+			)
+		} else if requestType == ctx.WSType {
+			instance.Info(
+				newC.WS.Message.Event,
+				"Time", fmt.Sprintf("%v ms", responseTime),
+				"Subprotocol", newC.WS.GetSubprotocol(),
+				"User-Agent", newC.UserAgent(),
+			)
+		}
+	})
+
+	next()
 }
