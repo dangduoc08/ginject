@@ -3,11 +3,17 @@ package manufacturers
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/gogo"
+	"github.com/dangduoc08/gogo/common"
 )
 
-func ManufacturerMiddleware(c *ctx.Context) {
-	fmt.Println("[Module] Manufacturer middleware")
+type ManufacturerMiddleware struct {
+	common.Logger
+}
 
-	c.Next()
+func (instance ManufacturerMiddleware) Use(c gogo.Context, next gogo.Next) {
+	fmt.Println("[Module] Manufacturer middleware")
+	instance.Info("test")
+
+	next()
 }

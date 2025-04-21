@@ -19,7 +19,7 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		Use(shared.RequestLogger(logger)).
+		BindGlobalMiddlewares(shared.RequestLogger{}).
 		BindGlobalInterceptors(shared.ResponseInterceptor{}).
 		BindGlobalGuards(shared.RateLimiterGuard{})
 

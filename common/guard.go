@@ -13,15 +13,11 @@ type Guarder interface {
 	CanActivate(*ctx.Context) bool
 }
 
-type GuardHandler struct {
-	Guarder  Guarder
-	Handlers []any
-}
-
 type RESTGuardItem struct {
 	Method  string
 	Route   string
 	Version string
+	Pattern string
 	Common  CommonItem
 }
 
@@ -35,14 +31,19 @@ type GuardItem struct {
 	WS   WSGuardItem
 }
 
+type guardHandler struct {
+	guarder  Guarder
+	handlers []any
+}
+
 type Guard struct {
-	GuardHandlers []GuardHandler
+	GuardHandlers []guardHandler
 }
 
 func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
-	guardHandler := GuardHandler{
-		Guarder:  guarder,
-		Handlers: handlers,
+	guardHandler := guardHandler{
+		guarder:  guarder,
+		handlers: handlers,
 	}
 
 	g.GuardHandlers = append(g.GuardHandlers, guardHandler)
@@ -53,8 +54,8 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 	guardItemArr := []GuardItem{}
 
 	for _, guardHandler := range g.GuardHandlers {
-		guarderType := reflect.TypeOf(guardHandler.Guarder)
-		guarderValue := reflect.ValueOf(guardHandler.Guarder)
+		guarderType := reflect.TypeOf(guardHandler.guarder)
+		guarderValue := reflect.ValueOf(guardHandler.guarder)
 		newGuard := reflect.New(guarderType)
 
 		for i := 0; i < guarderType.NumField(); i++ {
@@ -68,10 +69,10 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		newGuarder := newGuard.Interface()
 		newGuarder = Construct(newGuarder, "NewGuard")
 
-		guardHandler.Guarder = newGuarder.(Guarder)
+		guardHandler.guarder = newGuarder.(Guarder)
 
 		shouldAddGuard := map[string]bool{}
-		for _, handler := range guardHandler.Handlers {
+		for _, handler := range guardHandler.handlers {
 			fnName := GetFnName(handler)
 			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
 				shouldAddGuard[pattern] = true
@@ -88,9 +89,11 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 						Method:  httpMethod,
 						Route:   routing.ToEndpoint(route),
 						Version: version,
+						Pattern: pattern,
 						Common: CommonItem{
-							Handler: guardHandler.Guarder.CanActivate,
-							Name:    guarderType.String(),
+							Handler:         guardHandler.guarder.CanActivate,
+							Name:            guarderType.String(),
+							MainHandlerName: r.PatternToFnNameMap[pattern],
 						},
 					},
 				})
@@ -105,8 +108,8 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 	guardItemArr := []GuardItem{}
 
 	for _, guardHandler := range g.GuardHandlers {
-		guarderType := reflect.TypeOf(guardHandler.Guarder)
-		guarderValue := reflect.ValueOf(guardHandler.Guarder)
+		guarderType := reflect.TypeOf(guardHandler.guarder)
+		guarderValue := reflect.ValueOf(guardHandler.guarder)
 		newGuard := reflect.New(guarderType)
 
 		for i := 0; i < guarderType.NumField(); i++ {
@@ -120,10 +123,10 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		newGuarder := newGuard.Interface()
 		newGuarder = Construct(newGuarder, "NewGuard")
 
-		guardHandler.Guarder = newGuarder.(Guarder)
+		guardHandler.guarder = newGuarder.(Guarder)
 
 		shouldAddGuard := map[string]bool{}
-		for _, handler := range guardHandler.Handlers {
+		for _, handler := range guardHandler.handlers {
 			fnName := GetFnName(handler)
 			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 			eventName = ToWSEventName(ws.subprotocol, eventName)
@@ -136,7 +139,7 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 					WS: WSGuardItem{
 						EventName: pattern,
 						Common: CommonItem{
-							Handler: guardHandler.Guarder.CanActivate,
+							Handler: guardHandler.guarder.CanActivate,
 							Name:    guarderType.String(),
 						},
 					},
