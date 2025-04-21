@@ -25,15 +25,6 @@ func ModuleBuilder() *moduleBuilder {
 	}
 }
 
-type RESTLayer struct {
-	handler        any
-	controllerPath string
-	name           string
-	route          string
-	version        string
-	method         string
-}
-
 // fix later
 // change to private fields
 // handle for devtool
@@ -103,23 +94,23 @@ func (m *moduleBuilder) Build() *Module {
 	staticModules, dynamicModules := m.getModuleType()
 
 	module := &Module{
-		Mutex:                &sync.Mutex{},
-		staticModules:        staticModules,
-		dynamicModules:       dynamicModules,
-		providers:            m.providers,
-		controllers:          m.controllers,
-		Middleware:           &Middleware{},
+		Mutex:          &sync.Mutex{},
+		staticModules:  staticModules,
+		dynamicModules: dynamicModules,
+		providers:      m.providers,
+		controllers:    m.controllers,
+
+		RESTExceptionFilters: []RESTLayer{},
 		RESTMiddlewares:      []RESTLayer{},
 		RESTGuards:           []RESTLayer{},
 		RESTInterceptors:     []RESTLayer{},
-		RESTExceptionFilters: []RESTLayer{},
 		RESTMainHandlers:     []RESTLayer{},
 
 		WSMiddlewares: []struct {
 			controllerName string
 			Subprotocol    string
 			EventName      string
-			Handlers       []func(*ctx.Context)
+			Handler        any
 		}{},
 		WSGuards: []struct {
 			Subprotocol string

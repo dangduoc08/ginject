@@ -14,15 +14,11 @@ type Interceptable interface {
 	Intercept(*ctx.Context, *aggregation.Aggregation) any
 }
 
-type InterceptorHandler struct {
-	Interceptable Interceptable
-	Handlers      []any
-}
-
 type RESTInterceptorItem struct {
 	Method  string
 	Route   string
 	Version string
+	Pattern string
 	Common  CommonItem
 }
 
@@ -36,14 +32,19 @@ type InterceptorItem struct {
 	WS   WSInterceptorItem
 }
 
+type interceptorHandler struct {
+	interceptable Interceptable
+	handlers      []any
+}
+
 type Interceptor struct {
-	InterceptorHandlers []InterceptorHandler
+	InterceptorHandlers []interceptorHandler
 }
 
 func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...any) *Interceptor {
-	interceptorHandler := InterceptorHandler{
-		Interceptable: interceptable,
-		Handlers:      handlers,
+	interceptorHandler := interceptorHandler{
+		interceptable: interceptable,
+		handlers:      handlers,
 	}
 
 	i.InterceptorHandlers = append(i.InterceptorHandlers, interceptorHandler)
@@ -56,8 +57,8 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
 
-		interceptableType := reflect.TypeOf(interceptorHandler.Interceptable)
-		interceptableValue := reflect.ValueOf(interceptorHandler.Interceptable)
+		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
+		interceptableValue := reflect.ValueOf(interceptorHandler.interceptable)
 		newInterceptor := reflect.New(interceptableType)
 
 		for i := 0; i < interceptableType.NumField(); i++ {
@@ -71,10 +72,10 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 		newInterceptable := newInterceptor.Interface()
 		newInterceptable = Construct(newInterceptable, "NewInterceptor")
 
-		interceptorHandler.Interceptable = newInterceptable.(Interceptable)
+		interceptorHandler.interceptable = newInterceptable.(Interceptable)
 
 		shouldAddInterceptors := map[string]bool{}
-		for _, handler := range interceptorHandler.Handlers {
+		for _, handler := range interceptorHandler.handlers {
 			fnName := GetFnName(handler)
 			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
 				shouldAddInterceptors[pattern] = true
@@ -91,9 +92,11 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 						Method:  httpMethod,
 						Route:   routing.ToEndpoint(route),
 						Version: version,
+						Pattern: pattern,
 						Common: CommonItem{
-							Handler: interceptorHandler.Interceptable.Intercept,
-							Name:    interceptableType.String(),
+							Handler:         interceptorHandler.interceptable.Intercept,
+							Name:            interceptableType.String(),
+							MainHandlerName: r.PatternToFnNameMap[pattern],
 						},
 					},
 				})
@@ -109,8 +112,8 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
 
-		interceptableType := reflect.TypeOf(interceptorHandler.Interceptable)
-		interceptableValue := reflect.ValueOf(interceptorHandler.Interceptable)
+		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
+		interceptableValue := reflect.ValueOf(interceptorHandler.interceptable)
 		newInterceptor := reflect.New(interceptableType)
 
 		for i := 0; i < interceptableType.NumField(); i++ {
@@ -124,10 +127,10 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 		newInterceptable := newInterceptor.Interface()
 		newInterceptable = Construct(newInterceptable, "NewInterceptor")
 
-		interceptorHandler.Interceptable = newInterceptable.(Interceptable)
+		interceptorHandler.interceptable = newInterceptable.(Interceptable)
 
 		shouldAddInterceptors := map[string]bool{}
-		for _, handler := range interceptorHandler.Handlers {
+		for _, handler := range interceptorHandler.handlers {
 			fnName := GetFnName(handler)
 			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 			eventName = ToWSEventName(ws.subprotocol, eventName)
@@ -140,7 +143,7 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 					WS: WSInterceptorItem{
 						EventName: pattern,
 						Common: CommonItem{
-							Handler: interceptorHandler.Interceptable.Intercept,
+							Handler: interceptorHandler.interceptable.Intercept,
 							Name:    interceptableType.String(),
 						},
 					},

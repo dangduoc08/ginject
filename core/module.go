@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/ctx"
 	"github.com/dangduoc08/gogo/routing"
 	"github.com/dangduoc08/gogo/utils"
 )
@@ -30,6 +29,8 @@ var noInjectedFields = []string{
 	"common.ExceptionFilter",
 	"WS",
 	"common.WS",
+	"Middleware",
+	"common.Middleware",
 }
 var injectableInterfaces = []string{
 	"github.com/dangduoc08/gogo/common/common.Logger",
@@ -46,9 +47,8 @@ type Module struct {
 	providers      []Provider
 	controllers    []Controller
 
-	Middleware *Middleware
-	IsGlobal   bool
-	OnInit     func()
+	IsGlobal bool
+	OnInit   func()
 
 	// store REST module exception filters
 	RESTExceptionFilters []RESTLayer
@@ -70,7 +70,7 @@ type Module struct {
 		controllerName string
 		Subprotocol    string
 		EventName      string
-		Handlers       []ctx.Handler
+		Handler        any
 	}
 
 	// store WS module guards
@@ -186,9 +186,6 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.controllers) > 0 {
 				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
-			if len(injectModule.RESTMiddlewares) > 0 {
-				m.RESTMiddlewares = append(injectModule.RESTMiddlewares, m.RESTMiddlewares...)
-			}
 			toUniqueControllers(m, &m.controllers)
 		}
 
@@ -212,18 +209,7 @@ func (m *Module) NewModule() *Module {
 			if len(injectModule.controllers) > 0 {
 				m.controllers = append(injectModule.controllers, m.controllers...)
 			}
-			if len(injectModule.RESTMiddlewares) > 0 {
-				m.RESTMiddlewares = append(injectModule.RESTMiddlewares, m.RESTMiddlewares...)
-			}
 			toUniqueControllers(m, &m.controllers)
-		}
-
-		if len(m.Middleware.middlewares) > 0 {
-			for _, controller := range m.controllers {
-				controllerName := reflect.TypeOf(controller).PkgPath()
-				m.Middleware.addREST(controllerName, &m.RESTMiddlewares)
-				m.Middleware.addWS(controllerName, &m.WSMiddlewares)
-			}
 		}
 
 		// set module prefixes
@@ -275,15 +261,6 @@ func (m *Module) NewModule() *Module {
 
 		// inject providers into controllers
 		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
-			newRESTMiddlewares := []RESTLayer{}
-
-			newWSMiddlewares := []struct {
-				controllerName string
-				Subprotocol    string
-				EventName      string
-				Handlers       []func(*ctx.Context)
-			}{}
-
 			for i, controller := range m.controllers {
 				newController, err := injectDependencies(controller, "controller", injectedProviders)
 				if err != nil {
@@ -374,50 +351,78 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound exceptionFilters
 						for _, exceptionFilterItem := range exceptionFilterItemArr {
 							m.RESTExceptionFilters = append(m.RESTExceptionFilters, RESTLayer{
-								controllerPath: controllerPath,
-								method:         exceptionFilterItem.REST.Method,
-								route:          exceptionFilterItem.REST.Route,
-								version:        exceptionFilterItem.REST.Version,
-								handler:        exceptionFilterItem.REST.Common.Handler,
-								name:           exceptionFilterItem.REST.Common.Name,
+								controllerPath:  controllerPath,
+								method:          exceptionFilterItem.REST.Method,
+								route:           exceptionFilterItem.REST.Route,
+								version:         exceptionFilterItem.REST.Version,
+								handler:         exceptionFilterItem.REST.Common.Handler,
+								name:            exceptionFilterItem.REST.Common.Name,
+								mainHandlerName: exceptionFilterItem.REST.Common.MainHandlerName,
+								pattern:         exceptionFilterItem.REST.Pattern,
 							})
 						}
 					}
 
-					// apply controller bound middlewares
-					for _, restModuleMiddleware := range m.RESTMiddlewares {
-						if restModuleMiddleware.controllerPath == controllerPath {
-							for pattern := range rest.RouterMap {
-								if restModuleMiddleware.method == "*" {
-									method, route, version := routing.PatternToMethodRouteVersion(pattern)
+					// apply controller bound middleware
+					if _, loadedMiddleware := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[10]); loadedMiddleware {
+						middleware := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[10]).Interface().(common.Middleware)
+						middlewareItemArr := middleware.InjectProvidersIntoRESTMiddlewares(&rest, func(i int, middlewareFnType reflect.Type, middlewareFnValue, newMiddleware reflect.Value) {
 
-									newRESTMiddlewares = append(
-										newRESTMiddlewares,
-										RESTLayer{
-											controllerPath: controllerPath,
-											route:          route,
-											version:        version,
-											method:         method,
-											handler:        restModuleMiddleware.handler,
-											name:           restModuleMiddleware.name,
-										},
-									)
-								} else if rest.PatternToFnNameMap[pattern] == restModuleMiddleware.route {
-									method, route, version := routing.PatternToMethodRouteVersion(pattern)
+							// callback use to inject providers
+							// into middleware
+							middlewareField := middlewareFnType.Field(i)
+							middlewareFieldType := middlewareField.Type
+							middlewareFieldNameKey := middlewareField.Name
+							injectProviderKey := middlewareFieldType.PkgPath() + "/" + middlewareFieldType.String()
 
-									newRESTMiddlewares = append(
-										newRESTMiddlewares,
-										RESTLayer{
-											controllerPath: controllerPath,
-											route:          route,
-											version:        version,
-											method:         method,
-											handler:        restModuleMiddleware.handler,
-											name:           restModuleMiddleware.name,
-										},
-									)
-								}
+							if !token.IsExported(middlewareFieldNameKey) {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't set value to unexported '%v' field of the '%v' middleware function",
+										middlewareFieldNameKey,
+										middlewareFnType.Name(),
+									),
+								))
 							}
+
+							// Inject providers into middleware
+							// inject provider priorities
+							// local inject
+							// global inject
+							// inner packages
+							// resolve dependencies error
+							if injectedProviders[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+							} else if globalProviders[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
+							} else if !isInjectedProvider(middlewareFieldType) {
+								newMiddleware.Elem().Field(i).Set(middlewareFnValue.Field(i))
+							} else {
+								panic(fmt.Errorf(
+									utils.FmtRed(
+										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' middleware function",
+										middlewareFieldType.String(),
+										i,
+										middlewareFnType.Name(),
+									),
+								))
+							}
+						})
+
+						// apply controller bound middlewares
+						for _, middlewareItem := range middlewareItemArr {
+							m.RESTMiddlewares = append(m.RESTMiddlewares, RESTLayer{
+								controllerPath:  controllerPath,
+								method:          middlewareItem.REST.Method,
+								route:           middlewareItem.REST.Route,
+								version:         middlewareItem.REST.Version,
+								handler:         middlewareItem.REST.Common.Handler,
+								name:            middlewareItem.REST.Common.Name,
+								mainHandlerName: middlewareItem.REST.Common.MainHandlerName,
+								pattern:         middlewareItem.REST.Pattern,
+							})
 						}
 					}
 
@@ -472,12 +477,14 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound guards
 						for _, guardItem := range guardItemArr {
 							m.RESTGuards = append(m.RESTGuards, RESTLayer{
-								controllerPath: controllerPath,
-								method:         guardItem.REST.Method,
-								route:          guardItem.REST.Route,
-								version:        guardItem.REST.Version,
-								handler:        guardItem.REST.Common.Handler,
-								name:           guardItem.REST.Common.Name,
+								controllerPath:  controllerPath,
+								method:          guardItem.REST.Method,
+								route:           guardItem.REST.Route,
+								version:         guardItem.REST.Version,
+								handler:         guardItem.REST.Common.Handler,
+								name:            guardItem.REST.Common.Name,
+								mainHandlerName: guardItem.REST.Common.MainHandlerName,
+								pattern:         guardItem.REST.Pattern,
 							})
 						}
 					}
@@ -533,30 +540,35 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound interceptors
 						for _, interceptorItem := range interceptorItemArr {
 							m.RESTInterceptors = append(m.RESTInterceptors, RESTLayer{
-								controllerPath: controllerPath,
-								method:         interceptorItem.REST.Method,
-								route:          interceptorItem.REST.Route,
-								version:        interceptorItem.REST.Version,
-								handler:        interceptorItem.REST.Common.Handler,
-								name:           interceptorItem.REST.Common.Name,
+								controllerPath:  controllerPath,
+								method:          interceptorItem.REST.Method,
+								route:           interceptorItem.REST.Route,
+								version:         interceptorItem.REST.Version,
+								handler:         interceptorItem.REST.Common.Handler,
+								name:            interceptorItem.REST.Common.Name,
+								mainHandlerName: interceptorItem.REST.Common.MainHandlerName,
+								pattern:         interceptorItem.REST.Pattern,
 							})
 						}
 					}
 
 					// add main handler
+					// for mainhandler: name = mainHandlerName
+					// add for consistency with another layers
 					for pattern, handler := range rest.RouterMap {
 						if err := isInjectableHandler(handler, injectedProviders); err != nil {
 							panic(utils.FmtRed(err.Error()))
 						}
-
 						method, route, version := routing.PatternToMethodRouteVersion(pattern)
 						m.RESTMainHandlers = append(m.RESTMainHandlers, RESTLayer{
-							controllerPath: controllerPath,
-							name:           rest.PatternToFnNameMap[pattern],
-							method:         method,
-							route:          routing.ToEndpoint(route),
-							version:        version,
-							handler:        handler,
+							controllerPath:  controllerPath,
+							method:          method,
+							route:           routing.ToEndpoint(route),
+							version:         version,
+							handler:         handler,
+							name:            rest.PatternToFnNameMap[pattern],
+							mainHandlerName: rest.PatternToFnNameMap[pattern],
+							pattern:         pattern,
 						})
 					}
 				}
@@ -564,7 +576,7 @@ func (m *Module) NewModule() *Module {
 				// Handle WS
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[8]); ok {
 					ws := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[8]).Interface().(common.WS)
-					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
+					// controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
@@ -574,45 +586,8 @@ func (m *Module) NewModule() *Module {
 						ws.AddHandlerToEventMap(ws.GetSubprotocol(), methodName, handler)
 					}
 
-					// apply controller bound middlewares
-					for _, wsModuleMiddleware := range m.WSMiddlewares {
-						if wsModuleMiddleware.controllerName == controllerName {
-							for pattern := range ws.EventMap {
-
-								if wsModuleMiddleware.Subprotocol == "*" {
-									newWSMiddlewares = append(
-										newWSMiddlewares,
-										struct {
-											controllerName string
-											Subprotocol    string
-											EventName      string
-											Handlers       []func(*ctx.Context)
-										}{
-											controllerName: controllerName,
-											Subprotocol:    ws.GetSubprotocol(),
-											EventName:      pattern,
-											Handlers:       wsModuleMiddleware.Handlers,
-										},
-									)
-								} else if pattern == common.ToWSEventName(ws.GetSubprotocol(), wsModuleMiddleware.EventName) {
-									newWSMiddlewares = append(
-										newWSMiddlewares,
-										struct {
-											controllerName string
-											Subprotocol    string
-											EventName      string
-											Handlers       []func(*ctx.Context)
-										}{
-											controllerName: controllerName,
-											Subprotocol:    ws.GetSubprotocol(),
-											EventName:      pattern,
-											Handlers:       wsModuleMiddleware.Handlers,
-										},
-									)
-								}
-							}
-						}
-					}
+					// apply module bound middlewares
+					// TODO: handle later
 
 					// apply controller bound guard
 					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
@@ -819,9 +794,6 @@ func (m *Module) NewModule() *Module {
 					}
 				}
 			}
-
-			m.RESTMiddlewares = newRESTMiddlewares
-			m.WSMiddlewares = newWSMiddlewares
 		}
 	}
 

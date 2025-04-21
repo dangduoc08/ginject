@@ -183,15 +183,15 @@ func HandleGuard(c *ctx.Context, canActive bool) {
 }
 
 func Construct(obj any, constructor string) any {
-	newGuarderValue := reflect.ValueOf(obj)
-	if newObj, ok := singletons[newGuarderValue.String()]; ok {
+	newObjValue := reflect.ValueOf(obj)
+	if newObj, ok := singletons[newObjValue.String()]; ok {
 		return newObj
 	}
 
-	guardConstructor := newGuarderValue.MethodByName(constructor)
-	if guardConstructor.IsValid() {
-		obj = guardConstructor.Call([]reflect.Value{})[0].Interface()
-		singletons[newGuarderValue.String()] = obj
+	objConstructor := newObjValue.MethodByName(constructor)
+	if objConstructor.IsValid() {
+		obj = objConstructor.Call([]reflect.Value{})[0].Interface()
+		singletons[newObjValue.String()] = obj
 	}
 
 	return obj

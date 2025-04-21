@@ -1,6 +1,7 @@
 package common
 
 type CommonItem struct {
-	Name    string
-	Handler any
+	Name            string
+	Handler         any
+	MainHandlerName string
 }
