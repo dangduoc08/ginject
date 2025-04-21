@@ -12,6 +12,7 @@ import (
 
 type ManufacturerController struct {
 	common.ExceptionFilter
+	common.Middleware
 	common.Interceptor
 	common.Guard
 	common.REST
@@ -31,6 +32,11 @@ func (instance ManufacturerController) NewController() core.Controller {
 		instance.CREATE_VERSION_1,
 		instance.UPDATE_VERSION_1,
 		instance.DELETE_VERSION_1,
+	)
+
+	instance.BindMiddleware(
+		ManufacturerMiddleware{},
+		instance.UPDATE_VERSION_1,
 	)
 
 	return instance

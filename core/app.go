@@ -27,11 +27,6 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-type globalMiddleware struct {
-	route   string
-	handler ctx.Handler
-}
-
 type App struct {
 	route                                  *routing.Router
 	wsEventMap                             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
@@ -40,7 +35,7 @@ type App struct {
 	serveStaticMapToLastWildcardSlashIndex map[string]int           // to check public dir URL if has * at last
 	module                                 *Module
 	ctxPool                                sync.Pool
-	globalMiddlewares                      []globalMiddleware
+	globalMiddlewares                      []common.MiddlewareFn
 	globalGuarders                         []common.Guarder
 	globalInterceptors                     []common.Interceptable
 	globalExceptionFilters                 []common.ExceptionFilterable
@@ -206,7 +201,7 @@ func (app *App) Create(m *Module) {
 	}
 
 	for pattern, catchFns := range app.catchRESTFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
+		catchMiddlewareWrapper := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
 			return func(c *ctx.Context) {
 				c.Event.Once(catchEvent, func(args ...any) {
 					catchFnIndex := args[2].(int)
@@ -261,11 +256,11 @@ func (app *App) Create(m *Module) {
 		method, route, version := routing.PatternToMethodRouteVersion(pattern)
 		httpMethod := routing.OperationsMapHTTPMethods[method]
 
-		app.route.For([]string{httpMethod}, route, version)(catchMiddleware)
+		app.route.For([]string{httpMethod}, route, version)(catchMiddlewareWrapper)
 	}
 
 	for pattern, catchFns := range app.catchWSFnsMap {
-		catchMiddleware := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
+		catchMiddlewareWrapper := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
 			return func(c *ctx.Context) {
 				c.Event.Once(catchEvent, func(args ...any) {
 					catchFnIndex := args[2].(int)
@@ -319,50 +314,65 @@ func (app *App) Create(m *Module) {
 		// add catch middleware
 		app.wsEventMap[pattern] = append(
 			app.wsEventMap[pattern],
-			catchMiddleware,
+			catchMiddlewareWrapper,
 		)
 	}
 
 	// global middlewares
 	for _, globalMiddleware := range app.globalMiddlewares {
-		if globalMiddleware.route != "*" {
-			httpMethods := utils.ArrToUnique(utils.ArrMap(routing.HTTPMethods, func(el string, i int) string {
-				return routing.OperationsMapHTTPMethods[el]
-			}))
+		newGlobalMiddleware, err := injectDependencies(globalMiddleware, "middleware", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
 
-			for _, mainHandlerItem := range app.module.RESTMainHandlers {
-				if routing.ToEndpoint(globalMiddleware.route) == mainHandlerItem.route {
-					app.route.For(httpMethods, globalMiddleware.route, mainHandlerItem.version)(globalMiddleware.handler)
-				}
+		globalMiddleware = common.Construct(newGlobalMiddleware.Interface(), "NewMiddleware").(common.MiddlewareFn)
+
+		useMiddlewareWrapper := func(middleware common.MiddlewareFn) ctx.Handler {
+			return func(c *ctx.Context) {
+				middleware.Use(c, c.Next)
 			}
-		} else {
+		}(globalMiddleware)
 
-			// REST global middlewares
-			app.route.Use(globalMiddleware.handler)
+		// REST global guards
+		for _, mainHandlerItem := range app.module.RESTMainHandlers {
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
 
-			// WS global middlewares
-			for eventName := range common.InsertedEvents {
-				app.wsEventMap[eventName] = append(
-					app.wsEventMap[eventName],
-					globalMiddleware.handler,
-				)
-			}
+			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(useMiddlewareWrapper)
+		}
+
+		// WS global guards
+		for eventName := range common.InsertedEvents {
+			app.wsEventMap[eventName] = append(
+				app.wsEventMap[eventName],
+				useMiddlewareWrapper,
+			)
 		}
 	}
 
 	// REST module middlewares
 	for _, restModuleMiddleware := range app.module.RESTMiddlewares {
-		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.method]
-		middlewareHandlers := restModuleMiddleware.handler.(ctx.Handler)
+		useMiddlewareWrapper := func(useFn common.Use) ctx.Handler {
+			return func(c *ctx.Context) {
+				useFn(c, c.Next)
+			}
+		}(restModuleMiddleware.handler.(common.Use))
 
-		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(middlewareHandlers)
+		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.method]
+
+		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(useMiddlewareWrapper)
 	}
 
 	// WS module middlewares
 	for _, wsModuleMiddleware := range app.module.WSMiddlewares {
+		useMiddlewareWrapper := func(useFn common.Use) ctx.Handler {
+			return func(c *ctx.Context) {
+				useFn(c, c.Next)
+			}
+		}(wsModuleMiddleware.Handler.(common.Use))
+
 		app.wsEventMap[wsModuleMiddleware.EventName] = append(
 			app.wsEventMap[wsModuleMiddleware.EventName],
-			wsModuleMiddleware.Handlers...,
+			useMiddlewareWrapper,
 		)
 	}
 
@@ -399,21 +409,20 @@ func (app *App) Create(m *Module) {
 
 	// REST module guards
 	for _, moduleGuard := range app.module.RESTGuards {
-
-		canActivateMiddleware := func(canActiveFn common.CanActivate) ctx.Handler {
+		canActivateMiddlewareWrapper := func(canActiveFn common.CanActivate) ctx.Handler {
 			return func(c *ctx.Context) {
 				common.HandleGuard(c, canActiveFn(c))
 			}
 		}(moduleGuard.handler.(common.CanActivate))
 
 		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.method]
-		app.route.For([]string{httpMethod}, moduleGuard.route, moduleGuard.version)(canActivateMiddleware)
+		app.route.For([]string{httpMethod}, moduleGuard.route, moduleGuard.version)(canActivateMiddlewareWrapper)
 	}
 
 	// WS module guards
 	for _, moduleGuard := range app.module.WSGuards {
 
-		canActivateMiddleware := func(canActiveFn common.CanActivate) ctx.Handler {
+		canActivateMiddlewareWrapper := func(canActiveFn common.CanActivate) ctx.Handler {
 			return func(c *ctx.Context) {
 				common.HandleGuard(c, canActiveFn(c))
 			}
@@ -421,7 +430,7 @@ func (app *App) Create(m *Module) {
 
 		app.wsEventMap[moduleGuard.EventName] = append(
 			app.wsEventMap[moduleGuard.EventName],
-			canActivateMiddleware,
+			canActivateMiddlewareWrapper,
 		)
 	}
 
@@ -632,6 +641,12 @@ func (app *App) BindGlobalExceptionFilters(exceptionFilters ...common.ExceptionF
 	return app
 }
 
+func (app *App) BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App {
+	app.globalMiddlewares = append(app.globalMiddlewares, middlewares...)
+
+	return app
+}
+
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
 	app.versioning = v
 	app.isEnableVersioning = true
@@ -645,37 +660,11 @@ func (app *App) EnableDevtool() *App {
 	return app
 }
 
-func (app *App) Use(handlers ...ctx.Handler) *App {
-	for _, handler := range handlers {
-		middleware := globalMiddleware{
-			route:   "*",
-			handler: handler,
-		}
-		app.globalMiddlewares = append(app.globalMiddlewares, middleware)
-	}
-
-	return app
-}
-
 func (app *App) UseLogger(logger common.Logger) *App {
 	app.Logger = logger
 	globalInterfaces[injectableInterfaces[0]] = app.Logger
 
 	return app
-}
-
-func (app *App) For(route string) func(handlers ...ctx.Handler) *App {
-	return func(handlers ...ctx.Handler) *App {
-		for _, handler := range handlers {
-			middleware := globalMiddleware{
-				route:   route,
-				handler: handler,
-			}
-			app.globalMiddlewares = append(app.globalMiddlewares, middleware)
-		}
-
-		return app
-	}
 }
 
 func (app *App) Get(p Provider) any {
@@ -1183,9 +1172,9 @@ func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exceptio
 	}
 
 	for _, globalMiddleware := range app.globalMiddlewares {
-		if globalMiddleware.route == "*" && isNext {
+		if isNext {
 			isNext = false
-			globalMiddleware.handler(c)
+			globalMiddleware.Use(c, c.Next)
 		}
 	}
 
@@ -1281,37 +1270,109 @@ func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any
 	}
 }
 
-// TODO:
-// exception filter co thể biết được nó thuộc main handler nào
 func (app *App) createDevtool() {
-	devtoolBuilder := devtool.NewDevtoolBuilder()
+	devtoolBuilder := devtool.DevtoolBuilder()
 
 	sort.Slice(app.module.RESTMainHandlers, func(i, j int) bool {
 		return app.module.RESTMainHandlers[i].route < app.module.RESTMainHandlers[j].route
 	})
 
-	// for _, restMiddleware := range app.module.RESTMiddlewares {
-	// 	fmt.Printf("%+v \n", restMiddleware.name)
-	// }
+	exceptionFiltersByPattern := generateLayersByPattern(app.module.RESTExceptionFilters)
+	middlewaresByPattern := generateLayersByPattern(app.module.RESTMiddlewares)
+	guardsByPattern := generateLayersByPattern(app.module.RESTGuards)
+	interceptorsByPattern := generateLayersByPattern(app.module.RESTInterceptors)
 
-	// for _, restExceptionFilter := range app.module.RESTExceptionFilters {
-	// 	fmt.Println("Exception filter name =", restExceptionFilter.name, restExceptionFilter.controllerPath, restExceptionFilter.method, restExceptionFilter.route, restExceptionFilter.version)
-	// }
+	globalExceptionFilters := utils.ArrMap(
+		app.globalExceptionFilters,
+		func(el common.ExceptionFilterable, i int) devtool.RESTLayer {
+			return devtool.RESTLayer{
+				Name:  reflect.TypeOf(el).String(),
+				Scope: devtool.GLOBAL_SCOPE,
+			}
+		},
+	)
 
-	// for _, restGuard := range app.module.RESTGuards {
-	// 	fmt.Println("Guard name =", restGuard.name)
-	// }
+	globalMiddlewares := utils.ArrMap(
+		app.globalMiddlewares,
+		func(el common.MiddlewareFn, i int) devtool.RESTLayer {
+			return devtool.RESTLayer{
+				Name:  reflect.TypeOf(el).String(),
+				Scope: devtool.GLOBAL_SCOPE,
+			}
+		},
+	)
 
-	// for _, restInterceptor := range app.module.RESTInterceptors {
-	// 	fmt.Println("Intercepto name =", restInterceptor.name)
-	// }
+	globalGuards := utils.ArrMap(
+		app.globalGuarders,
+		func(el common.Guarder, i int) devtool.RESTLayer {
+			return devtool.RESTLayer{
+				Name:  reflect.TypeOf(el).String(),
+				Scope: devtool.GLOBAL_SCOPE,
+			}
+		},
+	)
+
+	globalInterceptors := utils.ArrMap(
+		app.globalInterceptors,
+		func(el common.Interceptable, i int) devtool.RESTLayer {
+			return devtool.RESTLayer{
+				Name:  reflect.TypeOf(el).String(),
+				Scope: devtool.GLOBAL_SCOPE,
+			}
+		},
+	)
 
 	for _, moduleHandler := range app.module.RESTMainHandlers {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
+
+		exceptionFilters := utils.ArrMap(
+			exceptionFiltersByPattern[moduleHandler.pattern],
+			func(el *RESTLayer, i int) devtool.RESTLayer {
+				return devtool.RESTLayer{
+					Name:  el.name,
+					Scope: devtool.REQUEST_SCOPE,
+				}
+			},
+		)
+
+		middlewares := utils.ArrMap(
+			middlewaresByPattern[moduleHandler.pattern],
+			func(el *RESTLayer, i int) devtool.RESTLayer {
+				return devtool.RESTLayer{
+					Name:  el.name,
+					Scope: devtool.REQUEST_SCOPE,
+				}
+			},
+		)
+
+		guards := utils.ArrMap(
+			guardsByPattern[moduleHandler.pattern],
+			func(el *RESTLayer, i int) devtool.RESTLayer {
+				return devtool.RESTLayer{
+					Name:  el.name,
+					Scope: devtool.REQUEST_SCOPE,
+				}
+			},
+		)
+
+		interceptors := utils.ArrMap(
+			interceptorsByPattern[moduleHandler.pattern],
+			func(el *RESTLayer, i int) devtool.RESTLayer {
+				return devtool.RESTLayer{
+					Name:  el.name,
+					Scope: devtool.REQUEST_SCOPE,
+				}
+			},
+		)
+
 		restComponent := devtool.RESTComponent{
-			Handler:    moduleHandler.name,
-			HTTPMethod: httpMethod,
-			Route:      moduleHandler.route,
+			Handler:          moduleHandler.name,
+			HTTPMethod:       httpMethod,
+			Route:            moduleHandler.route,
+			ExceptionFilters: append(globalExceptionFilters, exceptionFilters...),
+			Middlewares:      append(globalMiddlewares, middlewares...),
+			Guards:           append(globalGuards, guards...),
+			Interceptors:     append(globalInterceptors, interceptors...),
 			Versioning: devtool.RESTVersioning{
 				Value: moduleHandler.version,
 				Key:   app.versioning.Key,
@@ -1347,4 +1408,8 @@ func (app *App) createDevtool() {
 
 	app.devtool = devtoolBuilder.Build()
 	app.devtool.Serve()
+
+	// js, _ := json.Marshal(app.devtool)
+
+	// fmt.Println(string(js))
 }
