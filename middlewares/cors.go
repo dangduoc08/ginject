@@ -6,11 +6,51 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
 	"github.com/dangduoc08/gogo/utils"
 )
 
 type corsHeader map[string]string
+
+type CORS struct {
+	AllowOrigin any // string | []string | regexp
+
+	AllowHeaders any // string | []string
+
+	ExposeHeaders any // string | []string
+
+	AllowMethods []string
+
+	MaxAge int
+
+	IsAllowCredentials   bool
+	IsPreflightContinue  bool
+	OptionsSuccessStatus int
+	// /**
+	//  * @default false
+	//  */
+	// preflightContinue? boolean | undefined;
+	// /**
+	//  * @default 204
+	//  */
+	// optionsSuccessStatus? number | undefined;
+}
+
+type corsOptions struct {
+	optionsSuccessStatus int
+	isAllowCredentials   bool
+	allowOrigin          any    // string | []string | regexp
+	allowHeaders         string // string | []string
+	exposeHeaders        string
+	allowMethods         string
+	maxAge               string
+}
+
+func (instance CORS) NewMiddleware() common.MiddlewareFn {
+
+	return instance
+}
 
 func (h corsHeader) vary(k string) {
 	if k == "" {
@@ -25,19 +65,19 @@ func (h corsHeader) vary(k string) {
 	h["Vary"] = h["Vary"] + ", " + k
 }
 
-func (h corsHeader) configureMaxAge(opts *CORSOptions) corsHeader {
+func (h corsHeader) configureMaxAge(opts *corsOptions) corsHeader {
 	h["Access-Control-Max-Age"] = opts.maxAge // milliseconds
 	return h
 }
 
-func (h corsHeader) configureAllowMethods(opts *CORSOptions) corsHeader {
+func (h corsHeader) configureAllowMethods(opts *corsOptions) corsHeader {
 	h["Access-Control-Allow-Methods"] = opts.allowMethods
 	return h
 }
 
-func (h corsHeader) configureAllowOrigin(headers ctx.Header, opts *CORSOptions) corsHeader {
+func (h corsHeader) configureAllowOrigin(headers ctx.Header, opts *corsOptions) corsHeader {
 	requestOrigin := headers.Get("Origin")
-	switch allowOrigin := opts.AllowOrigin.(type) {
+	switch allowOrigin := opts.allowOrigin.(type) {
 	case string:
 		h["Access-Control-Allow-Origin"] = allowOrigin
 		return h
@@ -61,7 +101,7 @@ func (h corsHeader) configureAllowOrigin(headers ctx.Header, opts *CORSOptions) 
 	}
 }
 
-func (h corsHeader) configureAllowHeaders(headers ctx.Header, opts *CORSOptions) corsHeader {
+func (h corsHeader) configureAllowHeaders(headers ctx.Header, opts *corsOptions) corsHeader {
 	if opts.allowHeaders != "" {
 		h["Access-Control-Allow-Headers"] = opts.allowHeaders
 	} else {
@@ -73,7 +113,7 @@ func (h corsHeader) configureAllowHeaders(headers ctx.Header, opts *CORSOptions)
 	return h
 }
 
-func (h corsHeader) configureExposeHeaders(opts *CORSOptions) corsHeader {
+func (h corsHeader) configureExposeHeaders(opts *corsOptions) corsHeader {
 	if opts.exposeHeaders != "" {
 		h["Access-Control-Expose-Headers"] = opts.exposeHeaders
 	}
@@ -81,8 +121,8 @@ func (h corsHeader) configureExposeHeaders(opts *CORSOptions) corsHeader {
 	return h
 }
 
-func (h corsHeader) configureAllowCredentials(opts *CORSOptions) corsHeader {
-	if opts.IsAllowCredentials {
+func (h corsHeader) configureAllowCredentials(opts *corsOptions) corsHeader {
+	if opts.isAllowCredentials {
 		h["Access-Control-Allow-Credentials"] = "true"
 	}
 
@@ -95,52 +135,27 @@ func (h corsHeader) applyHeaders(c *ctx.Context) {
 	}
 }
 
-type CORSOptions struct {
-	AllowOrigin any // string | []string | regexp
+func loadCORSOptions(cors *CORS) *corsOptions {
+	opts := new(corsOptions)
 
-	AllowHeaders any    // string | []string
-	allowHeaders string // string | []string
+	opts.allowOrigin = cors.AllowOrigin
+	opts.isAllowCredentials = cors.IsAllowCredentials
 
-	ExposeHeaders any // string | []string
-	exposeHeaders string
-
-	AllowMethods []string
-	allowMethods string
-
-	MaxAge int
-	maxAge string
-
-	IsAllowCredentials   bool
-	IsPreflightContinue  bool
-	OptionsSuccessStatus int
-	// /**
-	//  * @default false
-	//  */
-	// preflightContinue? boolean | undefined;
-	// /**
-	//  * @default 204
-	//  */
-	// optionsSuccessStatus? number | undefined;
-}
-
-func loadCORSOptions(opts *CORSOptions) *CORSOptions {
-	if opts == nil {
-		opts = &CORSOptions{}
+	if cors.OptionsSuccessStatus == 0 {
+		opts.optionsSuccessStatus = 204
+	} else {
+		opts.optionsSuccessStatus = cors.OptionsSuccessStatus
 	}
 
-	if opts.OptionsSuccessStatus == 0 {
-		opts.OptionsSuccessStatus = 204
-	}
-
-	if opts.MaxAge == 0 {
+	if cors.MaxAge == 0 {
 
 		// default Access-Control-Max-Age = 5 seconds
-		opts.MaxAge = 5000
+		cors.MaxAge = 5000
 	}
-	opts.maxAge = strconv.Itoa(opts.MaxAge / 1000) // milliseconds
+	opts.maxAge = strconv.Itoa(cors.MaxAge / 1000) // milliseconds
 
-	if len(opts.AllowMethods) == 0 {
-		opts.AllowMethods = []string{
+	if len(cors.AllowMethods) == 0 {
+		cors.AllowMethods = []string{
 			http.MethodGet,
 			http.MethodHead,
 			http.MethodPut,
@@ -149,23 +164,23 @@ func loadCORSOptions(opts *CORSOptions) *CORSOptions {
 			http.MethodDelete,
 		}
 	}
-	opts.allowMethods = strings.Join(opts.AllowMethods, ", ")
+	opts.allowMethods = strings.Join(cors.AllowMethods, ", ")
 
-	if opts.AllowOrigin == nil {
-		opts.AllowOrigin = "*"
-	} else if allowOrigins, ok := opts.AllowOrigin.([]string); ok {
+	if cors.AllowOrigin == nil {
+		cors.AllowOrigin = "*"
+	} else if allowOrigins, ok := cors.AllowOrigin.([]string); ok {
 		m := map[string]bool{}
 		for _, allowOrigin := range allowOrigins {
 			m[utils.StrRemoveEnd(allowOrigin, "/")] = true
 		}
-		opts.AllowOrigin = m
+		cors.AllowOrigin = m
 	}
 
-	if allowHeaders, ok := opts.AllowHeaders.([]string); ok {
+	if allowHeaders, ok := cors.AllowHeaders.([]string); ok {
 		opts.allowHeaders = strings.Join(allowHeaders, ", ")
 	}
 
-	if exposeHeaders, ok := opts.ExposeHeaders.([]string); ok {
+	if exposeHeaders, ok := cors.ExposeHeaders.([]string); ok {
 		opts.exposeHeaders = strings.Join(exposeHeaders, ", ")
 	}
 
@@ -177,43 +192,41 @@ func loadCORSOptions(opts *CORSOptions) *CORSOptions {
 	return opts
 }
 
-func CORS(opts *CORSOptions) func(*ctx.Context) {
-	opts = loadCORSOptions(opts)
+func (instance CORS) Use(c *ctx.Context, next ctx.Next) {
+	opts := loadCORSOptions(&instance)
 
-	return func(c *ctx.Context) {
-		requestHeaders := c.Header()
-		h := corsHeader{}
+	requestHeaders := c.Header()
+	h := corsHeader{}
 
-		h.
-			configureMaxAge(opts).
-			configureAllowMethods(opts).
-			configureAllowOrigin(requestHeaders, opts).
-			configureAllowHeaders(requestHeaders, opts).
-			configureExposeHeaders(opts).
-			configureAllowCredentials(opts).
-			applyHeaders(c)
+	h.
+		configureMaxAge(opts).
+		configureAllowMethods(opts).
+		configureAllowOrigin(requestHeaders, opts).
+		configureAllowHeaders(requestHeaders, opts).
+		configureExposeHeaders(opts).
+		configureAllowCredentials(opts).
+		applyHeaders(c)
 
-		// methods which not in GET, POST, HEAD
-		// Content-Type not in 'application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'
-		// request include credentials
-		// will have preflight request
-		if c.Method == http.MethodOptions {
-			if opts.IsPreflightContinue {
-				c.Next()
-			} else {
+	// methods which not in GET, POST, HEAD
+	// Content-Type not in 'application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'
+	// request include credentials
+	// will have preflight request
+	if c.Method == http.MethodOptions {
+		if instance.IsPreflightContinue {
+			c.Next()
+		} else {
 
-				// Safari (and potentially other browsers) need content-length 0,
-				// for 204 or they just hang waiting for a body
-				// c.Status(opts.OptionsSuccessStatus)
-				c.Status(opts.OptionsSuccessStatus)
-				c.ResponseWriter.WriteHeader(opts.OptionsSuccessStatus)
-				c.ResponseWriter.Header().Set("Content-Length", "0")
-				c.Event.Emit(ctx.REQUEST_FINISHED, c)
-			}
-
-			return
+			// Safari (and potentially other browsers) need content-length 0,
+			// for 204 or they just hang waiting for a body
+			// c.Status(opts.OptionsSuccessStatus)
+			c.Status(opts.optionsSuccessStatus)
+			c.ResponseWriter.WriteHeader(opts.optionsSuccessStatus)
+			c.ResponseWriter.Header().Set("Content-Length", "0")
+			c.Event.Emit(ctx.REQUEST_FINISHED, c)
 		}
 
-		c.Next()
+		return
 	}
+
+	next()
 }
