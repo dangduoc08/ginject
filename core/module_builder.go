@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
 	"github.com/dangduoc08/gogo/utils"
 )
@@ -100,11 +101,11 @@ func (m *moduleBuilder) Build() *Module {
 		providers:      m.providers,
 		controllers:    m.controllers,
 
-		RESTExceptionFilters: []RESTLayer{},
-		RESTMiddlewares:      []RESTLayer{},
-		RESTGuards:           []RESTLayer{},
-		RESTInterceptors:     []RESTLayer{},
-		RESTMainHandlers:     []RESTLayer{},
+		RESTExceptionFilters: []common.RESTLayer{},
+		RESTMiddlewares:      []common.RESTLayer{},
+		RESTGuards:           []common.RESTLayer{},
+		RESTInterceptors:     []common.RESTLayer{},
+		RESTMainHandlers:     []common.RESTLayer{},
 
 		WSMiddlewares: []struct {
 			controllerName string

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/dangduoc08/gogo/core"
 	"github.com/dangduoc08/gogo/log"
+	"github.com/dangduoc08/gogo/middlewares"
 	"github.com/dangduoc08/gogo/sample/confs"
 	"github.com/dangduoc08/gogo/sample/keycaps"
 	"github.com/dangduoc08/gogo/sample/manufacturers"
@@ -19,14 +20,16 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(shared.RequestLogger{}).
+		BindGlobalMiddlewares(middlewares.CORS{}).
 		BindGlobalInterceptors(shared.ResponseInterceptor{}).
 		BindGlobalGuards(shared.RateLimiterGuard{})
 
-	app.EnableVersioning(versioning.Versioning{
-		Type: versioning.HEADER,
-		Key:  confs.ENV.APIVersionName,
-	})
+	app.
+		EnableVersioning(versioning.Versioning{
+			Type: versioning.HEADER,
+			Key:  confs.ENV.APIVersionName,
+		}).
+		EnableDevtool()
 
 	app.Create(
 		core.ModuleBuilder().
