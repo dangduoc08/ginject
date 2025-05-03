@@ -7,14 +7,6 @@ import (
 	"github.com/dangduoc08/gogo/ctx"
 )
 
-type Schema struct {
-	Name       string   `json:"name"`
-	Type       string   `json:"type"`
-	Format     string   `json:"format"`
-	Item       *Schema  `json:"item"`
-	Properties []Schema `json:"properties"`
-}
-
 var format = map[reflect.Kind]string{
 	reflect.Bool:       "boolean",
 	reflect.Int:        "number",
@@ -63,8 +55,8 @@ var typ = map[reflect.Kind]string{
 	reflect.Ptr:        "object",
 }
 
-func GenerateSchema(s reflect.Type, tag string) []Schema {
-	schema := []Schema{}
+func GenerateSchema(s reflect.Type, tag string) []*Schema {
+	schema := []*Schema{}
 
 	for i := 0; i < s.NumField(); i++ {
 		structField := s.Field(i)
@@ -98,14 +90,14 @@ func GenerateSchema(s reflect.Type, tag string) []Schema {
 					reflect.Complex128,
 					reflect.String,
 					reflect.Interface:
-					schema = append(schema, Schema{
+					schema = append(schema, &Schema{
 						Name:   bindedField,
 						Type:   typ[structField.Type.Kind()],
 						Format: format[structField.Type.Kind()],
 					})
 
 				case reflect.Slice:
-					schema = append(schema, Schema{
+					schema = append(schema, &Schema{
 						Name:   bindedField,
 						Type:   typ[structField.Type.Kind()],
 						Format: format[structField.Type.Kind()],
@@ -113,15 +105,15 @@ func GenerateSchema(s reflect.Type, tag string) []Schema {
 					})
 
 				case reflect.Map:
-					schema = append(schema, Schema{
+					schema = append(schema, &Schema{
 						Name:       bindedField,
 						Type:       typ[structField.Type.Kind()],
 						Format:     format[reflect.Struct],
-						Properties: []Schema{*explainObj(structField.Type.Elem(), tag)},
+						Properties: []*Schema{explainObj(structField.Type.Elem(), tag)},
 					})
 
 				case reflect.Struct:
-					schema = append(schema, Schema{
+					schema = append(schema, &Schema{
 						Name:       bindedField,
 						Type:       typ[structField.Type.Kind()],
 						Format:     format[structField.Type.Kind()],
@@ -130,7 +122,7 @@ func GenerateSchema(s reflect.Type, tag string) []Schema {
 
 				case reflect.Ptr:
 					if structField.Type.Elem().Kind() == reflect.Struct {
-						schema = append(schema, Schema{
+						schema = append(schema, &Schema{
 							Name:       bindedField,
 							Type:       typ[structField.Type.Kind()],
 							Format:     format[structField.Type.Kind()],
@@ -181,7 +173,7 @@ func explainObj(ob reflect.Type, tag string) *Schema {
 		return &Schema{
 			Type:       typ[ob.Kind()],
 			Format:     format[reflect.Struct],
-			Properties: []Schema{*explainObj(ob.Elem(), tag)},
+			Properties: []*Schema{explainObj(ob.Elem(), tag)},
 		}
 
 	case reflect.Struct:

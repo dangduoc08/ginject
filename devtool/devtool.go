@@ -1,84 +1,39 @@
 package devtool
 
-type LayerScope string
+import (
+	context "context"
+	"fmt"
+	"log"
+	"net"
 
-const (
-	REQUEST_SCOPE LayerScope = "request"
-	GLOBAL_SCOPE  LayerScope = "global"
+	grpc "google.golang.org/grpc"
 )
 
-type RESTLayer struct {
-	Scope LayerScope `json:"scope"`
-	Name  string     `json:"name"`
-}
-
-type RESTRequest struct {
-	Body   []Schema `json:"body"`
-	Form   []Schema `json:"form"`
-	Query  []Schema `json:"query"`
-	Header []Schema `json:"header"`
-	Param  []Schema `json:"param"`
-	File   []Schema `json:"file"`
-}
-
-type RESTVersioning struct {
-	Type  int    `json:"type"`
-	Value string `json:"value"`
-	Key   string `json:"key"`
-}
-
-type RESTComponent struct {
-	ID               string         `json:"id"`
-	Handler          string         `json:"handler"`
-	HTTPMethod       string         `json:"http_method"`
-	Route            string         `json:"route"`
-	ExceptionFilters []RESTLayer    `json:"exception_filters"`
-	Middlewares      []RESTLayer    `json:"middlewares"`
-	Guards           []RESTLayer    `json:"guards"`
-	Interceptors     []RESTLayer    `json:"interceptors"`
-	Versioning       RESTVersioning `json:"versioning"`
-	Request          RESTRequest    `json:"request"`
-}
-
-type DevtoolController struct {
-	REST []RESTComponent `json:"rest"`
-}
-
 type Devtool struct {
-	Controller DevtoolController `json:"controllers"`
+	GetConfigurationResponse
+	DevtoolServiceServer
 }
 
-func (d *Devtool) Serve() {
+func (devtool *Devtool) GetConfiguration(context.Context, *GetConfigurationRequest) (*GetConfigurationResponse, error) {
 
-	// tls := flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
+	return &GetConfigurationResponse{
+		Controller: devtool.Controller,
+	}, nil
+}
 
-	// fmt.Println(tls)
+func (devtool *Devtool) Serve() {
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
 
-	// listener, err := net.Listen("tcp", "localhost:50051")
-	// fmt.Println("server listen on: localhost:50051")
+	s := grpc.NewServer()
 
-	// if err != nil {
-	// 	log.Fatalf("error %v", err)
-	// }
+	RegisterDevtoolServiceServer(s, devtool)
 
-	// server := grpc.NewServer(grpc.)
+	fmt.Println("Server is running on port 50051...")
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 
-	// calculatorpb.RegisterCalculatorServiceServer(server, &Server{})
-
-	// if err := server.Serve(listener); err != nil {
-	// 	log.Fatalf("failed to listen: %v", err)
-	// }
-
-	// client := NewGreeterClient(conn)
-
-	// // Gửi request đến server
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	// defer cancel()
-
-	// res, err := client.SayHello(ctx, &HelloRequest{Name: "Alice"})
-	// if err != nil {
-	// 	log.Fatalf("Error calling SayHello: %v", err)
-	// }
-
-	// fmt.Println("Response from server:", res.Message)
 }

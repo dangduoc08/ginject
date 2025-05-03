@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/token"
 	"net"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/dangduoc08/gogo/common"
 	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/devtool"
 	"github.com/dangduoc08/gogo/utils"
 )
 
@@ -41,56 +41,56 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 				panic(err)
 			}
 
-			cb(CONTEXT_PIPEABLE, i, newArg)
+			cb(common.CONTEXT_PIPEABLE, i, newArg)
 		} else if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
 			newArg, err := injectDependencies(bodyPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(BODY_PIPEABLE, i, newArg)
+			cb(common.BODY_PIPEABLE, i, newArg)
 		} else if formPipeable, isImplFormPipeable := argAnyValue.(common.FormPipeable); isImplFormPipeable {
 			newArg, err := injectDependencies(formPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(FORM_PIPEABLE, i, newArg)
+			cb(common.FORM_PIPEABLE, i, newArg)
 		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
 			newArg, err := injectDependencies(queryPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(QUERY_PIPEABLE, i, newArg)
+			cb(common.QUERY_PIPEABLE, i, newArg)
 		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
 			newArg, err := injectDependencies(headerPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(HEADER_PIPEABLE, i, newArg)
+			cb(common.HEADER_PIPEABLE, i, newArg)
 		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
 			newArg, err := injectDependencies(paramPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(PARAM_PIPEABLE, i, newArg)
+			cb(common.PARAM_PIPEABLE, i, newArg)
 		} else if filePipeable, isImplFilePipeable := argAnyValue.(common.FilePipeable); isImplFilePipeable {
 			newArg, err := injectDependencies(filePipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(FILE_PIPEABLE, i, newArg)
+			cb(common.FILE_PIPEABLE, i, newArg)
 		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
 			newArg, err := injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(WS_PAYLOAD_PIPEABLE, i, newArg)
+			cb(common.WS_PAYLOAD_PIPEABLE, i, newArg)
 		} else {
 			cb(arg, i, newArg)
 		}
@@ -143,7 +143,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	args := []reflect.Value{}
 
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
-		return fmt.Errorf(
+		return errors.New(
 			utils.FmtRed(
 				"can't resolve argument of '%v'. Please make sure that the argument '%v' at index [%v] is available in the injected providers",
 				strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
@@ -196,7 +196,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 		componentName := path.Base(componentType.PkgPath()) + "." + componentType.Name()
 
 		if !token.IsExported(componentFieldName) {
-			panic(fmt.Errorf(
+			panic(errors.New(
 				utils.FmtRed(
 					"can't set value to unexported '%v' field of the %v %v",
 					componentFieldName,
@@ -224,7 +224,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 			// other wise state = nil
 			newComponent.Elem().Field(j).Set(componentValue.Field(j))
 		} else {
-			return reflect.ValueOf(nil), fmt.Errorf(
+			return reflect.ValueOf(nil), errors.New(
 				utils.FmtRed(
 					"can't resolve dependency '%v' of the %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					componentFieldType.String(),
@@ -299,60 +299,60 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 		return c.Next
 	case REDIRECT:
 		return c.Redirect
-	case CONTEXT_PIPEABLE:
+	case common.CONTEXT_PIPEABLE:
 		return pipeValue.
 			Interface().(common.ContextPipeable).
 			Transform(c, common.ArgumentMetadata{
-				ParamType:   CONTEXT_PIPEABLE,
+				ParamType:   common.CONTEXT_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case BODY_PIPEABLE:
+	case common.BODY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.BodyPipeable).
 			Transform(c.Body(), common.ArgumentMetadata{
-				ParamType:   BODY_PIPEABLE,
+				ParamType:   common.BODY_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case FORM_PIPEABLE:
+	case common.FORM_PIPEABLE:
 		return pipeValue.
 			Interface().(common.FormPipeable).
 			Transform(c.Form(), common.ArgumentMetadata{
-				ParamType:   FORM_PIPEABLE,
+				ParamType:   common.FORM_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case QUERY_PIPEABLE:
+	case common.QUERY_PIPEABLE:
 		return pipeValue.
 			Interface().(common.QueryPipeable).
 			Transform(c.Query(), common.ArgumentMetadata{
-				ParamType:   QUERY_PIPEABLE,
+				ParamType:   common.QUERY_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case HEADER_PIPEABLE:
+	case common.HEADER_PIPEABLE:
 		return pipeValue.
 			Interface().(common.HeaderPipeable).
 			Transform(c.Header(), common.ArgumentMetadata{
-				ParamType:   HEADER_PIPEABLE,
+				ParamType:   common.HEADER_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case PARAM_PIPEABLE:
+	case common.PARAM_PIPEABLE:
 		return pipeValue.
 			Interface().(common.ParamPipeable).
 			Transform(c.Param(), common.ArgumentMetadata{
-				ParamType:   PARAM_PIPEABLE,
+				ParamType:   common.PARAM_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case FILE_PIPEABLE:
+	case common.FILE_PIPEABLE:
 		return pipeValue.
 			Interface().(common.FilePipeable).
 			Transform(c.File(), common.ArgumentMetadata{
-				ParamType:   FILE_PIPEABLE,
+				ParamType:   common.FILE_PIPEABLE,
 				ContextType: c.GetType(),
 			})
-	case WS_PAYLOAD_PIPEABLE:
+	case common.WS_PAYLOAD_PIPEABLE:
 		return pipeValue.
 			Interface().(common.WSPayloadPipeable).
 			Transform(c.WS.Message.Payload, common.ArgumentMetadata{
-				ParamType:   WS_PAYLOAD_PIPEABLE,
+				ParamType:   common.WS_PAYLOAD_PIPEABLE,
 				ContextType: c.GetType(),
 			})
 	}
@@ -467,26 +467,4 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 	}
 
 	*controllers = uniqueControllers
-}
-
-// TODO:
-// shouldn't handle context since ctx quite generic
-// need to handle ws payload
-func generateRequestPayload(pipe reflect.Type) (string, []devtool.Schema) {
-	pipeableTypes := map[string]reflect.Type{
-		BODY_PIPEABLE:   reflect.TypeOf((*common.BodyPipeable)(nil)).Elem(),
-		FORM_PIPEABLE:   reflect.TypeOf((*common.FormPipeable)(nil)).Elem(),
-		QUERY_PIPEABLE:  reflect.TypeOf((*common.QueryPipeable)(nil)).Elem(),
-		HEADER_PIPEABLE: reflect.TypeOf((*common.HeaderPipeable)(nil)).Elem(),
-		PARAM_PIPEABLE:  reflect.TypeOf((*common.ParamPipeable)(nil)).Elem(),
-		FILE_PIPEABLE:   reflect.TypeOf((*common.FilePipeable)(nil)).Elem(),
-	}
-
-	for pipeableKey, interfaceType := range pipeableTypes {
-		if pipe.Implements(interfaceType) {
-			return pipeableKey, devtool.GenerateSchema(pipe, ctx.TagBind)
-		}
-	}
-
-	return "", nil
 }
