@@ -1,7 +1,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"reflect"
 
@@ -37,6 +37,17 @@ var TokenMap = map[string]string{
 	TOKEN_ANY:     TOKEN_ANY,
 	TOKEN_FILE:    TOKEN_FILE,
 	TOKEN_VERSION: TOKEN_VERSION,
+}
+
+type RESTLayer struct {
+	Handler         any
+	ControllerPath  string
+	Name            string
+	Route           string
+	Version         string
+	Method          string
+	Pattern         string
+	MainHandlerName string
 }
 
 type RESTConfiguration struct {
@@ -140,7 +151,7 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 		if InsertedRoutes[pattern] == "" {
 			InsertedRoutes[pattern] = fnName
 		} else {
-			panic(fmt.Errorf(
+			panic(errors.New(
 				utils.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,

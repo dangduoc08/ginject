@@ -4,6 +4,17 @@ import (
 	"github.com/dangduoc08/gogo/ctx"
 )
 
+const (
+	CONTEXT_PIPEABLE    = "context"
+	BODY_PIPEABLE       = "body"
+	FORM_PIPEABLE       = "form"
+	QUERY_PIPEABLE      = "query"
+	HEADER_PIPEABLE     = "header"
+	PARAM_PIPEABLE      = "param"
+	FILE_PIPEABLE       = "file"
+	WS_PAYLOAD_PIPEABLE = "wsPayload"
+)
+
 type ContextPipeable interface {
 	Transform(*ctx.Context, ArgumentMetadata) any
 }

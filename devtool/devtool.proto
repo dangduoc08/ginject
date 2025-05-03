@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+option go_package = "github.com/dangduoc08/gogo/devtool/devtool";
+
+package devtool;
+
+enum LayerScope {
+  UNKNOWN = 0;
+  REQUEST_SCOPE = 1;
+  GLOBAL_SCOPE = 2;
+}
+
+service DevtoolService {
+  rpc GetConfiguration(GetConfigurationRequest)
+      returns (GetConfigurationResponse) {}
+}
+
+message GetConfigurationRequest {}
+
+message GetConfigurationResponse { Controller controller = 1; }
+
+message Controller { repeated RESTComponent rest = 1; }
+
+message RESTComponent {
+  string id = 1;
+  string handler = 2;
+  string http_method = 3;
+  string route = 4;
+  repeated Layer exception_filters = 5;
+  repeated Layer middlewares = 6;
+  repeated Layer guards = 7;
+  repeated Layer interceptors = 8;
+  RESTVersioning versioning = 9;
+  RESTRequest request = 10;
+}
+
+message Layer {
+  LayerScope scope = 1;
+  string name = 2;
+}
+
+message RESTVersioning {
+  int32 type = 1;
+  string value = 2;
+  string key = 3;
+}
+
+message RESTRequest {
+  repeated Schema body = 1;
+  repeated Schema form = 2;
+  repeated Schema query = 3;
+  repeated Schema header = 4;
+  repeated Schema param = 5;
+  repeated Schema file = 6;
+}
+
+message Schema {
+  string name = 1;
+  string type = 2;
+  string format = 3;
+  Schema item = 4;
+  repeated Schema properties = 5;
+}

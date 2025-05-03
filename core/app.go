@@ -43,7 +43,7 @@ type App struct {
 	catchRESTFnsMap                        map[string][]common.Catch
 	catchWSFnsMap                          map[string][]common.Catch
 	Logger                                 common.Logger
-	versioning                             versioning.Versioning
+	versioning                             *versioning.Versioning
 	isEnableVersioning                     bool
 	isEnableDevtool                        bool
 	devtool                                *devtool.Devtool
@@ -51,51 +51,43 @@ type App struct {
 
 // link to aliases
 const (
-	CONTEXT             = "/*ctx.Context"
-	WS_CONNECTION       = "/*websocket.Conn"
-	REQUEST             = "/*http.Request"
-	RESPONSE            = "net/http/http.ResponseWriter"
-	BODY                = "github.com/dangduoc08/gogo/ctx/ctx.Body"
-	FORM                = "github.com/dangduoc08/gogo/ctx/ctx.Form"
-	QUERY               = "github.com/dangduoc08/gogo/ctx/ctx.Query"
-	HEADER              = "github.com/dangduoc08/gogo/ctx/ctx.Header"
-	PARAM               = "github.com/dangduoc08/gogo/ctx/ctx.Param"
-	FILE                = "github.com/dangduoc08/gogo/ctx/ctx.File"
-	WS_PAYLOAD          = "github.com/dangduoc08/gogo/ctx/ctx.WSPayload"
-	NEXT                = "/func()"
-	REDIRECT            = "/func(string)"
-	CONTEXT_PIPEABLE    = "context"
-	BODY_PIPEABLE       = "body"
-	FORM_PIPEABLE       = "form"
-	QUERY_PIPEABLE      = "query"
-	HEADER_PIPEABLE     = "header"
-	PARAM_PIPEABLE      = "param"
-	FILE_PIPEABLE       = "file"
-	WS_PAYLOAD_PIPEABLE = "wsPayload"
+	CONTEXT       = "/*ctx.Context"
+	WS_CONNECTION = "/*websocket.Conn"
+	REQUEST       = "/*http.Request"
+	RESPONSE      = "net/http/http.ResponseWriter"
+	BODY          = "github.com/dangduoc08/gogo/ctx/ctx.Body"
+	FORM          = "github.com/dangduoc08/gogo/ctx/ctx.Form"
+	QUERY         = "github.com/dangduoc08/gogo/ctx/ctx.Query"
+	HEADER        = "github.com/dangduoc08/gogo/ctx/ctx.Header"
+	PARAM         = "github.com/dangduoc08/gogo/ctx/ctx.Param"
+	FILE          = "github.com/dangduoc08/gogo/ctx/ctx.File"
+	WS_PAYLOAD    = "github.com/dangduoc08/gogo/ctx/ctx.WSPayload"
+	NEXT          = "/func()"
+	REDIRECT      = "/func(string)"
 )
 
 var dependencies = map[string]int{
-	CONTEXT:             1,
-	WS_CONNECTION:       1,
-	REQUEST:             1,
-	RESPONSE:            1,
-	BODY:                1,
-	FORM:                1,
-	QUERY:               1,
-	HEADER:              1,
-	PARAM:               1,
-	FILE:                1,
-	WS_PAYLOAD:          1,
-	NEXT:                1,
-	REDIRECT:            1,
-	CONTEXT_PIPEABLE:    1,
-	BODY_PIPEABLE:       1,
-	FORM_PIPEABLE:       1,
-	QUERY_PIPEABLE:      1,
-	HEADER_PIPEABLE:     1,
-	PARAM_PIPEABLE:      1,
-	FILE_PIPEABLE:       1,
-	WS_PAYLOAD_PIPEABLE: 1,
+	CONTEXT:                    1,
+	WS_CONNECTION:              1,
+	REQUEST:                    1,
+	RESPONSE:                   1,
+	BODY:                       1,
+	FORM:                       1,
+	QUERY:                      1,
+	HEADER:                     1,
+	PARAM:                      1,
+	FILE:                       1,
+	WS_PAYLOAD:                 1,
+	NEXT:                       1,
+	REDIRECT:                   1,
+	common.CONTEXT_PIPEABLE:    1,
+	common.BODY_PIPEABLE:       1,
+	common.FORM_PIPEABLE:       1,
+	common.QUERY_PIPEABLE:      1,
+	common.HEADER_PIPEABLE:     1,
+	common.PARAM_PIPEABLE:      1,
+	common.FILE_PIPEABLE:       1,
+	common.WS_PAYLOAD_PIPEABLE: 1,
 }
 
 var wsPaths = []string{
@@ -159,10 +151,10 @@ func (app *App) Create(m *Module) {
 	totalRESTModuleExceptionFilers := len(app.module.RESTExceptionFilters)
 	for i := totalRESTModuleExceptionFilers - 1; i >= 0; i-- {
 		moduleExceptionFilter := app.module.RESTExceptionFilters[i]
-		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.method]
+		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.Method]
 
-		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.route, moduleExceptionFilter.version)
-		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.handler.(common.Catch))
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.Route, moduleExceptionFilter.Version)
+		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
 	}
 
 	// WS module exception filters
@@ -185,9 +177,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global exception filters
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.route, mainHandlerItem.version)
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
 			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
 		}
 
@@ -335,9 +327,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global guards
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(useMiddlewareWrapper)
+			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(useMiddlewareWrapper)
 		}
 
 		// WS global guards
@@ -355,11 +347,11 @@ func (app *App) Create(m *Module) {
 			return func(c *ctx.Context) {
 				useFn(c, c.Next)
 			}
-		}(restModuleMiddleware.handler.(common.Use))
+		}(restModuleMiddleware.Handler.(common.Use))
 
-		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.method]
+		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.Method]
 
-		app.route.For([]string{httpMethod}, restModuleMiddleware.route, restModuleMiddleware.version)(useMiddlewareWrapper)
+		app.route.For([]string{httpMethod}, restModuleMiddleware.Route, restModuleMiddleware.Version)(useMiddlewareWrapper)
 	}
 
 	// WS module middlewares
@@ -393,9 +385,9 @@ func (app *App) Create(m *Module) {
 
 		// REST global guards
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(canActivateMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(canActivateMiddleware)
 		}
 
 		// WS global guards
@@ -413,10 +405,10 @@ func (app *App) Create(m *Module) {
 			return func(c *ctx.Context) {
 				common.HandleGuard(c, canActiveFn(c))
 			}
-		}(moduleGuard.handler.(common.CanActivate))
+		}(moduleGuard.Handler.(common.CanActivate))
 
-		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.method]
-		app.route.For([]string{httpMethod}, moduleGuard.route, moduleGuard.version)(canActivateMiddlewareWrapper)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.Method]
+		app.route.For([]string{httpMethod}, moduleGuard.Route, moduleGuard.Version)(canActivateMiddlewareWrapper)
 	}
 
 	// WS module guards
@@ -445,8 +437,8 @@ func (app *App) Create(m *Module) {
 
 		// REST global interceptors
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.method]
-			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.route, mainHandlerItem.version)
+			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
 
 			interceptMiddleware := func(interceptor common.Interceptable) ctx.Handler {
 				return func(c *ctx.Context) {
@@ -478,7 +470,7 @@ func (app *App) Create(m *Module) {
 				}
 			}(globalInterceptor)
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.route, mainHandlerItem.version)(interceptMiddleware)
+			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(interceptMiddleware)
 		}
 
 		// WS global interceptors
@@ -522,8 +514,8 @@ func (app *App) Create(m *Module) {
 
 	// REST module interceptors
 	for _, moduleInterceptor := range app.module.RESTInterceptors {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.method]
-		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleInterceptor.route, moduleInterceptor.version)
+		httpMethod := routing.OperationsMapHTTPMethods[moduleInterceptor.Method]
+		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleInterceptor.Route, moduleInterceptor.Version)
 
 		interceptMiddleware := func(interceptFn common.Intercept) ctx.Handler {
 			return func(c *ctx.Context) {
@@ -553,10 +545,10 @@ func (app *App) Create(m *Module) {
 
 				c.Next()
 			}
-		}(moduleInterceptor.handler.(common.Intercept))
+		}(moduleInterceptor.Handler.(common.Intercept))
 
 		// add interceptor middleware
-		app.route.For([]string{httpMethod}, moduleInterceptor.route, moduleInterceptor.version)(interceptMiddleware)
+		app.route.For([]string{httpMethod}, moduleInterceptor.Route, moduleInterceptor.Version)(interceptMiddleware)
 	}
 
 	// WS module interceptors
@@ -599,18 +591,18 @@ func (app *App) Create(m *Module) {
 
 	// main REST handler
 	for _, moduleHandler := range app.module.RESTMainHandlers {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
-		if moduleHandler.method == routing.SERVE {
-			r := moduleHandler.route
+		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
+		if moduleHandler.Method == routing.SERVE {
+			r := moduleHandler.Route
 			lr := len(r)
 			lastWildcardSlashIndex := 0 // zero mean use config dir
 			if lr >= 2 && r[lr-2:] == "*/" {
 				lastWildcardSlashIndex = strings.Count(r, "/") - 1
 			}
 
-			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.route, moduleHandler.version)] = lastWildcardSlashIndex
+			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
 		}
-		app.route.AddInjectableHandler(httpMethod, moduleHandler.route, moduleHandler.version, moduleHandler.handler)
+		app.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
 	}
 
 	// main WS handler
@@ -618,9 +610,9 @@ func (app *App) Create(m *Module) {
 		app.wsMainHandlerMap[moduleHandler.EventName] = moduleHandler.Handler
 	}
 
-	// if app.isEnableDevtool {
-	app.createDevtool()
-	// }
+	if app.isEnableDevtool {
+		app.createDevtool()
+	}
 }
 
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
@@ -648,7 +640,7 @@ func (app *App) BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App {
 }
 
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
-	app.versioning = v
+	app.versioning = &v
 	app.isEnableVersioning = true
 
 	return app
@@ -1273,143 +1265,14 @@ func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any
 func (app *App) createDevtool() {
 	devtoolBuilder := devtool.DevtoolBuilder()
 
-	sort.Slice(app.module.RESTMainHandlers, func(i, j int) bool {
-		return app.module.RESTMainHandlers[i].route < app.module.RESTMainHandlers[j].route
-	})
+	app.devtool = devtoolBuilder.
+		AddExceptionFilters(app.globalExceptionFilters, app.module.RESTExceptionFilters).
+		AddMiddlewares(app.globalMiddlewares, app.module.RESTMiddlewares).
+		AddGuarders(app.globalGuarders, app.module.RESTGuards).
+		AddInterceptors(app.globalInterceptors, app.module.RESTInterceptors).
+		AddVersioning(app.versioning).
+		AddRESTMainHandlers(app.module.RESTMainHandlers).
+		Build()
 
-	exceptionFiltersByPattern := generateLayersByPattern(app.module.RESTExceptionFilters)
-	middlewaresByPattern := generateLayersByPattern(app.module.RESTMiddlewares)
-	guardsByPattern := generateLayersByPattern(app.module.RESTGuards)
-	interceptorsByPattern := generateLayersByPattern(app.module.RESTInterceptors)
-
-	globalExceptionFilters := utils.ArrMap(
-		app.globalExceptionFilters,
-		func(el common.ExceptionFilterable, i int) devtool.RESTLayer {
-			return devtool.RESTLayer{
-				Name:  reflect.TypeOf(el).String(),
-				Scope: devtool.GLOBAL_SCOPE,
-			}
-		},
-	)
-
-	globalMiddlewares := utils.ArrMap(
-		app.globalMiddlewares,
-		func(el common.MiddlewareFn, i int) devtool.RESTLayer {
-			return devtool.RESTLayer{
-				Name:  reflect.TypeOf(el).String(),
-				Scope: devtool.GLOBAL_SCOPE,
-			}
-		},
-	)
-
-	globalGuards := utils.ArrMap(
-		app.globalGuarders,
-		func(el common.Guarder, i int) devtool.RESTLayer {
-			return devtool.RESTLayer{
-				Name:  reflect.TypeOf(el).String(),
-				Scope: devtool.GLOBAL_SCOPE,
-			}
-		},
-	)
-
-	globalInterceptors := utils.ArrMap(
-		app.globalInterceptors,
-		func(el common.Interceptable, i int) devtool.RESTLayer {
-			return devtool.RESTLayer{
-				Name:  reflect.TypeOf(el).String(),
-				Scope: devtool.GLOBAL_SCOPE,
-			}
-		},
-	)
-
-	for _, moduleHandler := range app.module.RESTMainHandlers {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.method]
-
-		exceptionFilters := utils.ArrMap(
-			exceptionFiltersByPattern[moduleHandler.pattern],
-			func(el *RESTLayer, i int) devtool.RESTLayer {
-				return devtool.RESTLayer{
-					Name:  el.name,
-					Scope: devtool.REQUEST_SCOPE,
-				}
-			},
-		)
-
-		middlewares := utils.ArrMap(
-			middlewaresByPattern[moduleHandler.pattern],
-			func(el *RESTLayer, i int) devtool.RESTLayer {
-				return devtool.RESTLayer{
-					Name:  el.name,
-					Scope: devtool.REQUEST_SCOPE,
-				}
-			},
-		)
-
-		guards := utils.ArrMap(
-			guardsByPattern[moduleHandler.pattern],
-			func(el *RESTLayer, i int) devtool.RESTLayer {
-				return devtool.RESTLayer{
-					Name:  el.name,
-					Scope: devtool.REQUEST_SCOPE,
-				}
-			},
-		)
-
-		interceptors := utils.ArrMap(
-			interceptorsByPattern[moduleHandler.pattern],
-			func(el *RESTLayer, i int) devtool.RESTLayer {
-				return devtool.RESTLayer{
-					Name:  el.name,
-					Scope: devtool.REQUEST_SCOPE,
-				}
-			},
-		)
-
-		restComponent := devtool.RESTComponent{
-			Handler:          moduleHandler.name,
-			HTTPMethod:       httpMethod,
-			Route:            moduleHandler.route,
-			ExceptionFilters: append(globalExceptionFilters, exceptionFilters...),
-			Middlewares:      append(globalMiddlewares, middlewares...),
-			Guards:           append(globalGuards, guards...),
-			Interceptors:     append(globalInterceptors, interceptors...),
-			Versioning: devtool.RESTVersioning{
-				Value: moduleHandler.version,
-				Key:   app.versioning.Key,
-				Type:  app.versioning.Type,
-			},
-			Request: devtool.RESTRequest{},
-		}
-
-		funcType := reflect.TypeOf(moduleHandler.handler)
-
-		for i := 0; i < funcType.NumIn(); i++ {
-			pipe := funcType.In(i)
-			pipeType, schemas := generateRequestPayload(pipe)
-			if pipeType != "" {
-				switch pipeType {
-				case BODY_PIPEABLE:
-					restComponent.Request.Body = schemas
-				case FORM_PIPEABLE:
-					restComponent.Request.Form = schemas
-				case QUERY_PIPEABLE:
-					restComponent.Request.Query = schemas
-				case HEADER_PIPEABLE:
-					restComponent.Request.Header = schemas
-				case PARAM_PIPEABLE:
-					restComponent.Request.Param = schemas
-				case FILE_PIPEABLE:
-					restComponent.Request.File = schemas
-				}
-			}
-		}
-		devtoolBuilder.AddREST(moduleHandler.controllerPath, restComponent)
-	}
-
-	app.devtool = devtoolBuilder.Build()
-	app.devtool.Serve()
-
-	// js, _ := json.Marshal(app.devtool)
-
-	// fmt.Println(string(js))
+	go app.devtool.Serve()
 }
