@@ -1,7 +1,7 @@
 package routing
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -227,7 +227,7 @@ func (r *Router) Add(method, route, version string, handler ctx.Handler) *Router
 func (r *Router) AddInjectableHandler(method, route, version string, handler any) *Router {
 	handlerKind := reflect.TypeOf(handler).Kind()
 	if handler == nil || handlerKind != reflect.Func {
-		panic(fmt.Errorf(
+		panic(errors.New(
 			utils.FmtRed(
 				"%v is not a handler",
 				handlerKind,

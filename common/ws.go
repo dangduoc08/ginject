@@ -1,7 +1,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 
 	"github.com/dangduoc08/gogo/utils"
@@ -41,7 +41,7 @@ func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler an
 		if InsertedEvents[eventName] == "" {
 			InsertedEvents[eventName] = fnName
 		} else {
-			panic(fmt.Errorf(
+			panic(errors.New(
 				utils.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,

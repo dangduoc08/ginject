@@ -39,7 +39,7 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 		case labelInfo, labelWarn:
 			space = "  "
 		}
-		level = utils.FmtBold(colorize.bg(" %v%v", level, space))
+		level = utils.FmtBold("%s", colorize.bg(" %v%v", level, space))
 		h.writer.Write([]byte(level))
 
 		time := utils.FmtBGDim(" %v ", record.Time.Format(h.timeFormat))
@@ -62,11 +62,11 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 
 		switch attr.Value.Kind() {
 		case slog.KindFloat64, slog.KindInt64, slog.KindUint64:
-			value = utils.FmtOrange(value)
+			value = utils.FmtOrange("%s", value)
 		case slog.KindBool:
-			value = utils.FmtBlue(value)
+			value = utils.FmtBlue("%s", value)
 		case slog.KindString:
-			value = utils.FmtGreen("\"%v\"", value)
+			value = utils.FmtGreen("\"%s\"", value)
 		default:
 			if value == "<nil>" {
 				value = utils.FmtMagenta("null")

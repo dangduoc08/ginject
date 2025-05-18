@@ -47,10 +47,10 @@ func (ws *WS) GetSubprotocol() string {
 func (ws *WS) GetSubscribedEvents() []string {
 	wsSubscribedEvents := strings.Split(ws.Connection.Request().URL.Query().Get("events"), ",")
 	wsSubscribedEvents = append(wsSubscribedEvents, "*")
-	wsSubscribedEvents = utils.ArrFilter[string](wsSubscribedEvents, func(el string, i int) bool {
+	wsSubscribedEvents = utils.ArrFilter(wsSubscribedEvents, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
-	wsSubscribedEvents = utils.ArrToUnique[string](wsSubscribedEvents)
+	wsSubscribedEvents = utils.ArrToUnique(wsSubscribedEvents)
 	return wsSubscribedEvents
 }
 

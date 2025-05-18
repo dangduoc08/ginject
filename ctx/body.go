@@ -71,7 +71,7 @@ func (b Body) Set(k string, v any) {
 
 func (b Body) Get(k string) any {
 	keys := strings.Split(k, ".")
-	keys = utils.ArrFilter[string](keys, func(el string, i int) bool {
+	keys = utils.ArrFilter(keys, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
 	obj := b
