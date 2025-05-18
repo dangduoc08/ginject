@@ -146,205 +146,205 @@ func TestBindStrArr(t *testing.T) {
 
 	for _, fl := range fls {
 		if fl.Field() == "Complex1" && dto.Complex1 != fl.Value() {
-			t.Errorf(utils.ErrorMessage(dto.Complex1, fl.Value(), "Complex1 should be binded"))
+			t.Error(utils.ErrorMessage(dto.Complex1, fl.Value(), "Complex1 should be binded"))
 		}
 	}
 
 	actual1 := dto.Bool1
 	expected1 := true
 	if actual1 != expected1 {
-		t.Errorf(utils.ErrorMessage(actual1, expected1, "bool should be binded"))
+		t.Error(utils.ErrorMessage(actual1, expected1, "bool should be binded"))
 	}
 
 	actual2 := dto.Bool2
 	expected2 := true
 	if actual2 != expected2 {
-		t.Errorf(utils.ErrorMessage(actual2, expected2, "bool should be binded"))
+		t.Error(utils.ErrorMessage(actual2, expected2, "bool should be binded"))
 	}
 
 	actual3 := dto.Bool3
 	expected3 := false
 	if actual3 != expected3 {
-		t.Errorf(utils.ErrorMessage(actual3, expected3, "bool should be binded"))
+		t.Error(utils.ErrorMessage(actual3, expected3, "bool should be binded"))
 	}
 
 	actual4 := dto.String1
 	expected4 := "this is string"
 	if actual4 != expected4 {
-		t.Errorf(utils.ErrorMessage(actual4, expected4, "string should be binded"))
+		t.Error(utils.ErrorMessage(actual4, expected4, "string should be binded"))
 	}
 
 	actual5 := dto.String2
 	expected5 := "this is string 2"
 	if actual5 != expected5 {
-		t.Errorf(utils.ErrorMessage(actual5, expected5, "string should be binded"))
+		t.Error(utils.ErrorMessage(actual5, expected5, "string should be binded"))
 	}
 
 	actual6 := dto.Integer1
 	expected6 := -9223372036854775808
 	if actual6 != expected6 {
-		t.Errorf(utils.ErrorMessage(actual6, expected6, "integer should be binded"))
+		t.Error(utils.ErrorMessage(actual6, expected6, "integer should be binded"))
 	}
 
 	actual7 := dto.Integer2
 	var expected7 int8 = -128
 	if actual7 != expected7 {
-		t.Errorf(utils.ErrorMessage(actual7, expected7, "integer should be binded"))
+		t.Error(utils.ErrorMessage(actual7, expected7, "integer should be binded"))
 	}
 
 	actual8 := dto.Integer3
 	var expected8 int16 = -32768
 	if actual8 != expected8 {
-		t.Errorf(utils.ErrorMessage(actual8, expected8, "integer should be binded"))
+		t.Error(utils.ErrorMessage(actual8, expected8, "integer should be binded"))
 	}
 
 	actual9 := dto.Integer4
 	var expected9 int32 = -2147483648
 	if actual9 != expected9 {
-		t.Errorf(utils.ErrorMessage(actual9, expected9, "integer should be binded"))
+		t.Error(utils.ErrorMessage(actual9, expected9, "integer should be binded"))
 	}
 
 	actual10 := dto.Integer5
 	var expected10 int64 = -9223372036854775808
 	if actual10 != expected10 {
-		t.Errorf(utils.ErrorMessage(actual10, expected10, "integer should be binded"))
+		t.Error(utils.ErrorMessage(actual10, expected10, "integer should be binded"))
 	}
 
 	actual11 := dto.Integer6
 	expected11 := 0
 	if actual11 != expected11 {
-		t.Errorf(utils.ErrorMessage(actual11, expected11, "integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual11, expected11, "integer shouldn't be binded"))
 	}
 
 	actual12 := dto.Integer7
 	expected12 := 0
 	if actual12 != expected12 {
-		t.Errorf(utils.ErrorMessage(actual12, expected12, "integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual12, expected12, "integer shouldn't be binded"))
 	}
 
 	actual13 := dto.Integer8
 	expected13 := 0
 	if actual13 != expected13 {
-		t.Errorf(utils.ErrorMessage(actual13, expected13, "integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual13, expected13, "integer shouldn't be binded"))
 	}
 
 	actual14 := dto.Uinteger1
 	var expected14 uint = 18446744073709551615
 	if actual14 != expected14 {
-		t.Errorf(utils.ErrorMessage(actual14, expected14, "unsigned integer should be binded"))
+		t.Error(utils.ErrorMessage(actual14, expected14, "unsigned integer should be binded"))
 	}
 
 	actual15 := dto.Uinteger2
 	var expected15 uint8 = 255
 	if actual15 != expected15 {
-		t.Errorf(utils.ErrorMessage(actual15, expected15, "unsigned integer should be binded"))
+		t.Error(utils.ErrorMessage(actual15, expected15, "unsigned integer should be binded"))
 	}
 
 	actual16 := dto.Uinteger3
 	var expected16 uint16 = 65535
 	if actual16 != expected16 {
-		t.Errorf(utils.ErrorMessage(actual16, expected16, "unsigned integer should be binded"))
+		t.Error(utils.ErrorMessage(actual16, expected16, "unsigned integer should be binded"))
 	}
 
 	actual17 := dto.Uinteger4
 	var expected17 uint32 = 4294967295
 	if actual17 != expected17 {
-		t.Errorf(utils.ErrorMessage(actual17, expected17, "unsigned integer should be binded"))
+		t.Error(utils.ErrorMessage(actual17, expected17, "unsigned integer should be binded"))
 	}
 
 	actual18 := dto.Uinteger5
 	var expected18 uint64 = 18446744073709551615
 	if actual18 != expected18 {
-		t.Errorf(utils.ErrorMessage(actual18, expected18, "unsigned integer should be binded"))
+		t.Error(utils.ErrorMessage(actual18, expected18, "unsigned integer should be binded"))
 	}
 
 	actual19 := dto.Uinteger6
 	var expected19 uint = 0
 	if actual19 != expected19 {
-		t.Errorf(utils.ErrorMessage(actual19, expected19, "unsigned integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual19, expected19, "unsigned integer shouldn't be binded"))
 	}
 
 	actual20 := dto.Uinteger7
 	var expected20 uint = 0
 	if actual20 != expected20 {
-		t.Errorf(utils.ErrorMessage(actual20, expected20, "unsigned integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual20, expected20, "unsigned integer shouldn't be binded"))
 	}
 
 	actual21 := dto.Uinteger8
 	var expected21 uint = 0
 	if actual21 != expected21 {
-		t.Errorf(utils.ErrorMessage(actual21, expected21, "unsigned integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual21, expected21, "unsigned integer shouldn't be binded"))
 	}
 
 	actual22 := dto.Uinteger9
 	var expected22 uint = 0
 	if actual22 != expected22 {
-		t.Errorf(utils.ErrorMessage(actual22, expected22, "unsigned integer shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual22, expected22, "unsigned integer shouldn't be binded"))
 	}
 
 	actual23 := dto.Float1
 	var expected23 float32 = 1.401298464e-45
 	if actual23 != expected23 {
-		t.Errorf(utils.ErrorMessage(actual23, expected23, "float should be binded"))
+		t.Error(utils.ErrorMessage(actual23, expected23, "float should be binded"))
 	}
 
 	actual24 := dto.Float2
 	var expected24 float64 = 1.7976931348623157e+308
 	if actual24 != expected24 {
-		t.Errorf(utils.ErrorMessage(actual24, expected24, "float should be binded"))
+		t.Error(utils.ErrorMessage(actual24, expected24, "float should be binded"))
 	}
 
 	actual25 := dto.Float3
 	var expected25 float32 = 18446744073709551615
 	if actual25 != expected25 {
-		t.Errorf(utils.ErrorMessage(actual25, expected25, "float should be binded"))
+		t.Error(utils.ErrorMessage(actual25, expected25, "float should be binded"))
 	}
 
 	actual26 := dto.Float4
 	var expected26 float64 = 0
 	if actual26 != expected26 {
-		t.Errorf(utils.ErrorMessage(actual26, expected26, "float shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual26, expected26, "float shouldn't be binded"))
 	}
 
 	actual27 := dto.Float5
 	var expected27 float64 = 0
 	if actual27 != expected27 {
-		t.Errorf(utils.ErrorMessage(actual27, expected27, "float shouldn't be binded"))
+		t.Error(utils.ErrorMessage(actual27, expected27, "float shouldn't be binded"))
 	}
 
 	actual28 := dto.Float6
 	var expected28 float64 = -128
 	if actual28 != expected28 {
-		t.Errorf(utils.ErrorMessage(actual28, expected28, "float shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual28, expected28, "float shouldn be binded"))
 	}
 
 	actual29 := dto.Complex1
 	var expected29 complex64 = 5 + 10i
 	if actual29 != expected29 {
-		t.Errorf(utils.ErrorMessage(actual29, expected29, "complex shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual29, expected29, "complex shouldn be binded"))
 	}
 
 	actual30 := dto.Complex2
 	var expected30 complex128 = 21.20 + 21i
 	if actual30 != expected30 {
-		t.Errorf(utils.ErrorMessage(actual30, expected30, "complex shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual30, expected30, "complex shouldn be binded"))
 	}
 
 	actual31 := dto.Complex3
 	var expected31 complex128 = 0 + 0i
 	if actual31 != expected31 {
-		t.Errorf(utils.ErrorMessage(actual31, expected31, "complex shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual31, expected31, "complex shouldn be binded"))
 	}
 
 	actual32 := dto.Complex4
 	var expected32 complex128 = -123.14 + 0i
 	if actual32 != expected32 {
-		t.Errorf(utils.ErrorMessage(actual32, expected32, "complex shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual32, expected32, "complex shouldn be binded"))
 	}
 
 	actual33 := dto.Complex5
 	var expected33 complex128 = 1.8446744073709552e+19 + 0i
 	if actual33 != expected33 {
-		t.Errorf(utils.ErrorMessage(actual33, expected33, "complex shouldn be binded"))
+		t.Error(utils.ErrorMessage(actual33, expected33, "complex shouldn be binded"))
 	}
 }

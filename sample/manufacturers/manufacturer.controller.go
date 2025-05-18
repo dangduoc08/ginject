@@ -16,6 +16,7 @@ type ManufacturerController struct {
 	common.Interceptor
 	common.Guard
 	common.REST
+	common.WS
 }
 
 func (instance ManufacturerController) NewController() core.Controller {
@@ -40,6 +41,11 @@ func (instance ManufacturerController) NewController() core.Controller {
 	)
 
 	return instance
+}
+
+func (instance ManufacturerController) SUBSCRIBE_test() string {
+
+	return "hihi"
 }
 
 func (instance ManufacturerController) CREATE_VERSION_1(bodyDTO dtos.CREATE_VERSION_1_Body_DTO) gogo.Map {

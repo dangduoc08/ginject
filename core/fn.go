@@ -256,11 +256,11 @@ func getLocalIP() string {
 }
 
 func logBoostrap(port int) {
-	accessURLs := utils.FmtBold(utils.FmtBGYellow(utils.FmtWhite(" GG! Here Are Your Access URLs: "))) + "\n"
+	accessURLs := utils.FmtBold("%s", utils.FmtBGYellow(" GG! Here Are Your Access URLs: ")) + "\n"
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
-	host := utils.FmtBold(utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
-	lan := utils.FmtBold(utils.FmtWhite("      LAN: ")) + utils.FmtMagenta(fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
-	close := utils.FmtItalic(utils.FmtGreen("Press CTRL+C to stop")) + "\n"
+	host := utils.FmtBold("%s", utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
+	lan := utils.FmtBold("%s", utils.FmtWhite("      LAN: ")) + utils.FmtMagenta("%s", fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
+	close := utils.FmtItalic("%s", utils.FmtGreen("Press CTRL+C to stop")) + "\n"
 
 	os.Stdout.Write([]byte("\n"))
 	os.Stdout.Write([]byte(accessURLs))

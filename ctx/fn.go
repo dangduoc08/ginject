@@ -27,7 +27,7 @@ func toJSONP(jsonStr, callback string) string {
 }
 
 func GetTagParams(v string) []string {
-	return utils.ArrFilter[string](utils.ArrMap[string, string](
+	return utils.ArrFilter(utils.ArrMap(
 		strings.Split(v, ","), func(el string, i int) string {
 			return strings.TrimSpace(el)
 		}), func(el string, i int) bool {
