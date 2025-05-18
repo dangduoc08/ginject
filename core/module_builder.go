@@ -75,7 +75,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 	}
 
 	if len(errors) > 0 {
-		panic(utils.FmtRed(strings.Join(errors, "\n       ")))
+		panic(utils.FmtRed("%s", strings.Join(errors, "\n       ")))
 	}
 
 	return staticModules, dynamicModules

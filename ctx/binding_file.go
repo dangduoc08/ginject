@@ -50,7 +50,7 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 						continue
 
 					case reflect.Slice:
-						dataFile := utils.ArrMap[*multipart.FileHeader, *DataFile](
+						dataFile := utils.ArrMap(
 							bindedValue,
 							func(fileHeader *multipart.FileHeader, index int) *DataFile {
 								return &DataFile{

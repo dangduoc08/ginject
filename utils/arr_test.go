@@ -142,13 +142,13 @@ func TestArrGet(t *testing.T) {
 	}
 
 	expect1 := "John Doe"
-	output1, _ := ArrGet[string](arr, 0)
+	output1, _ := ArrGet(arr, 0)
 	if expect1 != output1 {
 		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
 	}
 
 	expect2 := ""
-	output2, _ := ArrGet[string](arr, 100)
+	output2, _ := ArrGet(arr, 100)
 	if expect2 != output2 {
 		t.Errorf("len(expect1) = %v; len(output1) = %v", len(expect1), len(output1))
 	}

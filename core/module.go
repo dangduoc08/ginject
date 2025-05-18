@@ -557,7 +557,7 @@ func (m *Module) NewModule() *Module {
 					// add for consistency with another layers
 					for pattern, handler := range rest.RouterMap {
 						if err := isInjectableHandler(handler, injectedProviders); err != nil {
-							panic(utils.FmtRed(err.Error()))
+							panic(utils.FmtRed("%s", err.Error()))
 						}
 						method, route, version := routing.PatternToMethodRouteVersion(pattern)
 						m.RESTMainHandlers = append(m.RESTMainHandlers, common.RESTLayer{
@@ -779,7 +779,7 @@ func (m *Module) NewModule() *Module {
 					for eventName, handler := range ws.EventMap {
 
 						if err := isInjectableHandler(handler, injectedProviders); err != nil {
-							panic(utils.FmtRed(err.Error()))
+							panic(utils.FmtRed("%s", err.Error()))
 						}
 
 						m.WSMainHandlers = append(m.WSMainHandlers, struct {
