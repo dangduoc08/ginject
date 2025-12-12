@@ -3,21 +3,21 @@ package shared
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo"
-	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/ginject"
+	"github.com/dangduoc08/ginject/common"
 )
 
 type ResponseInterceptor struct {
 	common.Logger
 }
 
-func (instance ResponseInterceptor) Intercept(c gogo.Context, aggregation gogo.Aggregation) any {
+func (instance ResponseInterceptor) Intercept(c ginject.Context, aggregation ginject.Aggregation) any {
 	fmt.Println("[Global][Pre] Response interceptor")
 
 	return aggregation.Pipe(
-		aggregation.Consume(func(c gogo.Context, data any) any {
+		aggregation.Consume(func(c ginject.Context, data any) any {
 			fmt.Println("[Global][Post] Response interceptor")
-			transformedData := gogo.Map{
+			transformedData := ginject.Map{
 				"data": data,
 			}
 			return transformedData

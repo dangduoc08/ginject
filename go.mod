@@ -1,17 +1,15 @@
-module github.com/dangduoc08/gogo
+module github.com/dangduoc08/ginject
 
 go 1.24.3
 
-toolchain go1.24.2
-
 require (
-	golang.org/x/net v0.40.0
-	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.4
+	golang.org/x/net v0.48.0
+	google.golang.org/grpc v1.77.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 )

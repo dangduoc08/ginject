@@ -638,7 +638,7 @@ const file_devtool_devtool_proto_rawDesc = "" +
 	"\rREQUEST_SCOPE\x10\x01\x12\x10\n" +
 	"\fGLOBAL_SCOPE\x10\x022k\n" +
 	"\x0eDevtoolService\x12Y\n" +
-	"\x10GetConfiguration\x12 .devtool.GetConfigurationRequest\x1a!.devtool.GetConfigurationResponse\"\x00B,Z*github.com/dangduoc08/gogo/devtool/devtoolb\x06proto3"
+	"\x10GetConfiguration\x12 .devtool.GetConfigurationRequest\x1a!.devtool.GetConfigurationResponse\"\x00B/Z-github.com/dangduoc08/ginject/devtool/devtoolb\x06proto3"
 
 var (
 	file_devtool_devtool_proto_rawDescOnce sync.Once

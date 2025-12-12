@@ -3,8 +3,8 @@ package core
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/exception"
+	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
 )
 
 /**

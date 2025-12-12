@@ -1,6 +1,6 @@
 package manufacturers
 
-import "github.com/dangduoc08/gogo/core"
+import "github.com/dangduoc08/ginject/core"
 
 var ManufacturerModule = func() *core.Module {
 	manufacturerController := ManufacturerController{}

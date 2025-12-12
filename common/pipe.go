@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dangduoc08/gogo/core"
+	"github.com/dangduoc08/ginject/core"
 )
 
 type (

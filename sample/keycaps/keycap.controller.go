@@ -1,8 +1,8 @@
 package keycaps
 
 import (
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/core"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/core"
 )
 
 type KeycapController struct {

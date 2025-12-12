@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 type Body map[string]any

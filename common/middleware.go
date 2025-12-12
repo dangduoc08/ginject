@@ -3,8 +3,8 @@ package common
 import (
 	"reflect"
 
-	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/routing"
+	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/routing"
 )
 
 type Use = func(*ctx.Context, ctx.Next)

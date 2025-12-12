@@ -4,7 +4,7 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 var WSOperations = map[string]string{

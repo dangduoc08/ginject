@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	reflect "reflect"
 
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 func generateLayersByPattern(restLayers []common.RESTLayer) map[string][]*common.RESTLayer {
