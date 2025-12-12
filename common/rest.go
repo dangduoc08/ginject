@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/dangduoc08/gogo/routing"
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 var RESTOperations = map[string]string{

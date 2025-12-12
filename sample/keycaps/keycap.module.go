@@ -1,7 +1,7 @@
 package keycaps
 
 import (
-	"github.com/dangduoc08/gogo/core"
+	"github.com/dangduoc08/ginject/core"
 )
 
 var KeycapModule = func() *core.Module {

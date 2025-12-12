@@ -1,7 +1,7 @@
 package aggregation
 
 import (
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 type AggregationOperator = func(*ctx.Context, any) any

@@ -1,9 +1,9 @@
-# GoGo
+# Ginject
 
-*GoGo is a dependency injection web framework*
+*Ginject is a dependency injection web framework*
 
-- [GoGo](#gogo)
+- [Ginject](#ginject)
   - [Modules](#modules)
 
 ## Modules
-- [Config](https://github.com/dangduoc08/gogo/tree/master/modules/config)
+- [Config](https://github.com/dangduoc08/ginject/tree/master/modules/config)

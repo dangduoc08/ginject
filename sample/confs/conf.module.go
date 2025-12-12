@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/dangduoc08/gogo/modules/config"
+	"github.com/dangduoc08/ginject/modules/config"
 )
 
 var ENV ConfModel

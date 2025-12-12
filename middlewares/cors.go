@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 type corsHeader map[string]string

@@ -3,11 +3,11 @@ package manufacturers
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo"
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/core"
-	"github.com/dangduoc08/gogo/sample/manufacturers/dtos"
-	"github.com/dangduoc08/gogo/sample/shared"
+	"github.com/dangduoc08/ginject"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/sample/manufacturers/dtos"
+	"github.com/dangduoc08/ginject/sample/shared"
 )
 
 type ManufacturerController struct {
@@ -48,23 +48,23 @@ func (instance ManufacturerController) SUBSCRIBE_test() string {
 	return "hihi"
 }
 
-func (instance ManufacturerController) CREATE_VERSION_1(bodyDTO dtos.CREATE_VERSION_1_Body_DTO) gogo.Map {
+func (instance ManufacturerController) CREATE_VERSION_1(bodyDTO dtos.CREATE_VERSION_1_Body_DTO) ginject.Map {
 	fmt.Println("[Module] CREATE_VERSION_1 controller")
-	return gogo.Map{
+	return ginject.Map{
 		"List": "ada",
 	}
 }
 
-func (instance ManufacturerController) READ_VERSION_1(queryDTO dtos.READ_VERSION_1_Query_DTO) gogo.Map {
+func (instance ManufacturerController) READ_VERSION_1(queryDTO dtos.READ_VERSION_1_Query_DTO) ginject.Map {
 	fmt.Println("[Module] READ_VERSION_1 controller")
-	return gogo.Map{
+	return ginject.Map{
 		"List": "ada",
 	}
 }
 
-func (instance ManufacturerController) READ_BY_id_VERSION_1(queryDTO dtos.READ_BY_id_VERSION_1_Query_DTO) gogo.Map {
+func (instance ManufacturerController) READ_BY_id_VERSION_1(queryDTO dtos.READ_BY_id_VERSION_1_Query_DTO) ginject.Map {
 	fmt.Println("[Module] READ_BY_id_VERSION_1 controller")
-	return gogo.Map{
+	return ginject.Map{
 		"List": "ada",
 	}
 }

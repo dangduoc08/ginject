@@ -1,14 +1,14 @@
-package gogo
+package ginject
 
 import (
 	"net/http"
 
-	"github.com/dangduoc08/gogo/aggregation"
-	"github.com/dangduoc08/gogo/core"
-	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/exception"
-	"github.com/dangduoc08/gogo/routing"
-	"github.com/dangduoc08/gogo/versioning"
+	"github.com/dangduoc08/ginject/aggregation"
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/versioning"
 )
 
 type (

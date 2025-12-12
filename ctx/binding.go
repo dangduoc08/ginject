@@ -4,7 +4,7 @@ import (
 	"go/token"
 	"reflect"
 
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 const (

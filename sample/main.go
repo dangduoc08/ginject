@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/dangduoc08/gogo/core"
-	"github.com/dangduoc08/gogo/log"
-	"github.com/dangduoc08/gogo/middlewares"
-	"github.com/dangduoc08/gogo/sample/confs"
-	"github.com/dangduoc08/gogo/sample/keycaps"
-	"github.com/dangduoc08/gogo/sample/manufacturers"
-	"github.com/dangduoc08/gogo/sample/shared"
-	"github.com/dangduoc08/gogo/versioning"
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/middlewares"
+	"github.com/dangduoc08/ginject/sample/confs"
+	"github.com/dangduoc08/ginject/sample/keycaps"
+	"github.com/dangduoc08/ginject/sample/manufacturers"
+	"github.com/dangduoc08/ginject/sample/shared"
+	"github.com/dangduoc08/ginject/versioning"
 )
 
 func main() {

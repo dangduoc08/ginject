@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 /*
