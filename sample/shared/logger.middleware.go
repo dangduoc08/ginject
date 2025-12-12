@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dangduoc08/gogo"
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 type RequestLogger struct {
 	common.Logger
 }
 
-func (instance RequestLogger) Use(c gogo.Context, next gogo.Next) {
+func (instance RequestLogger) Use(c ginject.Context, next ginject.Next) {
 	fmt.Println("[Global] RequestLogger middleware")
 	c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
 		newC := args[0].(*ctx.Context)

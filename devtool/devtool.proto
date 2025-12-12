@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/dangduoc08/gogo/devtool/devtool";
+option go_package = "github.com/dangduoc08/ginject/devtool/devtool";
 
 package devtool;
 

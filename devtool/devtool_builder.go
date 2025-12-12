@@ -4,10 +4,10 @@ import (
 	reflect "reflect"
 	"sort"
 
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/routing"
-	"github.com/dangduoc08/gogo/utils"
-	"github.com/dangduoc08/gogo/versioning"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/versioning"
 )
 
 type devtoolBuilder struct {

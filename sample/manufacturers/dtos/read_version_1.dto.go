@@ -3,8 +3,8 @@ package dtos
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo"
-	"github.com/dangduoc08/gogo/common"
+	"github.com/dangduoc08/ginject"
+	"github.com/dangduoc08/ginject/common"
 )
 
 type READ_VERSION_1_Query_DTO struct {
@@ -12,7 +12,7 @@ type READ_VERSION_1_Query_DTO struct {
 	Offset uint `bind:"offset"`
 }
 
-func (instance READ_VERSION_1_Query_DTO) Transform(query gogo.Query, medata common.ArgumentMetadata) any {
+func (instance READ_VERSION_1_Query_DTO) Transform(query ginject.Query, medata common.ArgumentMetadata) any {
 	fmt.Println("[Module] READ_VERSION_1_Query dto")
 	dto, _ := query.Bind(instance)
 

@@ -1,6 +1,6 @@
 # Config Module
 
-*Config module is a part of `GoGo` framework, by default it’s support `.env` only, but you can extends any respective config files by using external libraries.*
+*Config module is a part of `Ginject` framework, by default it’s support `.env` only, but you can extends any respective config files by using external libraries.*
 
 - [Config Module](#config-module)
   - [Key Features](#key-features)
@@ -32,7 +32,7 @@
 First you need create a `.env` file in the root of your project:
 
 ```dosini
-USERNAME=gogo # Support comments
+USERNAME=ginject # Support comments
 PASSWORD=123$%^
 ```
 
@@ -46,8 +46,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo/core"
-	"github.com/dangduoc08/gogo/modules/config"
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/modules/config"
 )
 
 type DBProvider struct {
@@ -81,7 +81,7 @@ go run main.go
 
 There are logs print out on console:
 ```console
-USERNAME: gogo
+USERNAME: ginject
 PASSWORD: 123$%^
 ```
 

@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/routing"
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 var mainModulePtr uintptr
@@ -33,7 +33,7 @@ var noInjectedFields = []string{
 	"common.Middleware",
 }
 var injectableInterfaces = []string{
-	"github.com/dangduoc08/gogo/common/common.Logger",
+	"github.com/dangduoc08/ginject/common/common.Logger",
 }
 
 type Module struct {
