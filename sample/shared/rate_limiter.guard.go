@@ -3,9 +3,9 @@ package shared
 import (
 	"fmt"
 
-	"github.com/dangduoc08/gogo/common"
-	"github.com/dangduoc08/gogo/ctx"
-	"github.com/dangduoc08/gogo/modules/config"
+	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/modules/config"
 )
 
 type RateLimiterGuard struct {

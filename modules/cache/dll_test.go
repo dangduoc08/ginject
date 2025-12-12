@@ -3,7 +3,7 @@ package cache
 import (
 	"testing"
 
-	"github.com/dangduoc08/gogo/utils"
+	"github.com/dangduoc08/ginject/utils"
 )
 
 func TestDLLModifyNode(t *testing.T) {

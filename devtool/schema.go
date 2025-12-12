@@ -4,7 +4,7 @@ import (
 	"go/token"
 	"reflect"
 
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 var format = map[reflect.Kind]string{

@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/dangduoc08/gogo/core"
-	"github.com/dangduoc08/gogo/ctx"
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/ctx"
 )
 
 type ConfigService struct {
