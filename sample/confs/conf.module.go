@@ -1,6 +1,8 @@
 package confs
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -8,10 +10,14 @@ import (
 )
 
 var ENV ConfModel
+var cwd, _ = os.Getwd()
 
 var ConfModule = config.Register(&config.ConfigModuleOptions{
 	IsGlobal:          true,
 	IsExpandVariables: true,
+	ENVFilePaths: []string{
+		filepath.Join(cwd, ".env"),
+	},
 	Hooks: []config.ConfigHookFn{
 		func(c config.ConfigService) {
 

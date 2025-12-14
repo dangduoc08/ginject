@@ -2,11 +2,6 @@ package devtool
 
 import (
 	context "context"
-	"fmt"
-	"log"
-	"net"
-
-	grpc "google.golang.org/grpc"
 )
 
 type Devtool struct {
@@ -22,18 +17,18 @@ func (devtool *Devtool) GetConfiguration(context.Context, *GetConfigurationReque
 }
 
 func (devtool *Devtool) Serve() {
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+	// lis, err := net.Listen("tcp", ":50051")
+	// if err != nil {
+	// 	log.Fatalf("failed to listen: %v", err)
+	// }
 
-	s := grpc.NewServer()
+	// s := grpc.NewServer()
 
-	RegisterDevtoolServiceServer(s, devtool)
+	// RegisterDevtoolServiceServer(s, devtool)
 
-	fmt.Println("Server is running on port 50051...")
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	// fmt.Println("Server is running on port 50051...")
+	// if err := s.Serve(lis); err != nil {
+	// 	log.Fatalf("failed to serve: %v", err)
+	// }
 
 }

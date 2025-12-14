@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dangduoc08/ginject/core"
@@ -31,12 +32,9 @@ func loadConfigOptions(opts *ConfigModuleOptions) *ConfigModuleOptions {
 
 	envFilePaths := opts.ENVFilePaths
 	if len(envFilePaths) == 0 {
-		defaultPath, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-		defaultENVPath := defaultPath + "/.env"
-		if _, err = os.Stat(defaultENVPath); err == nil {
+		rootDir, _ := findRootDir("go.mod")
+		defaultENVPath := filepath.Join(rootDir, ".env")
+		if _, err := os.Stat(defaultENVPath); err == nil {
 			envFilePaths = []string{defaultENVPath}
 		}
 	}
