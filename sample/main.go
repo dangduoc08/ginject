@@ -20,7 +20,7 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(middlewares.CORS{}).
+		BindGlobalMiddlewares(middlewares.CORS{}, middlewares.RequestLogger{}).
 		BindGlobalInterceptors(shared.ResponseInterceptor{}).
 		BindGlobalGuards(shared.RateLimiterGuard{})
 
