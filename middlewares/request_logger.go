@@ -18,7 +18,8 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 		requestType := newC.GetType()
 		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
 
-		if requestType == ctx.HTTPType {
+		switch requestType {
+		case ctx.HTTPType:
 			instance.Info(
 				newC.URL.String(),
 				"Method", newC.Method,
@@ -28,7 +29,7 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 				"User-Agent", newC.UserAgent(),
 				ctx.REQUEST_ID, newC.GetID(),
 			)
-		} else if requestType == ctx.WSType {
+		case ctx.WSType:
 			instance.Info(
 				newC.WS.Message.Event,
 				"Time", fmt.Sprintf("%v ms", responseTime),
