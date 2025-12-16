@@ -325,14 +325,10 @@ func (app *App) Create(m *Module) {
 			}
 		}(globalMiddleware)
 
-		// REST global guards
-		for _, mainHandlerItem := range app.module.RESTMainHandlers {
-			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
+		// REST global middlewares
+		app.route.Use(useMiddlewareWrapper)
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(useMiddlewareWrapper)
-		}
-
-		// WS global guards
+		// WS global middlewares
 		for eventName := range common.InsertedEvents {
 			app.wsEventMap[eventName] = append(
 				app.wsEventMap[eventName],
