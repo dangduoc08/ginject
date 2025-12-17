@@ -1,0 +1,15 @@
+{
+  "name": "ginject",
+  "license": "UNLICENSED",
+  "author": {
+    "name": "Ta Dang Duoc",
+    "email": "duoc200894@gmail.com"
+  },
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7"
+  }
+}
