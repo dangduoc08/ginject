@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -131,7 +130,7 @@ func (app *App) Create(m *Module) {
 	globalInterfaces[injectableInterfaces[0]] = app.Logger
 	app.module = m.NewModule()
 
-	var injectedProviders map[string]Provider = make(map[string]Provider)
+	injectedProviders := make(map[string]Provider)
 	for _, provider := range app.module.providers {
 		injectedProviders[genProviderKey(provider)] = provider
 	}
@@ -441,14 +440,14 @@ func (app *App) Create(m *Module) {
 				return func(c *ctx.Context) {
 					aggregationInstance := aggregation.NewAggregation()
 
-					if aggregations, ok := c.Request.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
+					if aggregations, ok := c.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
 						aggregations = append(aggregations, aggregationInstance)
 
-						newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), aggregations)
-						c.Request = c.Request.WithContext(newCtx)
+						newCtx := context.WithValue(c.Context(), WithValueKey(endpoint), aggregations)
+						c.Request = c.WithContext(newCtx)
 					} else {
-						newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
-						c.Request = c.Request.WithContext(newCtx)
+						newCtx := context.WithValue(c.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
+						c.Request = c.WithContext(newCtx)
 					}
 
 					// IsMainHandlerCalled will be = true
@@ -476,14 +475,14 @@ func (app *App) Create(m *Module) {
 				return func(c *ctx.Context) {
 					aggregationInstance := aggregation.NewAggregation()
 
-					if aggregations, ok := c.Request.Context().Value(WithValueKey(eventName)).([]*aggregation.Aggregation); ok {
+					if aggregations, ok := c.Context().Value(WithValueKey(eventName)).([]*aggregation.Aggregation); ok {
 						aggregations = append(aggregations, aggregationInstance)
 
-						newCtx := context.WithValue(c.Request.Context(), WithValueKey(eventName), aggregations)
-						c.Request = c.Request.WithContext(newCtx)
+						newCtx := context.WithValue(c.Context(), WithValueKey(eventName), aggregations)
+						c.Request = c.WithContext(newCtx)
 					} else {
-						newCtx := context.WithValue(c.Request.Context(), WithValueKey(eventName), []*aggregation.Aggregation{aggregationInstance})
-						c.Request = c.Request.WithContext(newCtx)
+						newCtx := context.WithValue(c.Context(), WithValueKey(eventName), []*aggregation.Aggregation{aggregationInstance})
+						c.Request = c.WithContext(newCtx)
 					}
 
 					// IsMainHandlerCalled will be = true
@@ -518,14 +517,14 @@ func (app *App) Create(m *Module) {
 			return func(c *ctx.Context) {
 				aggregationInstance := aggregation.NewAggregation()
 
-				if aggregations, ok := c.Request.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
+				if aggregations, ok := c.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok {
 					aggregations = append(aggregations, aggregationInstance)
 
-					newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), aggregations)
-					c.Request = c.Request.WithContext(newCtx)
+					newCtx := context.WithValue(c.Context(), WithValueKey(endpoint), aggregations)
+					c.Request = c.WithContext(newCtx)
 				} else {
-					newCtx := context.WithValue(c.Request.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
-					c.Request = c.Request.WithContext(newCtx)
+					newCtx := context.WithValue(c.Context(), WithValueKey(endpoint), []*aggregation.Aggregation{aggregationInstance})
+					c.Request = c.WithContext(newCtx)
 				}
 
 				// IsMainHandlerCalled will be = true
@@ -554,14 +553,14 @@ func (app *App) Create(m *Module) {
 			return func(c *ctx.Context) {
 				aggregationInstance := aggregation.NewAggregation()
 
-				if aggregations, ok := c.Request.Context().Value(WithValueKey(moduleInterceptor.EventName)).([]*aggregation.Aggregation); ok {
+				if aggregations, ok := c.Context().Value(WithValueKey(moduleInterceptor.EventName)).([]*aggregation.Aggregation); ok {
 					aggregations = append(aggregations, aggregationInstance)
 
-					newCtx := context.WithValue(c.Request.Context(), WithValueKey(moduleInterceptor.EventName), aggregations)
-					c.Request = c.Request.WithContext(newCtx)
+					newCtx := context.WithValue(c.Context(), WithValueKey(moduleInterceptor.EventName), aggregations)
+					c.Request = c.WithContext(newCtx)
 				} else {
-					newCtx := context.WithValue(c.Request.Context(), WithValueKey(moduleInterceptor.EventName), []*aggregation.Aggregation{aggregationInstance})
-					c.Request = c.Request.WithContext(newCtx)
+					newCtx := context.WithValue(c.Context(), WithValueKey(moduleInterceptor.EventName), []*aggregation.Aggregation{aggregationInstance})
+					c.Request = c.WithContext(newCtx)
 				}
 
 				// IsMainHandlerCalled will be = true
@@ -657,10 +656,7 @@ func (app *App) UseLogger(logger common.Logger) *App {
 }
 
 func (app *App) Get(p Provider) any {
-	k := genProviderKey(p)
-	return utils.ArrFind(app.module.providers, func(provider Provider, i int) bool {
-		return genProviderKey(provider) == k
-	})
+	return app.injectedProviders[genProviderKey(p)]
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -671,9 +667,12 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctxID := app.getContextID(c)
 	c.SetID(ctxID)
 
-	defer app.ctxPool.Put(c)
+	defer func() {
+		c.Reset()
+		app.ctxPool.Put(c)
+	}()
 
-	if slices.Contains(wsPaths, r.URL.Path) {
+	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
 		c.SetType(ctx.WSType)
 		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
 			app.handleWSRequest(wsConn, w, r, c)
@@ -684,8 +683,6 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		app.handleRESTRequest(c)
 	}
-
-	c.Reset()
 }
 
 func (app *App) Listen(port int) error {
@@ -744,7 +741,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 
 			// Pipe errors run first
 			// then exception filter
-			if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
 				totalErrorAggregations := len(errorAggregationOperators)
 
 				// Handle case if pipe error panic
@@ -781,9 +778,9 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 		version = app.versioning.GetVersion(c)
 	}
 
-	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Request.Method, c.Request.URL.Path, version)
+	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Method, c.URL.Path, version)
 	if !isMatched {
-		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Request.Method, c.Request.URL.Path, versioning.NEUTRAL_VERSION)
+		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Method, c.URL.Path, versioning.NEUTRAL_VERSION)
 	}
 
 	if app.isEnableVersioning {
@@ -810,7 +807,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 		c.SetRoute(matchedRoute)
 		c.ParamKeys = paramKeys
 		c.ParamValues = paramValues
-		if c.Request.Method == http.MethodPost {
+		if c.Method == http.MethodPost {
 			c.Status(http.StatusCreated)
 		}
 
@@ -826,7 +823,7 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 					// data return from main handler
 					data := app.provideAndInvoke(injectableHandler, c)
 
-					if aggregations, ok := c.Request.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
+					if aggregations, ok := c.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
 						var aggregatedData any
 						isMainHandlerCalled := true
 
@@ -936,7 +933,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 		for _, subscribedEventName := range wsSubscribedEvents {
 			app.removeWSEvent(subscribedEventName, wsid, c)
 		}
-		wsConn.Close()
+		_ = wsConn.Close()
 	}()
 
 	if !wsInstance.CanEstablish(common.InsertedEvents) {
@@ -945,7 +942,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 
 	for _, subscribedEventName := range wsSubscribedEvents {
 		app.addWSEvent(subscribedEventName, wsid, c, func(args ...any) {
-			wsInstance.SendToConn(c, wsConn, args[0].(string))
+			_ = wsInstance.SendToConn(c, wsConn, args[0].(string))
 		})
 	}
 
@@ -983,7 +980,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 
 				// Pipe errors run first
 				// then exception filter
-				if errorAggregationOperators, ok := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+				if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
 					totalErrorAggregations := len(errorAggregationOperators)
 
 					// Handle case if pipe error panic
@@ -1013,8 +1010,8 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 				// due to error will be added
 				// whenever interceptor triggered
 				// but WS 1 connection use 1 ctx
-				newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
-				c.Request = c.Request.WithContext(newCtx)
+				newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
+				c.Request = c.WithContext(newCtx)
 
 				// clean all events before recursion
 				// prevent emit duplicate event
@@ -1049,7 +1046,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 						}
 						configPublishedEventName := data[0].String()
 
-						if aggregations, ok := c.Request.Context().Value(WithValueKey(publishEventName)).([]*aggregation.Aggregation); ok {
+						if aggregations, ok := c.Context().Value(WithValueKey(publishEventName)).([]*aggregation.Aggregation); ok {
 							var aggregatedData any
 							isMainHandlerCalled := true
 
@@ -1096,7 +1093,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 }
 
 func (app *App) provideAndInvoke(f any, c *ctx.Context) []reflect.Value {
-	args := []reflect.Value{}
+	var args []reflect.Value
 	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
@@ -1136,22 +1133,19 @@ func (app *App) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) 
 }
 
 func (app *App) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Context) {
-	app.wsEventToID.Range(func(subscribedEventName, wsids any) bool {
-		if subscribedEventName == configPublishedEventName {
-			for _, wsid := range wsids.([]string) {
-				c.Event.Emit(configPublishedEventName+wsid, wsMsg)
-			}
+	if wsids, ok := app.wsEventToID.Load(configPublishedEventName); ok {
+		for _, wsid := range wsids.([]string) {
+			c.Event.Emit(configPublishedEventName+wsid, wsMsg)
 		}
-		return true
-	})
+	}
 
 	// reset ErrorAggregationOperators
 	// to prevent duplicate error aggregation
 	// due to error will be added
 	// whenever interceptor triggered
 	// but WS 1 connection use 1 ctx
-	newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
-	c.Request = c.Request.WithContext(newCtx)
+	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
+	c.Request = c.WithContext(newCtx)
 }
 
 func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exception) {
@@ -1168,7 +1162,7 @@ func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exceptio
 	}
 
 	if isNext {
-		c.WS.SendSelf(c, ctx.Map{
+		_ = c.WS.SendSelf(c, ctx.Map{
 			"code":    exception.GetCode(),
 			"error":   exception.Error(),
 			"message": exception.GetResponse(),
@@ -1222,21 +1216,21 @@ func (app *App) returnDeprecatedURL(c *ctx.Context) {
 func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
 	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
 	if errorAggregationOpr != nil {
-		errorAggregationOperators := c.Request.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY))
+		errorAggregationOperators := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY))
 		if errorAggregationOperators == nil {
 			errorAggregationOperators = []aggregation.AggregationOperator{}
 		}
 		errorAggregationOperators = append(errorAggregationOperators.([]aggregation.AggregationOperator), errorAggregationOpr)
 
-		newCtx := context.WithValue(c.Request.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), errorAggregationOperators)
-		c.Request = c.Request.WithContext(newCtx)
+		newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), errorAggregationOperators)
+		c.Request = c.WithContext(newCtx)
 	}
 }
 
 func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
 	if dir, ok := dir.(string); ok {
 		if lastWildcardSlashIndex != 0 {
-			urlPath := utils.StrRemoveDup(c.Request.URL.Path, "/")
+			urlPath := utils.StrRemoveDup(c.URL.Path, "/")
 			urlPathArr := strings.Split(urlPath, "/")
 			suffix := strings.Join(urlPathArr[lastWildcardSlashIndex:], "/")
 			oldDir := dir
