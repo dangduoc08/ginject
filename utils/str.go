@@ -3,14 +3,18 @@ package utils
 import (
 	cryptoRand "crypto/rand"
 	"fmt"
-	mathRand "math/rand"
-	"regexp"
 	"strings"
-	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 func StrRemoveSpace(str string) string {
-	return regexp.MustCompile(`\s`).ReplaceAllString(str, "")
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return r
+	}, str)
 }
 
 func StrAddBegin(str, subStr string) string {
@@ -18,7 +22,7 @@ func StrAddBegin(str, subStr string) string {
 		return str
 	}
 
-	if str[:len(subStr)] != subStr {
+	if !strings.HasPrefix(str, subStr) {
 		return subStr + str
 	}
 
@@ -26,16 +30,7 @@ func StrAddBegin(str, subStr string) string {
 }
 
 func StrRemoveBegin(str, subStr string) string {
-	if str == "" {
-		return str
-	}
-
-	subStrLength := len(subStr)
-	if str[:subStrLength] == subStr {
-		return str[subStrLength:]
-	}
-
-	return str
+	return strings.TrimPrefix(str, subStr)
 }
 
 func StrAddEnd(str, subStr string) string {
@@ -43,9 +38,7 @@ func StrAddEnd(str, subStr string) string {
 		return str
 	}
 
-	lastMatchedIndex := strings.LastIndex(str, subStr)
-	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
-	if !isAtEnd {
+	if !strings.HasSuffix(str, subStr) {
 		return str + subStr
 	}
 
@@ -53,25 +46,16 @@ func StrAddEnd(str, subStr string) string {
 }
 
 func StrRemoveEnd(str, subStr string) string {
-	if str == "" {
-		return str
-	}
-
-	lastMatchedIndex := strings.LastIndex(str, subStr)
-	isAtEnd := lastMatchedIndex+len(subStr) == len(str)
-	if isAtEnd {
-		return str[:lastMatchedIndex]
-	}
-
-	return str
+	return strings.TrimSuffix(str, subStr)
 }
 
 func StrWithCharset(length int, charset string) string {
 	b := make([]byte, length)
-	seededRand := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
-
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
+	randBytes := make([]byte, length)
+	cryptoRand.Read(randBytes)
+	n := len(charset)
+	for i, rb := range randBytes {
+		b[i] = charset[int(rb)%n]
 	}
 	return string(b)
 }
@@ -96,36 +80,37 @@ func StrSegment(str string, sep byte, start int) (string, int) {
 }
 
 func StrRemoveDup(str, pattern string) string {
-	resp := ""
-	for i, r := range str {
-		if i != 0 {
-			if string(r) == pattern && str[i-1:i] == pattern {
-				continue
-			}
-		}
-		resp += string(r)
+	patRune, patSize := utf8.DecodeRuneInString(pattern)
+	if patRune == utf8.RuneError || patSize != len(pattern) {
+		return str
 	}
-
-	return resp
+	var b strings.Builder
+	b.Grow(len(str))
+	var prev rune
+	for i, r := range str {
+		if i > 0 && r == patRune && prev == patRune {
+			prev = r
+			continue
+		}
+		b.WriteRune(r)
+		prev = r
+	}
+	return b.String()
 }
 
 func StrIsLower(str string) []bool {
-	res := []bool{}
+	res := make([]bool, 0, len(str))
 	for _, r := range str {
-		s := string(r)
-		res = append(res, s == strings.ToLower(s))
+		res = append(res, unicode.ToLower(r) == r)
 	}
-
 	return res
 }
 
 func StrIsUpper(str string) []bool {
-	res := []bool{}
+	res := make([]bool, 0, len(str))
 	for _, r := range str {
-		s := string(r)
-		res = append(res, s == strings.ToUpper(s))
+		res = append(res, unicode.ToUpper(r) == r)
 	}
-
 	return res
 }
 
