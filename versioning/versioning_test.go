@@ -45,7 +45,7 @@ func TestGetVersion_Query(t *testing.T) {
 }
 
 func TestGetVersion_QueryDefaultKey(t *testing.T) {
-	v := &Versioning{Type: QUERY, DefaultVersion: "v3"}
+	v := &Versioning{Type: QUERY, Key: "v", DefaultVersion: "v3"}
 
 	got := v.GetVersion(makeCtxWithQuery("v", "v5"))
 	if got != "v5" {

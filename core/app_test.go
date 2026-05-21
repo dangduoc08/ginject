@@ -13,6 +13,7 @@ func TestNew(t *testing.T) {
 	app := New()
 	if app == nil {
 		t.Fatal(testutils.DiffMessage(nil, "*App", "New should not return nil"))
+		return
 	}
 	if app.route == nil {
 		t.Error(testutils.DiffMessage(nil, "router", "route not initialized"))
