@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 const (
@@ -27,10 +26,9 @@ type Versioning struct {
 
 func (versioning *Versioning) GetVersion(c *ctx.Context) string {
 	v := ""
-	defaultKey := "v"
 	key := versioning.Key
 	if key == "" {
-		key = defaultKey
+		key = "v"
 	}
 
 	switch versioning.Type {
@@ -56,20 +54,8 @@ func (versioning *Versioning) GetVersion(c *ctx.Context) string {
 		}
 
 	case MEDIA_TYPE:
-		if c.Header().Has("Accept") {
-			headerVals := strings.Split(c.Header().Get("Accept"), ";")
-			kv := utils.ArrFind(headerVals, func(val string, i int) bool {
-				return strings.Contains(val, key+"=")
-			})
-			if len(kv) > 0 {
-				kv = strings.TrimSpace(kv)
-				i := strings.Index(kv, "=")
-				if i > -1 {
-					v = kv[i+1:]
-				}
-			} else {
-				v = versioning.DefaultVersion
-			}
+		if _, after, found := strings.Cut(c.Header().Get("Accept"), key+"="); found {
+			v, _, _ = strings.Cut(strings.TrimSpace(after), ";")
 		} else {
 			v = versioning.DefaultVersion
 		}
