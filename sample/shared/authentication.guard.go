@@ -18,8 +18,8 @@ type AuthenticationGuard struct {
 }
 
 func (instance AuthenticationGuard) NewGuard() AuthenticationGuard {
-	instance.AuthKey = instance.ConfigService.Get("AUTH_KEY").(string)
-	instance.AuthSecret = instance.ConfigService.Get("AUTH_SECRET").(string)
+	instance.AuthKey = instance.Get("AUTH_KEY").(string)
+	instance.AuthSecret = instance.Get("AUTH_SECRET").(string)
 
 	return instance
 }
