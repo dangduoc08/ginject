@@ -54,7 +54,7 @@ func ParseToParamKey(str string) (string, map[string][]int) {
 		matchParamReg := regexp.MustCompile(`\{(.*?)\}`)
 		for i, s := range matchParamReg.FindAllString(str, -1) {
 			str = strings.Replace(str, s, "$", 1)
-			key := utils.StrRemoveEnd(utils.StrRemoveBegin(s, "{"), "}")
+			key := strings.TrimSuffix(strings.TrimPrefix(s, "{"), "}")
 			paramKey[key] = append(paramKey[key], i)
 		}
 	}

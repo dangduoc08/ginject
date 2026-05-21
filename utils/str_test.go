@@ -27,20 +27,6 @@ func TestStrAddBegin(t *testing.T) {
 	}
 }
 
-func TestStrRemoveBegin(t *testing.T) {
-	expect1 := "foo/bar/baz"
-	output1 := StrRemoveBegin("{foo/bar/baz", "{")
-	if output1 != expect1 {
-		t.Errorf("StrRemoveBegin(\"{foo/bar/baz\", {) = %v; expect = %v", output1, expect1)
-	}
-
-	expect2 := "foo/*/bar/baz/"
-	output2 := StrRemoveBegin("/*/foo/*/bar/baz/", "/*/")
-	if output2 != expect2 {
-		t.Errorf("StrRemoveBegin(\"foo/*/bar/baz/\", /*/) = %v; expect = %v", output2, expect2)
-	}
-}
-
 func TestStrAddEnd(t *testing.T) {
 	expect1 := "/foo/bar/baz/{}"
 	output1 := StrAddEnd("/foo/bar/baz/", "{}")
@@ -52,20 +38,6 @@ func TestStrAddEnd(t *testing.T) {
 	output2 := StrAddEnd("/foo/bar/baz/**", "**")
 	if output2 == unexpect2 {
 		t.Errorf("StrAddEnd(\"/foo/bar/baz/**\", **) = %v; expect = %v", output2, unexpect2)
-	}
-}
-
-func TestStrRemoveEnd(t *testing.T) {
-	expect1 := "/foo/{}bar/baz/"
-	output1 := StrRemoveEnd("/foo/{}bar/baz/{}", "{}")
-	if output1 != expect1 {
-		t.Errorf("StrRemoveEnd(\"/foo/{}bar/baz/{}\", {}) = %v; expect = %v", output1, expect1)
-	}
-
-	expect2 := "/foo/*bar/baz"
-	output2 := StrRemoveEnd("/foo/*bar/baz///", "///")
-	if output2 != expect2 {
-		t.Errorf("StrRemoveEnd(\"/foo/*bar/baz///\", ///) = %v; expect = %v", output2, expect2)
 	}
 }
 
