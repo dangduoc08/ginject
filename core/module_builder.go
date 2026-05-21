@@ -51,9 +51,9 @@ func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {
 }
 
 func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
-	staticModules := []*Module{}
-	dynamicModules := []any{}
-	errors := []string{}
+	staticModules := make([]*Module, 0, len(m.imports))
+	var dynamicModules []any
+	var errors []string
 
 	for _, arg := range m.imports {
 		switch module := arg.(type) {
@@ -61,12 +61,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 			staticModules = append(staticModules, module)
 		default:
 			moduleType := reflect.TypeOf(module)
-			isDynamic, e := isDynamicModule(moduleType.String())
-			if e != nil {
-				panic(e)
-			}
-
-			if isDynamic {
+			if isDynamicModule(moduleType.String()) {
 				dynamicModules = append(dynamicModules, module)
 			} else {
 				errors = append(errors, fmt.Sprintf("can't pass '%v' type as module", moduleType))
