@@ -1,15 +1,44 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
 
 func TestNumF64ToAnyNum(t *testing.T) {
-	input1 := 1231231.1231
+	cases := []struct {
+		in   float64
+		kind reflect.Kind
+		want any
+	}{
+		{42.9, reflect.Int, int(42)},
+		{42.9, reflect.Int8, int8(42)},
+		{42.9, reflect.Int16, int16(42)},
+		{42.9, reflect.Int32, int32(42)},
+		{42.9, reflect.Int64, int64(42)},
+		{42.9, reflect.Uint, uint(42)},
+		{42.9, reflect.Uint8, uint8(42)},
+		{42.9, reflect.Uint16, uint16(42)},
+		{42.9, reflect.Uint32, uint32(42)},
+		{42.9, reflect.Uint64, uint64(42)},
+		{42.5, reflect.Float32, float32(42.5)},
+		{42.5, reflect.Float64, float64(42.5)},
+		{42.0, reflect.Complex64, complex64(complex(42.0, 0))},
+		{42.0, reflect.Complex128, complex(42.0, 0)},
+		// negative input clamped to typed zero for unsigned kinds
+		{-1, reflect.Uint, uint(0)},
+		{-1, reflect.Uint8, uint8(0)},
+		{-1, reflect.Uint16, uint16(0)},
+		{-1, reflect.Uint32, uint32(0)},
+		{-1, reflect.Uint64, uint64(0)},
+		// unsupported kind
+		{1, reflect.String, 0},
+	}
 
-	output1 := NumF64ToAnyNum(input1, reflect.Int)
-
-	fmt.Println(output1)
+	for _, c := range cases {
+		got := NumF64ToAnyNum(c.in, c.kind)
+		if got != c.want {
+			t.Errorf("NumF64ToAnyNum(%v, %v) = %v (%T), want %v (%T)", c.in, c.kind, got, got, c.want, c.want)
+		}
+	}
 }
