@@ -29,10 +29,6 @@ func StrAddBegin(str, subStr string) string {
 	return str
 }
 
-func StrRemoveBegin(str, subStr string) string {
-	return strings.TrimPrefix(str, subStr)
-}
-
 func StrAddEnd(str, subStr string) string {
 	if str == "" {
 		return str
@@ -45,14 +41,12 @@ func StrAddEnd(str, subStr string) string {
 	return str
 }
 
-func StrRemoveEnd(str, subStr string) string {
-	return strings.TrimSuffix(str, subStr)
-}
-
 func StrWithCharset(length int, charset string) string {
 	b := make([]byte, length)
 	randBytes := make([]byte, length)
-	cryptoRand.Read(randBytes)
+	if _, err := cryptoRand.Read(randBytes); err != nil {
+		panic(err)
+	}
 	n := len(charset)
 	for i, rb := range randBytes {
 		b[i] = charset[int(rb)%n]

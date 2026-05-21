@@ -8,7 +8,6 @@ import (
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 type corsHeader map[string]string
@@ -171,7 +170,7 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	} else if allowOrigins, ok := cors.AllowOrigin.([]string); ok {
 		m := map[string]bool{}
 		for _, allowOrigin := range allowOrigins {
-			m[utils.StrRemoveEnd(allowOrigin, "/")] = true
+			m[strings.TrimSuffix(allowOrigin, "/")] = true
 		}
 		cors.AllowOrigin = m
 	}
