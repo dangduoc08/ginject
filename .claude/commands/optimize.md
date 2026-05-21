@@ -34,7 +34,7 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - Run tests — if any fail, revert that specific change and note why.
    - For concurrency bugs, run with `-race` flag: `go test -race ./...`
    - Prefer readable, maintainable code over micro-optimizations. If the performance gain is marginal, keep the simpler version.
-   - Prefer functions available in newer versions of the language/stdlib over manual equivalents.
+   - Always use functions available in newer versions of the language/stdlib over manual equivalents.
    - Security and race condition fixes are always applied regardless of readability trade-off.
 
 8. **Run benchmarks again** and compare to baseline.
@@ -75,3 +75,4 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 - Do not add comments to the code.
 - If a change would affect callers outside the file, flag it before applying.
 - Readability wins over performance when the gain is small — do not make code harder to read for marginal improvements.
+- **Prefer built-ins over manual equivalents**: if the standard library (or language built-in) already provides an equivalent function, use it instead of a manual implementation — unless the built-in form is demonstrably less readable with no meaningful correctness or performance gain.

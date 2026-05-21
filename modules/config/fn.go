@@ -6,10 +6,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/dangduoc08/ginject/utils"
 )
 
 func kind(d any) string {
@@ -59,7 +58,7 @@ func _flatten(org, value any, key, prefix string) {
 	if prefix != "" {
 		newPrefix = fmt.Sprintf("%v.%v", prefix, key)
 	}
-	if utils.ArrIncludes([]string{"map", "slice"}, kind(value)) {
+	if slices.Contains([]string{"map", "slice"}, kind(value)) {
 		flatten(org, value, newPrefix)
 	}
 	org.(map[string]any)[newPrefix] = value

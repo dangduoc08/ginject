@@ -4,6 +4,7 @@ import (
 	"errors"
 	"go/token"
 	"reflect"
+	"slices"
 	"sync"
 
 	"github.com/dangduoc08/ginject/common"
@@ -260,7 +261,7 @@ func (m *Module) NewModule() *Module {
 		}
 
 		// inject providers into controllers
-		if utils.ArrIncludes(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
+		if slices.Contains(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
 			for i, controller := range m.controllers {
 				newController, err := injectDependencies(controller, "controller", injectedProviders)
 				if err != nil {

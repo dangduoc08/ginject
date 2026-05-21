@@ -2,15 +2,10 @@ package utils
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
-
-func forEach[T any](arr []T, cb func(el T, i int)) {
-	for i, el := range arr {
-		cb(el, i)
-	}
-}
 
 func ArrFind[T any](arr []T, cb func(el T, i int) bool) T {
 	for i, el := range arr {
@@ -35,44 +30,35 @@ func ArrFindIndex[T any](arr []T, cb func(el T, i int) bool) int {
 
 func ArrMap[T, U any](arr []T, cb func(el T, i int) U) []U {
 	newArr := make([]U, len(arr))
-	forEach(arr, func(el T, i int) {
+	for i, el := range arr {
 		newArr[i] = cb(el, i)
-	})
-
+	}
 	return newArr
 }
 
 func ArrFilter[T any](arr []T, cb func(el T, i int) bool) []T {
-	newArr := []T{}
-	forEach(arr, func(el T, i int) {
+	newArr := make([]T, 0, len(arr))
+	for i, el := range arr {
 		if cb(el, i) {
 			newArr = append(newArr, el)
 		}
-	})
-
+	}
 	return newArr
 }
 
 func ArrIncludes[T comparable](arr []T, v T) bool {
-	for _, el := range arr {
-		if el == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(arr, v)
 }
 
 func ArrToUnique[T comparable](arr []T) []T {
-	m := make(map[T]bool)
-	uniqueArr := []T{}
+	m := make(map[T]struct{}, len(arr))
+	uniqueArr := make([]T, 0, len(arr))
 	for _, el := range arr {
-		if !m[el] {
+		if _, seen := m[el]; !seen {
 			uniqueArr = append(uniqueArr, el)
-			m[el] = true
+			m[el] = struct{}{}
 		}
 	}
-
 	return uniqueArr
 }
 
