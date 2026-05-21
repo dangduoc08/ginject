@@ -90,11 +90,6 @@ var dependencies = map[string]int{
 	common.WS_PAYLOAD_PIPEABLE: 1,
 }
 
-var wsPaths = []string{
-	"/ws",
-	"/ws/",
-}
-
 type WithValueKey string
 
 func New() *App {
@@ -636,6 +631,9 @@ func (app *App) BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App {
 }
 
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
+	if v.Key == "" {
+		v.Key = "v"
+	}
 	app.versioning = &v
 	app.isEnableVersioning = true
 
