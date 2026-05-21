@@ -23,31 +23,31 @@ func NumF64ToAnyNum(f64 float64, t reflect.Kind) any {
 
 	case reflect.Uint:
 		if f64 < 0 {
-			return 0
+			return uint(0)
 		}
 		return uint(f64)
 
 	case reflect.Uint8:
 		if f64 < 0 {
-			return 0
+			return uint8(0)
 		}
 		return uint8(f64)
 
 	case reflect.Uint16:
 		if f64 < 0 {
-			return 0
+			return uint16(0)
 		}
 		return uint16(f64)
 
 	case reflect.Uint32:
 		if f64 < 0 {
-			return 0
+			return uint32(0)
 		}
 		return uint32(f64)
 
 	case reflect.Uint64:
 		if f64 < 0 {
-			return 0
+			return uint64(0)
 		}
 		return uint64(f64)
 
