@@ -24,7 +24,7 @@ func TestRouteAdd(t *testing.T) {
 	}
 
 	expected1 := 19
-	actual1 := r.Trie.len()
+	actual1 := r.len()
 	if actual1 != expected1 {
 		t.Error(testutils.DiffMessage(actual1, expected1, "trie length should be equal"))
 	}

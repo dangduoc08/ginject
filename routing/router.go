@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"reflect"
-	"strings"
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/utils"
@@ -143,18 +142,18 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	parsedRoute, paramKey := ParseToParamKey(endpoint)
 	item.isRouteContainsParams = checkRouteContainsParams(parsedRoute)
 	r.Hash[endpoint] = item
-	r.Trie.insert(parsedRoute, '/', r.Hash[endpoint].Index, paramKey, r.Hash[endpoint].Handlers)
+	r.insert(parsedRoute, '/', r.Hash[endpoint].Index, paramKey, r.Hash[endpoint].Handlers)
 
 	return r
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	route = strings.Join([]string{filepath.Clean(route), "/|", version, "|/[", method, "]/"}, "")
+	route = filepath.Clean(route) + "/|" + version + "|/[" + method + "]/"
 	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}
 
-	i, paramKeys, paramVals, handlers := r.Trie.find(route, method, version, '/')
+	i, paramKeys, paramVals, handlers := r.find(route, method, version, '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {
@@ -180,7 +179,7 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 				}
 			}
 
-			handlers := append(r.GlobalMiddlewares, routerItem.Handlers...)
+			handlers := append(r.GlobalMiddlewares[:len(r.GlobalMiddlewares):len(r.GlobalMiddlewares)], routerItem.Handlers...)
 			r.push(method, groupPath, version, GROUP, handlers...)
 		}
 
