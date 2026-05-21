@@ -122,8 +122,8 @@ func (m *Module) ID() string {
 }
 
 func (m *Module) NewModule() *Module {
-	m.Mutex.Lock()
-	defer m.Mutex.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	if m.singleInstance == nil {
 		m.singleInstance = m
@@ -222,7 +222,7 @@ func (m *Module) NewModule() *Module {
 
 		// inject local providers
 		// from static/dynamic modules
-		var injectedProviders map[string]Provider = make(map[string]Provider)
+		injectedProviders := make(map[string]Provider)
 		for _, provider := range m.providers {
 			injectedProviders[genProviderKey(provider)] = provider
 		}
