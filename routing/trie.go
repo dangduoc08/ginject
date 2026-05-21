@@ -33,7 +33,7 @@ func (tr *Trie) len() int {
 	counter := 0
 	for route, node := range tr.Children {
 		if route != "" {
-			counter += 1
+			counter++
 			if node != nil {
 				counter += node.len()
 			}
@@ -72,9 +72,9 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 	start := strings.IndexByte(path, sep)
 
 	i := -1
-	paramKeys := make(map[string][]int)
-	paramVals := make([]string, 0)
-	handlers := []ctx.Handler{}
+	var paramKeys map[string][]int
+	var paramVals []string
+	var handlers []ctx.Handler
 	methodPattern := fromMethodtoPattern(method)
 	versionPattern := fromVersiontoPattern(version)
 
@@ -131,8 +131,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 				// pushed /lv1/{id} and /lv1/*
 				// request /lv1/foo/bar won't match /lv1/*
 				// instead it's matched /lv1/{id}
-				if isNotMatchAnythings ||
-					(isNotMatchAnythings && lastWildcardNode != nil) {
+				if isNotMatchAnythings {
 					break
 				}
 			}
@@ -200,7 +199,7 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 				trieMap["params"] = node.ParamKeys
 
 				if len(node.Handlers) > 0 {
-					handlers := []any{}
+					handlers := make([]any, 0, len(node.Handlers))
 					for _, handler := range node.Handlers {
 						fnName := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
 
