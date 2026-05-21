@@ -11,19 +11,19 @@ import (
 - Include default components
 */
 
+var defaultException = exception.InternalServerErrorException("Unhandled exception has occurred")
+
 type globalExceptionFilter struct{}
 
 func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
-	internalServerErrorException := exception.InternalServerErrorException("Unhandled exception has occurred")
-
 	code := ex.GetCode()
 	if code == "" {
-		code = internalServerErrorException.GetCode()
+		code = defaultException.GetCode()
 	}
 
 	err := ex.Error()
 	if err == "" {
-		err = internalServerErrorException.Error()
+		err = defaultException.Error()
 	}
 	data := ctx.Map{
 		"code":  code,
@@ -31,22 +31,26 @@ func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
 	}
 
 	message := ex.GetResponse()
-	switch reflect.TypeOf(message).Kind() {
+	var msgKind reflect.Kind
+	if message != nil {
+		msgKind = reflect.TypeOf(message).Kind()
+	}
+	switch msgKind {
 	case reflect.String, reflect.Map, reflect.Slice, reflect.Struct:
 		data["message"] = message
 	default:
-		data["message"] = internalServerErrorException.GetResponse()
+		data["message"] = defaultException.GetResponse()
 	}
 
 	httpCode, httpText := ex.GetHTTPStatus()
 	if httpText == "" {
-		httpCode, _ = internalServerErrorException.GetHTTPStatus()
+		httpCode, _ = defaultException.GetHTTPStatus()
 	}
 
-	requestType := c.GetType()
-	if requestType == ctx.HTTPType {
+	switch c.GetType() {
+	case ctx.HTTPType:
 		c.Status(httpCode).JSON(data)
-	} else if requestType == ctx.WSType {
-		c.WS.SendSelf(c, data)
+	case ctx.WSType:
+		_ = c.WS.SendSelf(c, data)
 	}
 }
