@@ -93,3 +93,24 @@ func TestToUniqueControllers(t *testing.T) {
 		t.Error(testutils.DiffMessage(len(controllers), 1, "toUniqueControllers dedup"))
 	}
 }
+
+func TestToUniqueControllersEmpty(t *testing.T) {
+	m := ModuleBuilder().Build()
+	controllers := []Controller{}
+	toUniqueControllers(m, &controllers)
+	if len(controllers) != 0 {
+		t.Error(testutils.DiffMessage(len(controllers), 0, "toUniqueControllers empty"))
+	}
+}
+
+func TestIsInjectedProvider(t *testing.T) {
+	providerType := reflect.TypeOf(mockProvider{})
+	notProviderType := reflect.TypeOf(struct{}{})
+
+	if !isInjectedProvider(providerType) {
+		t.Error(testutils.DiffMessage(false, true, "mockProvider should be injectable"))
+	}
+	if isInjectedProvider(notProviderType) {
+		t.Error(testutils.DiffMessage(true, false, "anonymous struct should not be injectable"))
+	}
+}

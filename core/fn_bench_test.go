@@ -37,3 +37,14 @@ func BenchmarkIsDynamicModule(b *testing.B) {
 		isDynamicModule(s) //nolint:errcheck
 	}
 }
+
+func BenchmarkToUniqueControllers(b *testing.B) {
+	m := ModuleBuilder().Build()
+	c1 := &mockController{}
+	c2 := &mockController{}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		controllers := []Controller{c1, c2, c1, c2, c1}
+		toUniqueControllers(m, &controllers)
+	}
+}

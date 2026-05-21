@@ -18,11 +18,10 @@ import (
 	"github.com/dangduoc08/ginject/utils"
 )
 
-var isDynamicModuleReg = regexp.MustCompile(`^func\(.*\*core.Module$`)
 var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
 
 func isDynamicModule(moduleType string) bool {
-	return isDynamicModuleReg.MatchString(moduleType)
+	return strings.HasPrefix(moduleType, "func(") && strings.HasSuffix(moduleType, "*core.Module")
 }
 
 // function were re-use at
@@ -140,9 +139,7 @@ func genFieldKey(t reflect.Type) string {
 
 func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	dynamicModuleType := reflect.TypeOf(dynamicModule)
-	localArgs := []reflect.Value{}
-	globalArgs := []reflect.Value{}
-	args := []reflect.Value{}
+	var args []reflect.Value
 
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
 		return errors.New(
@@ -156,30 +153,16 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	}
 
 	getFnArgs(dynamicModule, globalProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		// inject provider priorities
-		// local inject
-		// global inject
-		// inner packages
-
-		// check if an injected provider with the same type exists
 		if globalProviders[dynamicArgKey] != nil {
-
-			// if an injected provider doesn't exist, check if a global provider with the same type exists
-			// if a global provider exists, append it to the list of arguments
-			globalArgs = append(globalArgs, reflect.ValueOf(globalProviders[dynamicArgKey]))
+			args = append(args, reflect.ValueOf(globalProviders[dynamicArgKey]))
 		} else if globalInterfaces[dynamicArgKey] != nil {
-			globalArgs = append(globalArgs, reflect.ValueOf(globalInterfaces[dynamicArgKey]))
+			args = append(args, reflect.ValueOf(globalInterfaces[dynamicArgKey]))
 		} else {
 			panic(genError(dynamicModuleType, dynamicArgKey, i))
 		}
 	})
 
-	args = append(args, append(localArgs, globalArgs...)...)
-
-	// call the dynamic module with the list of arguments and convert the result to a static module
-	staticModule := reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
-
-	return staticModule
+	return reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
 }
 
 func injectDependencies(component any, kind string, dependencies map[string]Provider) (reflect.Value, error) {
@@ -190,12 +173,12 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 	// injected providers into components
 	// can be injected through global modules
 	// or through imported modules
+	componentName := path.Base(componentType.PkgPath()) + "." + componentType.Name()
 	for j := 0; j < componentType.NumField(); j++ {
 		componentField := componentType.Field(j)
 		componentFieldType := componentField.Type
 		componentFieldKey := genFieldKey(componentFieldType)
 		componentFieldName := componentField.Name
-		componentName := path.Base(componentType.PkgPath()) + "." + componentType.Name()
 
 		if !token.IsExported(componentFieldName) {
 			panic(errors.New(
