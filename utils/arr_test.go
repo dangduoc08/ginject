@@ -154,6 +154,70 @@ func TestArrGet(t *testing.T) {
 	}
 }
 
+func TestArrFindNotFound(t *testing.T) {
+	arr := []int{1, 2, 3}
+	got := ArrFind(arr, func(el int, _ int) bool { return el == 99 })
+	if got != 0 {
+		t.Errorf("ArrFind not-found = %v, want zero value", got)
+	}
+}
+
+func TestArrFindIndexNotFound(t *testing.T) {
+	arr := []int{1, 2, 3}
+	got := ArrFindIndex(arr, func(el int, _ int) bool { return el == 99 })
+	if got != -1 {
+		t.Errorf("ArrFindIndex not-found = %v, want -1", got)
+	}
+}
+
+func TestArrGetBool(t *testing.T) {
+	arr := []string{"a"}
+	if _, ok := ArrGet(arr, 0); !ok {
+		t.Error("ArrGet valid index should return ok=true")
+	}
+	if _, ok := ArrGet(arr, -1); ok {
+		t.Error("ArrGet negative index should return ok=false")
+	}
+	if _, ok := ArrGet(arr, 1); ok {
+		t.Error("ArrGet out-of-bounds index should return ok=false")
+	}
+}
+
+func TestArrStrParseBool(t *testing.T) {
+	got := ArrStrParseBool([]string{"true", "false", "bad"})
+	if got[0] != true || got[1] != false || got[2] != false {
+		t.Errorf("ArrStrParseBool = %v", got)
+	}
+}
+
+func TestArrStrParseInt(t *testing.T) {
+	got := ArrStrParseInt([]string{"1", "-2", "bad"})
+	if got[0] != 1 || got[1] != -2 || got[2] != 0 {
+		t.Errorf("ArrStrParseInt = %v", got)
+	}
+}
+
+func TestArrStrParseFloat64(t *testing.T) {
+	got := ArrStrParseFloat64([]string{"1.5", "-2.5", "bad"})
+	if got[0] != 1.5 || got[1] != -2.5 || got[2] != 0 {
+		t.Errorf("ArrStrParseFloat64 = %v", got)
+	}
+}
+
+func TestArrStrParseComplex64(t *testing.T) {
+	got := ArrStrParseComplex64([]string{"1+2i", "bad"})
+	if got[0] != complex(1, 2) || got[1] != 0 {
+		t.Errorf("ArrStrParseComplex64 = %v", got)
+	}
+}
+
+func TestArrStrParseAny(t *testing.T) {
+	got := ArrStrParseAny([]string{"a", "b"})
+	if got[0] != "a" || got[1] != "b" {
+		t.Errorf("ArrStrParseAny = %v", got)
+	}
+}
+
 func TestArrIterMultiDimensions(t *testing.T) {
 	multiDimension := []any{
 		[]any{
