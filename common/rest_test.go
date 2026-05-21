@@ -3,7 +3,7 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/testutils"
 )
 
 func TestParseFnNameToURL(t *testing.T) {
@@ -60,15 +60,15 @@ func TestParseFnNameToURL(t *testing.T) {
 	for fn, results := range testCases {
 		method, route, version := ParseFnNameToURL(fn, RESTOperations)
 		if method != results[0] {
-			t.Error(utils.ErrorMessage(results[0], method, "method should be equal"))
+			t.Error(testutils.DiffMessage(results[0], method, "method should be equal"))
 		}
 
 		if route != results[1] {
-			t.Error(utils.ErrorMessage(results[1], route, "route should be equal"))
+			t.Error(testutils.DiffMessage(results[1], route, "route should be equal"))
 		}
 
 		if version != results[2] {
-			t.Error(utils.ErrorMessage(results[2], version, "version should be equal"))
+			t.Error(testutils.DiffMessage(results[2], version, "version should be equal"))
 		}
 	}
 }
