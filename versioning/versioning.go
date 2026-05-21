@@ -24,42 +24,42 @@ type Versioning struct {
 	Extractor      ExtractorHandler
 }
 
-func (versioning *Versioning) GetVersion(c *ctx.Context) string {
-	v := ""
-	key := versioning.Key
-	if key == "" {
-		key = "v"
-	}
-
+func (versioning *Versioning) GetTypeString() string {
 	switch versioning.Type {
 	case QUERY:
-		if c.Query().Has(key) {
-			v = c.Query().Get(key)
-		} else {
-			v = versioning.DefaultVersion
-		}
-
+		return "query"
 	case HEADER:
-		if c.Header().Has(key) {
-			v = c.Header().Get(key)
-		} else {
-			v = versioning.DefaultVersion
-		}
+		return "header"
+	case CUSTOM:
+		return "custom"
+	case MEDIA_TYPE:
+		return "media_type"
+	default:
+		return ""
+	}
+}
 
+func (versioning *Versioning) GetVersion(c *ctx.Context) string {
+	switch versioning.Type {
+	case QUERY:
+		if v := c.Query().Get(versioning.Key); v != "" {
+			return v
+		}
+	case HEADER:
+		if v := c.Header().Get(versioning.Key); v != "" {
+			return v
+		}
 	case CUSTOM:
 		if versioning.Extractor != nil {
-			v = versioning.Extractor(c)
-		} else {
-			v = versioning.DefaultVersion
+			return versioning.Extractor(c)
 		}
-
 	case MEDIA_TYPE:
-		if _, after, found := strings.Cut(c.Header().Get("Accept"), key+"="); found {
-			v, _, _ = strings.Cut(strings.TrimSpace(after), ";")
-		} else {
-			v = versioning.DefaultVersion
+		if _, after, found := strings.Cut(c.Header().Get("Accept"), versioning.Key+"="); found {
+			if v, _, _ := strings.Cut(strings.TrimSpace(after), ";"); v != "" {
+				return v
+			}
 		}
 	}
 
-	return v
+	return versioning.DefaultVersion
 }

@@ -20,17 +20,18 @@ func (instance RequestLogger) Use(c ginject.Context, next ginject.Next) {
 		requestType := newC.GetType()
 		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
 
-		if requestType == ctx.HTTPType {
+		switch requestType {
+		case ctx.HTTPType:
 			instance.Info(
 				newC.URL.String(),
 				"Method", newC.Method,
 				"Status", newC.Code,
 				"Time", fmt.Sprintf("%v ms", responseTime),
-				"Protocol", newC.Request.Proto,
+				"Protocol", newC.Proto,
 				"User-Agent", newC.UserAgent(),
 				ctx.REQUEST_ID, newC.GetID(),
 			)
-		} else if requestType == ctx.WSType {
+		case ctx.WSType:
 			instance.Info(
 				newC.WS.Message.Event,
 				"Time", fmt.Sprintf("%v ms", responseTime),
