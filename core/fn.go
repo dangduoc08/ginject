@@ -18,8 +18,11 @@ import (
 	"github.com/dangduoc08/ginject/utils"
 )
 
-func isDynamicModule(moduleType string) (bool, error) {
-	return regexp.Match(`^func\(.*\*core.Module$`, []byte(moduleType))
+var isDynamicModuleReg = regexp.MustCompile(`^func\(.*\*core.Module$`)
+var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
+
+func isDynamicModule(moduleType string) bool {
+	return isDynamicModuleReg.MatchString(moduleType)
 }
 
 // function were re-use at
@@ -124,12 +127,11 @@ func genProviderKey(p Provider) string {
 }
 
 func genControllerKey(m *Module, c Controller) string {
-	return fmt.Sprintf("[%v]%v", m.ID(), genFieldKey(reflect.TypeOf(c)))
+	return "[" + m.ID() + "]" + genFieldKey(reflect.TypeOf(c))
 }
 
 func getPkgFromControllerKey(k string) string {
-	reg := regexp.MustCompile(`\[.*?\]`)
-	return reg.ReplaceAllString(k, "")
+	return pkgFromControllerKeyReg.ReplaceAllString(k, "")
 }
 
 func genFieldKey(t reflect.Type) string {
@@ -262,13 +264,7 @@ func logBoostrap(port int) {
 	lan := utils.FmtBold("%s", utils.FmtWhite("      LAN: ")) + utils.FmtMagenta("%s", fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
 	close := utils.FmtItalic("%s", utils.FmtGreen("Press CTRL+C to stop")) + "\n"
 
-	os.Stdout.Write([]byte("\n"))
-	os.Stdout.Write([]byte(accessURLs))
-	os.Stdout.Write([]byte(divider))
-	os.Stdout.Write([]byte(host))
-	os.Stdout.Write([]byte(lan))
-	os.Stdout.Write([]byte(divider))
-	os.Stdout.Write([]byte(close))
+	_, _ = fmt.Fprint(os.Stdout, "\n"+accessURLs+divider+host+lan+divider+close)
 }
 
 func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
@@ -440,14 +436,13 @@ func toWSMessage(data reflect.Value) string {
 }
 
 func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
-	statusCodeKind := statusCode.Type().Kind()
-
-	if statusCodeKind == reflect.Int {
+	switch statusCode.Type().Kind() {
+	case reflect.Int:
 		status := int(statusCode.Int())
 		if http.StatusText(status) != "" {
 			c.Status(status)
 		}
-	} else if statusCodeKind == reflect.Interface {
+	case reflect.Interface:
 		if status, ok := statusCode.Interface().(int); ok &&
 			http.StatusText(status) != "" {
 			c.Status(status)
@@ -456,12 +451,12 @@ func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
 }
 
 func toUniqueControllers(module *Module, controllers *[]Controller) {
-	duplicatedControllers := map[string]bool{}
-	uniqueControllers := []Controller{}
+	seen := make(map[string]struct{}, len(*controllers))
+	uniqueControllers := make([]Controller, 0, len(*controllers))
 	for _, controller := range *controllers {
 		controllerKey := genControllerKey(module, controller)
-		if _, ok := duplicatedControllers[controllerKey]; !ok {
-			duplicatedControllers[controllerKey] = true
+		if _, ok := seen[controllerKey]; !ok {
+			seen[controllerKey] = struct{}{}
 			uniqueControllers = append(uniqueControllers, controller)
 		}
 	}
