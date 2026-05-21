@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -672,7 +673,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer app.ctxPool.Put(c)
 
-	if utils.ArrIncludes(wsPaths, r.URL.Path) {
+	if slices.Contains(wsPaths, r.URL.Path) {
 		c.SetType(ctx.WSType)
 		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
 			app.handleWSRequest(wsConn, w, r, c)
