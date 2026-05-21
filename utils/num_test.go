@@ -3,6 +3,8 @@ package utils
 import (
 	"reflect"
 	"testing"
+
+	"github.com/dangduoc08/ginject/testutils"
 )
 
 func TestNumF64ToAnyNum(t *testing.T) {
@@ -25,20 +27,18 @@ func TestNumF64ToAnyNum(t *testing.T) {
 		{42.5, reflect.Float64, float64(42.5)},
 		{42.0, reflect.Complex64, complex64(complex(42.0, 0))},
 		{42.0, reflect.Complex128, complex(42.0, 0)},
-		// negative input clamped to typed zero for unsigned kinds
 		{-1, reflect.Uint, uint(0)},
 		{-1, reflect.Uint8, uint8(0)},
 		{-1, reflect.Uint16, uint16(0)},
 		{-1, reflect.Uint32, uint32(0)},
 		{-1, reflect.Uint64, uint64(0)},
-		// unsupported kind
 		{1, reflect.String, 0},
 	}
 
 	for _, c := range cases {
 		got := NumF64ToAnyNum(c.in, c.kind)
 		if got != c.want {
-			t.Errorf("NumF64ToAnyNum(%v, %v) = %v (%T), want %v (%T)", c.in, c.kind, got, got, c.want, c.want)
+			t.Error(testutils.DiffMessage(got, c.want, "NumF64ToAnyNum"))
 		}
 	}
 }

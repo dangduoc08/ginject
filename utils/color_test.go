@@ -1,6 +1,10 @@
 package utils
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/dangduoc08/ginject/testutils"
+)
 
 func TestFmtColors(t *testing.T) {
 	cases := []struct {
@@ -31,7 +35,7 @@ func TestFmtColors(t *testing.T) {
 	for _, c := range cases {
 		got := c.fn("hello %s", "world")
 		if got != c.want {
-			t.Errorf("%s = %q, want %q", c.name, got, c.want)
+			t.Error(testutils.DiffMessage(got, c.want, c.name))
 		}
 	}
 }
@@ -40,7 +44,7 @@ func TestFmtColorsFormatArgs(t *testing.T) {
 	got := FmtGreen("count: %d, label: %s", 42, "ok")
 	want := "\x1b[32mcount: 42, label: ok\x1b[0m"
 	if got != want {
-		t.Errorf("FmtGreen with multiple args = %q, want %q", got, want)
+		t.Error(testutils.DiffMessage(got, want, "FmtGreen with multiple args"))
 	}
 }
 
@@ -48,6 +52,6 @@ func TestFmtColorsNoArgs(t *testing.T) {
 	got := FmtRed("plain string")
 	want := "\x1b[31mplain string\x1b[0m"
 	if got != want {
-		t.Errorf("FmtRed no args = %q, want %q", got, want)
+		t.Error(testutils.DiffMessage(got, want, "FmtRed no args"))
 	}
 }

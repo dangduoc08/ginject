@@ -9,6 +9,7 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - If no test file exists, create `<filename>_test.go` with meaningful edge cases before making any changes.
    - If no benchmark file exists, create `<filename>_bench_test.go` with realistic, large-enough inputs (e.g. 1000+ iterations, real-world-sized data) that can actually reveal performance differences.
    - If both files already exist, review them and **add missing test cases** for any untested functions or uncovered edge cases before proceeding.
+   - When writing test assertions, use `t.Error(testutils.DiffMessage(actual, expected, "desc"))` (import `"github.com/dangduoc08/ginject/testutils"`) instead of raw `t.Errorf` format strings.
 
 3. **Run existing tests** to establish a baseline — all must pass before proceeding.
 
