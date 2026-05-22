@@ -51,7 +51,7 @@ func (m *Middleware) BindMiddleware(middlewareFn MiddlewareFn, handlers ...any) 
 }
 
 func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
-	middlewareItemArr := []MiddlewareItem{}
+	middlewareItemArr := make([]MiddlewareItem, 0, len(r.PatternToFnNameMap)*len(m.MiddlewareHandlers))
 
 	for _, middlewareHandler := range m.MiddlewareHandlers {
 		middlewarerType := reflect.TypeOf(middlewareHandler.middlewareFn)
@@ -59,16 +59,11 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 		newMiddleware := reflect.New(middlewarerType)
 
 		for i := 0; i < middlewarerType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, middlewarerType, middlewarerValue, newMiddleware)
 		}
 
-		// invoke middleware constructor
-		// if NewMiddleware was declared
 		newMiddlewareFn := newMiddleware.Interface()
 		newMiddlewareFn = Construct(newMiddlewareFn, "NewMiddleware")
-
 		middlewareHandler.middlewareFn = newMiddlewareFn.(MiddlewareFn)
 
 		shouldAddMiddleware := map[string]bool{}
@@ -78,9 +73,10 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 				shouldAddMiddleware[pattern] = true
 			}
 		}
+		applyAll := len(shouldAddMiddleware) == 0
 
 		for pattern := range r.PatternToFnNameMap {
-			if _, ok := shouldAddMiddleware[pattern]; ok || len(shouldAddMiddleware) == 0 {
+			if applyAll || shouldAddMiddleware[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -105,7 +101,7 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 }
 
 func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
-	middlewareItemArr := []MiddlewareItem{}
+	middlewareItemArr := make([]MiddlewareItem, 0, len(ws.patternToFnNameMap)*len(g.MiddlewareHandlers))
 
 	for _, middlewareHandler := range g.MiddlewareHandlers {
 		middlewarerType := reflect.TypeOf(middlewareHandler.middlewareFn)
@@ -113,16 +109,11 @@ func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, refle
 		newMiddleware := reflect.New(middlewarerType)
 
 		for i := 0; i < middlewarerType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, middlewarerType, middlewarerValue, newMiddleware)
 		}
 
-		// invoke middleware constructor
-		// if NewMiddleware was declared
 		newMiddlewarer := newMiddleware.Interface()
 		newMiddlewarer = Construct(newMiddlewarer, "NewMiddleware")
-
 		middlewareHandler.middlewareFn = newMiddlewarer.(MiddlewareFn)
 
 		shouldAddMiddleware := map[string]bool{}
@@ -132,9 +123,10 @@ func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, refle
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddMiddleware[eventName] = true
 		}
+		applyAll := len(shouldAddMiddleware) == 0
 
 		for pattern := range ws.patternToFnNameMap {
-			if _, ok := shouldAddMiddleware[pattern]; ok || len(shouldAddMiddleware) == 0 {
+			if applyAll || shouldAddMiddleware[pattern] {
 				middlewareItemArr = append(middlewareItemArr, MiddlewareItem{
 					WS: WSMiddlewareItem{
 						EventName: pattern,
