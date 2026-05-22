@@ -2,7 +2,6 @@ package common
 
 import (
 	"errors"
-	"reflect"
 
 	"github.com/dangduoc08/ginject/utils"
 )
@@ -20,7 +19,7 @@ type WS struct {
 }
 
 func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
-	if reflect.ValueOf(ws.EventMap).IsNil() {
+	if ws.EventMap == nil {
 		ws.EventMap = make(map[string]any)
 	}
 
@@ -35,7 +34,7 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler any) {
 	opr, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
 
-	if opr != "" && WSOperations[opr] != "" {
+	if opr != "" {
 		eventName = ToWSEventName(subprotocol, eventName)
 
 		if InsertedEvents[eventName] == "" {
