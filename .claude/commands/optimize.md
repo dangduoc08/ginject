@@ -77,3 +77,4 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 - If a change would affect callers outside the file, flag it before applying.
 - Readability wins over performance when the gain is small — do not make code harder to read for marginal improvements.
 - **Prefer built-ins over manual equivalents**: if the standard library (or language built-in) already provides an equivalent function, use it instead of a manual implementation — unless the built-in form is demonstrably less readable with no meaningful correctness or performance gain.
+- **Each package owns its output**: a package must produce correct, clean output by itself — do not leave known artifacts (e.g. double slashes, trailing separators, off-by-one boundaries) for downstream callers to normalise. If the fix belongs in this file, apply it here.
