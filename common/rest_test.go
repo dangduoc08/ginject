@@ -6,6 +6,150 @@ import (
 	"github.com/dangduoc08/ginject/testutils"
 )
 
+func TestGetPrefixes_NoHandlers(t *testing.T) {
+	r := &REST{}
+	r.Prefix("/api")
+	prefixes := r.GetPrefixes()
+	if len(prefixes) != 1 {
+		t.Error(testutils.DiffMessage(len(prefixes), 1, "one prefix entry"))
+		return
+	}
+	for k, v := range prefixes[0] {
+		if k != "/api/" {
+			t.Error(testutils.DiffMessage(k, "/api/", "prefix key"))
+		}
+		if v != "*" {
+			t.Error(testutils.DiffMessage(v, "*", "wildcard value"))
+		}
+	}
+}
+
+func TestGetPrefixes_WithHandlers(t *testing.T) {
+	r := &REST{}
+	r.Prefix("/v1", fnTestController{}.READ_users, fnTestController{}.CREATE_orders)
+	prefixes := r.GetPrefixes()
+	if len(prefixes) != 2 {
+		t.Error(testutils.DiffMessage(len(prefixes), 2, "two prefix entries for two handlers"))
+		return
+	}
+	names := map[string]bool{}
+	for _, pm := range prefixes {
+		for _, v := range pm {
+			names[v] = true
+		}
+	}
+	if !names["READ_users"] {
+		t.Error(testutils.DiffMessage(names, "READ_users present", "handler name"))
+	}
+	if !names["CREATE_orders"] {
+		t.Error(testutils.DiffMessage(names, "CREATE_orders present", "handler name"))
+	}
+}
+
+func TestGetPrefixes_Empty(t *testing.T) {
+	r := &REST{}
+	prefixes := r.GetPrefixes()
+	if len(prefixes) != 0 {
+		t.Error(testutils.DiffMessage(len(prefixes), 0, "no prefixes configured"))
+	}
+}
+
+func TestAddPrefixesToRoute_WildcardApplies(t *testing.T) {
+	r := &REST{}
+	r.Prefix("/api")
+	prefixes := r.GetPrefixes()
+	got := r.addPrefixesToRoute("/users/", "READ_users", prefixes)
+	want := "/api/users/"
+	if got != want {
+		t.Error(testutils.DiffMessage(got, want, "wildcard prefix prepended without double slash"))
+	}
+}
+
+func TestAddPrefixesToRoute_SpecificFnMatch(t *testing.T) {
+	r := &REST{}
+	r.Prefix("/v1", fnTestController{}.READ_users)
+	prefixes := r.GetPrefixes()
+	got := r.addPrefixesToRoute("/users/", "READ_users", prefixes)
+	want := "/v1/users/"
+	if got != want {
+		t.Error(testutils.DiffMessage(got, want, "matching fn prefix prepended"))
+	}
+}
+
+func TestAddPrefixesToRoute_SpecificFnNoMatch(t *testing.T) {
+	r := &REST{}
+	r.Prefix("/v1", fnTestController{}.READ_users)
+	prefixes := r.GetPrefixes()
+	got := r.addPrefixesToRoute("/orders/", "CREATE_orders", prefixes)
+	want := "/orders/"
+	if got != want {
+		t.Error(testutils.DiffMessage(got, want, "non-matching fn prefix not prepended"))
+	}
+}
+
+func TestAddPrefixesToRoute_NoPrefixes(t *testing.T) {
+	r := &REST{}
+	got := r.addPrefixesToRoute("/items/", "READ_items", nil)
+	want := "/items/"
+	if got != want {
+		t.Error(testutils.DiffMessage(got, want, "no prefixes leaves route unchanged"))
+	}
+}
+
+func TestAddToRouters_InitMaps(t *testing.T) {
+	r := &REST{}
+	r.addToRouters("READ_users", "/users/", "", "GET", nil)
+	if r.RouterMap == nil {
+		t.Error(testutils.DiffMessage(r.RouterMap, "non-nil", "RouterMap initialized"))
+	}
+	if r.PatternToFnNameMap == nil {
+		t.Error(testutils.DiffMessage(r.PatternToFnNameMap, "non-nil", "PatternToFnNameMap initialized"))
+	}
+	if r.FnNameToPatternMap == nil {
+		t.Error(testutils.DiffMessage(r.FnNameToPatternMap, "non-nil", "FnNameToPatternMap initialized"))
+	}
+}
+
+func TestAddHandlerToRouterMap_StoresPattern(t *testing.T) {
+	orig := InsertedRoutes
+	InsertedRoutes = make(map[string]string)
+	defer func() { InsertedRoutes = orig }()
+
+	r := &REST{}
+	r.AddHandlerToRouterMap(nil, "READ_items", nil)
+	if len(r.RouterMap) != 1 {
+		t.Error(testutils.DiffMessage(len(r.RouterMap), 1, "one route added"))
+	}
+	if InsertedRoutes["/items/||/[GET]/"] == "" {
+		t.Error(testutils.DiffMessage("", "READ_items", "InsertedRoutes populated"))
+	}
+}
+
+func TestGetConfigurations_MatchesInserted(t *testing.T) {
+	orig := InsertedRoutes
+	InsertedRoutes = make(map[string]string)
+	defer func() { InsertedRoutes = orig }()
+
+	r := &REST{}
+	r.AddHandlerToRouterMap(nil, "READ_items", nil)
+	r.AddHandlerToRouterMap(nil, "CREATE_items", nil)
+
+	cfgs := r.GetConfigurations()
+	if len(cfgs) != 2 {
+		t.Error(testutils.DiffMessage(len(cfgs), 2, "two configurations"))
+	}
+	methods := map[string]bool{}
+	for _, c := range cfgs {
+		methods[c.Method] = true
+	}
+	if !methods["GET"] {
+		t.Error(testutils.DiffMessage(methods, "GET present", "GET config"))
+	}
+	if !methods["POST"] {
+		t.Error(testutils.DiffMessage(methods, "POST present", "POST config"))
+	}
+}
+
 func TestParseFnNameToURL(t *testing.T) {
 	testCases := make(map[string][]string)
 

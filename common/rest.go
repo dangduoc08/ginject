@@ -3,7 +3,7 @@ package common
 import (
 	"errors"
 	"net/http"
-	"reflect"
+	"strings"
 
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/utils"
@@ -70,7 +70,7 @@ type Prefix struct {
 }
 
 func (r *REST) addToRouters(fnName, route, version, method string, injectableHandler any) {
-	if reflect.ValueOf(r.RouterMap).IsNil() {
+	if r.RouterMap == nil {
 		r.RouterMap = make(map[string]any)
 	}
 
@@ -90,7 +90,7 @@ func (r *REST) addToRouters(fnName, route, version, method string, injectableHan
 }
 
 func (r *REST) GetPrefixes() []map[string]string {
-	prefixes := []map[string]string{}
+	prefixes := make([]map[string]string, 0, len(r.prefixes))
 
 	for _, prefixConf := range r.prefixes {
 		prefixValue := routing.ToEndpoint(prefixConf.Value)
@@ -99,14 +99,10 @@ func (r *REST) GetPrefixes() []map[string]string {
 		// if no handlers were binded
 		// then prefix will be applied for all handlers
 		if len(prefixHandlers) == 0 {
-			prefixMap := make(map[string]string)
-			prefixMap[prefixValue] = "*"
-			prefixes = append(prefixes, prefixMap)
+			prefixes = append(prefixes, map[string]string{prefixValue: "*"})
 		} else {
 			for _, handler := range prefixHandlers {
-				prefixMap := make(map[string]string)
-				prefixMap[prefixValue] = GetFnName(handler)
-				prefixes = append(prefixes, prefixMap)
+				prefixes = append(prefixes, map[string]string{prefixValue: GetFnName(handler)})
 			}
 		}
 	}
@@ -118,7 +114,7 @@ func (r *REST) addPrefixesToRoute(route, fnName string, prefixes []map[string]st
 	for _, prefix := range prefixes {
 		for prefixValue, prefixFnName := range prefix {
 			if prefixFnName == "*" || prefixFnName == fnName {
-				route = prefixValue + route
+				route = prefixValue + strings.TrimPrefix(route, "/")
 			}
 		}
 	}
@@ -165,7 +161,7 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 }
 
 func (r *REST) GetConfigurations() []RESTConfiguration {
-	routes := []RESTConfiguration{}
+	routes := make([]RESTConfiguration, 0, len(InsertedRoutes))
 
 	for routeMethod, fn := range InsertedRoutes {
 		method, route, version := routing.PatternToMethodRouteVersion(routeMethod)
