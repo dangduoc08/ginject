@@ -51,7 +51,7 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 }
 
 func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := []GuardItem{}
+	guardItemArr := make([]GuardItem, 0, len(r.PatternToFnNameMap)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
 		guarderType := reflect.TypeOf(guardHandler.guarder)
@@ -59,16 +59,11 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		newGuard := reflect.New(guarderType)
 
 		for i := 0; i < guarderType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, guarderType, guarderValue, newGuard)
 		}
 
-		// invoke guard constructor
-		// if NewGuard was declared
 		newGuarder := newGuard.Interface()
 		newGuarder = Construct(newGuarder, "NewGuard")
-
 		guardHandler.guarder = newGuarder.(Guarder)
 
 		shouldAddGuard := map[string]bool{}
@@ -78,9 +73,10 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 				shouldAddGuard[pattern] = true
 			}
 		}
+		applyAll := len(shouldAddGuard) == 0
 
 		for pattern := range r.PatternToFnNameMap {
-			if _, ok := shouldAddGuard[pattern]; ok || len(shouldAddGuard) == 0 {
+			if applyAll || shouldAddGuard[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -105,7 +101,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 }
 
 func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := []GuardItem{}
+	guardItemArr := make([]GuardItem, 0, len(ws.patternToFnNameMap)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
 		guarderType := reflect.TypeOf(guardHandler.guarder)
@@ -113,16 +109,11 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		newGuard := reflect.New(guarderType)
 
 		for i := 0; i < guarderType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, guarderType, guarderValue, newGuard)
 		}
 
-		// invoke guard constructor
-		// if NewGuard was declared
 		newGuarder := newGuard.Interface()
 		newGuarder = Construct(newGuarder, "NewGuard")
-
 		guardHandler.guarder = newGuarder.(Guarder)
 
 		shouldAddGuard := map[string]bool{}
@@ -132,9 +123,10 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddGuard[eventName] = true
 		}
+		applyAll := len(shouldAddGuard) == 0
 
 		for pattern := range ws.patternToFnNameMap {
-			if _, ok := shouldAddGuard[pattern]; ok || len(shouldAddGuard) == 0 {
+			if applyAll || shouldAddGuard[pattern] {
 				guardItemArr = append(guardItemArr, GuardItem{
 					WS: WSGuardItem{
 						EventName: pattern,
