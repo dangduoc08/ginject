@@ -15,10 +15,11 @@ import (
 var singletons = make(map[string]any)
 
 func GetFnName(handler any) string {
-	strs := strings.Split(runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(), ".")
-	fnName := strs[len(strs)-1]
-	fnName = strings.TrimSuffix(fnName, "-fm")
-	return fnName
+	name := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	return strings.TrimSuffix(name, "-fm")
 }
 
 func ParseFnNameToURL(fnName string, operations map[string]string) (string, string, string) {
@@ -40,7 +41,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 			continue
 		}
 
-		s := string(b)
+		s := b
 
 		// function name is not satisfied statements
 		if _, ok := operations[s]; !ok && i == 0 {
@@ -53,16 +54,8 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 
 		if s == TOKEN_VERSION {
 			if i+1 < len(subStr) {
-				z := i + 1
-				for subStr[z] != "" {
-					version += "_" + subStr[z]
-					if z == len(subStr)-1 {
-						break
-					}
-					z++
-				}
+				version = strings.Join(subStr[i+1:], "_")
 			}
-			version = strings.Replace(version, "_", "", 1)
 			break
 		}
 
@@ -121,22 +114,17 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 			continue
 		}
 
-		// param concat to first slash of path
 		if s == TOKEN_BY || s == TOKEN_AND {
 			firstSlashIndex := strings.Index(route, "/")
 			shouldConcatRoute := route[:firstSlashIndex]
 			remainRoutes := route[firstSlashIndex:]
 
-			param := ""
 			i++
+			start := i
 			for i < len(subStr) && TokenMap[subStr[i]] == "" {
-				if param == "" {
-					param += subStr[i]
-				} else {
-					param += "_" + subStr[i]
-				}
 				i++
 			}
+			param := strings.Join(subStr[start:i], "_")
 			j = i
 
 			if firstSlashIndex > -1 && firstSlashIndex < len(route)-1 {
@@ -170,7 +158,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 		}
 	}
 
-	return method, "/" + route, version
+	return method, "/" + strings.TrimPrefix(route, "/"), version
 }
 
 func HandleGuard(c *ctx.Context, canActive bool) {
