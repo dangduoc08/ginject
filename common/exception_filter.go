@@ -52,7 +52,7 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 }
 
 func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
-	exceptionFilterItemArr := []ExceptionFilterItem{}
+	exceptionFilterItemArr := make([]ExceptionFilterItem, 0, len(r.PatternToFnNameMap)*len(e.ExceptionFilterHandlers))
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
 		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.exceptionFilterable)
@@ -60,16 +60,11 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 		newExceptionFilter := reflect.New(exceptionFilterableType)
 
 		for i := 0; i < exceptionFilterableType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, exceptionFilterableType, exceptionFilterableValue, newExceptionFilter)
 		}
 
-		// invoke exceptionFilter constructor
-		// if NewExceptionFilter was declared
 		newExceptionFilterable := newExceptionFilter.Interface()
 		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
-
 		exceptionFilterHandler.exceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
 
 		shouldAddExceptionFilter := map[string]bool{}
@@ -79,9 +74,10 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 				shouldAddExceptionFilter[pattern] = true
 			}
 		}
+		applyAll := len(shouldAddExceptionFilter) == 0
 
 		for pattern := range r.PatternToFnNameMap {
-			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
+			if applyAll || shouldAddExceptionFilter[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -106,25 +102,19 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 }
 
 func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
-	exceptionFilterItemArr := []ExceptionFilterItem{}
+	exceptionFilterItemArr := make([]ExceptionFilterItem, 0, len(ws.patternToFnNameMap)*len(e.ExceptionFilterHandlers))
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
-
 		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.exceptionFilterable)
 		exceptionFilterableValue := reflect.ValueOf(exceptionFilterHandler.exceptionFilterable)
 		newExceptionFilter := reflect.New(exceptionFilterableType)
 
 		for i := 0; i < exceptionFilterableType.NumField(); i++ {
-
-			// callback use to inject providers
 			cb(i, exceptionFilterableType, exceptionFilterableValue, newExceptionFilter)
 		}
 
-		// invoke exceptionFilter constructor
-		// if NewExceptionFilter was declared
 		newExceptionFilterable := newExceptionFilter.Interface()
 		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
-
 		exceptionFilterHandler.exceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
 
 		shouldAddExceptionFilter := map[string]bool{}
@@ -134,9 +124,10 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 			eventName = ToWSEventName(ws.subprotocol, eventName)
 			shouldAddExceptionFilter[eventName] = true
 		}
+		applyAll := len(shouldAddExceptionFilter) == 0
 
 		for pattern := range ws.patternToFnNameMap {
-			if _, ok := shouldAddExceptionFilter[pattern]; ok || len(shouldAddExceptionFilter) == 0 {
+			if applyAll || shouldAddExceptionFilter[pattern] {
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
 					WS: WSExceptionFilterItem{
 						EventName: pattern,
