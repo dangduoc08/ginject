@@ -44,9 +44,17 @@
       - [Disable HSTS (non-HTTPS dev environments)](#disable-hsts-non-https-dev-environments)
       - [HSTS with preload](#hsts-with-preload)
       - [Allow framing by same origin only](#allow-framing-by-same-origin-only)
-  - [RequestLogger](#requestlogger)
+  - [CSRF](#csrf-1)
     - [Key Features](#key-features-2)
     - [Quick Start](#quick-start-2)
+    - [`CSRF` Fields](#csrf-fields)
+    - [How It Works](#how-it-works)
+    - [Helper Functions](#helper-functions)
+    - [Reading the Token in a Handler](#reading-the-token-in-a-handler)
+    - [Recipes](#recipes-2)
+  - [RequestLogger](#requestlogger)
+    - [Key Features](#key-features-3)
+    - [Quick Start](#quick-start-3)
     - [Log Fields](#log-fields)
     - [Custom Logger](#custom-logger)
 
@@ -454,6 +462,110 @@ app.BindGlobalMiddlewares(middlewares.Helmet{
 app.BindGlobalMiddlewares(middlewares.Helmet{
     FrameOptions: "DENY",
 })
+```
+
+---
+
+## CSRF
+
+Protects state-changing endpoints against Cross-Site Request Forgery using the **double-submit cookie** pattern. Tokens are generated with `crypto/rand` and compared in constant time to prevent timing attacks.
+
+### Key Features
+
+- Protects POST, PUT, PATCH, DELETE — passes GET, HEAD, OPTIONS through unchanged
+- Cryptographically secure token generation (`crypto/rand` + hex encoding)
+- Constant-time token comparison (`crypto/subtle`) — no timing leak
+- Token accepted from `X-CSRF-Token`, `X-XSRF-TOKEN` header, or `_csrf` form field
+- Generates and sets the cookie automatically on first request
+- Exposes the current token in the request context for embedding in HTML forms
+
+### Quick Start
+
+```go
+import "github.com/dangduoc08/ginject/middlewares"
+
+app.BindGlobalMiddlewares(middlewares.CSRF{})
+```
+
+### `CSRF` Fields
+
+| Field         | Type     | Default          | Description                                          |
+|---------------|----------|------------------|------------------------------------------------------|
+| `TokenLength` | `int`    | `32`             | Bytes of entropy; token string is `2×length` hex chars |
+| `CookieName`  | `string` | `"_csrf"`        | Name of the cookie that stores the token             |
+| `HeaderName`  | `string` | `"X-CSRF-Token"` | Primary request header carrying the submitted token  |
+| `ContextKey`  | `string` | `"csrf_token"`   | Key used to store the token in the request context   |
+
+### How It Works
+
+1. **Every request**: the middleware reads the `_csrf` cookie. If absent or empty, it generates a new token with `crypto/rand`, sets the cookie (`HttpOnly: false` so JS can read it), and stores the token in the request context.
+2. **Safe methods** (GET, HEAD, OPTIONS): calls `next()` immediately — no validation.
+3. **State-changing methods** (POST, PUT, PATCH, DELETE): extracts the submitted token in priority order:
+   - `X-CSRF-Token` header
+   - `X-XSRF-TOKEN` header
+   - `_csrf` form field
+   
+   Compares it against the cookie value using `subtle.ConstantTimeCompare`. Mismatch or missing token → `ForbiddenException` (HTTP 403).
+
+> **Cookie flags**: `SameSite=Lax` and `Secure=true` are strongly recommended in production. Set them by supplying a custom cookie via your own middleware or HTTP framework hooks — CSRF does not enforce them to stay framework-agnostic.
+
+### Helper Functions
+
+```go
+// Generate a cryptographically secure hex token.
+// length=0 uses the default (32 bytes → 64 hex chars).
+token, err := middlewares.GenerateCSRFToken(32)
+
+// Constant-time string comparison — safe against timing attacks.
+ok := middlewares.CompareTokensSecurely(submitted, stored)
+```
+
+### Reading the Token in a Handler
+
+The current CSRF token is stored in the request context under `ContextKey`. Use it to embed the token in server-rendered HTML forms:
+
+```go
+func (ctrl MyController) READ_form(c *ctx.Context) string {
+    token, _ := c.Request.Context().Value("csrf_token").(string)
+    return `<form method="POST">
+        <input type="hidden" name="_csrf" value="` + token + `">
+    </form>`
+}
+```
+
+For SPA/API clients, read the `_csrf` cookie with JavaScript and send it as the `X-CSRF-Token` request header.
+
+### Recipes
+
+**Custom cookie and header name:**
+
+```go
+app.BindGlobalMiddlewares(middlewares.CSRF{
+    CookieName: "XSRF-TOKEN",   // Angular default
+    HeaderName: "X-XSRF-TOKEN", // Angular default
+})
+```
+
+**Longer token (64 bytes of entropy):**
+
+```go
+app.BindGlobalMiddlewares(middlewares.CSRF{
+    TokenLength: 64,
+})
+```
+
+**Per-controller (protect only mutation routes):**
+
+```go
+func (ctrl ApiController) NewController() core.Controller {
+    ctrl.BindMiddleware(
+        middlewares.CSRF{},
+        ctrl.CREATE,
+        ctrl.UPDATE,
+        ctrl.DELETE,
+    )
+    return ctrl
+}
 ```
 
 ---
