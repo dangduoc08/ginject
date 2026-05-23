@@ -22,6 +22,8 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - Standard library functions that replace manual implementations (`strings.HasPrefix`, `strings.TrimPrefix`, `strings.HasSuffix`, `strings.TrimSuffix`, etc.)
    - Dead code or redundant conditions (`A || (A && B)` → `A`)
    - Potential panics from missing bounds checks
+   - **Normalisation before capture**: if a function normalises an input field (e.g. `nil → "*"`, `[]string → map`) and then assigns the result to an output struct, ensure the assignment happens **after** all normalisation steps, not before. Assigning before normalisation silently captures the pre-normalised value and the output struct carries stale data.
+   - **Hot-path initialisation**: if a function builds options/config structs (string joins, map construction, defaults) and is called on every request, move that work into a one-time initialisation step (e.g. `NewMiddleware`, a constructor, or `sync.Once`) and cache the result.
    - **Concurrency & race conditions**: shared state accessed without synchronization, goroutines leaking, channels never closed, `sync.Mutex` locked but not unlocked on all paths, `sync/atomic` misuse
    - **Security**: SQL/command injection via string concat, hardcoded secrets, unvalidated external input used in file paths or exec calls, missing TLS verification, use of `math/rand` where `crypto/rand` is required
 

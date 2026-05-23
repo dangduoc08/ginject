@@ -16,7 +16,7 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 	c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
 		newC := args[0].(*ctx.Context)
 		requestType := newC.GetType()
-		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
+		responseTime := time.Since(newC.Timestamp).Milliseconds()
 
 		switch requestType {
 		case ctx.HTTPType:
@@ -24,15 +24,15 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 				newC.URL.String(),
 				"Method", newC.Method,
 				"Status", newC.Code,
-				"Time", fmt.Sprintf("%v ms", responseTime),
-				"Protocol", newC.Request.Proto,
+				"Time", fmt.Sprintf("%d ms", responseTime),
+				"Protocol", newC.Proto,
 				"User-Agent", newC.UserAgent(),
 				ctx.REQUEST_ID, newC.GetID(),
 			)
 		case ctx.WSType:
 			instance.Info(
 				newC.WS.Message.Event,
-				"Time", fmt.Sprintf("%v ms", responseTime),
+				"Time", fmt.Sprintf("%d ms", responseTime),
 				"Subprotocol", newC.WS.GetSubprotocol(),
 				"User-Agent", newC.UserAgent(),
 			)
