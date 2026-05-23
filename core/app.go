@@ -10,7 +10,6 @@ import (
 	"path"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,7 +30,8 @@ type App struct {
 	route                                  *routing.Router
 	wsEventMap                             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
 	wsMainHandlerMap                       map[string]any           // to store WS main handler
-	wsEventToID                            sync.Map                 // to store WS ID, key = emit event
+	wsEventToID                            map[string][]string      // to store WS IDs, key = emit event name
+	wsEventToIDMu                          sync.RWMutex
 	serveStaticMapToLastWildcardSlashIndex map[string]int           // to check public dir URL if has * at last
 	module                                 *Module
 	ctxPool                                sync.Pool
@@ -101,6 +101,7 @@ func New() *App {
 		catchWSFnsMap:                          make(map[string][]common.Catch),
 		wsEventMap:                             make(map[string][]func(*ctx.Context)),
 		wsMainHandlerMap:                       make(map[string]any),
+		wsEventToID:                            make(map[string][]string),
 		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
 		ctxPool: sync.Pool{
 			New: func() any {
@@ -212,22 +213,10 @@ func (app *App) Create(m *Module) {
 						response = arg.Error()
 					case string:
 						response = arg
-					case int:
-					case int8:
-					case int16:
-					case int32:
-					case int64:
-					case uint:
-					case uint8:
-					case uint16:
-					case uint32:
-					case uint64:
-					case float32:
-					case float64:
-					case complex64:
-					case complex128:
-					case uintptr:
-						response = strconv.Itoa(args[1].(int))
+					case int, int8, int16, int32, int64,
+						uint, uint8, uint16, uint32, uint64,
+						float32, float64, complex64, complex128, uintptr:
+						_ = arg
 					}
 					exception := exception.InternalServerErrorException(response, map[string]any{
 						"description": "Unknown exception",
@@ -271,22 +260,10 @@ func (app *App) Create(m *Module) {
 						response = arg.Error()
 					case string:
 						response = arg
-					case int:
-					case int8:
-					case int16:
-					case int32:
-					case int64:
-					case uint:
-					case uint8:
-					case uint16:
-					case uint32:
-					case uint64:
-					case float32:
-					case float64:
-					case complex64:
-					case complex128:
-					case uintptr:
-						response = strconv.Itoa(args[1].(int))
+					case int, int8, int16, int32, int64,
+						uint, uint8, uint16, uint32, uint64,
+						float32, float64, complex64, complex128, uintptr:
+						_ = arg
 					}
 					exception := exception.InternalServerErrorException(response, map[string]any{
 						"description": "Unknown exception",
@@ -1108,40 +1085,33 @@ func (app *App) provideAndInvoke(f any, c *ctx.Context) []reflect.Value {
 }
 
 func (app *App) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(args ...any)) {
-
-	// actual event = eventName + Sec-Websocket-Key + uuid
 	c.Event.On(subscribedEventName+wsid, cb)
-	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
-		wsids := wsids.([]string)
-		wsids = append(wsids, wsid)
-		app.wsEventToID.Store(subscribedEventName, wsids)
-	} else {
-		app.wsEventToID.Store(subscribedEventName, []string{wsid})
-	}
+	app.wsEventToIDMu.Lock()
+	app.wsEventToID[subscribedEventName] = append(app.wsEventToID[subscribedEventName], wsid)
+	app.wsEventToIDMu.Unlock()
 }
 
 func (app *App) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) {
 	c.Event.RemoveAllListeners(subscribedEventName + wsid)
-	if wsids, ok := app.wsEventToID.Load(subscribedEventName); ok {
-		wsids = utils.ArrFilter(wsids.([]string), func(el string, i int) bool {
-			return el != wsid
-		})
-		app.wsEventToID.Swap(subscribedEventName, wsids)
+	app.wsEventToIDMu.Lock()
+	old := app.wsEventToID[subscribedEventName]
+	filtered := make([]string, 0, len(old))
+	for _, id := range old {
+		if id != wsid {
+			filtered = append(filtered, id)
+		}
 	}
+	app.wsEventToID[subscribedEventName] = filtered
+	app.wsEventToIDMu.Unlock()
 }
 
 func (app *App) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Context) {
-	if wsids, ok := app.wsEventToID.Load(configPublishedEventName); ok {
-		for _, wsid := range wsids.([]string) {
-			c.Event.Emit(configPublishedEventName+wsid, wsMsg)
-		}
+	app.wsEventToIDMu.RLock()
+	wsids := app.wsEventToID[configPublishedEventName]
+	app.wsEventToIDMu.RUnlock()
+	for _, wsid := range wsids {
+		c.Event.Emit(configPublishedEventName+wsid, wsMsg)
 	}
-
-	// reset ErrorAggregationOperators
-	// to prevent duplicate error aggregation
-	// due to error will be added
-	// whenever interceptor triggered
-	// but WS 1 connection use 1 ctx
 	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
 	c.Request = c.WithContext(newCtx)
 }
@@ -1212,17 +1182,21 @@ func (app *App) returnDeprecatedURL(c *ctx.Context) {
 }
 
 func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
-	errorAggregationOpr := aggregationInstance.GetAggregationOperator(aggregation.OPERATOR_ERROR)
-	if errorAggregationOpr != nil {
-		errorAggregationOperators := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY))
-		if errorAggregationOperators == nil {
-			errorAggregationOperators = []aggregation.AggregationOperator{}
-		}
-		errorAggregationOperators = append(errorAggregationOperators.([]aggregation.AggregationOperator), errorAggregationOpr)
-
-		newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), errorAggregationOperators)
-		c.Request = c.WithContext(newCtx)
+	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OPERATOR_ERROR)
+	if len(errorOps) == 0 {
+		return
 	}
+	var existing []aggregation.AggregationOperator
+	if v := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)); v != nil {
+		existing = v.([]aggregation.AggregationOperator)
+	}
+	merged := make([]aggregation.AggregationOperator, len(existing), len(existing)+len(errorOps))
+	copy(merged, existing)
+	for _, op := range errorOps {
+		merged = append(merged, op.Aggregation)
+	}
+	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), merged)
+	c.Request = c.WithContext(newCtx)
 }
 
 func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {

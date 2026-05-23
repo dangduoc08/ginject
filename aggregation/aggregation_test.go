@@ -10,111 +10,103 @@ import (
 func TestNewAggregation(t *testing.T) {
 	a := NewAggregation()
 	if a == nil {
-		t.Error(testutils.DiffMessage(a, "non-nil *Aggregation", "NewAggregation should return non-nil"))
+		t.Fatal(testutils.DiffMessage(nil, "*Aggregation", "NewAggregation must not return nil"))
 	}
-	if a.operators == nil {
-		t.Error(testutils.DiffMessage(a.operators, "non-nil map", "operators map should be initialized"))
+	if a.IsMainHandlerCalled {
+		t.Error(testutils.DiffMessage(a.IsMainHandlerCalled, false, "IsMainHandlerCalled must start false"))
+	}
+	if a.mainData != nil {
+		t.Error(testutils.DiffMessage(a.mainData, nil, "mainData must start nil"))
 	}
 }
 
 func TestSetMainData(t *testing.T) {
 	a := NewAggregation()
-	a.SetMainData("hello")
+	ret := a.SetMainData("hello")
+	if ret != a {
+		t.Error(testutils.DiffMessage(ret, a, "SetMainData must return same *Aggregation for chaining"))
+	}
 	if a.mainData != "hello" {
-		t.Error(testutils.DiffMessage(a.mainData, "hello", "SetMainData"))
+		t.Error(testutils.DiffMessage(a.mainData, "hello", "SetMainData must store value"))
 	}
 	a.SetMainData(42)
 	if a.mainData != 42 {
-		t.Error(testutils.DiffMessage(a.mainData, 42, "SetMainData override"))
+		t.Error(testutils.DiffMessage(a.mainData, 42, "SetMainData must overwrite previous value"))
 	}
 }
 
-func TestSetMainData_Chaining(t *testing.T) {
+func TestSetMainData_Nil(t *testing.T) {
 	a := NewAggregation()
-	result := a.SetMainData("val")
-	if result != a {
-		t.Error(testutils.DiffMessage(result, a, "SetMainData should return same *Aggregation"))
+	a.SetMainData("something")
+	a.SetMainData(nil)
+	if a.mainData != nil {
+		t.Error(testutils.DiffMessage(a.mainData, nil, "SetMainData with nil must clear value"))
 	}
 }
 
-func TestPipe(t *testing.T) {
+func TestPipe_SetsIsMainHandlerCalled(t *testing.T) {
 	a := NewAggregation()
 	if a.IsMainHandlerCalled {
-		t.Error(testutils.DiffMessage(a.IsMainHandlerCalled, false, "IsMainHandlerCalled should start false"))
+		t.Error(testutils.DiffMessage(a.IsMainHandlerCalled, false, "must start false"))
 	}
 	a.Pipe()
 	if !a.IsMainHandlerCalled {
-		t.Error(testutils.DiffMessage(a.IsMainHandlerCalled, true, "Pipe sets IsMainHandlerCalled"))
+		t.Error(testutils.DiffMessage(a.IsMainHandlerCalled, true, "Pipe must set IsMainHandlerCalled"))
 	}
 }
 
-func TestConsumeOperator(t *testing.T) {
+func TestPipe_ReturnsNil(t *testing.T) {
 	a := NewAggregation()
-	a.SetMainData("initial")
+	got := a.Pipe()
+	if got != nil {
+		t.Error(testutils.DiffMessage(got, nil, "Pipe must return nil"))
+	}
+}
 
+func TestTransform_RegisteredAndApplied(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("original")
 	called := false
-	a.Consume(func(c *ctx.Context, data any) any {
+	a.Transform(func(c *ctx.Context, data any) any {
 		called = true
 		return "transformed"
 	})
-
 	result := a.Aggregate(nil)
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "Consume operator should be called"))
+		t.Error(testutils.DiffMessage(called, true, "Transform operator must be called"))
 	}
 	if result != "transformed" {
-		t.Error(testutils.DiffMessage(result, "transformed", "Aggregate returns consumed value"))
+		t.Error(testutils.DiffMessage(result, "transformed", "Transform must update mainData"))
 	}
 }
 
-func TestAggregate_NoOperators(t *testing.T) {
+func TestTransform_ReturnsOperator(t *testing.T) {
 	a := NewAggregation()
-	a.SetMainData("data")
-	result := a.Aggregate(nil)
-	if result != "data" {
-		t.Error(testutils.DiffMessage(result, "data", "Aggregate with no operators returns mainData"))
-	}
-}
-
-func TestAggregate_NilData(t *testing.T) {
-	a := NewAggregation()
-	result := a.Aggregate(nil)
-	if result != nil {
-		t.Error(testutils.DiffMessage(result, nil, "Aggregate with nil mainData returns nil"))
-	}
-}
-
-func TestGetAggregationOperator_Exists(t *testing.T) {
-	a := NewAggregation()
-	op := func(c *ctx.Context, data any) any { return data }
-	a.Consume(op)
-	got := a.GetAggregationOperator(OPERATOR_CONSUME)
+	noop := func(c *ctx.Context, data any) any { return data }
+	got := a.Transform(noop)
 	if got == nil {
-		t.Error(testutils.DiffMessage(got, "non-nil operator", "GetAggregationOperator should find Consume"))
+		t.Error(testutils.DiffMessage(got, "non-nil", "Transform must return the operator"))
 	}
 }
 
-func TestGetAggregationOperator_Missing(t *testing.T) {
+func TestTap_CalledButDoesNotTransform(t *testing.T) {
 	a := NewAggregation()
-	got := a.GetAggregationOperator(OPERATOR_CONSUME)
-	if got != nil {
-		t.Error(testutils.DiffMessage(got, nil, "GetAggregationOperator missing key returns nil"))
-	}
-}
-
-func TestSetOperators_NoOverwrite(t *testing.T) {
-	a := NewAggregation()
-	first := func(c *ctx.Context, data any) any { return "first" }
-	second := func(c *ctx.Context, data any) any { return "second" }
-	a.Consume(first)
-	a.Consume(second)
+	a.SetMainData("original")
+	called := false
+	a.Tap(func(c *ctx.Context, data any) any {
+		called = true
+		return "tap-result"
+	})
 	result := a.Aggregate(nil)
-	if result != "first" {
-		t.Error(testutils.DiffMessage(result, "first", "second Consume should not overwrite first"))
+	if !called {
+		t.Error(testutils.DiffMessage(called, true, "Tap operator must be called"))
+	}
+	if result != "original" {
+		t.Error(testutils.DiffMessage(result, "original", "Tap must not change mainData"))
 	}
 }
 
-func TestErrorOperator(t *testing.T) {
+func TestError_StoredButNotAppliedInAggregate(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("data")
 	called := false
@@ -124,43 +116,98 @@ func TestErrorOperator(t *testing.T) {
 	})
 	result := a.Aggregate(nil)
 	if called {
-		t.Error(testutils.DiffMessage(called, false, "Error operator should not be called in Aggregate"))
+		t.Error(testutils.DiffMessage(called, false, "Error operator must not be called in Aggregate"))
 	}
 	if result != "data" {
-		t.Error(testutils.DiffMessage(result, "data", "mainData unchanged when only Error operator"))
+		t.Error(testutils.DiffMessage(result, "data", "mainData must be unchanged when only Error is registered"))
 	}
 }
 
-func TestFirstOperator(t *testing.T) {
+func TestGetAggregationOperators_Match(t *testing.T) {
+	a := NewAggregation()
+	a.Transform(func(c *ctx.Context, data any) any { return data })
+	a.Error(func(c *ctx.Context, data any) any { return data })
+	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	if len(ops) != 1 {
+		t.Error(testutils.DiffMessage(len(ops), 1, "must return exactly 1 Error operator"))
+	}
+	if ops[0].Name != OPERATOR_ERROR {
+		t.Error(testutils.DiffMessage(ops[0].Name, OPERATOR_ERROR, "returned operator must have correct name"))
+	}
+}
+
+func TestGetAggregationOperators_NoMatch(t *testing.T) {
+	a := NewAggregation()
+	a.Transform(func(c *ctx.Context, data any) any { return data })
+	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	if len(ops) != 0 {
+		t.Error(testutils.DiffMessage(len(ops), 0, "must return empty slice when no match"))
+	}
+}
+
+func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
+	a := NewAggregation()
+	a.Error(func(c *ctx.Context, data any) any { return "e1" })
+	a.Error(func(c *ctx.Context, data any) any { return "e2" })
+	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	if len(ops) != 2 {
+		t.Error(testutils.DiffMessage(len(ops), 2, "must return all matching operators"))
+	}
+}
+
+func TestGetAggregationOperators_EmptyAggregation(t *testing.T) {
+	a := NewAggregation()
+	ops := a.GetAggregationOperators(OPERATOR_TRANSFORM)
+	if len(ops) != 0 {
+		t.Error(testutils.DiffMessage(len(ops), 0, "empty aggregation must return empty result"))
+	}
+}
+
+func TestAggregate_NoOperators(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("data")
-	a.First()
 	result := a.Aggregate(nil)
 	if result != "data" {
-		t.Error(testutils.DiffMessage(result, "data", "First operator does not transform mainData"))
+		t.Error(testutils.DiffMessage(result, "data", "no operators must return mainData unchanged"))
 	}
 }
 
-func TestMapOperator_Registered(t *testing.T) {
+func TestAggregate_NilData(t *testing.T) {
 	a := NewAggregation()
-	op := func(c *ctx.Context, data any) any { return data }
-	returned := a.Map(op)
-	if returned == nil {
-		t.Error(testutils.DiffMessage(returned, "non-nil", "Map should return the operator"))
-	}
-	if a.GetAggregationOperator(OPERATOR_MAP) == nil {
-		t.Error(testutils.DiffMessage(nil, "non-nil", "Map operator should be stored"))
+	result := a.Aggregate(nil)
+	if result != nil {
+		t.Error(testutils.DiffMessage(result, nil, "nil mainData must be returned as nil"))
 	}
 }
 
-func TestOfOperator_Registered(t *testing.T) {
+func TestAggregate_TransformAndTap_Order(t *testing.T) {
 	a := NewAggregation()
-	op := func(c *ctx.Context, data any) any { return data }
-	returned := a.Of(op)
-	if returned == nil {
-		t.Error(testutils.DiffMessage(returned, "non-nil", "Of should return the operator"))
+	a.SetMainData(0)
+	order := []string{}
+	a.Transform(func(c *ctx.Context, data any) any {
+		order = append(order, "transform")
+		return data.(int) + 1
+	})
+	a.Tap(func(c *ctx.Context, data any) any {
+		order = append(order, "tap")
+		return data
+	})
+	result := a.Aggregate(nil)
+	if result != 1 {
+		t.Error(testutils.DiffMessage(result, 1, "Transform must increment value"))
 	}
-	if a.GetAggregationOperator(OPERATOR_OF) == nil {
-		t.Error(testutils.DiffMessage(nil, "non-nil", "Of operator should be stored"))
+	if len(order) != 2 || order[0] != "transform" || order[1] != "tap" {
+		t.Error(testutils.DiffMessage(order, []string{"transform", "tap"}, "operators must run in registration order"))
+	}
+}
+
+func TestAggregate_MultipleTransforms(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(0)
+	a.Transform(func(c *ctx.Context, data any) any { return data.(int) + 1 })
+	a.Transform(func(c *ctx.Context, data any) any { return data.(int) * 3 })
+	result := a.Aggregate(nil)
+	if result != 3 {
+		t.Error(testutils.DiffMessage(result, 3, "(0+1)*3 = 3"))
 	}
 }
