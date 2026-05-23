@@ -293,7 +293,7 @@ func TestThrottlerGuard_SetsRetryAfterOnExceed(t *testing.T) {
 
 	c2 := newCtx("127.0.0.1:0")
 	func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		g.CanActivate(c2)
 	}()
 
