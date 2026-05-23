@@ -20,6 +20,7 @@
   - [`CacheService` Methods](#cacheservice-methods)
     - [Get](#get)
     - [Set](#set)
+    - [SetNX](#setnx)
     - [Delete](#delete)
     - [Keys](#keys)
     - [TTL](#ttl)
@@ -51,6 +52,7 @@
 type Cache interface {
     Get(ctx context.Context, key string) ([]byte, bool)
     Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
+    SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error)
     Delete(ctx context.Context, key string) error
     Keys(ctx context.Context) []string
     TTL(ctx context.Context, key string) (time.Duration, bool)
@@ -269,6 +271,40 @@ if err != nil {
 }
 ```
 
+### SetNX
+
+Sets the value only if the key does not currently exist (or has expired). The operation is atomic — the check and write happen under the same lock.
+
+**Signature:**
+
+```go
+func (cs *CacheService) SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error)
+```
+
+**Parameters:**
+- `ctx` — `context.Context`
+- `key` — must be non-empty; returns `(false, cache.ErrEmptyKey)` otherwise
+- `val` — value bytes; `nil` and empty slice are both stored as an empty entry
+- `ttl` — expiry duration; `<= 0` means the entry never expires
+
+**Returns:**
+- `(true, nil)` — key was absent (or expired); value has been stored
+- `(false, nil)` — key already exists and has not expired; nothing was written
+- `(false, error)` — key is empty
+
+**Example:**
+
+```go
+// Distributed lock / once-only initialisation
+ok, err := svc.SetNX(ctx, "init:done", []byte("1"), 24*time.Hour)
+if err != nil {
+    log.Fatal(err)
+}
+if !ok {
+    // another instance already ran init
+}
+```
+
 ### Delete
 
 Removes the key from the cache. Deleting a missing key is a no-op (not an error).
@@ -350,13 +386,15 @@ if !ok {
 | `ttl < 0` | Entry never expires |
 | `ttl > 0` | Entry expires at `now + ttl` (nanosecond precision) |
 | Expired entry on Get | Returns `nil, false` — same as missing |
-| Empty key on Set/Delete | Returns `cache.ErrEmptyKey` |
+| Empty key on Set/Delete/SetNX | Returns `cache.ErrEmptyKey` |
 | Empty key on Get | Returns `nil, false` (no error) |
 | Empty key on TTL | Returns `0, false` (no error) |
-| `nil` val on Set | Stored as empty entry; Get returns `[]byte{}, true` |
+| `nil` val on Set/SetNX | Stored as empty entry; Get returns `[]byte{}, true` |
 | Returned `[]byte` from Get | Independent copy — safe to mutate |
-| Stored `[]byte` from Set | Independent copy — caller mutations do not affect cache |
-| Overwrite semantics | Set always overwrites; no conditional write |
+| Stored `[]byte` from Set/SetNX | Independent copy — caller mutations do not affect cache |
+| Set | Always overwrites regardless of existence |
+| SetNX | Writes only if key is absent or expired; atomic check-and-set |
+| SetNX on expired key | Treats expired entry as absent — new value is stored |
 | Keys | Returns snapshot of live keys; expired keys excluded |
 | TTL on permanent key | Returns `0, true` |
 | TTL on expired/missing key | Returns `0, false` |
@@ -422,11 +460,12 @@ To add a Redis backend, implement the `Cache` interface and pass it via a custom
 ```go
 type redisCache struct { client *redis.Client }
 
-func (r *redisCache) Get(ctx context.Context, key string) ([]byte, bool)                    { /* ... */ }
-func (r *redisCache) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error { /* ... */ }
-func (r *redisCache) Delete(ctx context.Context, key string) error                           { /* ... */ }
-func (r *redisCache) Keys(ctx context.Context) []string                                      { /* KEYS * or SCAN */ }
-func (r *redisCache) TTL(ctx context.Context, key string) (time.Duration, bool)              { /* TTL command */ }
+func (r *redisCache) Get(ctx context.Context, key string) ([]byte, bool)                           { /* GET */ }
+func (r *redisCache) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error     { /* SET EX */ }
+func (r *redisCache) SetNX(ctx context.Context, key string, val []byte, ttl time.Duration) (bool, error) { /* SET NX EX */ }
+func (r *redisCache) Delete(ctx context.Context, key string) error                                { /* DEL */ }
+func (r *redisCache) Keys(ctx context.Context) []string                                           { /* SCAN */ }
+func (r *redisCache) TTL(ctx context.Context, key string) (time.Duration, bool)                   { /* TTL */ }
 
 // Then wire it:
 svc := cache.CacheService{Backend: &redisCache{client: rdb}}
