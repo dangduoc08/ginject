@@ -162,27 +162,63 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, par
 						continue
 
 					case reflect.Ptr:
-						// TODO: For the rest type pointers
-						// need to enhance later
-
-						// if structField.Type.Elem().Kind() == reflect.Float64 {
-						// 	if f64, ok := bindedValue.(float64); ok {
-						// 		val := utils.NumF64ToAnyNum(f64, structField.Type.Kind())
-						// 		fl.val = val
-						// 		*fls = append(*fls, fl)
-						// 		setValueToStructField(&f64)
-						// 	}
-						// }
-
-						if structField.Type.Elem().Kind() == reflect.Struct {
-							if bindedValue, ok := bindedValue.(map[string]any); ok {
-								val, _ := BindStruct(
-									bindedValue,
-									fls,
-									structField.Type.Elem(),
-									ns,
-									nestedTag,
-								)
+						elemKind := structField.Type.Elem().Kind()
+						switch elemKind {
+						case reflect.Bool:
+							if boolean, ok := bindedValue.(bool); ok {
+								v := boolean
+								fl.val = &v
+								*fls = append(*fls, fl)
+								setValueToStructField(&v)
+							}
+						case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+							reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+							reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+							if f64, ok := bindedValue.(float64); ok {
+								numVal := utils.NumF64ToAnyNum(f64, elemKind)
+								ptr := reflect.New(structField.Type.Elem())
+								ptr.Elem().Set(reflect.ValueOf(numVal))
+								fl.val = ptr.Interface()
+								*fls = append(*fls, fl)
+								setValueToStructField(ptr.Interface())
+							}
+						case reflect.String:
+							if str, ok := bindedValue.(string); ok {
+								v := str
+								fl.val = &v
+								*fls = append(*fls, fl)
+								setValueToStructField(&v)
+							}
+						case reflect.Interface:
+							v := bindedValue
+							fl.val = &v
+							*fls = append(*fls, fl)
+							setValueToStructField(&v)
+						case reflect.Slice:
+							if arr, ok := bindedValue.([]any); ok {
+								val := bindArray(arr, fls, structField.Type.Elem(), ns, nestedTag)
+								if val != nil {
+									ptr := reflect.New(structField.Type.Elem())
+									ptr.Elem().Set(reflect.ValueOf(val))
+									fl.val = ptr.Interface()
+									*fls = append(*fls, fl)
+									setValueToStructField(ptr.Interface())
+								}
+							}
+						case reflect.Map:
+							if obj, ok := bindedValue.(map[string]any); ok {
+								val := bindMap(obj, fls, structField.Type.Elem(), ns, nestedTag)
+								if val != nil {
+									ptr := reflect.New(structField.Type.Elem())
+									ptr.Elem().Set(reflect.ValueOf(val))
+									fl.val = ptr.Interface()
+									*fls = append(*fls, fl)
+									setValueToStructField(ptr.Interface())
+								}
+							}
+						case reflect.Struct:
+							if obj, ok := bindedValue.(map[string]any); ok {
+								val, _ := BindStruct(obj, fls, structField.Type.Elem(), ns, nestedTag)
 								fl.val = val
 								*fls = append(*fls, fl)
 								setValueToStructField(fromStrucValueToStructPointerValue(val))

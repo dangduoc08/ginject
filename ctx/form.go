@@ -21,9 +21,9 @@ func (c *Context) Form() Form {
 	contentType := c.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, multipartFormData) {
-		e = c.Request.ParseMultipartForm(defaultMaxMemory)
+		e = c.ParseMultipartForm(defaultMaxMemory)
 	} else if strings.Contains(contentType, applicationXWWWFormUrlencoded) {
-		e = c.Request.ParseForm()
+		e = c.ParseForm()
 	}
 
 	if e != nil {

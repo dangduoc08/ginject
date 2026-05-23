@@ -289,7 +289,7 @@ func TestBindStrArr(t *testing.T) {
 	}
 
 	actual24 := dto.Float2
-	var expected24 float64 = 1.7976931348623157e+308
+	expected24 := 1.7976931348623157e+308
 	if actual24 != expected24 {
 		t.Error(testutils.DiffMessage(actual24, expected24, "float should be binded"))
 	}
@@ -325,25 +325,25 @@ func TestBindStrArr(t *testing.T) {
 	}
 
 	actual30 := dto.Complex2
-	var expected30 complex128 = 21.20 + 21i
+	expected30 := 21.20 + 21i
 	if actual30 != expected30 {
 		t.Error(testutils.DiffMessage(actual30, expected30, "complex shouldn be binded"))
 	}
 
 	actual31 := dto.Complex3
-	var expected31 complex128 = 0 + 0i
+	expected31 := 0 + 0i
 	if actual31 != expected31 {
 		t.Error(testutils.DiffMessage(actual31, expected31, "complex shouldn be binded"))
 	}
 
 	actual32 := dto.Complex4
-	var expected32 complex128 = -123.14 + 0i
+	expected32 := -123.14 + 0i
 	if actual32 != expected32 {
 		t.Error(testutils.DiffMessage(actual32, expected32, "complex shouldn be binded"))
 	}
 
 	actual33 := dto.Complex5
-	var expected33 complex128 = 1.8446744073709552e+19 + 0i
+	expected33 := 1.8446744073709552e+19 + 0i
 	if actual33 != expected33 {
 		t.Error(testutils.DiffMessage(actual33, expected33, "complex shouldn be binded"))
 	}
