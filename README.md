@@ -24,6 +24,7 @@ A NestJS-inspired dependency injection web framework for Go. Build structured, m
   - [Built-in Modules](#built-in-modules)
     - [Config](#config)
     - [Cache](#cache)
+    - [HTTP Client](#http-client)
   - [Built-in Middlewares](#built-in-middlewares)
     - [CORS](#cors)
     - [Helmet](#helmet)
@@ -578,6 +579,47 @@ func (c *UserController) READ_BY_ID(param ginject.Param) any {
 |------------|----------|---------------------------------------------|
 | `IsGlobal` | `bool`   | Make `CacheService` available everywhere    |
 | `OnInit`   | `func()` | Lifecycle hook before module injection      |
+
+### HTTP Client
+
+Axios-inspired outbound HTTP client with middleware chain, retry, streaming, SSE, SSRF protection, and timing. See the [HTTP Client module documentation](modules/httpclient/README.md) for full details.
+
+```go
+import "github.com/dangduoc08/ginject/modules/httpclient"
+
+core.ModuleBuilder().
+    Imports(
+        httpclient.Register(&httpclient.HttpClientModuleOptions{
+            IsGlobal: true,
+            BaseURL:  "https://api.example.com",
+        }),
+    ).
+    Build()
+
+// Inject ClientService into any provider or controller
+type UserService struct {
+    httpclient.ClientService
+}
+
+func (s *UserService) FetchUser(id string) (*User, error) {
+    resp, err := s.Get("/users/" + id).Send()
+    if err != nil {
+        return nil, err
+    }
+    var user User
+    return &user, resp.JSON(&user)
+}
+```
+
+**`HttpClientModuleOptions`:**
+
+| Field      | Type                  | Description                                      |
+|------------|-----------------------|--------------------------------------------------|
+| `IsGlobal` | `bool`                | Make `ClientService` available everywhere        |
+| `BaseURL`  | `string`              | Prepended to every relative request path         |
+| `Headers`  | `map[string]string`   | Default headers sent on every request            |
+| `Timeout`  | `time.Duration`       | Client-level timeout for all requests            |
+| `OnInit`   | `func()`              | Lifecycle hook before module injection           |
 
 ---
 
