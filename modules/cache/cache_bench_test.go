@@ -97,6 +97,35 @@ func BenchmarkGet_TTL_Expired(b *testing.B) {
 	}
 }
 
+func BenchmarkSetNX_Miss(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	b.ResetTimer()
+	for i := range b.N {
+		_, _ = svc.SetNX(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
+	}
+}
+
+func BenchmarkSetNX_Hit(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	_ = svc.Set(bctx, "key", []byte("v"), 0)
+	b.ResetTimer()
+	for range b.N {
+		_, _ = svc.SetNX(bctx, "key", []byte("v"), 0)
+	}
+}
+
+func BenchmarkSetNX_Parallel(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			_, _ = svc.SetNX(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
+			i++
+		}
+	})
+}
+
 func BenchmarkKeys(b *testing.B) {
 	svc := &CacheService{Backend: newMemoryCache()}
 	for i := 0; i < 1000; i++ {

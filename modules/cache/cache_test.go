@@ -247,6 +247,101 @@ func TestManyKeys(t *testing.T) {
 	}
 }
 
+// --- SetNX ---
+
+func TestSetNX_EmptyKey(t *testing.T) {
+	svc := newSvc()
+	ok, err := svc.SetNX(ctx, "", []byte("v"), 0)
+	if err == nil {
+		t.Error(testutils.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
+	}
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "empty key must return false"))
+	}
+}
+
+func TestSetNX_SetsWhenAbsent(t *testing.T) {
+	svc := newSvc()
+	ok, err := svc.SetNX(ctx, "k", []byte("v"), 0)
+	if err != nil {
+		t.Error(testutils.DiffMessage(err, nil, "must not error on absent key"))
+	}
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "must return true when key was absent"))
+	}
+	val, exists := svc.Get(ctx, "k")
+	if !exists || string(val) != "v" {
+		t.Error(testutils.DiffMessage(string(val), "v", "value must be stored"))
+	}
+}
+
+func TestSetNX_NoOverwriteWhenPresent(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("original"), 0)
+	ok, err := svc.SetNX(ctx, "k", []byte("new"), 0)
+	if err != nil {
+		t.Error(testutils.DiffMessage(err, nil, "must not error when key exists"))
+	}
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "must return false when key already exists"))
+	}
+	val, _ := svc.Get(ctx, "k")
+	if string(val) != "original" {
+		t.Error(testutils.DiffMessage(string(val), "original", "existing value must not be overwritten"))
+	}
+}
+
+func TestSetNX_SetsWhenExpired(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("old"), 10*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	ok, err := svc.SetNX(ctx, "k", []byte("new"), 0)
+	if err != nil {
+		t.Error(testutils.DiffMessage(err, nil, "must not error on expired key"))
+	}
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "must return true when previous entry was expired"))
+	}
+	val, _ := svc.Get(ctx, "k")
+	if string(val) != "new" {
+		t.Error(testutils.DiffMessage(string(val), "new", "new value must be stored after expiry"))
+	}
+}
+
+func TestSetNX_NilVal(t *testing.T) {
+	svc := newSvc()
+	ok, err := svc.SetNX(ctx, "k", nil, 0)
+	if err != nil || !ok {
+		t.Error(testutils.DiffMessage(ok, true, "nil val must be stored on absent key"))
+	}
+}
+
+func TestSetNX_ConcurrentOnlyOneWins(t *testing.T) {
+	svc := newSvc()
+	const goroutines = 100
+	wins := make(chan bool, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			ok, _ := svc.SetNX(ctx, "k", []byte("v"), 0)
+			wins <- ok
+		}()
+	}
+	wg.Wait()
+	close(wins)
+	count := 0
+	for w := range wins {
+		if w {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Error(testutils.DiffMessage(count, 1, "exactly one goroutine must win SetNX"))
+	}
+}
+
 // --- Keys ---
 
 func TestKeys_Empty(t *testing.T) {
