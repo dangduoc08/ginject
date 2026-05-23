@@ -27,6 +27,7 @@ var (
 	codeTeapot                    = strconv.Itoa(http.StatusTeapot)
 	codePreconditionFailed        = strconv.Itoa(http.StatusPreconditionFailed)
 	codeMisdirectedRequest        = strconv.Itoa(http.StatusMisdirectedRequest)
+	codeTooManyRequests           = strconv.Itoa(http.StatusTooManyRequests)
 )
 
 func BadRequestException(response any, opts ...any) Exception {
@@ -111,4 +112,8 @@ func PreconditionFailedException(response any, opts ...any) Exception {
 
 func MisdirectedRequestException(response any, opts ...any) Exception {
 	return NewException(response, codeMisdirectedRequest, opts...)
+}
+
+func TooManyRequestsException(response any, opts ...any) Exception {
+	return NewException(response, codeTooManyRequests, opts...)
 }
