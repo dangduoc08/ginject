@@ -28,6 +28,8 @@ type memoryCache struct {
 	done   chan struct{}
 }
 
+func NewMemoryCache() *memoryCache { return newMemoryCache() }
+
 func newMemoryCache() *memoryCache {
 	mc := &memoryCache{done: make(chan struct{})}
 	for i := range mc.shards {
