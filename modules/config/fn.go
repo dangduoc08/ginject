@@ -6,25 +6,24 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 )
 
-func kind(d any) string {
-	return reflect.ValueOf(d).Kind().String()
-}
+var (
+	paramRegexp = regexp.MustCompile(`\${(.*?)\}`)
+	keyRegexp   = regexp.MustCompile("[a-zA-Z_]+[a-zA-Z0-9_]*")
+)
 
 func matchParams(v string) []string {
-	return regexp.MustCompile(`\${(.*?)\}`).FindAllString(v, -1)
+	return paramRegexp.FindAllString(v, -1)
 }
 
 func isValidKey(k string) bool {
 	if len(k) == 0 {
 		return false
 	}
-
-	matched := regexp.MustCompile("[a-zA-Z_]+[a-zA-Z0-9_]*").FindString(k)
+	matched := keyRegexp.FindString(k)
 	return len(matched) == len(k)
 }
 
@@ -54,11 +53,12 @@ func parseParamsToValue(k, v string, envMap map[string]any) string {
 }
 
 func _flatten(org, value any, key, prefix string) {
-	newPrefix := fmt.Sprintf("%v", key)
+	newPrefix := key
 	if prefix != "" {
-		newPrefix = fmt.Sprintf("%v.%v", prefix, key)
+		newPrefix = prefix + "." + key
 	}
-	if slices.Contains([]string{"map", "slice"}, kind(value)) {
+	switch reflect.ValueOf(value).Kind() {
+	case reflect.Map, reflect.Slice:
 		flatten(org, value, newPrefix)
 	}
 	org.(map[string]any)[newPrefix] = value
