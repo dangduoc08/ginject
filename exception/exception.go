@@ -67,7 +67,11 @@ func (exception Exception) errorBuilder(opts ...any) Exception {
 			}
 
 			if option.Cause != nil {
-				exception.error = fmt.Errorf("%v: %w", exception.Error(), option.Cause)
+				if exception.error != nil {
+					exception.error = fmt.Errorf("%v: %w", exception.error, option.Cause)
+				} else {
+					exception.error = option.Cause
+				}
 			}
 		}
 	}
