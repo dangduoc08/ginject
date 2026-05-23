@@ -6,23 +6,27 @@ import (
 
 type AggregationOperator = func(*ctx.Context, any) any
 
+type Operator struct {
+	Name        string
+	Aggregation AggregationOperator
+}
+
 type Aggregation struct {
 	IsMainHandlerCalled bool
 	InterceptorData     any
 	mainData            any
-	operators           map[string]AggregationOperator
+	operators           []Operator
 }
 
 func NewAggregation() *Aggregation {
 	aggregation := new(Aggregation)
-	aggregation.operators = make(map[string]AggregationOperator, 5)
+	aggregation.operators = []Operator{}
 	return aggregation
 }
 
-func (aggregation *Aggregation) Pipe(
-	operators ...AggregationOperator,
-) any {
+func (aggregation *Aggregation) Pipe(operators ...AggregationOperator) any {
 	aggregation.IsMainHandlerCalled = true
+
 	return nil
 }
 
@@ -31,26 +35,35 @@ func (aggregation *Aggregation) SetMainData(d any) *Aggregation {
 	return aggregation
 }
 
-// if Pointer return duplicate value
-// this way won't be work
-func (aggregation *Aggregation) setOperators(name string, op AggregationOperator) *Aggregation {
-	if _, ok := aggregation.operators[name]; !ok {
-		aggregation.operators[name] = op
+// Use on app.go where it need to get error aggregation
+func (aggregation *Aggregation) GetAggregationOperators(oprName string) []Operator {
+	var result []Operator
+	for _, op := range aggregation.operators {
+		if op.Name == oprName {
+			result = append(result, op)
+		}
 	}
+	return result
+}
+
+func (aggregation *Aggregation) setOperators(name string, op AggregationOperator) *Aggregation {
+	aggregation.operators = append(aggregation.operators, Operator{
+		Name:        name,
+		Aggregation: op,
+	})
 
 	return aggregation
 }
 
-func (aggregation *Aggregation) GetAggregationOperator(oprName string) AggregationOperator {
-	if aggregationOperator, ok := aggregation.operators[oprName]; ok {
-		return aggregationOperator
-	}
-	return nil
-}
-
 func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
-	if operator, ok := aggregation.operators[OPERATOR_CONSUME]; ok {
-		aggregation.mainData = operator(c, aggregation.mainData)
+	for _, operator := range aggregation.operators {
+		switch operator.Name {
+		case OPERATOR_TRANSFORM:
+			aggregation.mainData = operator.Aggregation(c, aggregation.mainData)
+		case OPERATOR_TAP:
+			operator.Aggregation(c, aggregation.mainData)
+		}
 	}
+
 	return aggregation.mainData
 }

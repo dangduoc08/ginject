@@ -26,11 +26,11 @@ func BenchmarkServeHTTP(b *testing.B) {
 func BenchmarkPublishWSEvent(b *testing.B) {
 	app := New()
 	for i := 0; i < 50; i++ {
-		app.wsEventToID.Store(fmt.Sprintf("other:%d", i), []string{"wsid"})
+		app.wsEventToID[fmt.Sprintf("other:%d", i)] = []string{"wsid"}
 	}
 	const target = "target-event"
 	const wsid = "conn-1"
-	app.wsEventToID.Store(target, []string{wsid})
+	app.wsEventToID[target] = []string{wsid}
 
 	c := ctx.NewContext()
 	c.Event = ctx.NewEvent()
