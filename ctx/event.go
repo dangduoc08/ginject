@@ -35,28 +35,11 @@ func (e *event) RemoveAllListeners(eventName string) {
 }
 
 func (e *event) Emit(eventName string, args ...interface{}) {
-	ch := make(chan bool, 2)
-
-	go (func(ch chan<- bool) {
-		listener, ok := e.opts.Load(eventName)
-		if ok {
-			fn := listener.(func(args ...interface{}))
-			fn(args...)
-		}
-		ch <- true
-	})(ch)
-	<-ch
-
-	go (func(c chan<- bool) {
-		listener, ok := e.onceOpts.Load(eventName)
-		if ok {
-			fn := listener.(func(args ...interface{}))
-			fn(args...)
-			e.onceOpts.Delete(eventName)
-		}
-		ch <- true
-	})(ch)
-	<-ch
-
-	close(ch)
+	if listener, ok := e.opts.Load(eventName); ok {
+		listener.(func(args ...interface{}))(args...)
+	}
+	if listener, ok := e.onceOpts.Load(eventName); ok {
+		listener.(func(args ...interface{}))(args...)
+		e.onceOpts.Delete(eventName)
+	}
 }

@@ -3,6 +3,8 @@ package ctx
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/dangduoc08/ginject/testutils"
 )
 
 type Address struct {
@@ -277,5 +279,175 @@ func TestBindStruct(t *testing.T) {
 	if bindedDTO.Bool2 != expected2 {
 		t.Errorf("Bool2 should %v but got %v", expected2, bindedDTO.Bool2)
 	}
+}
 
+type PtrDTO struct {
+	PtrBool       *bool       `bind:"ptr_bool"`
+	PtrInt        *int        `bind:"ptr_int"`
+	PtrInt8       *int8       `bind:"ptr_int8"`
+	PtrInt16      *int16      `bind:"ptr_int16"`
+	PtrInt32      *int32      `bind:"ptr_int32"`
+	PtrInt64      *int64      `bind:"ptr_int64"`
+	PtrUint       *uint       `bind:"ptr_uint"`
+	PtrUint8      *uint8      `bind:"ptr_uint8"`
+	PtrUint16     *uint16     `bind:"ptr_uint16"`
+	PtrUint32     *uint32     `bind:"ptr_uint32"`
+	PtrUint64     *uint64     `bind:"ptr_uint64"`
+	PtrFloat32    *float32    `bind:"ptr_float32"`
+	PtrFloat64    *float64    `bind:"ptr_float64"`
+	PtrComplex64  *complex64  `bind:"ptr_complex64"`
+	PtrComplex128 *complex128 `bind:"ptr_complex128"`
+	PtrString     *string     `bind:"ptr_string"`
+	PtrStruct     *Address    `bind:"ptr_struct"`
+	PtrSlice      *[]string   `bind:"ptr_slice"`
+	PtrMap        *map[string]string `bind:"ptr_map"`
+	PtrMissing    *string     `bind:"ptr_missing"`
+}
+
+func boolPtr(v bool) *bool             { return &v }
+func intPtr(v int) *int                { return &v }
+func int8Ptr(v int8) *int8             { return &v }
+func int16Ptr(v int16) *int16          { return &v }
+func int32Ptr(v int32) *int32          { return &v }
+func int64Ptr(v int64) *int64          { return &v }
+func uintPtr(v uint) *uint             { return &v }
+func uint8Ptr(v uint8) *uint8          { return &v }
+func uint16Ptr(v uint16) *uint16       { return &v }
+func uint32Ptr(v uint32) *uint32       { return &v }
+func float32Ptr(v float32) *float32    { return &v }
+func float64Ptr(v float64) *float64    { return &v }
+func stringPtr(v string) *string       { return &v }
+
+func TestBindStruct_Pointers(t *testing.T) {
+	testData := make(map[string]any)
+	err := json.Unmarshal([]byte(`{
+		"ptr_bool": true,
+		"ptr_int": 42,
+		"ptr_int8": -12,
+		"ptr_int16": -1000,
+		"ptr_int32": -100000,
+		"ptr_int64": -9223372036854775808,
+		"ptr_uint": 99,
+		"ptr_uint8": 255,
+		"ptr_uint16": 65535,
+		"ptr_uint32": 4294967295,
+		"ptr_uint64": 18446744073709551615,
+		"ptr_float32": 3.14,
+		"ptr_float64": 1.7976931348623157e+308,
+		"ptr_complex64": 2.5,
+		"ptr_complex128": 9.9,
+		"ptr_string": "hello",
+		"ptr_struct": {"street": "1 Main St", "city": "Anytown", "zip_code": "00001"},
+		"ptr_slice": ["a", "b", "c"],
+		"ptr_map": {"k1": "v1", "k2": "v2"}
+	}`), &testData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, _ := BindStruct(testData, &[]FieldLevel{}, PtrDTO{}, "", "")
+	dto := d.(PtrDTO)
+
+	if dto.PtrBool == nil || *dto.PtrBool != true {
+		t.Error(testutils.DiffMessage(dto.PtrBool, boolPtr(true), "*bool"))
+	}
+	if dto.PtrInt == nil || *dto.PtrInt != 42 {
+		t.Error(testutils.DiffMessage(dto.PtrInt, intPtr(42), "*int"))
+	}
+	if dto.PtrInt8 == nil || *dto.PtrInt8 != -12 {
+		t.Error(testutils.DiffMessage(dto.PtrInt8, int8Ptr(-12), "*int8"))
+	}
+	if dto.PtrInt16 == nil || *dto.PtrInt16 != -1000 {
+		t.Error(testutils.DiffMessage(dto.PtrInt16, int16Ptr(-1000), "*int16"))
+	}
+	if dto.PtrInt32 == nil || *dto.PtrInt32 != -100000 {
+		t.Error(testutils.DiffMessage(dto.PtrInt32, int32Ptr(-100000), "*int32"))
+	}
+	if dto.PtrInt64 == nil || *dto.PtrInt64 != -9223372036854775808 {
+		t.Error(testutils.DiffMessage(dto.PtrInt64, int64Ptr(-9223372036854775808), "*int64"))
+	}
+	if dto.PtrUint == nil || *dto.PtrUint != 99 {
+		t.Error(testutils.DiffMessage(dto.PtrUint, uintPtr(99), "*uint"))
+	}
+	if dto.PtrUint8 == nil || *dto.PtrUint8 != 255 {
+		t.Error(testutils.DiffMessage(dto.PtrUint8, uint8Ptr(255), "*uint8"))
+	}
+	if dto.PtrUint16 == nil || *dto.PtrUint16 != 65535 {
+		t.Error(testutils.DiffMessage(dto.PtrUint16, uint16Ptr(65535), "*uint16"))
+	}
+	if dto.PtrUint32 == nil || *dto.PtrUint32 != 4294967295 {
+		t.Error(testutils.DiffMessage(dto.PtrUint32, uint32Ptr(4294967295), "*uint32"))
+	}
+	if dto.PtrUint64 == nil {
+		t.Error(testutils.DiffMessage(dto.PtrUint64, new(uint64), "*uint64 should be non-nil"))
+	}
+	if dto.PtrFloat32 == nil {
+		t.Error(testutils.DiffMessage(dto.PtrFloat32, float32Ptr(3.14), "*float32"))
+	}
+	if dto.PtrFloat64 == nil || *dto.PtrFloat64 != 1.7976931348623157e+308 {
+		t.Error(testutils.DiffMessage(dto.PtrFloat64, float64Ptr(1.7976931348623157e+308), "*float64"))
+	}
+	if dto.PtrComplex64 == nil || *dto.PtrComplex64 != complex64(complex(2.5, 0)) {
+		t.Error(testutils.DiffMessage(dto.PtrComplex64, new(complex64), "*complex64"))
+	}
+	if dto.PtrComplex128 == nil || *dto.PtrComplex128 != complex(9.9, 0) {
+		t.Error(testutils.DiffMessage(dto.PtrComplex128, new(complex128), "*complex128"))
+	}
+	if dto.PtrString == nil || *dto.PtrString != "hello" {
+		t.Error(testutils.DiffMessage(dto.PtrString, stringPtr("hello"), "*string"))
+	}
+	if dto.PtrStruct == nil || dto.PtrStruct.City != "Anytown" || dto.PtrStruct.Street != "1 Main St" {
+		t.Error(testutils.DiffMessage(dto.PtrStruct, &Address{Street: "1 Main St", City: "Anytown", ZipCode: "00001"}, "*Struct"))
+	}
+	if dto.PtrSlice == nil || len(*dto.PtrSlice) != 3 || (*dto.PtrSlice)[0] != "a" {
+		t.Error(testutils.DiffMessage(dto.PtrSlice, &[]string{"a", "b", "c"}, "*[]string"))
+	}
+	if dto.PtrMap == nil {
+		t.Error(testutils.DiffMessage(dto.PtrMap, &map[string]string{"k1": "v1", "k2": "v2"}, "*map"))
+	} else {
+		m := *dto.PtrMap
+		if m["k1"] != "v1" || m["k2"] != "v2" {
+			t.Error(testutils.DiffMessage(m, map[string]string{"k1": "v1", "k2": "v2"}, "*map values"))
+		}
+	}
+	if dto.PtrMissing != nil {
+		t.Error(testutils.DiffMessage(dto.PtrMissing, nil, "*string missing key should be nil"))
+	}
+}
+
+func TestBindStruct_Pointers_NilOnWrongType(t *testing.T) {
+	testData := make(map[string]any)
+	err := json.Unmarshal([]byte(`{
+		"ptr_bool": "not-a-bool",
+		"ptr_int": "not-a-number",
+		"ptr_string": 123,
+		"ptr_struct": "not-an-object",
+		"ptr_slice": "not-an-array",
+		"ptr_map": "not-an-object"
+	}`), &testData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d, _ := BindStruct(testData, &[]FieldLevel{}, PtrDTO{}, "", "")
+	dto := d.(PtrDTO)
+
+	if dto.PtrBool != nil {
+		t.Error(testutils.DiffMessage(dto.PtrBool, nil, "*bool wrong type should be nil"))
+	}
+	if dto.PtrInt != nil {
+		t.Error(testutils.DiffMessage(dto.PtrInt, nil, "*int wrong type should be nil"))
+	}
+	if dto.PtrString != nil {
+		t.Error(testutils.DiffMessage(dto.PtrString, nil, "*string wrong type should be nil"))
+	}
+	if dto.PtrStruct != nil {
+		t.Error(testutils.DiffMessage(dto.PtrStruct, nil, "*struct wrong type should be nil"))
+	}
+	if dto.PtrSlice != nil {
+		t.Error(testutils.DiffMessage(dto.PtrSlice, nil, "*slice wrong type should be nil"))
+	}
+	if dto.PtrMap != nil {
+		t.Error(testutils.DiffMessage(dto.PtrMap, nil, "*map wrong type should be nil"))
+	}
 }
