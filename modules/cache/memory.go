@@ -125,6 +125,29 @@ func (mc *memoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 	return nil
 }
 
+func (mc *memoryCache) SetNX(_ context.Context, key string, val []byte, ttl time.Duration) (bool, error) {
+	if key == "" {
+		return false, ErrEmptyKey
+	}
+	var expiresAt int64
+	if ttl > 0 {
+		expiresAt = time.Now().UnixNano() + int64(ttl)
+	}
+	stored := make([]byte, len(val))
+	copy(stored, val)
+
+	s := mc.shards[hashKey(key)&shardMask]
+	s.mu.Lock()
+	it, exists := s.items[key]
+	if exists && (it.expiresAt == 0 || time.Now().UnixNano() <= it.expiresAt) {
+		s.mu.Unlock()
+		return false, nil
+	}
+	s.items[key] = item{val: stored, expiresAt: expiresAt}
+	s.mu.Unlock()
+	return true, nil
+}
+
 func (mc *memoryCache) Delete(_ context.Context, key string) error {
 	if key == "" {
 		return ErrEmptyKey

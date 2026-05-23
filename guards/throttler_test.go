@@ -32,6 +32,16 @@ func (tc *testCache) Set(_ context.Context, key string, val []byte, _ time.Durat
 	return nil
 }
 
+func (tc *testCache) SetNX(_ context.Context, key string, val []byte, _ time.Duration) (bool, error) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	if _, ok := tc.items[key]; ok {
+		return false, nil
+	}
+	tc.items[key] = append([]byte(nil), val...)
+	return true, nil
+}
+
 func (tc *testCache) Delete(_ context.Context, key string) error {
 	tc.mu.Lock()
 	delete(tc.items, key)
