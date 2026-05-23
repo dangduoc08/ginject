@@ -25,6 +25,9 @@ A NestJS-inspired dependency injection web framework for Go. Build structured, m
     - [Config](#config)
     - [Cache](#cache)
   - [Built-in Middlewares](#built-in-middlewares)
+    - [CORS](#cors)
+    - [Helmet](#helmet)
+    - [RequestLogger](#requestlogger)
   - [Exception Types](#exception-types)
 
 ---
@@ -531,26 +534,56 @@ func (p DBProvider) NewProvider() core.Provider {
 
 ### Cache
 
-In-memory LFU cache with generic type support:
+High-performance in-memory cache with TTL support and a backend-portable interface. See the [Cache module documentation](modules/cache/README.md) for full details.
 
 ```go
-import "github.com/dangduoc08/ginject/modules/cache"
+import (
+    "context"
+    "time"
 
-c := cache.New[string](cache.CacheOpts{
-    Strategy: cache.LFU,
-    Cap:      1000,
-})
+    "github.com/dangduoc08/ginject/modules/cache"
+)
 
-c.Set("key", "value", 5*time.Minute)
-val, ok := c.Get("key")
-c.Has("key")
-c.Del("key")
-c.Clear()
+core.ModuleBuilder().
+    Imports(
+        cache.Register(&cache.CacheModuleOptions{
+            IsGlobal: true,
+        }),
+    ).
+    Build()
+
+// Inject CacheService into any provider or controller
+type UserController struct {
+    common.REST
+    cache.CacheService
+}
+
+func (c *UserController) READ_BY_ID(param ginject.Param) any {
+    ctx := context.Background()
+    key := "user:" + param.Get("id")
+
+    if data, ok := c.CacheService.Get(ctx, key); ok {
+        return data
+    }
+
+    data := fetchFromDB(param.Get("id"))
+    _ = c.CacheService.Set(ctx, key, data, 5*time.Minute)
+    return data
+}
 ```
+
+**`CacheModuleOptions`:**
+
+| Field      | Type     | Description                                 |
+|------------|----------|---------------------------------------------|
+| `IsGlobal` | `bool`   | Make `CacheService` available everywhere    |
+| `OnInit`   | `func()` | Lifecycle hook before module injection      |
 
 ---
 
 ## Built-in Middlewares
+
+See the [Middlewares documentation](middlewares/README.md) for full details on all options and recipes.
 
 ### CORS
 
@@ -561,9 +594,17 @@ app.BindGlobalMiddlewares(middlewares.CORS{
     AllowOrigin:        []string{"https://example.com"},
     AllowHeaders:       []string{"Content-Type", "Authorization"},
     AllowMethods:       []string{"GET", "POST", "PUT", "DELETE"},
-    MaxAge:             86400,
+    MaxAge:             86400_000,
     IsAllowCredentials: true,
 })
+```
+
+### Helmet
+
+Sets 13 security headers (CSP, HSTS, X-Frame-Options, etc.) with secure defaults.
+
+```go
+app.BindGlobalMiddlewares(middlewares.Helmet{})
 ```
 
 ### RequestLogger
