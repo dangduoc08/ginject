@@ -33,8 +33,8 @@ func (c *Context) File() File {
 		return c.file
 	}
 
-	if c.Request.MultipartForm != nil {
-		c.file = c.Request.MultipartForm.File
+	if c.MultipartForm != nil {
+		c.file = c.MultipartForm.File
 	}
 
 	return c.file
@@ -61,13 +61,12 @@ func (files File) Bind(s any) any {
 	if fileHandler, ok := s.(fileHandler); ok {
 		for _, dataFileArr := range filteredFile {
 			for _, dataFile := range dataFileArr {
-				src, err := dataFile.FileHeader.Open()
+				src, err := dataFile.Open()
 				if err != nil {
-					src.Close()
 					panic(exception.BadRequestException(err.Error()))
 				}
 				fileHandler.Store(dataFile, src)
-				src.Close()
+				_ = src.Close()
 			}
 		}
 	}

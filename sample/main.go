@@ -4,9 +4,8 @@ import (
 	"github.com/dangduoc08/ginject/core"
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/middlewares"
+	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
-	"github.com/dangduoc08/ginject/sample/keycaps"
-	"github.com/dangduoc08/ginject/sample/manufacturers"
 	"github.com/dangduoc08/ginject/sample/shared"
 	"github.com/dangduoc08/ginject/versioning"
 )
@@ -33,9 +32,8 @@ func main() {
 
 	app.Create(
 		core.ModuleBuilder().
-			Imports(keycaps.KeycapModule, manufacturers.ManufacturerModule, confs.ConfModule).
-			Build().
-			Prefix("apis"),
+			Imports(benchmarks.Module, confs.ConfModule).
+			Build(),
 	)
 
 	app.Logger.Fatal("AppError", "error", app.Listen(confs.ENV.Port))

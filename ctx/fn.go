@@ -27,33 +27,27 @@ func toJSONP(jsonStr, callback string) string {
 }
 
 func GetTagParams(v string) []string {
-	return utils.ArrFilter(utils.ArrMap(
-		strings.Split(v, ","), func(el string, i int) string {
-			return strings.TrimSpace(el)
-		}), func(el string, i int) bool {
-		return el != ""
-	})
+	parts := strings.Split(v, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func GetTagParamIndex(v string) (int, string) {
-	splittedBindParams := strings.Split(v, ".")
-	bindedField := v
-	bindedIndex := 0
-
-	if len(splittedBindParams) > 1 {
-
-		// bind:"int_5.3"
-		bindedField = strings.TrimSpace(splittedBindParams[0])
-		parsedInt, err := strconv.Atoi(strings.TrimSpace(splittedBindParams[1]))
-
-		if err == nil && parsedInt > -1 {
-			bindedIndex = parsedInt
-		}
-
-		return bindedIndex, bindedField
+	dotIdx := strings.IndexByte(v, '.')
+	if dotIdx < 0 {
+		return 0, v
 	}
-
-	return bindedIndex, bindedField
+	bindedField := strings.TrimSpace(v[:dotIdx])
+	parsedInt, err := strconv.Atoi(strings.TrimSpace(v[dotIdx+1:]))
+	if err == nil && parsedInt > -1 {
+		return parsedInt, bindedField
+	}
+	return 0, bindedField
 }
 
 func setValueToStructField(s reflect.Value) func(i int) func(v any) {
@@ -368,7 +362,8 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 				eachElemArr[dimensions-(currentDimension-1)] = reflect.MakeSlice(eachElemArr[dimensions-(currentDimension-1)].Type(), 0, 0)
 
 			case reflect.Map:
-				if declaredTyp == reflect.Map {
+				switch declaredTyp {
+				case reflect.Map:
 					eachElemArr[dimensions-currentDimension] = reflect.Append(eachElemArr[dimensions-currentDimension], reflect.ValueOf(
 						bindMap(
 							el.(map[string]any),
@@ -377,7 +372,7 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 							parentNS,
 							parentTag,
 						)))
-				} else if declaredTyp == reflect.Struct {
+				case reflect.Struct:
 					newS, _ := BindStruct(
 						el.(map[string]any),
 						fls,
@@ -928,9 +923,13 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 	return nil
 }
 
+var wsEventPrefixRe = regexp.MustCompile(`^(.*?)_`)
+
 func ResolveWSEventname(e string) (string, string) {
-	regex, _ := regexp.Compile("^(.*?)_")
-	matchedStr := regex.FindStringSubmatch(e)
+	matchedStr := wsEventPrefixRe.FindStringSubmatch(e)
+	if len(matchedStr) < 2 {
+		return "", e
+	}
 	subprotocol := matchedStr[1]
 	e = strings.Replace(e, matchedStr[0], "", 1)
 	return subprotocol, e
