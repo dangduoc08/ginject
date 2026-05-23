@@ -1,8 +1,8 @@
 package config
 
 import (
+	"bytes"
 	"strconv"
-	"strings"
 )
 
 var (
@@ -18,8 +18,7 @@ type DotENV struct {
 }
 
 func (e *DotENV) Unmarshal() map[string]any {
-	k := []byte{}
-	v := []byte{}
+	var k, v []byte
 	isKey := true
 	isValue := false
 	isComment := false
@@ -29,9 +28,9 @@ func (e *DotENV) Unmarshal() map[string]any {
 		if !isQuotation && r == newline ||
 			isQuotation && r == doubleQuotes ||
 			i == len(e.data)-1 {
-			envKey := strings.TrimSpace(string(k))
+			envKey := string(bytes.TrimSpace(k))
 			if isValidKey(envKey) {
-				envValue := strings.TrimSpace(string(v))
+				envValue := string(bytes.TrimSpace(v))
 				var err error
 				e.envMap[envKey], err = strconv.Unquote(`"` + envValue + `"`)
 				if err != nil {
@@ -39,9 +38,8 @@ func (e *DotENV) Unmarshal() map[string]any {
 				}
 			}
 
-			// reset flags
-			k = []byte{}
-			v = []byte{}
+			k = k[:0]
+			v = v[:0]
 			isKey = true
 			isValue = false
 			isComment = false
