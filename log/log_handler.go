@@ -1,10 +1,11 @@
 package log
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
 	"sync"
 
 	"github.com/dangduoc08/ginject/utils"
@@ -15,113 +16,154 @@ type PrettyHandlerOptions struct {
 	slog.HandlerOptions
 }
 
+type levelColor struct {
+	formattedLabel   string
+	formattedTrailer string
+}
+
+const (
+	ansiReset   = "\x1b[0m"
+	ansiRed     = "\x1b[31m"
+	ansiGreen   = "\x1b[32m"
+	ansiBlue    = "\x1b[34m"
+	ansiMagenta = "\x1b[35m"
+	ansiCyan    = "\x1b[36m"
+	ansiOrange  = "\033[38;5;208m"
+	ansiTimePfx = "\033[48;5;236m "
+	ansiTimeSfx = " \033[0m"
+	ansiMsgPfx  = ansiCyan + " ["
+	ansiMsgSfx  = "]" + ansiReset + " "
+	ansiStrPfx  = ansiGreen + "\""
+	ansiStrSfx  = "\"" + ansiReset
+	ansiNull    = ansiMagenta + "null" + ansiReset
+)
+
 type PrettyHandler struct {
-	levelsMapColors map[string]struct {
-		txt func(string, ...any) string
-		bg  func(string, ...any) string
-	}
-	writer     io.Writer
-	timeFormat string
+	levelColors [5]levelColor
+	writer      io.Writer
+	timeFormat  string
+	buf         bytes.Buffer
 	slog.TextHandler
 	mu sync.Mutex
+}
+
+func (h *PrettyHandler) colorOf(l slog.Level) (levelColor, bool) {
+	switch l {
+	case DebugLevel:
+		return h.levelColors[0], true
+	case InfoLevel:
+		return h.levelColors[1], true
+	case WarnLevel:
+		return h.levelColors[2], true
+	case ErrorLevel:
+		return h.levelColors[3], true
+	case FatalLevel:
+		return h.levelColors[4], true
+	default:
+		return levelColor{}, false
+	}
 }
 
 func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.writer.Write([]byte("\n"))
-	level := levelLabel[record.Level]
-	space := " "
+	h.buf.Reset()
+	h.buf.WriteByte('\n')
 
-	if colorize, ok := h.levelsMapColors[level]; ok {
-		switch level {
-		case labelInfo, labelWarn:
-			space = "  "
-		}
-		level = utils.FmtBold("%s", colorize.bg(" %v%v", level, space))
-		h.writer.Write([]byte(level))
-
-		time := utils.FmtBGDim(" %v ", record.Time.Format(h.timeFormat))
-		h.writer.Write([]byte(time))
-
-		h.writer.Write([]byte(colorize.bg(" ")))
+	if colorize, ok := h.colorOf(record.Level); ok {
+		h.buf.WriteString(colorize.formattedLabel)
+		h.buf.WriteString(ansiTimePfx)
+		h.buf.Write(record.Time.AppendFormat(h.buf.AvailableBuffer(), h.timeFormat))
+		h.buf.WriteString(ansiTimeSfx)
+		h.buf.WriteString(colorize.formattedTrailer)
 	}
 
 	if record.Message != "" {
-		msg := utils.FmtCyan(" [%v]", record.Message) + " "
-		h.writer.Write([]byte(msg))
+		h.buf.WriteString(ansiMsgPfx)
+		h.buf.WriteString(record.Message)
+		h.buf.WriteString(ansiMsgSfx)
 	}
 
+	numAttrs := record.NumAttrs()
 	i := 0
 	record.Attrs(func(attr slog.Attr) bool {
-		h.writer.Write([]byte("\n"))
+		h.buf.WriteByte('\n')
 
-		key := utils.FmtRed("%v", attr.Key)
-		value := attr.Value.String()
+		if numAttrs == 1 || i == numAttrs-1 {
+			h.buf.WriteString("  └── ")
+		} else {
+			h.buf.WriteString("  ├── ")
+		}
+
+		h.buf.WriteString(ansiRed)
+		h.buf.WriteString(attr.Key)
+		h.buf.WriteString(ansiReset)
+		h.buf.WriteByte(' ')
 
 		switch attr.Value.Kind() {
-		case slog.KindFloat64, slog.KindInt64, slog.KindUint64:
-			value = utils.FmtOrange("%s", value)
-		case slog.KindBool:
-			value = utils.FmtBlue("%s", value)
 		case slog.KindString:
-			value = utils.FmtGreen("\"%s\"", value)
-		default:
-			if value == "<nil>" {
-				value = utils.FmtMagenta("null")
+			h.buf.WriteString(ansiStrPfx)
+			h.buf.WriteString(attr.Value.String())
+			h.buf.WriteString(ansiStrSfx)
+		case slog.KindInt64:
+			h.buf.WriteString(ansiOrange)
+			h.buf.Write(strconv.AppendInt(h.buf.AvailableBuffer(), attr.Value.Int64(), 10))
+			h.buf.WriteString(ansiReset)
+		case slog.KindUint64:
+			h.buf.WriteString(ansiOrange)
+			h.buf.Write(strconv.AppendUint(h.buf.AvailableBuffer(), attr.Value.Uint64(), 10))
+			h.buf.WriteString(ansiReset)
+		case slog.KindFloat64:
+			h.buf.WriteString(ansiOrange)
+			h.buf.Write(strconv.AppendFloat(h.buf.AvailableBuffer(), attr.Value.Float64(), 'g', -1, 64))
+			h.buf.WriteString(ansiReset)
+		case slog.KindBool:
+			h.buf.WriteString(ansiBlue)
+			if attr.Value.Bool() {
+				h.buf.WriteString("true")
 			} else {
-				value = utils.FmtGreen("%v", value)
+				h.buf.WriteString("false")
+			}
+			h.buf.WriteString(ansiReset)
+		default:
+			raw := attr.Value.String()
+			if raw == "<nil>" {
+				h.buf.WriteString(ansiNull)
+			} else {
+				h.buf.WriteString(ansiGreen)
+				h.buf.WriteString(raw)
+				h.buf.WriteString(ansiReset)
 			}
 		}
-
-		pair := fmt.Sprintf("  ├── %v %v", key, value)
-
-		if record.NumAttrs() == 1 || i == record.NumAttrs()-1 {
-			pair = fmt.Sprintf("  └── %v %v", key, value)
-		}
-
-		h.writer.Write([]byte(pair))
 
 		i++
 		return true
 	})
 
-	h.writer.Write([]byte("\n"))
-	return nil
+	h.buf.WriteByte('\n')
+	_, err := h.writer.Write(h.buf.Bytes())
+	return err
 }
 
 func NewPrettyHandler(out io.Writer, opts *PrettyHandlerOptions) *PrettyHandler {
+	buildLabel := func(label string, bg func(string, ...any) string) string {
+		space := " "
+		if label == labelInfo || label == labelWarn {
+			space = "  "
+		}
+		return utils.FmtBold("%s", bg(" %s%s", label, space))
+	}
+
 	h := &PrettyHandler{
 		TextHandler: *slog.NewTextHandler(out, &opts.HandlerOptions),
 		writer:      out,
 		timeFormat:  opts.TimeFormat,
-		levelsMapColors: map[string]struct {
-			txt func(string, ...any) string
-			bg  func(string, ...any) string
-		}{
-			labelDebug: {
-				txt: utils.FmtBlue,
-				bg:  utils.FmtBGBlue,
-			},
-			labelInfo: {
-				txt: utils.FmtGreen,
-				bg:  utils.FmtBGGreen,
-			},
-			labelWarn: {
-				txt: utils.FmtYellow,
-				bg:  utils.FmtBGYellow,
-			},
-			labelError: {
-				txt: utils.FmtRed,
-				bg:  utils.FmtBGRed,
-			},
-			labelFatal: {
-				txt: utils.FmtRed,
-				bg:  utils.FmtBGRed,
-			},
-		},
 	}
-
+	h.levelColors[0] = levelColor{buildLabel(labelDebug, utils.FmtBGBlue), utils.FmtBGBlue(" ")}
+	h.levelColors[1] = levelColor{buildLabel(labelInfo, utils.FmtBGGreen), utils.FmtBGGreen(" ")}
+	h.levelColors[2] = levelColor{buildLabel(labelWarn, utils.FmtBGYellow), utils.FmtBGYellow(" ")}
+	h.levelColors[3] = levelColor{buildLabel(labelError, utils.FmtBGRed), utils.FmtBGRed(" ")}
+	h.levelColors[4] = levelColor{buildLabel(labelFatal, utils.FmtBGRed), utils.FmtBGRed(" ")}
 	return h
 }
