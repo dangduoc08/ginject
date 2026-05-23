@@ -135,3 +135,39 @@ func (mc *memoryCache) Delete(_ context.Context, key string) error {
 	s.mu.Unlock()
 	return nil
 }
+
+func (mc *memoryCache) Keys(_ context.Context) []string {
+	now := time.Now().UnixNano()
+	var keys []string
+	for _, s := range mc.shards {
+		s.mu.RLock()
+		for k, it := range s.items {
+			if it.expiresAt == 0 || now <= it.expiresAt {
+				keys = append(keys, k)
+			}
+		}
+		s.mu.RUnlock()
+	}
+	return keys
+}
+
+func (mc *memoryCache) TTL(_ context.Context, key string) (time.Duration, bool) {
+	if key == "" {
+		return 0, false
+	}
+	s := mc.shards[hashKey(key)&shardMask]
+	s.mu.RLock()
+	it, ok := s.items[key]
+	s.mu.RUnlock()
+	if !ok {
+		return 0, false
+	}
+	if it.expiresAt == 0 {
+		return 0, true
+	}
+	remaining := it.expiresAt - time.Now().UnixNano()
+	if remaining <= 0 {
+		return 0, false
+	}
+	return time.Duration(remaining), true
+}

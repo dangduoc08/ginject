@@ -26,3 +26,11 @@ func (cs *CacheService) Set(ctx context.Context, key string, val []byte, ttl tim
 func (cs *CacheService) Delete(ctx context.Context, key string) error {
 	return cs.Backend.Delete(ctx, key)
 }
+
+func (cs *CacheService) Keys(ctx context.Context) []string {
+	return cs.Backend.Keys(ctx)
+}
+
+func (cs *CacheService) TTL(ctx context.Context, key string) (time.Duration, bool) {
+	return cs.Backend.TTL(ctx, key)
+}

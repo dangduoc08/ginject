@@ -21,6 +21,8 @@
     - [Get](#get)
     - [Set](#set)
     - [Delete](#delete)
+    - [Keys](#keys)
+    - [TTL](#ttl)
   - [API Semantics](#api-semantics)
   - [Error Handling](#error-handling)
   - [Performance Notes](#performance-notes)
@@ -50,10 +52,12 @@ type Cache interface {
     Get(ctx context.Context, key string) ([]byte, bool)
     Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
     Delete(ctx context.Context, key string) error
+    Keys(ctx context.Context) []string
+    TTL(ctx context.Context, key string) (time.Duration, bool)
 }
 ```
 
-The interface is intentionally minimal. It is backend-portable across in-memory, Redis, Memcached, or any distributed system. No backend-specific behaviour leaks through it.
+The interface is backend-portable across in-memory, Redis, Memcached, or any distributed system. No backend-specific behaviour leaks through it.
 
 ### Memory Backend
 
@@ -288,6 +292,54 @@ func (cs *CacheService) Delete(ctx context.Context, key string) error
 _ = svc.Delete(ctx, "session:abc")
 ```
 
+### Keys
+
+Returns all non-expired keys currently in the cache. The order is not guaranteed. The returned slice is a new allocation — safe to mutate.
+
+**Signature:**
+
+```go
+func (cs *CacheService) Keys(ctx context.Context) []string
+```
+
+**Returns:**
+- `[]string` — snapshot of live keys at the moment of the call; may be empty but never nil
+
+**Example:**
+
+```go
+keys := svc.Keys(ctx)
+fmt.Println("cached keys:", keys)
+```
+
+### TTL
+
+Returns the remaining time-to-live for a key.
+
+**Signature:**
+
+```go
+func (cs *CacheService) TTL(ctx context.Context, key string) (time.Duration, bool)
+```
+
+**Returns:**
+- `(0, false)` — key does not exist, is expired, or is empty
+- `(0, true)` — key exists with no expiry (set with `ttl <= 0`)
+- `(remaining, true)` — key exists and expires in `remaining` duration
+
+**Example:**
+
+```go
+d, ok := svc.TTL(ctx, "session:abc")
+if !ok {
+    // key missing or expired
+} else if d == 0 {
+    fmt.Println("permanent entry")
+} else {
+    fmt.Println("expires in", d)
+}
+```
+
 ---
 
 ## API Semantics
@@ -300,10 +352,14 @@ _ = svc.Delete(ctx, "session:abc")
 | Expired entry on Get | Returns `nil, false` — same as missing |
 | Empty key on Set/Delete | Returns `cache.ErrEmptyKey` |
 | Empty key on Get | Returns `nil, false` (no error) |
+| Empty key on TTL | Returns `0, false` (no error) |
 | `nil` val on Set | Stored as empty entry; Get returns `[]byte{}, true` |
 | Returned `[]byte` from Get | Independent copy — safe to mutate |
 | Stored `[]byte` from Set | Independent copy — caller mutations do not affect cache |
-| Overwrite semantics | Set always overwrites; no conditional write in Phase 1 |
+| Overwrite semantics | Set always overwrites; no conditional write |
+| Keys | Returns snapshot of live keys; expired keys excluded |
+| TTL on permanent key | Returns `0, true` |
+| TTL on expired/missing key | Returns `0, false` |
 | Concurrent access | All operations are goroutine-safe |
 
 ---
@@ -366,9 +422,11 @@ To add a Redis backend, implement the `Cache` interface and pass it via a custom
 ```go
 type redisCache struct { client *redis.Client }
 
-func (r *redisCache) Get(ctx context.Context, key string) ([]byte, bool) { /* ... */ }
+func (r *redisCache) Get(ctx context.Context, key string) ([]byte, bool)                    { /* ... */ }
 func (r *redisCache) Set(ctx context.Context, key string, val []byte, ttl time.Duration) error { /* ... */ }
-func (r *redisCache) Delete(ctx context.Context, key string) error { /* ... */ }
+func (r *redisCache) Delete(ctx context.Context, key string) error                           { /* ... */ }
+func (r *redisCache) Keys(ctx context.Context) []string                                      { /* KEYS * or SCAN */ }
+func (r *redisCache) TTL(ctx context.Context, key string) (time.Duration, bool)              { /* TTL command */ }
 
 // Then wire it:
 svc := cache.CacheService{Backend: &redisCache{client: rdb}}

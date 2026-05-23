@@ -39,6 +39,20 @@ func (tc *testCache) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+func (tc *testCache) Keys(_ context.Context) []string {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	keys := make([]string, 0, len(tc.items))
+	for k := range tc.items {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (tc *testCache) TTL(_ context.Context, _ string) (time.Duration, bool) {
+	return 0, false
+}
+
 func newGuard(limit int64, ttl time.Duration, strategy Strategy) ThrottlerGuard {
 	return ThrottlerGuard{
 		Limit:    limit,
