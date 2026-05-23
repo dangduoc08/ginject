@@ -55,8 +55,6 @@ func NewThrottler(opts ThrottlerOptions) ThrottlerGuard {
 	return ThrottlerGuard(opts)
 }
 
-func (g ThrottlerGuard) NewGuard() ThrottlerGuard { return g }
-
 func (g ThrottlerGuard) CanActivate(c *ctx.Context) bool {
 	res := g.check(c)
 

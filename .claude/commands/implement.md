@@ -65,7 +65,11 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
    - Security (`gosec`)
    - Style (`gocritic`, `errorlint`, `exhaustive`)
 
-10. **Report** results in **two versions — English first, then Vietnamese** — each containing:
+10. **README** — after all tests and lint pass:
+    - If **no `README.md`** exists in the package → create one covering: purpose, public API (types + method signatures + return semantics), usage examples, and any non-obvious behaviour.
+    - If **`README.md` already exists** → update it to reflect the new or changed API: add missing sections, update signatures, add usage examples for new features, remove stale content.
+
+11. **Report** results in **two versions — English first, then Vietnamese** — each containing:
     - What was implemented or upgraded (one-line summary per item).
     - Security invariants verified.
     - Test cases added (count + categories covered).
