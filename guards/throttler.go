@@ -52,13 +52,7 @@ func NewThrottler(opts ThrottlerOptions) ThrottlerGuard {
 	if opts.Store == nil {
 		opts.Store = cache.NewMemoryCache()
 	}
-	return ThrottlerGuard{
-		Limit:    opts.Limit,
-		TTL:      opts.TTL,
-		Strategy: opts.Strategy,
-		KeyFunc:  opts.KeyFunc,
-		Store:    opts.Store,
-	}
+	return ThrottlerGuard(opts)
 }
 
 func (g ThrottlerGuard) NewGuard() ThrottlerGuard { return g }
