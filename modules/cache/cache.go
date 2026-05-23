@@ -1,43 +1,15 @@
 package cache
 
 import (
-	"fmt"
-	"sync"
+	"context"
+	"errors"
 	"time"
 )
 
-const (
-	LFU = iota + 1
-)
+var ErrEmptyKey = errors.New("cache: key must not be empty")
 
-type CacheModuler[T any] interface {
-	Get(string) (T, bool)
-	Set(string, T, time.Duration) // ex in milliseconds
-	Del(string) bool
-	Has(string) bool
-	Clear() bool
-}
-
-type CacheOpts struct {
-	Strategy uint16
-	Cap      int64
-}
-
-type object[U any] struct {
-	key   string
-	value U
-}
-
-func New[U any](opts CacheOpts) *lfu[U, object[U]] {
-	switch opts.Strategy {
-	case LFU:
-		return &lfu[U, object[U]]{
-			mu:      &sync.Mutex{},
-			values:  &sync.Map{},
-			freqMap: &sync.Map{},
-			cap:     opts.Cap,
-			leastF:  0,
-		}
-	}
-	panic(fmt.Errorf("%v is unavailable strategy", opts.Strategy))
+type Cache interface {
+	Get(ctx context.Context, key string) ([]byte, bool)
+	Set(ctx context.Context, key string, val []byte, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
 }
