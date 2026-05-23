@@ -15,8 +15,7 @@ type Aggregation struct {
 
 func NewAggregation() *Aggregation {
 	aggregation := new(Aggregation)
-	aggregation.operators = map[string]AggregationOperator{}
-
+	aggregation.operators = make(map[string]AggregationOperator, 5)
 	return aggregation
 }
 
@@ -50,71 +49,8 @@ func (aggregation *Aggregation) GetAggregationOperator(oprName string) Aggregati
 }
 
 func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
-
-	// handle operators
-	for name, operator := range aggregation.operators {
-		// kind := reflect.TypeOf(aggregation.data).Kind()
-		// switch kind {
-		// case
-		// 	reflect.Map,
-		// 	reflect.Slice,
-		// 	reflect.Struct,
-		// 	reflect.Interface:
-
-		// 	// iterable
-		// case
-		// 	reflect.Bool,
-		// 	reflect.Int,
-		// 	reflect.Int8,
-		// 	reflect.Int16,
-		// 	reflect.Int32,
-		// 	reflect.Int64,
-		// 	reflect.Uint,
-		// 	reflect.Uint8,
-		// 	reflect.Uint16,
-		// 	reflect.Uint32,
-		// 	reflect.Uint64,
-		// 	reflect.Float32,
-		// 	reflect.Float64,
-		// 	reflect.Complex64,
-		// 	reflect.Complex128:
-
-		// 	// to number
-		// case
-		// 	reflect.Pointer,
-		// 	reflect.UnsafePointer:
-
-		// 	// to pointer
-		// case
-		// 	reflect.String:
-
-		// 	// to string
-		// case
-		// 	reflect.Func:
-
-		// 	// to pointer address as well
-		// 	// c.Text(data.Type().String())
-		// }
-
-		switch name {
-		// case OPERATOR_OF:
-		// 	aggregation.mainData = operator(aggregation.mainData)
-
-		// case OPERATOR_MAP:
-		// 	aggregation.mainData = operator(aggregation.mainData)
-
-		case OPERATOR_CONSUME:
-			aggregation.mainData = operator(c, aggregation.mainData)
-
-		case OPERATOR_ERROR:
-			// error operator will be handle inside recover
-			continue
-
-		case OPERATOR_FIRST:
-			// aggregation.mainData = aggregation.mainData
-		}
-
+	if operator, ok := aggregation.operators[OPERATOR_CONSUME]; ok {
+		aggregation.mainData = operator(c, aggregation.mainData)
 	}
-
 	return aggregation.mainData
 }
