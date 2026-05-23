@@ -76,15 +76,13 @@ func loadDotENV(path string, isExpandVariables bool) map[string]any {
 }
 
 func loadOSEnv() map[string]any {
-	osENVMap := make(map[string]any)
 	env := os.Environ()
+	osENVMap := make(map[string]any, len(env))
 	for _, v := range env {
-		envArr := strings.Split(v, "=")
-		if len(envArr) > 1 {
-			osENVMap[envArr[0]] = envArr[1]
+		if idx := strings.IndexByte(v, '='); idx > 0 {
+			osENVMap[v[:idx]] = v[idx+1:]
 		}
 	}
-
 	return osENVMap
 }
 
@@ -105,11 +103,11 @@ func mergeIntoOSENV(osENV map[string]any, isOverride bool, envs ...map[string]an
 func Register(opts *ConfigModuleOptions) *core.Module {
 	configOptions := loadConfigOptions(opts)
 	osENVMap := loadOSEnv()
-	envs := []map[string]any{}
+	envs := make([]map[string]any, 0, len(configOptions.ENVFilePaths)+len(configOptions.Loads))
 
-	if !configOptions.IsIgnoreEnvFile || len(opts.ENVFilePaths) > 0 {
+	if !configOptions.IsIgnoreEnvFile || len(configOptions.ENVFilePaths) > 0 {
 		for _, path := range configOptions.ENVFilePaths {
-			dotENVMap := loadDotENV(path, opts.IsExpandVariables)
+			dotENVMap := loadDotENV(path, configOptions.IsExpandVariables)
 			envs = append(envs, dotENVMap)
 		}
 	}
