@@ -247,6 +247,111 @@ func TestManyKeys(t *testing.T) {
 	}
 }
 
+// --- Keys ---
+
+func TestKeys_Empty(t *testing.T) {
+	svc := newSvc()
+	keys := svc.Keys(ctx)
+	if len(keys) != 0 {
+		t.Error(testutils.DiffMessage(len(keys), 0, "empty cache must return no keys"))
+	}
+}
+
+func TestKeys_ReturnsLiveKeys(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "a", []byte("1"), 0)
+	_ = svc.Set(ctx, "b", []byte("2"), 0)
+	keys := svc.Keys(ctx)
+	if len(keys) != 2 {
+		t.Error(testutils.DiffMessage(len(keys), 2, "must return all live keys"))
+	}
+}
+
+func TestKeys_ExcludesExpired(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "live", []byte("v"), 0)
+	_ = svc.Set(ctx, "dead", []byte("v"), 10*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	for _, k := range svc.Keys(ctx) {
+		if k == "dead" {
+			t.Error(testutils.DiffMessage("dead", "<absent>", "expired key must not appear in Keys"))
+		}
+	}
+}
+
+func TestKeys_AfterDelete(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("v"), 0)
+	_ = svc.Delete(ctx, "k")
+	keys := svc.Keys(ctx)
+	if len(keys) != 0 {
+		t.Error(testutils.DiffMessage(len(keys), 0, "deleted key must not appear in Keys"))
+	}
+}
+
+// --- TTL ---
+
+func TestTTLMethod_Missing(t *testing.T) {
+	svc := newSvc()
+	_, ok := svc.TTL(ctx, "nonexistent")
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "missing key must return false"))
+	}
+}
+
+func TestTTLMethod_EmptyKey(t *testing.T) {
+	svc := newSvc()
+	_, ok := svc.TTL(ctx, "")
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "empty key must return false"))
+	}
+}
+
+func TestTTLMethod_Permanent(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("v"), 0)
+	d, ok := svc.TTL(ctx, "k")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "permanent key must return true"))
+	}
+	if d != 0 {
+		t.Error(testutils.DiffMessage(d, time.Duration(0), "permanent key must return duration 0"))
+	}
+}
+
+func TestTTLMethod_WithExpiry(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("v"), time.Hour)
+	d, ok := svc.TTL(ctx, "k")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "key with TTL must return true"))
+	}
+	if d <= 0 || d > time.Hour {
+		t.Error(testutils.DiffMessage(d, "0 < d <= 1h", "remaining TTL must be positive and within set range"))
+	}
+}
+
+func TestTTLMethod_Expired(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("v"), 10*time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	_, ok := svc.TTL(ctx, "k")
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "expired key must return false"))
+	}
+}
+
+func TestTTLMethod_Decreases(t *testing.T) {
+	svc := newSvc()
+	_ = svc.Set(ctx, "k", []byte("v"), time.Second)
+	d1, _ := svc.TTL(ctx, "k")
+	time.Sleep(5 * time.Millisecond)
+	d2, _ := svc.TTL(ctx, "k")
+	if d2 >= d1 {
+		t.Error(testutils.DiffMessage(d2, "<d1", "TTL must decrease over time"))
+	}
+}
+
 // --- Concurrency ---
 
 func TestConcurrent_ReadWrite(t *testing.T) {

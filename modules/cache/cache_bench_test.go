@@ -97,6 +97,34 @@ func BenchmarkGet_TTL_Expired(b *testing.B) {
 	}
 }
 
+func BenchmarkKeys(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	for i := 0; i < 1000; i++ {
+		_ = svc.Set(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
+	}
+	b.ResetTimer()
+	for range b.N {
+		svc.Keys(bctx)
+	}
+}
+
+func BenchmarkTTL_Hit(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	_ = svc.Set(bctx, "key", []byte("v"), time.Hour)
+	b.ResetTimer()
+	for range b.N {
+		svc.TTL(bctx, "key")
+	}
+}
+
+func BenchmarkTTL_Miss(b *testing.B) {
+	svc := &CacheService{Backend: newMemoryCache()}
+	b.ResetTimer()
+	for range b.N {
+		svc.TTL(bctx, "nonexistent")
+	}
+}
+
 func BenchmarkDelete(b *testing.B) {
 	svc := &CacheService{Backend: newMemoryCache()}
 	b.ResetTimer()
