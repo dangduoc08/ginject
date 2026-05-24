@@ -62,6 +62,8 @@ func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
 			aggregation.mainData = operator.Aggregation(c, aggregation.mainData)
 		case OPERATOR_TAP:
 			operator.Aggregation(c, aggregation.mainData)
+		case OPERATOR_TIMEOUT:
+			operator.Aggregation(c, aggregation.mainData)
 		}
 	}
 

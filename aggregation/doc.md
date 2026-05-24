@@ -570,26 +570,37 @@ agg.Pipe(
 
 ---
 
-### `Timeout`
+### `Timeout` (method)
 
 ```go
-func Timeout(d time.Duration, fn func(*ctx.Context, any) any) AggregationOperator
+func (aggregation *Aggregation) Timeout(d time.Duration) *Aggregation
 ```
 
-Runs `fn(c, data)` in a goroutine. If `fn` returns within `d`, its result flows downstream. If the deadline is exceeded, a pipeline error (`timeout: operation exceeded deadline`) is injected instead. Skips on existing pipeline error.
+Registers a timeout check that fires when `Aggregate` runs. The elapsed time is measured from **`c.Timestamp`** — the moment the request context was formed — not from the moment `Aggregate` is called. This means the budget covers the entire in-flight time of the request, including routing, middleware, and handler execution.
+
+When `Aggregate` processes this operator:
+- If `c` is `nil` or `c.Timestamp` is the zero value, the check is skipped (safe for tests and non-HTTP contexts).
+- If `time.Since(c.Timestamp) >= d`, it panics with a `408 RequestTimeoutException`.
+- Otherwise the pipeline value passes through unchanged.
+
+Returns `*Aggregation` for method chaining.
 
 ```go
-agg.Pipe(
-    Timeout(500*time.Millisecond, func(c ginject.Context, data any) any {
-        return expensiveTransform(data)
-    }),
-    CatchError(func(c ginject.Context, err error) any {
-        return map[string]any{"error": "request timed out"}
-    }),
-)
+func (i TimeoutInterceptor) Intercept(c *ctx.Context, agg *aggregation.Aggregation) any {
+    agg.Timeout(500 * time.Millisecond)
+    return agg.Pipe(
+        // other operators — only run if the budget has not been exceeded
+    )
+}
 ```
 
-**Note:** The goroutine started by `Timeout` is not cancelled when the deadline fires; it runs to completion in the background. Do not use `Timeout` for operations that must be stopped, only for operations where it is acceptable to discard the late result.
+Chain multiple `Timeout` calls if you want different budgets at different pipeline stages:
+
+```go
+agg.Timeout(2 * time.Second)   // total request budget
+```
+
+**When to use:** Use `Timeout` to enforce an end-to-end request budget per interceptor. Unlike a goroutine-based approach, it does not spawn additional goroutines and has zero allocation cost on the happy path.
 
 ---
 
@@ -765,17 +776,29 @@ func (i SafeInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) a
 }
 ```
 
-### 6. Timeout on an expensive transformation
+### 6. End-to-end request timeout
 
 ```go
-func (i TimeoutInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+// Enforce a 500ms total budget counted from when the request arrived.
+// If routing + handler + aggregation together exceed 500ms, the interceptor
+// panics with 408 before writing the response.
+func (i TimeoutInterceptor) Intercept(c *ctx.Context, agg *aggregation.Aggregation) any {
+    agg.Timeout(500 * time.Millisecond)
     return agg.Pipe(
-        Timeout(200*time.Millisecond, func(c ginject.Context, data any) any {
-            return heavyTransform(data)
-        }),
-        CatchError(func(c ginject.Context, err error) any {
-            return map[string]any{"error": "transformation timed out"}
+        agg.Consume(func(c *ctx.Context, data any) any {
+            return map[string]any{"data": data}
         }),
     )
 }
+```
+
+The 408 panic is caught by the framework's error handler chain (registered via `agg.Error`):
+
+```go
+agg.Error(func(c *ctx.Context, data any) any {
+    if ex, ok := data.(exception.Exception); ok && ex.GetCode() == "408" {
+        return map[string]any{"error": "request timed out"}
+    }
+    return map[string]any{"error": "internal server error"}
+})
 ```

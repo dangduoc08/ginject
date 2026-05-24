@@ -2,8 +2,10 @@ package aggregation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/testutils"
 )
 
@@ -209,5 +211,152 @@ func TestAggregate_MultipleTransforms(t *testing.T) {
 	result := a.Aggregate(nil)
 	if result != 3 {
 		t.Error(testutils.DiffMessage(result, 3, "(0+1)*3 = 3"))
+	}
+}
+
+// ---- Timeout operator ----
+
+func newCtxWithTimestamp(ts time.Time) *ctx.Context {
+	c := ctx.NewContext()
+	c.Timestamp = ts
+	return c
+}
+
+func TestTimeout_ReturnsAggregation(t *testing.T) {
+	a := NewAggregation()
+	ret := a.Timeout(time.Second)
+	if ret != a {
+		t.Error(testutils.DiffMessage(ret, a, "Timeout must return *Aggregation for chaining"))
+	}
+}
+
+func TestTimeout_NotExpired_DoesNotPanic(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("ok")
+	a.Timeout(time.Hour) // expires 1 hour from now — will not fire
+	c := newCtxWithTimestamp(time.Now())
+	result := a.Aggregate(c)
+	if result != "ok" {
+		t.Error(testutils.DiffMessage(result, "ok", "no timeout: mainData must be unchanged"))
+	}
+}
+
+func TestTimeout_Expired_Panics(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(time.Millisecond) // 1ms — context formed 1 second ago
+	c := newCtxWithTimestamp(time.Now().Add(-time.Second))
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Error(testutils.DiffMessage(nil, "panic", "expired timeout must panic"))
+			return
+		}
+		ex, ok := r.(exception.Exception)
+		if !ok {
+			t.Error(testutils.DiffMessage(r, "exception.Exception", "panic value must be exception.Exception"))
+			return
+		}
+		if ex.GetCode() != "408" {
+			t.Error(testutils.DiffMessage(ex.GetCode(), "408", "must panic with 408 RequestTimeout"))
+		}
+	}()
+	a.Aggregate(c)
+}
+
+func TestTimeout_NilContext_DoesNotPanic(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(time.Millisecond)
+	// nil context → skip check
+	result := a.Aggregate(nil)
+	if result != "data" {
+		t.Error(testutils.DiffMessage(result, "data", "nil context must not panic"))
+	}
+}
+
+func TestTimeout_ZeroTimestamp_DoesNotPanic(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(time.Millisecond)
+	c := ctx.NewContext() // Timestamp is zero value
+	result := a.Aggregate(c)
+	if result != "data" {
+		t.Error(testutils.DiffMessage(result, "data", "zero Timestamp must not panic"))
+	}
+}
+
+func TestTimeout_MeasuredFromContextTimestamp(t *testing.T) {
+	// Context formed 500ms ago; timeout is 100ms — must fire
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(100 * time.Millisecond)
+	c := newCtxWithTimestamp(time.Now().Add(-500 * time.Millisecond))
+	panicked := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		a.Aggregate(c)
+	}()
+	if !panicked {
+		t.Error(testutils.DiffMessage(panicked, true, "elapsed > timeout must panic"))
+	}
+}
+
+func TestTimeout_ExactBoundary_Panics(t *testing.T) {
+	// elapsed == timeout (>= comparison) must also fire
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(0) // 0 duration: time.Since(...) >= 0 is always true for any non-zero timestamp
+	c := newCtxWithTimestamp(time.Now().Add(-time.Nanosecond))
+	panicked := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		a.Aggregate(c)
+	}()
+	if !panicked {
+		t.Error(testutils.DiffMessage(panicked, true, "elapsed >= 0 must always panic when timestamp is set"))
+	}
+}
+
+func TestTimeout_Chaining_WithTransform(t *testing.T) {
+	// timeout not expired → transform still runs
+	a := NewAggregation()
+	a.SetMainData("original")
+	a.Timeout(time.Hour)
+	a.Transform(func(c *ctx.Context, data any) any { return "transformed" })
+	c := newCtxWithTimestamp(time.Now())
+	result := a.Aggregate(c)
+	if result != "transformed" {
+		t.Error(testutils.DiffMessage(result, "transformed", "transform must run when timeout has not fired"))
+	}
+}
+
+func TestTimeout_MultipleTimeouts_FirstExpiredPanics(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	// first timeout: already expired
+	a.Timeout(time.Millisecond)
+	// second timeout: would not expire
+	a.Timeout(time.Hour)
+	c := newCtxWithTimestamp(time.Now().Add(-time.Second))
+	panicked := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		a.Aggregate(c)
+	}()
+	if !panicked {
+		t.Error(testutils.DiffMessage(panicked, true, "first expired timeout must panic before second is checked"))
 	}
 }

@@ -32,7 +32,7 @@ type App struct {
 	wsMainHandlerMap                       map[string]any           // to store WS main handler
 	wsEventToID                            map[string][]string      // to store WS IDs, key = emit event name
 	wsEventToIDMu                          sync.RWMutex
-	serveStaticMapToLastWildcardSlashIndex map[string]int           // to check public dir URL if has * at last
+	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
 	module                                 *Module
 	ctxPool                                sync.Pool
 	globalMiddlewares                      []common.MiddlewareFn
@@ -47,27 +47,36 @@ type App struct {
 	isEnableVersioning                     bool
 	isEnableDevtool                        bool
 	devtool                                *devtool.Devtool
+
+	// Timeout applied to every HTTP request. Defaults to 30s.
+	requestTimeout time.Duration
+	// Timeout applied to each individual WS message dispatch. Defaults to 5s.
+	wsMessageTimeout time.Duration
 }
 
 // link to aliases
 const (
-	CONTEXT       = "/*ctx.Context"
-	WS_CONNECTION = "/*websocket.Conn"
-	REQUEST       = "/*http.Request"
-	RESPONSE      = "net/http/http.ResponseWriter"
-	BODY          = "github.com/dangduoc08/ginject/ctx/ctx.Body"
-	FORM          = "github.com/dangduoc08/ginject/ctx/ctx.Form"
-	QUERY         = "github.com/dangduoc08/ginject/ctx/ctx.Query"
-	HEADER        = "github.com/dangduoc08/ginject/ctx/ctx.Header"
-	PARAM         = "github.com/dangduoc08/ginject/ctx/ctx.Param"
-	FILE          = "github.com/dangduoc08/ginject/ctx/ctx.File"
-	WS_PAYLOAD    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
-	NEXT          = "/func()"
-	REDIRECT      = "/func(string)"
+	CONTEXT           = "/*ctx.Context"
+	EXECUTION_CONTEXT = "/*ctx.ExecutionContext"
+	WS_CONTEXT        = "/*ctx.WSContext"
+	WS_CONNECTION     = "/*websocket.Conn"
+	REQUEST           = "/*http.Request"
+	RESPONSE          = "net/http/http.ResponseWriter"
+	BODY              = "github.com/dangduoc08/ginject/ctx/ctx.Body"
+	FORM              = "github.com/dangduoc08/ginject/ctx/ctx.Form"
+	QUERY             = "github.com/dangduoc08/ginject/ctx/ctx.Query"
+	HEADER            = "github.com/dangduoc08/ginject/ctx/ctx.Header"
+	PARAM             = "github.com/dangduoc08/ginject/ctx/ctx.Param"
+	FILE              = "github.com/dangduoc08/ginject/ctx/ctx.File"
+	WS_PAYLOAD        = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
+	NEXT              = "/func()"
+	REDIRECT          = "/func(string)"
 )
 
 var dependencies = map[string]int{
 	CONTEXT:                    1,
+	EXECUTION_CONTEXT:          1,
+	WS_CONTEXT:                 1,
 	WS_CONNECTION:              1,
 	REQUEST:                    1,
 	RESPONSE:                   1,
@@ -103,6 +112,8 @@ func New() *App {
 		wsMainHandlerMap:                       make(map[string]any),
 		wsEventToID:                            make(map[string][]string),
 		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
+		requestTimeout:                         30 * time.Second,
+		wsMessageTimeout:                       5 * time.Second,
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
@@ -117,6 +128,18 @@ func New() *App {
 	app.BindGlobalExceptionFilters(globalExceptionFilter{})
 
 	return &app
+}
+
+// SetRequestTimeout overrides the default 30s per-HTTP-request deadline.
+func (app *App) SetRequestTimeout(d time.Duration) *App {
+	app.requestTimeout = d
+	return app
+}
+
+// SetWSMessageTimeout overrides the default 5s per-WS-message dispatch deadline.
+func (app *App) SetWSMessageTimeout(d time.Duration) *App {
+	app.wsMessageTimeout = d
+	return app
 }
 
 func (app *App) Create(m *Module) {
@@ -639,10 +662,17 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.Timestamp = time.Now()
 	c.ResponseWriter = w
 	c.Request = r
+
 	ctxID := app.getContextID(c)
 	c.SetID(ctxID)
 
 	defer func() {
+		// Cancel must happen before Reset so any in-flight goroutines that
+		// hold a reference to Exec see cancellation before the pool reuses c.
+		if c.Exec != nil {
+			// For HTTP the cancel func lives here; for WS it lives in
+			// handleWSRequest which has already returned by this point.
+		}
 		c.Reset()
 		app.ctxPool.Put(c)
 	}()
@@ -654,7 +684,22 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}, w, r)
 	} else {
 		c.SetType(ctx.HTTPType)
-		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
+
+		// Create the request-scoped ExecutionContext. It is rooted at
+		// r.Context() so a client disconnect propagates automatically,
+		// plus the configurable hard deadline for SLA enforcement.
+		exec, cancel := ctx.NewHTTPExecutionContext(r.Context(), app.requestTimeout)
+		defer cancel()
+
+		exec.Set(ctx.MetaRequestID, ctxID)
+		traceID := r.Header.Get("X-Trace-Id")
+		if traceID == "" {
+			traceID = ctxID
+		}
+		exec.Set(ctx.MetaTraceID, traceID)
+
+		c.Exec = exec
+		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, ctxID)
 
 		app.handleRESTRequest(c)
 	}
@@ -895,6 +940,13 @@ func (app *App) handleRESTRequest(c *ctx.Context) {
 }
 
 func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r *http.Request, c *ctx.Context) {
+	// Create the WS-scoped ExecutionContext. It is rooted at
+	// context.Background() — NOT r.Context() — because the HTTP upgrade
+	// request context is cancelled as soon as the handshake completes.
+	wsCtx, wsCancel := ctx.NewWSContext(wsConn)
+	c.WSCtx = wsCtx
+	c.Exec = wsCtx.Exec()
+
 	wsInstance := ctx.NewWS(wsConn)
 	c.WS = wsInstance
 	isNext := true
@@ -905,6 +957,9 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 	wsSubscribedEvents := wsInstance.GetSubscribedEvents()
 
 	defer func() {
+		// Cancel the WS execution context first so all goroutines spawned
+		// from it (via GoSafe or per-message contexts) see ctx.Done().
+		wsCancel()
 		for _, subscribedEventName := range wsSubscribedEvents {
 			app.removeWSEvent(subscribedEventName, wsid, c)
 		}
@@ -922,6 +977,13 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 	}
 
 	for {
+		// Bail out before blocking on Receive if the connection context
+		// has already been cancelled (server shutdown, explicit Cancel, etc.).
+		select {
+		case <-wsCtx.Exec().Done():
+			return
+		default:
+		}
 
 		// listen on comming messages
 		var message []byte

@@ -1,6 +1,7 @@
 package ctx
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -40,9 +41,16 @@ type Context struct {
 	Code      int
 	Timestamp time.Time
 
-	// Extend context
-	// WebSocket
+	// Exec is the runtime control plane for this request or WS connection.
+	// Set by the framework entrypoint; nil-safe via GetExec().
+	Exec *ExecutionContext
+
+	// WebSocket state — legacy, kept for backward compatibility.
 	WS *WS
+
+	// WSCtx is the new, lifecycle-managed WebSocket context.
+	// Populated only for WebSocket connections.
+	WSCtx *WSContext
 }
 
 const (
@@ -56,6 +64,22 @@ func NewContext() *Context {
 	return &Context{
 		Code: http.StatusOK,
 	}
+}
+
+// GetExec returns the ExecutionContext for this request.
+// Nil-safe: if Exec isn't wired yet a shim is created from r.Context()
+// (or context.Background() when Request is absent) and cached on the struct.
+func (c *Context) GetExec() *ExecutionContext {
+	if c.Exec != nil {
+		return c.Exec
+	}
+	parent := context.Background()
+	if c.Request != nil {
+		parent = c.Request.Context()
+	}
+	exec, _ := NewHTTPExecutionContext(parent, 30*time.Second)
+	c.Exec = exec
+	return c.Exec
 }
 
 func (c *Context) Status(code int) *Context {
@@ -119,6 +143,8 @@ func (c *Context) Reset() {
 	c.Type = ""
 	c.ID = ""
 	c.WS = nil
+	c.WSCtx = nil
+	c.Exec = nil // cancel is deferred by the entrypoint before Reset is called
 	c.body = nil
 	c.form = nil
 	c.file = nil

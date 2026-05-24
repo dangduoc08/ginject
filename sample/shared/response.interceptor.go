@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/dangduoc08/ginject"
 	"github.com/dangduoc08/ginject/common"
@@ -13,6 +14,10 @@ type ResponseInterceptor struct {
 
 func (instance ResponseInterceptor) Intercept(c ginject.Context, aggregation ginject.Aggregation) any {
 	fmt.Println("[Global][Pre] Response interceptor")
+
+	// Timeout is registered directly on the aggregation (not passed to Pipe)
+	// so it runs in the operator pipeline regardless of Pipe's arguments.
+	aggregation.Timeout(time.Second)
 
 	return aggregation.Pipe(
 		aggregation.Transform(func(c ginject.Context, data any) any {

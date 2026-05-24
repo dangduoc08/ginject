@@ -7,7 +7,6 @@ import (
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
-	"github.com/dangduoc08/ginject/versioning"
 )
 
 func main() {
@@ -23,12 +22,12 @@ func main() {
 		BindGlobalInterceptors(shared.ResponseInterceptor{}).
 		BindGlobalGuards(shared.RateLimiterGuard{})
 
-	app.
-		EnableVersioning(versioning.Versioning{
-			Type: versioning.HEADER,
-			Key:  confs.ENV.APIVersionName,
-		}).
-		EnableDevtool()
+		// app.
+	// EnableVersioning(versioning.Versioning{
+	// 	Type: versioning.HEADER,
+	// 	Key:  confs.ENV.APIVersionName,
+	// }).
+	// EnableDevtool()
 
 	app.Create(
 		core.ModuleBuilder().

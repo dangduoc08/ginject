@@ -254,6 +254,10 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 	switch k {
 	case CONTEXT:
 		return c
+	case EXECUTION_CONTEXT:
+		return c.GetExec()
+	case WS_CONTEXT:
+		return c.WSCtx
 	case WS_CONNECTION:
 		return c.WS.Connection
 	case REQUEST:

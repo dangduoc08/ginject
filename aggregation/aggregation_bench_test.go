@@ -2,6 +2,7 @@ package aggregation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/ctx"
 )
@@ -71,5 +72,27 @@ func BenchmarkSetOperators_Three(b *testing.B) {
 		a.Transform(benchNoop)
 		a.Tap(benchNoop)
 		a.Error(benchNoop)
+	}
+}
+
+func BenchmarkTimeout_NotExpired(b *testing.B) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(time.Hour)
+	c := ctx.NewContext()
+	c.Timestamp = time.Now()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.Aggregate(c)
+	}
+}
+
+func BenchmarkTimeout_NilContext(b *testing.B) {
+	a := NewAggregation()
+	a.SetMainData("data")
+	a.Timeout(time.Hour)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		a.Aggregate(nil)
 	}
 }
