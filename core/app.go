@@ -32,7 +32,7 @@ type App struct {
 	wsMainHandlerMap                       map[string]any           // to store WS main handler
 	wsEventToID                            map[string][]string      // to store WS IDs, key = emit event name
 	wsEventToIDMu                          sync.RWMutex
-	serveStaticMapToLastWildcardSlashIndex map[string]int           // to check public dir URL if has * at last
+	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
 	module                                 *Module
 	ctxPool                                sync.Pool
 	globalMiddlewares                      []common.MiddlewareFn
@@ -704,8 +704,22 @@ func (app *App) Listen(port int) error {
 	}
 
 	addr := fmt.Sprintf(":%v", port)
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: app,
+
+		ReadHeaderTimeout: 2 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+
+		MaxHeaderBytes: 1 << 20,
+	}
+
 	logBoostrap(port)
-	return http.ListenAndServe(addr, app)
+
+	return server.ListenAndServe()
 }
 
 func (app *App) handleRESTRequest(c *ctx.Context) {
