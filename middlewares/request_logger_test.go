@@ -153,8 +153,8 @@ func TestRequestLogger_Use_HTTPLogsTime(t *testing.T) {
 		return
 	}
 	s, ok := v.(string)
-	if !ok || !strings.HasSuffix(s, " ms") {
-		t.Error(testutils.DiffMessage(v, "X ms", "Time value should end with ' ms'"))
+	if !ok || !strings.HasSuffix(s, "ms") {
+		t.Error(testutils.DiffMessage(v, "Xms", "Time value should end with 'ms'"))
 	}
 }
 
