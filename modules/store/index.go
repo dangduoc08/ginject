@@ -237,7 +237,7 @@ func anyToString(v any) string {
 	case []byte:
 		return string(t)
 	default:
-		return strings.TrimSuffix(strings.TrimPrefix(fmt.Sprint(v), "<nil>"), "")
+		return fmt.Sprint(v)
 	}
 }
 

@@ -10,36 +10,57 @@ const (
 )
 
 type event struct {
-	opts     *sync.Map
-	onceOpts *sync.Map
+	mu       sync.RWMutex
+	opts     map[string]func(args ...any)
+	onceOpts map[string]func(args ...any)
 }
 
 func NewEvent() *event {
 	return &event{
-		opts:     &sync.Map{},
-		onceOpts: &sync.Map{},
+		opts:     make(map[string]func(args ...any)),
+		onceOpts: make(map[string]func(args ...any)),
 	}
+}
+
+func (e *event) reset() {
+	e.mu.Lock()
+	clear(e.opts)
+	clear(e.onceOpts)
+	e.mu.Unlock()
 }
 
 func (e *event) On(eventName string, listener func(args ...interface{})) {
-	e.opts.Store(eventName, listener)
+	e.mu.Lock()
+	e.opts[eventName] = listener
+	e.mu.Unlock()
 }
 
 func (e *event) Once(eventName string, listener func(args ...interface{})) {
-	e.onceOpts.Store(eventName, listener)
+	e.mu.Lock()
+	e.onceOpts[eventName] = listener
+	e.mu.Unlock()
 }
 
 func (e *event) RemoveAllListeners(eventName string) {
-	e.opts.Delete(eventName)
-	e.onceOpts.Delete(eventName)
+	e.mu.Lock()
+	delete(e.opts, eventName)
+	delete(e.onceOpts, eventName)
+	e.mu.Unlock()
 }
 
 func (e *event) Emit(eventName string, args ...interface{}) {
-	if listener, ok := e.opts.Load(eventName); ok {
-		listener.(func(args ...interface{}))(args...)
+	e.mu.RLock()
+	listener := e.opts[eventName]
+	onceListener := e.onceOpts[eventName]
+	e.mu.RUnlock()
+
+	if listener != nil {
+		listener(args...)
 	}
-	if listener, ok := e.onceOpts.Load(eventName); ok {
-		listener.(func(args ...interface{}))(args...)
-		e.onceOpts.Delete(eventName)
+	if onceListener != nil {
+		onceListener(args...)
+		e.mu.Lock()
+		delete(e.onceOpts, eventName)
+		e.mu.Unlock()
 	}
 }
