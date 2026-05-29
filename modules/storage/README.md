@@ -1,4 +1,4 @@
-# store
+# storage
 
 Embedded, crash-safe document database for Ginject applications. Runs inside your process — no external database required. Data is stored as append-only binary segment files under a local directory.
 
@@ -30,7 +30,7 @@ Embedded, crash-safe document database for Ginject applications. Runs inside you
 ## Quick start
 
 ```go
-db, err := store.Open("./data")
+db, err := storage.Open("./data")
 if err != nil {
     log.Fatal(err)
 }
@@ -67,7 +67,7 @@ Register the module once — typically as global so every module can inject `Sto
 var AppModule = func() *core.Module {
     return core.ModuleBuilder().
         Imports(
-            store.Register(&store.StoreModuleOptions{
+            storage.Register(&storage.StoreModuleOptions{
                 IsGlobal: true,
                 Path:     "./data",
             }),
@@ -81,10 +81,10 @@ Inject `StoreService` by embedding it in a provider or controller:
 
 ```go
 type UserService struct {
-    store.StoreService
+    storage.StoreService
 }
 
-func (s *UserService) CreateUser(name, email string) (store.Document, error) {
+func (s *UserService) CreateUser(name, email string) (storage.Document, error) {
     return s.Model("users").Create(map[string]any{
         "name":  name,
         "email": email,
@@ -101,7 +101,7 @@ func (s *UserService) CreateUser(name, email string) (store.Document, error) {
 Use `Open` when you need a database outside of the DI container (tests, scripts, CLI tools):
 
 ```go
-db, err := store.Open("/var/lib/myapp/db")
+db, err := storage.Open("/var/lib/myapp/db")
 if err != nil {
     // directory is created automatically; error only on permission problems
     log.Fatal(err)
@@ -120,8 +120,8 @@ A schema is optional. Without one, all queries use a full primary-index scan and
 **Call `Schema` before the application starts serving requests.** It rebuilds the secondary and text indexes from existing data on every call.
 
 ```go
-db.Model("posts").Schema(store.ModelSchema{
-    Fields: []store.FieldSchema{
+db.Model("posts").Schema(storage.ModelSchema{
+    Fields: []storage.FieldSchema{
         {Name: "status",  Index: true},          // secondary index
         {Name: "authorID", Index: true},          // secondary index
         {Name: "title",   Search: true},          // text search
@@ -190,8 +190,8 @@ docs, err := m.Find().Exec()
 
 // filter + pagination
 docs, err := m.Find().
-    Where("role", store.OpEq, "admin").
-    Where("active", store.OpEq, "true").
+    Where("role", storage.OpEq, "admin").
+    Where("active", storage.OpEq, "true").
     Limit(20).
     Skip(40). // page 3 of 20
     Exec()
@@ -215,10 +215,10 @@ If the first `Where` clause uses `OpEq` on a field declared with `Index: true`, 
 
 ```go
 // Uses secondary index (role is indexed)
-m.Find().Where("role", store.OpEq, "admin").Where("active", store.OpEq, "true").Exec()
+m.Find().Where("role", storage.OpEq, "admin").Where("active", storage.OpEq, "true").Exec()
 
 // Full scan (role is not indexed)
-m.Find().Where("role", store.OpEq, "admin").Exec()
+m.Find().Where("role", storage.OpEq, "admin").Exec()
 ```
 
 ---
@@ -248,7 +248,7 @@ page := results[0:min(10, len(results))]
 A transaction groups multiple writes across one or more tables into an all-or-nothing operation. Operations are buffered in memory and written atomically to disk when the callback returns `nil`.
 
 ```go
-err := db.Tx(func(tx *store.Tx) error {
+err := db.Tx(func(tx *storage.Tx) error {
     // debit
     if err := tx.Model("accounts").UpdateByID(fromID, map[string]any{
         "balance": newFromBalance,
@@ -292,13 +292,13 @@ Hooks let you intercept CRUD events to add auditing, validation, or field inject
 
 ```go
 // inject a "createdBy" field before every create
-db.Pre("create", func(hc *store.HookCtx) {
+db.Pre("create", func(hc *storage.HookCtx) {
     hc.Data["createdBy"] = "system"
     hc.Data["createdAt"] = time.Now().Format(time.RFC3339)
 })
 
 // log after every delete
-db.Post("delete", func(hc *store.HookCtx) {
+db.Post("delete", func(hc *storage.HookCtx) {
     log.Printf("deleted %s/%s", hc.Table, hc.ID)
 })
 ```
@@ -321,7 +321,7 @@ Pre-create hooks receive an empty `ID` because the ID is generated after the pre
 ### Global middleware
 
 ```go
-db.Use(func(hc *store.HookCtx, next func()) {
+db.Use(func(hc *storage.HookCtx, next func()) {
     start := time.Now()
     next()
     log.Printf("%s %s took %v", hc.Event, hc.Table, time.Since(start))
@@ -338,13 +338,13 @@ db.Use(func(hc *store.HookCtx, next func()) {
 
 ```go
 m := db.Model("inventory")
-unsubscribe := m.Watch(func(e store.Event) {
+unsubscribe := m.Watch(func(e storage.Event) {
     switch e.Type {
-    case store.EventCreate:
+    case storage.EventCreate:
         cache.Invalidate(e.Doc.ID)
-    case store.EventUpdate:
+    case storage.EventUpdate:
         notify(e.Doc)
-    case store.EventDelete:
+    case storage.EventDelete:
         removeFromSearch(e.Doc.ID)
     }
 })
@@ -357,8 +357,8 @@ defer unsubscribe() // remove watcher when no longer needed
 - Slow watcher callbacks block the caller; run heavy work in a goroutine inside the callback.
 
 ```go
-m.Watch(func(e store.Event) {
-    go func(ev store.Event) {
+m.Watch(func(e storage.Event) {
+    go func(ev storage.Event) {
         sendWebhook(ev) // off the hot path
     }(e)
 })
@@ -409,8 +409,8 @@ go func() {
 ### 1. User and session management for a small web app
 
 ```go
-users := db.Model("users").Schema(store.ModelSchema{
-    Fields: []store.FieldSchema{
+users := db.Model("users").Schema(storage.ModelSchema{
+    Fields: []storage.FieldSchema{
         {Name: "email", Index: true},
         {Name: "role",  Index: true},
     },
@@ -424,7 +424,7 @@ doc, _ := users.Create(map[string]any{
 })
 
 // login — find by email (uses secondary index, O(1) lookup)
-results, _ := users.Find().Where("email", store.OpEq, "alice@example.com").Limit(1).Exec()
+results, _ := users.Find().Where("email", storage.OpEq, "alice@example.com").Limit(1).Exec()
 if len(results) == 0 {
     // not found
 }
@@ -439,8 +439,8 @@ _ = users.UpdateByID(results[0].ID, map[string]any{
 ### 2. Blog with full-text search
 
 ```go
-posts := db.Model("posts").Schema(store.ModelSchema{
-    Fields: []store.FieldSchema{
+posts := db.Model("posts").Schema(storage.ModelSchema{
+    Fields: []storage.FieldSchema{
         {Name: "title",  Search: true},
         {Name: "body",   Search: true},
         {Name: "status", Index: true},
@@ -457,7 +457,7 @@ _, _ = posts.Create(map[string]any{
 
 // search — only published posts matching the query
 all, _ := posts.Search("embedded database")
-var published []store.Document
+var published []storage.Document
 for _, p := range all {
     if p.Data["status"] == "published" {
         published = append(published, p)
@@ -481,7 +481,7 @@ Use a transaction to make the read-modify-write atomic:
 
 ```go
 // CORRECT — all under the engine write lock
-err := db.Tx(func(tx *store.Tx) error {
+err := db.Tx(func(tx *storage.Tx) error {
     doc, err := db.Model("inventory").FindByID(itemID)
     if err != nil {
         return err
@@ -502,7 +502,7 @@ err := db.Tx(func(tx *store.Tx) error {
 ### 4. Audit log with pre/post hooks
 
 ```go
-db.Post("update", func(hc *store.HookCtx) {
+db.Post("update", func(hc *storage.HookCtx) {
     _, _ = db.Model("audit_log").Create(map[string]any{
         "table":  hc.Table,
         "docID":  hc.ID,
@@ -512,7 +512,7 @@ db.Post("update", func(hc *store.HookCtx) {
     })
 })
 
-db.Post("delete", func(hc *store.HookCtx) {
+db.Post("delete", func(hc *storage.HookCtx) {
     _, _ = db.Model("audit_log").Create(map[string]any{
         "table":  hc.Table,
         "docID":  hc.ID,
@@ -528,7 +528,7 @@ db.Post("delete", func(hc *store.HookCtx) {
 var cache sync.Map // id → cached value
 
 users := db.Model("users")
-users.Watch(func(e store.Event) {
+users.Watch(func(e storage.Event) {
     cache.Delete(e.Doc.ID)
 })
 
@@ -538,7 +538,7 @@ users.Watch(func(e store.Event) {
 ### 6. Multi-step order processing with rollback
 
 ```go
-err := db.Tx(func(tx *store.Tx) error {
+err := db.Tx(func(tx *storage.Tx) error {
     // 1. reserve stock
     if err := tx.Model("inventory").UpdateByID(skuID, reservedData); err != nil {
         return err
@@ -596,7 +596,7 @@ m.UpdateByID(id, ...)      m.UpdateByID(id, ...)       // both write 9 — shoul
 **Resolution:** Wrap read-modify-write in `Tx`. The commit phase holds the write lock, so no other writer can interleave:
 
 ```go
-db.Tx(func(tx *store.Tx) error {
+db.Tx(func(tx *storage.Tx) error {
     doc, _ := db.Model("items").FindByID(id)
     qty := doc.Data["qty"].(float64)
     return tx.Model("items").UpdateByID(id, map[string]any{"qty": qty - 1})
@@ -620,8 +620,8 @@ m.Create(map[string]any{"username": "alice"}) // duplicate
 **Resolution:** Perform the check-and-create inside a transaction. Each `Create` inside the commit holds the table write lock, so the second create can be made conditional at the application level. For strict uniqueness, check inside the callback:
 
 ```go
-db.Tx(func(tx *store.Tx) error {
-    existing, _ := db.Model("users").Find().Where("username", store.OpEq, "alice").Limit(1).Exec()
+db.Tx(func(tx *storage.Tx) error {
+    existing, _ := db.Model("users").Find().Where("username", storage.OpEq, "alice").Limit(1).Exec()
     if len(existing) > 0 {
         return errors.New("username already taken")
     }

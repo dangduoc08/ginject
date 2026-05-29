@@ -1,4 +1,4 @@
-package store
+package storage
 
 import "github.com/dangduoc08/ginject/core"
 
