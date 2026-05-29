@@ -7,10 +7,22 @@ import (
 func BenchmarkEmit_WithListener(b *testing.B) {
 	e := NewEvent()
 	calls := 0
-	e.On("test", func(args ...interface{}) { calls++ })
+	e.On("test", func(args ...any) { calls++ })
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Emit("test", "arg1", "arg2")
+	}
+}
+
+func BenchmarkEmit_MultipleListeners(b *testing.B) {
+	e := NewEvent()
+	calls := 0
+	for i := 0; i < 5; i++ {
+		e.On("test", func(args ...any) { calls++ })
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e.Emit("test", "arg1")
 	}
 }
 
@@ -19,6 +31,41 @@ func BenchmarkEmit_NoListener(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		e.Emit("test", "arg1")
+	}
+}
+
+func BenchmarkEmit_Once(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e := NewEvent()
+		e.Once("test", func(args ...any) {})
+		e.Emit("test")
+	}
+}
+
+func BenchmarkOff(b *testing.B) {
+	fn := func(args ...any) {}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e := NewEvent()
+		e.On("test", fn)
+		e.Off("test", fn)
+	}
+}
+
+func BenchmarkSetMaxListeners(b *testing.B) {
+	e := NewEvent()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e.SetMaxListeners(20)
+	}
+}
+
+func BenchmarkCallSafe(b *testing.B) {
+	fn := func(args ...any) {}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		callSafe(fn, nil)
 	}
 }
 
