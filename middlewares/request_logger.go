@@ -1,7 +1,7 @@
 package middlewares
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/dangduoc08/ginject/common"
@@ -24,7 +24,7 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 				newC.URL.String(),
 				"Method", newC.Method,
 				"Status", newC.Code,
-				"Time", fmt.Sprintf("%d ms", responseTime),
+				"Time", strconv.FormatInt(responseTime, 10) + " ms",
 				"Protocol", newC.Proto,
 				"User-Agent", newC.UserAgent(),
 				ctx.REQUEST_ID, newC.GetID(),
@@ -32,7 +32,7 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 		case ctx.WSType:
 			instance.Info(
 				newC.WS.Message.Event,
-				"Time", fmt.Sprintf("%d ms", responseTime),
+				"Time", strconv.FormatInt(responseTime, 10) + " ms",
 				"Subprotocol", newC.WS.GetSubprotocol(),
 				"User-Agent", newC.UserAgent(),
 			)

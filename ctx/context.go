@@ -130,6 +130,7 @@ func (c *Context) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
+	c.Event.reset()
 }
 
 func (c *Context) SetType(t string) *Context {

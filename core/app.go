@@ -93,8 +93,6 @@ var dependencies = map[string]int{
 type WithValueKey string
 
 func New() *App {
-	event := ctx.NewEvent()
-
 	app := App{
 		route:                                  routing.NewRouter(),
 		catchRESTFnsMap:                        make(map[string][]common.Catch),
@@ -106,8 +104,7 @@ func New() *App {
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
-				c.Event = event
-
+				c.Event = ctx.NewEvent()
 				return c
 			},
 		},
@@ -1076,13 +1073,13 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 				}
 			}
 		} else {
-			app.wsInvokeMiddlewares(c, exception.NotFoundException(fmt.Sprintf("Cannot emit %v event", wsMsg.Event)))
+			app.wsInvokeMiddlewares(c, exception.NotFoundException("Cannot emit "+wsMsg.Event+" event"))
 		}
 	}
 }
 
 func (app *App) provideAndInvoke(f any, c *ctx.Context) []reflect.Value {
-	var args []reflect.Value
+	args := make([]reflect.Value, 0, reflect.TypeOf(f).NumIn())
 	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
@@ -1163,7 +1160,7 @@ func (app *App) getContextID(c *ctx.Context) string {
 }
 
 func (app *App) returnNotFound(c *ctx.Context) {
-	notFoundException := exception.NotFoundException(fmt.Sprintf("Cannot %v %v", c.Method, c.URL.Path))
+	notFoundException := exception.NotFoundException("Cannot " + c.Method + " " + c.URL.Path)
 	httpCode, _ := notFoundException.GetHTTPStatus()
 	c.Status(httpCode)
 	c.JSON(ctx.Map{

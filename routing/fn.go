@@ -32,17 +32,41 @@ func PatternToMethodRouteVersion(pattern string) (string, string, string) {
 }
 
 func ToEndpoint(str string) string {
-	return utils.StrRemoveDup(
-		utils.StrRemoveDup(
-			utils.StrAddEnd(
-				utils.StrAddBegin(
-					utils.StrRemoveSpace(str), "/",
-				), "/",
-			),
-			"/",
-		),
-		"*",
-	)
+	if str == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.Grow(len(str) + 2)
+	b.WriteByte('/')
+	var prev byte = '/'
+	hadContent := false
+
+	for i := 0; i < len(str); i++ {
+		c := str[i]
+		if isASCIISpace(c) {
+			continue
+		}
+		hadContent = true
+		if (c == '/' && prev == '/') || (c == '*' && prev == '*') {
+			continue
+		}
+		b.WriteByte(c)
+		prev = c
+	}
+
+	if !hadContent {
+		return ""
+	}
+
+	if prev != '/' {
+		b.WriteByte('/')
+	}
+	return b.String()
+}
+
+func isASCIISpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
 }
 
 func MethodRouteVersionToPattern(method, route, version string) string {
@@ -52,18 +76,33 @@ func MethodRouteVersionToPattern(method, route, version string) string {
 func ParseToParamKey(str string) (string, map[string][]int) {
 	paramKey := make(map[string][]int)
 
-	if str != "" {
-		for i, s := range matchParamReg.FindAllString(str, -1) {
-			str = strings.Replace(str, s, "$", 1)
-			key := strings.TrimSuffix(strings.TrimPrefix(s, "{"), "}")
-			paramKey[key] = append(paramKey[key], i)
-		}
+	if str == "" || strings.IndexByte(str, '{') < 0 {
+		return str, paramKey
 	}
 
-	return str, paramKey
+	matches := matchParamReg.FindAllStringSubmatchIndex(str, -1)
+	if len(matches) == 0 {
+		return str, paramKey
+	}
+
+	var b strings.Builder
+	b.Grow(len(str))
+	prev := 0
+	for i, m := range matches {
+		b.WriteString(str[prev:m[0]])
+		b.WriteByte('$')
+		paramKey[str[m[2]:m[3]]] = append(paramKey[str[m[2]:m[3]]], i)
+		prev = m[1]
+	}
+	b.WriteString(str[prev:])
+	return b.String(), paramKey
 }
 
 func matchWildcard(str, route string) bool {
+	if strings.IndexByte(route, '*') < 0 {
+		return str == route
+	}
+
 	subStrArr := strings.Split(route, "*")
 
 	if len(route) < len(subStrArr) {
@@ -128,12 +167,37 @@ func checkRouteContainsParams(route string) bool {
 }
 
 func fromMethodtoPattern(method string) string {
-	return utils.StrAddEnd(utils.StrAddBegin(method, "["), "]")
+	if method == "" {
+		return method
+	}
+	hasL := strings.HasPrefix(method, "[")
+	hasR := strings.HasSuffix(method, "]")
+	if hasL && hasR {
+		return method
+	}
+	if !hasL && !hasR {
+		return "[" + method + "]"
+	}
+	if !hasL {
+		return "[" + method
+	}
+	return method + "]"
 }
 
 func fromVersiontoPattern(version string) string {
 	if version == "" {
 		return "||"
 	}
-	return utils.StrAddEnd(utils.StrAddBegin(version, "|"), "|")
+	hasL := strings.HasPrefix(version, "|")
+	hasR := strings.HasSuffix(version, "|")
+	if hasL && hasR {
+		return version
+	}
+	if !hasL && !hasR {
+		return "|" + version + "|"
+	}
+	if !hasL {
+		return "|" + version
+	}
+	return version + "|"
 }

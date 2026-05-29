@@ -3,7 +3,7 @@ package routing
 import (
 	"errors"
 	"net/http"
-	"path/filepath"
+	"path"
 	"reflect"
 
 	"github.com/dangduoc08/ginject/ctx"
@@ -148,7 +148,7 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	route = filepath.Clean(route) + "/|" + version + "|/[" + method + "]/"
+	route = path.Clean(route) + "/|" + version + "|/[" + method + "]/"
 	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}

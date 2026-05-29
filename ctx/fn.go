@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -923,14 +922,10 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 	return nil
 }
 
-var wsEventPrefixRe = regexp.MustCompile(`^(.*?)_`)
-
 func ResolveWSEventname(e string) (string, string) {
-	matchedStr := wsEventPrefixRe.FindStringSubmatch(e)
-	if len(matchedStr) < 2 {
+	i := strings.IndexByte(e, '_')
+	if i < 0 {
 		return "", e
 	}
-	subprotocol := matchedStr[1]
-	e = strings.Replace(e, matchedStr[0], "", 1)
-	return subprotocol, e
+	return e[:i], e[i+1:]
 }
