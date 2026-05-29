@@ -27,7 +27,24 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - **Concurrency & race conditions**: shared state accessed without synchronization, goroutines leaking, channels never closed, `sync.Mutex` locked but not unlocked on all paths, `sync/atomic` misuse
    - **Security**: SQL/command injection via string concat, hardcoded secrets, unvalidated external input used in file paths or exec calls, missing TLS verification, use of `math/rand` where `crypto/rand` is required
 
-6. **Lint** — if a `.golangci.yml` exists, run `golangci-lint run ./...` and fix all reported issues. If no config exists, run with default linters. Fix issues in this order:
+6. **Concurrency & deadlock audit** — for every type or function that touches shared state, work through this checklist:
+
+   **Race conditions**
+   - [ ] Is every read and write of shared state protected by the same lock (or `sync/atomic`)? Check that RLock is not used where a write can race.
+   - [ ] Does `Emit`/dispatch copy listeners into a **private slice** before releasing the lock? Holding a reference to the original backing array is not safe — a concurrent `Off` shifts elements in place while you iterate.
+   - [ ] For "fire-once" semantics: are once-listeners **removed atomically before execution** (steal pattern: take slice reference + delete map entry in the same critical section)? Removing *after* execution has a window where a second concurrent caller snapshots the same listeners and fires them again.
+   - [ ] Is I/O, `fmt.Print*`, or any blocking call done **outside** the lock? Holding a mutex across I/O serialises all other callers for the duration of the syscall.
+   - [ ] Are values that need to be passed out of a critical section (counts, flags) captured into local variables before `Unlock`, then used after? Never read a shared field after releasing the lock without re-acquiring it.
+   - [ ] Run `go test -race ./...` and fix every report before proceeding.
+
+   **Deadlocks**
+   - [ ] Does any callback, listener, or injected function call back into the same type (recursive locking)? Ensure the lock is **released before invoking external code**.
+   - [ ] Is the lock upgrade path (RLock → WLock) safe? `sync.RWMutex` does not support upgrading — you must `RUnlock` first, creating a window; if the window matters, use `Lock` for the whole operation.
+   - [ ] Is `Unlock` (or `RUnlock`) called on **every** return path, including early `return` and `panic`? Prefer `defer mu.Unlock()` immediately after `mu.Lock()` unless the lock must be released before a blocking call.
+   - [ ] Are channel sends/receives inside a locked section? A channel operation can block indefinitely, holding the lock and starving other goroutines.
+   - [ ] For `sync.WaitGroup`: is `Add` called before the goroutine is spawned (not inside it)? Is `Wait` called only after all `Add`s?
+
+7. **Lint** — if a `.golangci.yml` exists, run `golangci-lint run ./...` and fix all reported issues. If no config exists, run with default linters. Fix issues in this order:
    - Errors and bugs (`errcheck`, `staticcheck`, `govet`)
    - Security (`gosec`)
    - Style and correctness (`gocritic`, `errorlint`, `exhaustive`)
