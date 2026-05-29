@@ -3,7 +3,6 @@ package guards
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"net"
 	"strconv"
@@ -64,10 +63,7 @@ func (g ThrottlerGuard) CanActivate(c *ctx.Context) bool {
 	h.Set("X-RateLimit-Reset", strconv.FormatInt(res.resetAt, 10))
 
 	if !res.allowed {
-		retryAfter := res.resetAt - time.Now().Unix()
-		if retryAfter < 0 {
-			retryAfter = 0
-		}
+		retryAfter := max(res.resetAt-time.Now().Unix(), 0)
 		h.Set("Retry-After", strconv.FormatInt(retryAfter, 10))
 		panic(exception.TooManyRequestsException("Too Many Requests"))
 	}
@@ -94,13 +90,10 @@ func (g ThrottlerGuard) check(c *ctx.Context) rateLimitResult {
 }
 
 func (g ThrottlerGuard) fixedWindow(bgCtx context.Context, key string) rateLimitResult {
-	windowSec := int64(g.TTL.Seconds())
-	if windowSec < 1 {
-		windowSec = 1
-	}
+	windowSec := max(int64(g.TTL.Seconds()), 1)
 	nowSec := time.Now().Unix()
 	windowID := nowSec / windowSec
-	cacheKey := fmt.Sprintf("rl:fw:%s:%d", key, windowID)
+	cacheKey := "rl:fw:" + key + ":" + strconv.FormatInt(windowID, 10)
 	resetAt := (windowID + 1) * windowSec
 
 	var count int64 = 1
@@ -110,16 +103,10 @@ func (g ThrottlerGuard) fixedWindow(bgCtx context.Context, key string) rateLimit
 
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(count))
-	ttlRemaining := time.Duration(resetAt-nowSec) * time.Second
-	if ttlRemaining < time.Second {
-		ttlRemaining = time.Second
-	}
+	ttlRemaining := max(time.Duration(resetAt-nowSec)*time.Second, time.Second)
 	_ = g.Store.Set(bgCtx, cacheKey, buf, ttlRemaining)
 
-	remaining := g.Limit - count
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(g.Limit-count, 0)
 	return rateLimitResult{
 		allowed:   count <= g.Limit,
 		limit:     g.Limit,
@@ -129,16 +116,13 @@ func (g ThrottlerGuard) fixedWindow(bgCtx context.Context, key string) rateLimit
 }
 
 func (g ThrottlerGuard) slidingWindow(bgCtx context.Context, key string) rateLimitResult {
-	windowSec := int64(g.TTL.Seconds())
-	if windowSec < 1 {
-		windowSec = 1
-	}
+	windowSec := max(int64(g.TTL.Seconds()), 1)
 	nowSec := time.Now().Unix()
 	currWindowID := nowSec / windowSec
 	prevWindowID := currWindowID - 1
 
-	currKey := fmt.Sprintf("rl:sw:c:%s:%d", key, currWindowID)
-	prevKey := fmt.Sprintf("rl:sw:p:%s:%d", key, prevWindowID)
+	currKey := "rl:sw:c:" + key + ":" + strconv.FormatInt(currWindowID, 10)
+	prevKey := "rl:sw:p:" + key + ":" + strconv.FormatInt(prevWindowID, 10)
 	resetAt := (currWindowID + 1) * windowSec
 
 	elapsedInWindow := nowSec - currWindowID*windowSec
@@ -160,10 +144,7 @@ func (g ThrottlerGuard) slidingWindow(bgCtx context.Context, key string) rateLim
 	binary.BigEndian.PutUint64(buf, uint64(currCount))
 	_ = g.Store.Set(bgCtx, currKey, buf, time.Duration(2*windowSec)*time.Second)
 
-	remaining := g.Limit - weighted
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(g.Limit-weighted, 0)
 	return rateLimitResult{
 		allowed:   weighted <= g.Limit,
 		limit:     g.Limit,
@@ -174,7 +155,7 @@ func (g ThrottlerGuard) slidingWindow(bgCtx context.Context, key string) rateLim
 
 // token bucket state layout: [8 bytes float64 tokens][8 bytes int64 last_refill_ns]
 func (g ThrottlerGuard) tokenBucket(bgCtx context.Context, key string) rateLimitResult {
-	cacheKey := fmt.Sprintf("rl:tb:%s", key)
+	cacheKey := "rl:tb:" + key
 	refillRate := float64(g.Limit) / float64(g.TTL.Nanoseconds())
 
 	now := time.Now().UnixNano()

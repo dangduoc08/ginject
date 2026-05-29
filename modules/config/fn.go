@@ -32,7 +32,7 @@ func parseParamsToValue(k, v string, envMap map[string]any) string {
 
 	if len(matchedParams) > 0 {
 		for _, param := range matchedParams {
-			key := strings.TrimSuffix(strings.TrimPrefix(param, "${"), "}")
+			key := param[2 : len(param)-1]
 			if k == key {
 				panic(fmt.Errorf("%v is assigned to itself", key))
 			}

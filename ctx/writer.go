@@ -2,6 +2,7 @@ package ctx
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -51,5 +52,10 @@ func (jsonp *JSONP) WriteData(statusCode int) {
 func (text *Text) WriteData(statusCode int) {
 	text.responseWriter.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	text.responseWriter.WriteHeader(statusCode)
-	_, _ = fmt.Fprintf(text.responseWriter, text.data, text.args.([]any)...)
+	args := text.args.([]any)
+	if len(args) == 0 {
+		_, _ = io.WriteString(text.responseWriter, text.data)
+	} else {
+		_, _ = fmt.Fprintf(text.responseWriter, text.data, args...)
+	}
 }

@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -131,13 +130,13 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 				if route[firstSlashIndex+1:firstSlashIndex+2] == "{" {
 					firstParamIndex := strings.Index(remainRoutes, "}/")
 					if firstParamIndex > -1 {
-						route = fmt.Sprintf("%v%v/{%v}%v", shouldConcatRoute, remainRoutes[:firstParamIndex+1], param, remainRoutes[firstParamIndex+1:])
+						route = shouldConcatRoute + remainRoutes[:firstParamIndex+1] + "/{" + param + "}" + remainRoutes[firstParamIndex+1:]
 					}
 				} else {
-					route = fmt.Sprintf("%v/{%v}%v", shouldConcatRoute, param, remainRoutes)
+					route = shouldConcatRoute + "/{" + param + "}" + remainRoutes
 				}
 			} else {
-				route = fmt.Sprintf("%v/{%v}%v", shouldConcatRoute, param, remainRoutes)
+				route = shouldConcatRoute + "/{" + param + "}" + remainRoutes
 			}
 			continue
 		}
@@ -153,7 +152,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 			firstSlashIndex := strings.Index(route, "/")
 			shouldConcatRoute := route[:firstSlashIndex]
 			remainRoutes := route[firstSlashIndex:]
-			route = fmt.Sprintf("%v/%v%v", "*", shouldConcatRoute, remainRoutes)
+			route = "*/" + shouldConcatRoute + remainRoutes
 			continue
 		}
 	}

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -229,8 +228,8 @@ func ArrStrParseAny(arr []string) []any {
 
 func ArrIter(arr []any, dimmensions int, cb func(any, int)) {
 	for _, el := range arr {
-		if reflect.TypeOf(el).Kind() == reflect.Slice {
-			ArrIter(el.([]any), dimmensions-1, cb)
+		if sub, ok := el.([]any); ok {
+			ArrIter(sub, dimmensions-1, cb)
 		}
 		cb(el, dimmensions)
 	}

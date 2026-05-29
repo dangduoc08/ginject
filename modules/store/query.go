@@ -1,5 +1,7 @@
 package store
 
+import "strings"
+
 // Supported operators for Where conditions.
 const (
 	OpEq       = "eq"       // equal
@@ -81,7 +83,7 @@ func matchesConditions(doc Document, conds []Condition) bool {
 				return false
 			}
 		case OpContains:
-			if !containsStr(docVal, condVal) {
+			if condVal != "" && !strings.Contains(docVal, condVal) {
 				return false
 			}
 		default:
@@ -92,21 +94,3 @@ func matchesConditions(doc Document, conds []Condition) bool {
 	return true
 }
 
-func containsStr(haystack, needle string) bool {
-	if needle == "" {
-		return true
-	}
-	return len(haystack) >= len(needle) && findSubstring(haystack, needle)
-}
-
-func findSubstring(s, sub string) bool {
-	if len(sub) == 0 {
-		return true
-	}
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}
