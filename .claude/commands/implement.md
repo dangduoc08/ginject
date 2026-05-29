@@ -12,6 +12,7 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
    - State the public API (exported types, function signatures) in one short paragraph.
    - List the security-relevant invariants that must hold (input validation, auth checks, injection prevention, etc.).
    - If the design would change callers outside the file, flag it and ask before proceeding.
+   - **Concurrency design**: identify every piece of shared mutable state the feature will touch. For each: choose a synchronisation primitive (`sync.Mutex`, `sync.RWMutex`, `sync/atomic`, or channel), document the lock-acquisition order when multiple locks are involved, and confirm no goroutine outlives the caller without an explicit lifecycle contract (start/stop or context cancellation).
 
 4. **Implement** the feature:
    - Follow the existing package conventions (naming, error handling style, DI patterns).
@@ -28,7 +29,8 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
    - **TLS**: never disable `InsecureSkipVerify`; do not downgrade to plain HTTP for internal calls.
    - **Denial of service**: bound request body sizes (`http.MaxBytesReader`), timeouts on outbound calls, rate-limit loops over external input.
    - **Information leakage**: do not expose stack traces, internal paths, or raw DB errors to external callers.
-   - **Race conditions**: shared mutable state accessed from multiple goroutines must be protected (`sync.Mutex`, `sync/atomic`, or channels).
+   - **Race conditions**: every piece of shared mutable state must be protected (`sync.Mutex`, `sync/atomic`, or channels); no unprotected read-after-write across goroutines. Confirm with `-race`.
+   - **Deadlock prevention**: (a) **lock ordering** — always acquire multiple locks in the same documented order, never invert it; (b) **channel deadlock** — every unbuffered send must have a guaranteed receiver, no goroutine blocks indefinitely; (c) **mutex misuse** — every `Lock()` must have a paired `Unlock()` (prefer `defer`), never call a locking method while already holding the same non-reentrant mutex; (d) **context cancellation** — goroutines must `select` on `ctx.Done()` so they exit when cancelled and do not leak or hang.
    - **OWASP Top 10 applicability**: briefly check which OWASP categories apply to this feature and note any that are not covered.
 
 6. **Check tests and benchmarks**:
@@ -135,3 +137,4 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
 - If the implementation requires a new dependency, state it explicitly before adding it.
 - **Normalisation before capture**: assign output struct fields only after all input normalisation is complete — never capture a pre-normalised value.
 - **Hot-path initialisation**: any work that computes static config (string joins, map builds, defaults) must run once at init/constructor time, never on every request.
+- **Concurrency contract first**: before writing any concurrent code, state in the design which goroutines exist, what shared state they access, how that state is protected, and the lock-acquisition order. These decisions must be in the design (step 3), not discovered post-hoc during review.

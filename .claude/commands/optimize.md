@@ -16,7 +16,7 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 4. **Run benchmarks** (`go test -bench=. -benchmem`) to record baseline numbers.
 
 5. **Analyze** — look specifically for:
-   - Repeated work inside loops (regex compile, object creation, string concat with `+=`)
+   - Repeated work inside loops (regex compile, object creation, repeated allocations)
    - O(n²) patterns that can be reduced (e.g. string `+=` → `strings.Builder`)
    - Unnecessary allocations on hot paths (`make` / `[]T{}` that could be `var`)
    - Standard library functions that replace manual implementations (`strings.HasPrefix`, `strings.TrimPrefix`, `strings.HasSuffix`, `strings.TrimSuffix`, etc.)
@@ -24,7 +24,6 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - Potential panics from missing bounds checks
    - **Normalisation before capture**: if a function normalises an input field (e.g. `nil → "*"`, `[]string → map`) and then assigns the result to an output struct, ensure the assignment happens **after** all normalisation steps, not before. Assigning before normalisation silently captures the pre-normalised value and the output struct carries stale data.
    - **Hot-path initialisation**: if a function builds options/config structs (string joins, map construction, defaults) and is called on every request, move that work into a one-time initialisation step (e.g. `NewMiddleware`, a constructor, or `sync.Once`) and cache the result.
-   - **Concurrency & race conditions**: shared state accessed without synchronization, goroutines leaking, channels never closed, `sync.Mutex` locked but not unlocked on all paths, `sync/atomic` misuse
    - **Security**: SQL/command injection via string concat, hardcoded secrets, unvalidated external input used in file paths or exec calls, missing TLS verification, use of `math/rand` where `crypto/rand` is required
 
 6. **Concurrency & deadlock audit** — for every type or function that touches shared state, work through this checklist:
@@ -50,17 +49,18 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - Style and correctness (`gocritic`, `errorlint`, `exhaustive`)
    - Cosmetic (`godot`, `goconst`, `misspell`)
 
-7. **Apply** changes one at a time. After each change:
+8. **Apply** changes one at a time. After each change:
    - Run tests — if any fail, revert that specific change and note why.
    - For concurrency bugs, run with `-race` flag: `go test -race ./...`
    - Prefer readable, maintainable code over micro-optimizations. If the performance gain is marginal, keep the simpler version.
    - Always use functions available in newer versions of the language/stdlib over manual equivalents.
    - Security and race condition fixes are always applied regardless of readability trade-off.
 
-8. **Run benchmarks again** and compare to baseline.
+9. **Run benchmarks again** and compare to baseline.
 
-9. **Report** results in **two versions — English first, then Vietnamese** — each containing:
-   - A concise table: what was optimized, why (one-line reason), and benchmark delta (ns/op, allocs before → after).
+10. **Report** results in **two versions — English first, then Vietnamese** — each containing:
+   - A concise table: what was optimized / fixed, why (one-line reason), and benchmark delta (ns/op, allocs before → after).
+   - A separate section for concurrency fixes if any were applied.
    - A separate section for lint fixes if any were applied.
 
    **English version** format:
@@ -70,6 +70,9 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    | Change | Why | ns/op before → after | allocs before → after |
    |--------|-----|-----------------------|------------------------|
    | ...    | ... | ...                   | ...                    |
+
+   ### Concurrency fixes (if any)
+   | Issue | Fix |
 
    ### Lint fixes (if any)
    | Issue | Fix |
@@ -83,6 +86,9 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    | Thay đổi | Lý do | ns/op trước → sau | allocs trước → sau |
    |----------|-------|-------------------|---------------------|
    | ...      | ...   | ...               | ...                 |
+
+   ### Sửa lỗi concurrency (nếu có)
+   | Vấn đề | Cách sửa |
 
    ### Sửa lỗi lint (nếu có)
    | Vấn đề | Cách sửa |
