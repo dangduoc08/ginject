@@ -446,3 +446,20 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 
 	*controllers = uniqueControllers
 }
+
+func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.Context) []reflect.Value {
+	args := make([]reflect.Value, 0, reflect.TypeOf(f).NumIn())
+	getFnArgs(f, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
+		if _, ok := dependencies[dynamicArgKey]; ok {
+			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
+		} else {
+			panic(fmt.Errorf(
+				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				reflect.TypeOf(f).String(),
+				i,
+			))
+		}
+	})
+
+	return reflect.ValueOf(f).Call(args)
+}
