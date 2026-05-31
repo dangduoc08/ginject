@@ -15,10 +15,10 @@ func TestNew(t *testing.T) {
 		t.Fatal(testutils.DiffMessage(nil, "*App", "New should not return nil"))
 		return
 	}
-	if app.route == nil {
+	if app.http.route == nil {
 		t.Error(testutils.DiffMessage(nil, "router", "route not initialized"))
 	}
-	if app.catchRESTFnsMap == nil {
+	if app.http.catchRESTFnsMap == nil {
 		t.Error(testutils.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
 	}
 	if app.Logger != nil {
@@ -33,7 +33,7 @@ func TestGetContextIDFromHeader(t *testing.T) {
 	r.Header.Set(ctx.REQUEST_ID, "test-id-123")
 	c.Request = r
 
-	got := app.getContextID(c)
+	got := app.http.getContextID(c)
 	if got != "test-id-123" {
 		t.Error(testutils.DiffMessage(got, "test-id-123", "getContextID should use X-Request-Id header"))
 	}
@@ -46,8 +46,8 @@ func TestGetContextIDGeneratesUUID(t *testing.T) {
 	c2 := ctx.NewContext()
 	c2.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-	id1 := app.getContextID(c1)
-	id2 := app.getContextID(c2)
+	id1 := app.http.getContextID(c1)
+	id2 := app.http.getContextID(c2)
 
 	if id1 == "" {
 		t.Error(testutils.DiffMessage(id1, "non-empty UUID", "should generate UUID when header absent"))

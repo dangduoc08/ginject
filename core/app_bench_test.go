@@ -19,7 +19,7 @@ func BenchmarkServeHTTP(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		app.ServeHTTP(w, r)
+		app.http.ServeHTTP(w, r)
 	}
 }
 
@@ -54,6 +54,6 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		app.provideAndInvoke(handler, c)
+		invokeHandlerByProviders(handler, app.injectedProviders, c)
 	}
 }

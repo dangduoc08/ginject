@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,32 +18,30 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/utils"
 	"github.com/dangduoc08/ginject/versioning"
 	"golang.org/x/net/websocket"
 )
 
 type App struct {
-	route                                  *routing.Router
-	wsEventMap                             map[string][]ctx.Handler // to store WS layers, key = subscribe event name
-	wsMainHandlerMap                       map[string]any           // to store WS main handler
-	wsEventToID                            map[string][]string      // to store WS IDs, key = emit event name
-	wsEventToIDMu                          sync.RWMutex
-	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
-	module                                 *Module
-	ctxPool                                sync.Pool
-	globalMiddlewares                      []common.MiddlewareFn
-	globalGuarders                         []common.Guarder
-	globalInterceptors                     []common.Interceptable
-	globalExceptionFilters                 []common.ExceptionFilterable
-	injectedProviders                      map[string]Provider
-	catchRESTFnsMap                        map[string][]common.Catch
-	catchWSFnsMap                          map[string][]common.Catch
-	Logger                                 common.Logger
-	versioning                             *versioning.Versioning
-	isEnableVersioning                     bool
-	isEnableDevtool                        bool
-	devtool                                *devtool.Devtool
+	http *HTTP
+
+	isEnableDevtool bool
+	devtool         *devtool.Devtool
+
+	wsEventMap       map[string][]ctx.Handler // to store WS layers, key = subscribe event name
+	wsMainHandlerMap map[string]any           // to store WS main handler
+	wsEventToID      map[string][]string      // to store WS IDs, key = emit event name
+	wsEventToIDMu    sync.RWMutex
+	module           *Module
+
+	globalMiddlewares      []common.MiddlewareFn
+	globalGuarders         []common.Guarder
+	globalInterceptors     []common.Interceptable
+	globalExceptionFilters []common.ExceptionFilterable
+	injectedProviders      map[string]Provider
+
+	catchWSFnsMap map[string][]common.Catch
+	Logger        common.Logger
 }
 
 // link to aliases
@@ -94,20 +89,11 @@ type WithValueKey string
 
 func New() *App {
 	app := App{
-		route:                                  routing.NewRouter(),
-		catchRESTFnsMap:                        make(map[string][]common.Catch),
-		catchWSFnsMap:                          make(map[string][]common.Catch),
-		wsEventMap:                             make(map[string][]func(*ctx.Context)),
-		wsMainHandlerMap:                       make(map[string]any),
-		wsEventToID:                            make(map[string][]string),
-		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
-		ctxPool: sync.Pool{
-			New: func() any {
-				c := ctx.NewContext()
-				c.Event = ctx.NewEvent()
-				return c
-			},
-		},
+		http:             newHTTP(),
+		catchWSFnsMap:    make(map[string][]common.Catch),
+		wsEventMap:       make(map[string][]func(*ctx.Context)),
+		wsMainHandlerMap: make(map[string]any),
+		wsEventToID:      make(map[string][]string),
 	}
 
 	// binding default exception filter
@@ -128,6 +114,9 @@ func (app *App) Create(m *Module) {
 		injectedProviders[genProviderKey(provider)] = provider
 	}
 	app.injectedProviders = injectedProviders
+	app.http.invokeHandler = func(f any, c *ctx.Context) []reflect.Value {
+		return invokeHandlerByProviders(f, injectedProviders, c)
+	}
 
 	// Request cycles
 	// global exception filters
@@ -147,7 +136,7 @@ func (app *App) Create(m *Module) {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleExceptionFilter.Method]
 
 		endpoint := routing.MethodRouteVersionToPattern(httpMethod, moduleExceptionFilter.Route, moduleExceptionFilter.Version)
-		app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
+		app.http.catchRESTFnsMap[endpoint] = append(app.http.catchRESTFnsMap[endpoint], moduleExceptionFilter.Handler.(common.Catch))
 	}
 
 	// WS module exception filters
@@ -173,7 +162,7 @@ func (app *App) Create(m *Module) {
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
 			endpoint := routing.MethodRouteVersionToPattern(httpMethod, mainHandlerItem.Route, mainHandlerItem.Version)
-			app.catchRESTFnsMap[endpoint] = append(app.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
+			app.http.catchRESTFnsMap[endpoint] = append(app.http.catchRESTFnsMap[endpoint], globalExceptionFilter.Catch)
 		}
 
 		// WS global exception filters
@@ -185,7 +174,7 @@ func (app *App) Create(m *Module) {
 		}
 	}
 
-	for pattern, catchFns := range app.catchRESTFnsMap {
+	for pattern, catchFns := range app.http.catchRESTFnsMap {
 		catchMiddlewareWrapper := func(catchEvent string, catchFns []common.Catch) ctx.Handler {
 			return func(c *ctx.Context) {
 				c.Event.Once(catchEvent, func(args ...any) {
@@ -229,7 +218,7 @@ func (app *App) Create(m *Module) {
 		method, route, version := routing.PatternToMethodRouteVersion(pattern)
 		httpMethod := routing.OperationsMapHTTPMethods[method]
 
-		app.route.For([]string{httpMethod}, route, version)(catchMiddlewareWrapper)
+		app.http.route.For([]string{httpMethod}, route, version)(catchMiddlewareWrapper)
 	}
 
 	for pattern, catchFns := range app.catchWSFnsMap {
@@ -295,7 +284,7 @@ func (app *App) Create(m *Module) {
 		}(globalMiddleware)
 
 		// REST global middlewares
-		app.route.Use(useMiddlewareWrapper)
+		app.http.route.Use(useMiddlewareWrapper)
 
 		// WS global middlewares
 		for eventName := range common.InsertedEvents {
@@ -316,7 +305,7 @@ func (app *App) Create(m *Module) {
 
 		httpMethod := routing.OperationsMapHTTPMethods[restModuleMiddleware.Method]
 
-		app.route.For([]string{httpMethod}, restModuleMiddleware.Route, restModuleMiddleware.Version)(useMiddlewareWrapper)
+		app.http.route.For([]string{httpMethod}, restModuleMiddleware.Route, restModuleMiddleware.Version)(useMiddlewareWrapper)
 	}
 
 	// WS module middlewares
@@ -352,7 +341,7 @@ func (app *App) Create(m *Module) {
 		for _, mainHandlerItem := range app.module.RESTMainHandlers {
 			httpMethod := routing.OperationsMapHTTPMethods[mainHandlerItem.Method]
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(canActivateMiddleware)
+			app.http.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(canActivateMiddleware)
 		}
 
 		// WS global guards
@@ -373,7 +362,7 @@ func (app *App) Create(m *Module) {
 		}(moduleGuard.Handler.(common.CanActivate))
 
 		httpMethod := routing.OperationsMapHTTPMethods[moduleGuard.Method]
-		app.route.For([]string{httpMethod}, moduleGuard.Route, moduleGuard.Version)(canActivateMiddlewareWrapper)
+		app.http.route.For([]string{httpMethod}, moduleGuard.Route, moduleGuard.Version)(canActivateMiddlewareWrapper)
 	}
 
 	// WS module guards
@@ -435,7 +424,7 @@ func (app *App) Create(m *Module) {
 				}
 			}(globalInterceptor)
 
-			app.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(interceptMiddleware)
+			app.http.route.For([]string{httpMethod}, mainHandlerItem.Route, mainHandlerItem.Version)(interceptMiddleware)
 		}
 
 		// WS global interceptors
@@ -513,7 +502,7 @@ func (app *App) Create(m *Module) {
 		}(moduleInterceptor.Handler.(common.Intercept))
 
 		// add interceptor middleware
-		app.route.For([]string{httpMethod}, moduleInterceptor.Route, moduleInterceptor.Version)(interceptMiddleware)
+		app.http.route.For([]string{httpMethod}, moduleInterceptor.Route, moduleInterceptor.Version)(interceptMiddleware)
 	}
 
 	// WS module interceptors
@@ -556,18 +545,7 @@ func (app *App) Create(m *Module) {
 
 	// main REST handler
 	for _, moduleHandler := range app.module.RESTMainHandlers {
-		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
-		if moduleHandler.Method == routing.SERVE {
-			r := moduleHandler.Route
-			lr := len(r)
-			lastWildcardSlashIndex := 0 // zero mean use config dir
-			if lr >= 2 && r[lr-2:] == "*/" {
-				lastWildcardSlashIndex = strings.Count(r, "/") - 1
-			}
-
-			app.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
-		}
-		app.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
+		app.http.addMainHandler(moduleHandler)
 	}
 
 	// main WS handler
@@ -605,11 +583,7 @@ func (app *App) BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App {
 }
 
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
-	if v.Key == "" {
-		v.Key = "v"
-	}
-	app.versioning = &v
-	app.isEnableVersioning = true
+	app.http.enableVersioning(v)
 
 	return app
 }
@@ -631,37 +605,11 @@ func (app *App) Get(p Provider) any {
 	return app.injectedProviders[genProviderKey(p)]
 }
 
-func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := app.ctxPool.Get().(*ctx.Context)
-	c.Timestamp = time.Now()
-	c.ResponseWriter = w
-	c.Request = r
-	ctxID := app.getContextID(c)
-	c.SetID(ctxID)
-
-	defer func() {
-		c.Reset()
-		app.ctxPool.Put(c)
-	}()
-
-	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
-		c.SetType(ctx.WSType)
-		websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
-			app.handleWSRequest(wsConn, w, r, c)
-		}, w, r)
-	} else {
-		c.SetType(ctx.HTTPType)
-		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
-
-		app.handleRESTRequest(c)
-	}
-}
-
 func (app *App) Listen(port int) error {
 
 	// REST logs
 	routeArr := []string{}
-	for r, item := range app.route.Hash {
+	for r, item := range app.http.route.Hash {
 		if item.HandlerIndex > -1 {
 			routeArr = append(routeArr, r)
 		}
@@ -704,7 +652,7 @@ func (app *App) Listen(port int) error {
 
 	server := &http.Server{
 		Addr:    addr,
-		Handler: app,
+		Handler: app.http,
 
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       5 * time.Second,
@@ -717,192 +665,6 @@ func (app *App) Listen(port int) error {
 	logBoostrap(port)
 
 	return server.ListenAndServe()
-}
-
-func (app *App) handleRESTRequest(c *ctx.Context) {
-	var catchEvent string
-
-	defer func() {
-		if rec := recover(); rec != nil {
-
-			// Pipe errors run first
-			// then exception filter
-			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
-				totalErrorAggregations := len(errorAggregationOperators)
-
-				// Handle case if pipe error panic
-				defer func() {
-					if rec := recover(); rec != nil {
-						c.Event.Emit(catchEvent, c, rec, 0)
-					}
-				}()
-
-				for i := totalErrorAggregations - 1; i >= 0; i-- {
-					aggregation := errorAggregationOperators[i]
-					rec = aggregation(c, rec)
-				}
-			}
-
-			// Execute exception filters if any
-			// normally this one always ok
-			// since we always set global exception filter as default
-			if _, ok := app.catchRESTFnsMap[catchEvent]; ok && rec != nil {
-
-				// 3rd param is index of catch function
-				c.Event.Emit(catchEvent, c, rec, 0)
-			}
-		}
-	}()
-
-	isNext := true
-	c.Next = func() {
-		isNext = true
-	}
-
-	version := ""
-	if app.isEnableVersioning {
-		version = app.versioning.GetVersion(c)
-	}
-
-	isMatched, matchedRoute, paramKeys, paramValues, handlers := app.route.Match(c.Method, c.URL.Path, version)
-	if !isMatched {
-		isMatched, matchedRoute, paramKeys, paramValues, handlers = app.route.Match(c.Method, c.URL.Path, versioning.NEUTRAL_VERSION)
-	}
-
-	if app.isEnableVersioning {
-		if version == "" && isMatched {
-			// Invoke middlewares
-			for _, middleware := range app.route.GlobalMiddlewares {
-				if isNext {
-					isNext = false
-					middleware(c)
-				}
-			}
-
-			if isNext {
-				app.returnDeprecatedURL(c)
-			}
-
-			return
-		}
-	}
-
-	catchEvent = matchedRoute
-
-	if isMatched {
-		c.SetRoute(matchedRoute)
-		c.ParamKeys = paramKeys
-		c.ParamValues = paramValues
-		if c.Method == http.MethodPost {
-			c.Status(http.StatusCreated)
-		}
-
-		for _, handler := range handlers {
-			if isNext {
-				isNext = false
-				if handler == nil {
-
-					// handler = nil / main handler
-					// meaning this is injectable handler
-					injectableHandler := app.route.InjectableHandlers[matchedRoute]
-
-					// data return from main handler
-					data := app.provideAndInvoke(injectableHandler, c)
-
-					if aggregations, ok := c.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
-						var aggregatedData any
-						isMainHandlerCalled := true
-
-						totalAggregations := len(aggregations)
-
-						for i := totalAggregations - 1; i >= 0; i-- {
-							aggregation := aggregations[i]
-
-							if aggregation.IsMainHandlerCalled {
-
-								// set data from main handler into
-								// first interceptor
-								if i == totalAggregations-1 {
-									if len(data) == 1 {
-										aggregatedData = data[0].Interface()
-									} else if len(data) > 1 {
-										setStatusCode(c, data[0])
-										aggregatedData = data[1].Interface()
-									}
-								}
-
-								aggregation.SetMainData(aggregatedData)
-								aggregatedData = aggregation.Aggregate(c)
-							} else {
-								isMainHandlerCalled = false
-								if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
-									var dir any
-
-									if len(data) == 1 {
-										dir = data[0].Interface()
-									} else if len(data) > 1 {
-										setStatusCode(c, data[0])
-										dir = data[1].Interface()
-									}
-									app.serveContent(c, lastWildcardSlashIndex, dir)
-								} else {
-									returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
-								}
-								break
-							}
-						}
-
-						if isMainHandlerCalled {
-							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
-								var dir any
-
-								if len(data) == 1 {
-									dir = data[0].Interface()
-								} else if len(data) > 1 {
-									setStatusCode(c, data[0])
-									dir = data[1].Interface()
-								}
-								app.serveContent(c, lastWildcardSlashIndex, dir)
-							} else {
-								returnREST(c, reflect.ValueOf(aggregatedData))
-							}
-						}
-					} else {
-						if len(data) == 1 {
-							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
-								dir := data[0].Interface()
-								app.serveContent(c, lastWildcardSlashIndex, dir)
-							} else {
-								returnREST(c, data[0])
-							}
-						} else if len(data) > 1 {
-							setStatusCode(c, data[0])
-							if lastWildcardSlashIndex, ok := app.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
-								dir := data[1].Interface()
-								app.serveContent(c, lastWildcardSlashIndex, dir)
-							} else {
-								returnREST(c, data[1])
-							}
-						}
-					}
-				} else {
-					handler(c)
-				}
-			}
-		}
-	} else {
-		// Invoke middlewares
-		for _, middleware := range app.route.GlobalMiddlewares {
-			if isNext {
-				isNext = false
-				middleware(c)
-			}
-		}
-
-		if isNext {
-			app.returnNotFound(c)
-		}
-	}
 }
 
 func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r *http.Request, c *ctx.Context) {
@@ -1025,7 +787,7 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 						injectableHandler := app.wsMainHandlerMap[publishEventName]
 
 						// data return from main handler
-						data := app.provideAndInvoke(injectableHandler, c)
+						data := invokeHandlerByProviders(injectableHandler, app.injectedProviders, c)
 						if len(data) == 1 {
 							data = append(data, reflect.ValueOf("*"))
 							data[1], data[0] = data[0], data[1]
@@ -1076,23 +838,6 @@ func (app *App) handleWSRequest(wsConn *websocket.Conn, w http.ResponseWriter, r
 			app.wsInvokeMiddlewares(c, exception.NotFoundException("Cannot emit "+wsMsg.Event+" event"))
 		}
 	}
-}
-
-func (app *App) provideAndInvoke(f any, c *ctx.Context) []reflect.Value {
-	args := make([]reflect.Value, 0, reflect.TypeOf(f).NumIn())
-	getFnArgs(f, app.injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if _, ok := dependencies[dynamicArgKey]; ok {
-			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
-		} else {
-			panic(fmt.Errorf(
-				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
-				reflect.TypeOf(f).String(),
-				i,
-			))
-		}
-	})
-
-	return reflect.ValueOf(f).Call(args)
 }
 
 func (app *App) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(args ...any)) {
@@ -1149,49 +894,6 @@ func (app *App) wsInvokeMiddlewares(c *ctx.Context, exception exception.Exceptio
 	}
 }
 
-func (app *App) getContextID(c *ctx.Context) string {
-	reqID := c.Header().Get(ctx.REQUEST_ID)
-	if reqID == "" {
-		uuid, _ := utils.StrUUID()
-		return uuid
-	}
-
-	return reqID
-}
-
-func (app *App) returnNotFound(c *ctx.Context) {
-	notFoundException := exception.NotFoundException("Cannot " + c.Method + " " + c.URL.Path)
-	httpCode, _ := notFoundException.GetHTTPStatus()
-	c.Status(httpCode)
-	c.JSON(ctx.Map{
-		"code":    notFoundException.GetCode(),
-		"error":   notFoundException.Error(),
-		"message": notFoundException.GetResponse(),
-	})
-}
-
-func (app *App) returnInvalidURL(c *ctx.Context) {
-	badRequestException := exception.BadRequestException("Invalid URL path")
-	httpCode, _ := badRequestException.GetHTTPStatus()
-	c.Status(httpCode)
-	c.JSON(ctx.Map{
-		"code":    badRequestException.GetCode(),
-		"error":   badRequestException.Error(),
-		"message": badRequestException.GetResponse(),
-	})
-}
-
-func (app *App) returnDeprecatedURL(c *ctx.Context) {
-	goneException := exception.GoneException("Deprecated URL usage")
-	httpCode, _ := goneException.GetHTTPStatus()
-	c.Status(httpCode)
-	c.JSON(ctx.Map{
-		"code":    goneException.GetCode(),
-		"error":   goneException.Error(),
-		"message": goneException.GetResponse(),
-	})
-}
-
 func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
 	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OPERATOR_ERROR)
 	if len(errorOps) == 0 {
@@ -1210,32 +912,6 @@ func (app *App) setErrorAggregationOperators(c *ctx.Context, aggregationInstance
 	c.Request = c.WithContext(newCtx)
 }
 
-func (app *App) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
-	if dir, ok := dir.(string); ok {
-		if lastWildcardSlashIndex != 0 {
-			urlPath := utils.StrRemoveDup(c.URL.Path, "/")
-			urlPathArr := strings.Split(urlPath, "/")
-			suffix := strings.Join(urlPathArr[lastWildcardSlashIndex:], "/")
-			oldDir := dir
-			dir = path.Join(dir, suffix)
-
-			if len(dir) < len(oldDir) {
-				app.returnInvalidURL(c)
-				return
-			}
-		}
-
-		if _, err := os.Stat(dir); os.IsNotExist(err) || err != nil {
-			app.returnNotFound(c)
-		} else {
-			http.ServeFile(c.ResponseWriter, c.Request, dir)
-			c.Event.Emit(ctx.REQUEST_FINISHED, c)
-		}
-	} else {
-		app.returnNotFound(c)
-	}
-}
-
 func (app *App) createDevtool() {
 	devtoolBuilder := devtool.DevtoolBuilder()
 
@@ -1244,7 +920,7 @@ func (app *App) createDevtool() {
 		AddMiddlewares(app.globalMiddlewares, app.module.RESTMiddlewares).
 		AddGuarders(app.globalGuarders, app.module.RESTGuards).
 		AddInterceptors(app.globalInterceptors, app.module.RESTInterceptors).
-		AddVersioning(app.versioning).
+		AddVersioning(app.http.versioning).
 		AddRESTMainHandlers(app.module.RESTMainHandlers).
 		Build()
 
