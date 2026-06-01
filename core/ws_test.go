@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/middlewares"
+	"github.com/dangduoc08/ginject/middlewares/cors"
 	"github.com/dangduoc08/ginject/testutils"
 )
 
@@ -52,7 +52,7 @@ func TestCreate_WithoutCORS_CORSAllowOriginNil(t *testing.T) {
 
 func TestCreate_WithCORS_CORSAllowOriginSet(t *testing.T) {
 	app := New()
-	app.BindGlobalMiddlewares(middlewares.CORS{})
+	app.BindGlobalMiddlewares(cors.CORS{})
 	app.Create(ModuleBuilder().Build())
 	if app.ws.corsAllowOrigin == nil {
 		t.Error(testutils.DiffMessage(nil, "func", "corsAllowOrigin should be wired when CORS middleware is bound"))
