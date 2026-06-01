@@ -1183,7 +1183,7 @@ func TestHook_BeforePublish_Panic_DeliveryNotAborted(t *testing.T) {
 		RecoverPanics: true,
 		BeforePublish: func(string, any) { panic("before-publish boom") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 
 	_ = b.Publish("t", nil)
@@ -1199,7 +1199,7 @@ func TestHook_AfterPublish_Panic_DoesNotCrash(t *testing.T) {
 		RecoverPanics: true,
 		AfterPublish:  func(string, any, error) { panic("after-publish boom") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 
 	_ = b.Publish("t", nil)
@@ -1215,7 +1215,7 @@ func TestHook_BeforeDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 		RecoverPanics:  true,
 		BeforeDispatch: func(*Message, int) { panic("before-dispatch boom") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
@@ -1233,7 +1233,7 @@ func TestHook_AfterDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 		RecoverPanics: true,
 		AfterDispatch: func(*Message, int) { panic("after-dispatch boom") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
@@ -1251,7 +1251,7 @@ func TestHook_OnPanic_Panic_DoesNotCrash(t *testing.T) {
 		RecoverPanics: true,
 		OnPanic:       func(*Message, any) { panic("on-panic boom") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	_, _ = b.Subscribe("t", func(*Message) { panic("subscriber boom") })
 	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 
@@ -1272,7 +1272,7 @@ func TestHook_AllPanic_AllSubscribersStillReceive(t *testing.T) {
 		AfterDispatch:  func(*Message, int) { panic("ad") },
 		OnPanic:        func(*Message, any) { panic("op") },
 	})
-	defer b.Close()
+	defer func() { _ = b.Close() }()
 	for i := 0; i < 5; i++ {
 		_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
 	}
