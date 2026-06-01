@@ -18,7 +18,7 @@ func TestNew(t *testing.T) {
 	if app.http.route == nil {
 		t.Error(testutils.DiffMessage(nil, "router", "route not initialized"))
 	}
-	if app.http.catchRESTFnsMap == nil {
+	if app.http.catchFnsMap == nil {
 		t.Error(testutils.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
 	}
 	if app.Logger != nil {

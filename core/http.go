@@ -16,25 +16,27 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/utils"
 	"github.com/dangduoc08/ginject/versioning"
+	"golang.org/x/net/websocket"
 )
 
 type HTTP struct {
+	ctxPool sync.Pool
+
 	route *routing.Router
 
-	versioning         *versioning.Versioning
-	isEnableVersioning bool
+	versioning                             *versioning.Versioning
+	isEnableVersioning                     bool
+	catchFnsMap                            map[string][]common.Catch
+	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
 
 	invokeHandler func(f any, c *ctx.Context) []reflect.Value
-
-	ctxPool                                sync.Pool
-	catchRESTFnsMap                        map[string][]common.Catch
-	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
+	wsHandler     func(wsConn *websocket.Conn, c *ctx.Context)
 }
 
 func newHTTP() *HTTP {
 	http := HTTP{
 		route:                                  routing.NewRouter(),
-		catchRESTFnsMap:                        make(map[string][]common.Catch),
+		catchFnsMap:                            make(map[string][]common.Catch),
 		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
 		ctxPool: sync.Pool{
 			New: func() any {
@@ -62,15 +64,26 @@ func (http *HTTP) ServeHTTP(w stdHTTP.ResponseWriter, r *stdHTTP.Request) {
 	}()
 
 	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
-		// c.SetType(ctx.WSType)
-		// websocket.Handler.ServeHTTP(func(wsConn *websocket.Conn) {
-		// 	app.handleWSRequest(wsConn, w, r, c)
-		// }, w, r)
+		c.SetType(ctx.WSType)
+
+		s := websocket.Server{
+			Handler: websocket.Handler(func(wsConn *websocket.Conn) {
+				http.wsHandler(wsConn, c)
+			}),
+
+			Handshake: func(cfg *websocket.Config, req *stdHTTP.Request) error {
+				return nil
+			},
+		}
+
+		s.ServeHTTP(w, r)
+		return
+
 	} else {
 		c.SetType(ctx.HTTPType)
 		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
 
-		http.handleRESTRequest(c)
+		http.handleRequest(c)
 	}
 }
 
@@ -97,7 +110,7 @@ func (http *HTTP) addMainHandler(moduleHandler common.RESTLayer) {
 	http.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
 }
 
-func (http *HTTP) handleRESTRequest(c *ctx.Context) {
+func (http *HTTP) handleRequest(c *ctx.Context) {
 	var catchEvent string
 
 	defer func() {
@@ -124,7 +137,7 @@ func (http *HTTP) handleRESTRequest(c *ctx.Context) {
 			// Execute exception filters if any
 			// normally this one always ok
 			// since we always set global exception filter as default
-			if _, ok := http.catchRESTFnsMap[catchEvent]; ok && rec != nil {
+			if _, ok := http.catchFnsMap[catchEvent]; ok && rec != nil {
 
 				// 3rd param is index of catch function
 				c.Event.Emit(catchEvent, c, rec, 0)
