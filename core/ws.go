@@ -46,15 +46,11 @@ func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, c *ctx.Conte
 		Handler: websocket.Handler(func(wsConn *websocket.Conn) {
 			ws.handleRequest(wsConn, c)
 		}),
-		Handshake: func(cfg *websocket.Config, req *stdHTTP.Request) error {
-			if ws.corsAllowOrigin == nil {
+		Handshake: func(cfg *websocket.Config, _ *stdHTTP.Request) error {
+			if ws.corsAllowOrigin == nil || cfg.Origin == nil {
 				return nil
 			}
-			origin := req.Header.Get("Origin")
-			if origin == "" {
-				return nil
-			}
-			if ws.corsAllowOrigin(origin) {
+			if ws.corsAllowOrigin(cfg.Origin.String()) {
 				return nil
 			}
 			return stdHTTP.ErrAbortHandler
