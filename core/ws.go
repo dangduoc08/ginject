@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
+	brok "github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
@@ -82,8 +83,8 @@ func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {
 	}
 
 	for _, subscribedEventName := range wsSubscribedEvents {
-		ws.addWSEvent(subscribedEventName, wsid, c, func(args ...any) {
-			_ = wsInstance.SendToConn(c, wsConn, args[0].(string))
+		ws.addWSEvent(subscribedEventName, wsid, c, func(s string) {
+			_ = wsInstance.SendToConn(c, wsConn, s)
 		})
 	}
 
@@ -125,7 +126,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 
 				defer func() {
 					if rec := recover(); rec != nil {
-						c.Event.Emit(publishEventName, c, rec, 0)
+						_ = c.Broker.Publish(publishEventName, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 					}
 				}()
 
@@ -136,7 +137,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 			}
 
 			if _, ok := ws.catchFnsMap[publishEventName]; ok && rec != nil {
-				c.Event.Emit(publishEventName, c, rec, 0)
+				_ = c.Broker.Publish(publishEventName, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
 
 			newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
@@ -210,15 +211,17 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 	return false
 }
 
-func (ws *WS) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(args ...any)) {
-	c.Event.On(subscribedEventName+wsid, cb)
+func (ws *WS) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(string)) {
+	_, _ = c.Broker.Subscribe(subscribedEventName+wsid, func(m *brok.Message) {
+		cb(m.Payload.(string))
+	})
 	ws.eventToIDMu.Lock()
 	ws.eventToID[subscribedEventName] = append(ws.eventToID[subscribedEventName], wsid)
 	ws.eventToIDMu.Unlock()
 }
 
 func (ws *WS) removeWSEvent(subscribedEventName, wsid string, c *ctx.Context) {
-	c.Event.RemoveAllListeners(subscribedEventName + wsid)
+	_ = c.Broker.Off(subscribedEventName + wsid)
 	ws.eventToIDMu.Lock()
 	old := ws.eventToID[subscribedEventName]
 	filtered := make([]string, 0, len(old))
@@ -236,7 +239,7 @@ func (ws *WS) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Cont
 	wsids := ws.eventToID[configPublishedEventName]
 	ws.eventToIDMu.RUnlock()
 	for _, wsid := range wsids {
-		c.Event.Emit(configPublishedEventName+wsid, wsMsg)
+		_ = c.Broker.Publish(configPublishedEventName+wsid, wsMsg)
 	}
 	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
 	c.Request = c.WithContext(newCtx)

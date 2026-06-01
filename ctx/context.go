@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/utils"
 )
 
@@ -14,6 +15,11 @@ type (
 	Handler  = func(*Context)
 	Next     = func()
 	Redirect = func(string)
+)
+
+const (
+	REQUEST_FINISHED = "REQUEST_FINISHED"
+	CATCH_EXCEPTION  = "CATCH_EXCEPTION"
 )
 
 type Context struct {
@@ -36,12 +42,10 @@ type Context struct {
 	Type  string
 
 	Next      Next
-	Event     *event
+	Broker    broker.Broker
 	Code      int
 	Timestamp time.Time
 
-	// Extend context
-	// WebSocket
 	WS *WS
 }
 
@@ -70,7 +74,7 @@ func (c *Context) Text(data string, args ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 }
 
 func (c *Context) JSON(data ...any) {
@@ -79,7 +83,7 @@ func (c *Context) JSON(data ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 }
 
 func (c *Context) JSONP(data ...any) {
@@ -95,7 +99,7 @@ func (c *Context) JSONP(data ...any) {
 		callback:       callback,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 }
 
 func (c *Context) GetRoute() string {
@@ -110,7 +114,7 @@ func (c *Context) SetRoute(route string) *Context {
 func (c *Context) Redirect(url string) {
 	c.Status(http.StatusMovedPermanently)
 	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 }
 
 func (c *Context) Reset() {
@@ -130,7 +134,7 @@ func (c *Context) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
-	c.Event.reset()
+	_ = c.Broker.Clear()
 }
 
 func (c *Context) SetType(t string) *Context {

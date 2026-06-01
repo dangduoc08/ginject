@@ -226,7 +226,7 @@ func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
 			c.Status(opts.optionsSuccessStatus)
 			c.WriteHeader(opts.optionsSuccessStatus)
 			c.ResponseWriter.Header().Set("Content-Length", "0")
-			c.Event.Emit(ctx.REQUEST_FINISHED, c)
+			_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 		}
 
 		return

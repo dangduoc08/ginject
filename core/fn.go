@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dangduoc08/ginject/broker"
+
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -466,23 +468,30 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 	return reflect.ValueOf(f).Call(args)
 }
 
+type catchEventPayload struct {
+	reqCtx    *ctx.Context
+	recovered any
+	index     int
+}
+
 func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
 	return func(c *ctx.Context) {
-		c.Event.Once(catchEvent, func(args ...any) {
-			catchFnIndex := args[2].(int)
+		_, _ = c.Broker.Once(catchEvent, func(m *broker.Message) {
+			p := m.Payload.(catchEventPayload)
+			catchFnIndex := p.index
 
 			defer func() {
 				if rec := recover(); rec != nil {
-					c.Event.Emit(catchEvent, c, rec, catchFnIndex+1)
+					_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: catchFnIndex + 1})
 				}
 			}()
 
-			newC := args[0].(*ctx.Context)
+			newC := p.reqCtx
 			catchFn := catchFns[catchFnIndex]
 
 			response := http.StatusText(http.StatusInternalServerError)
 
-			switch arg := args[1].(type) {
+			switch arg := p.recovered.(type) {
 			case exception.Exception:
 				catchFn(newC, &arg)
 				return

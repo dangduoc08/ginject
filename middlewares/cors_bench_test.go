@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 )
 
@@ -17,7 +18,7 @@ func newBenchContext(method, origin string) *ctx.Context {
 	c := ctx.NewContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Event = ctx.NewEvent()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c
 }
 
