@@ -2,12 +2,14 @@ package main
 
 import (
 	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/guards/throttler"
 	"github.com/dangduoc08/ginject/log"
-	"github.com/dangduoc08/ginject/middlewares"
+	"github.com/dangduoc08/ginject/middlewares/cors"
+	"github.com/dangduoc08/ginject/middlewares/helmet"
+	"github.com/dangduoc08/ginject/middlewares/requestlogger"
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
-	"github.com/dangduoc08/ginject/versioning"
 )
 
 func main() {
@@ -19,16 +21,16 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(middlewares.CORS{}, middlewares.RequestLogger{}, middlewares.Helmet{}).
+		BindGlobalMiddlewares(cors.CORS{}, requestlogger.RequestLogger{}, helmet.Helmet{}).
 		BindGlobalInterceptors(shared.ResponseInterceptor{}).
-		BindGlobalGuards(shared.RateLimiterGuard{})
+		BindGlobalGuards(throttler.Throttler{})
 
-	app.
-		EnableVersioning(versioning.Versioning{
-			Type: versioning.HEADER,
-			Key:  confs.ENV.APIVersionName,
-		}).
-		EnableDevtool()
+	// app.
+	// 	EnableVersioning(versioning.Versioning{
+	// 		Type: versioning.HEADER,
+	// 		Key:  confs.ENV.APIVersionName,
+	// 	}).
+	// 	EnableDevtool()
 
 	app.Create(
 		core.ModuleBuilder().
