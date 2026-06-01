@@ -3,6 +3,7 @@ package middlewares
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 
 	"github.com/dangduoc08/ginject/broker"
@@ -60,6 +61,30 @@ func BenchmarkCORS_Use_Preflight(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		mw.Use(c, noop)
+	}
+}
+
+func BenchmarkAllowedOrigin_Wildcard(b *testing.B) {
+	m := compiledCORS{opts: loadCORSOptions(&CORS{})}
+	b.ResetTimer()
+	for range b.N {
+		_ = m.AllowedOrigin("https://example.com")
+	}
+}
+
+func BenchmarkAllowedOrigin_Map(b *testing.B) {
+	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}})}
+	b.ResetTimer()
+	for range b.N {
+		_ = m.AllowedOrigin("https://example.com")
+	}
+}
+
+func BenchmarkAllowedOrigin_Regexp(b *testing.B) {
+	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.example\.com$`)})}
+	b.ResetTimer()
+	for range b.N {
+		_ = m.AllowedOrigin("https://sub.example.com")
 	}
 }
 

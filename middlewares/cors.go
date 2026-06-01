@@ -197,6 +197,27 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	return opts
 }
 
+func (m compiledCORS) AllowedOrigin(origin string) bool {
+	opts := m.opts
+	switch allowOrigin := opts.allowOrigin.(type) {
+	case string:
+		if allowOrigin == "*" {
+			if opts.isAllowCredentials {
+				return origin != "null" && origin != ""
+			}
+			return true
+		}
+		return origin == allowOrigin
+	case map[string]bool:
+		_, ok := allowOrigin[origin]
+		return ok
+	case *regexp.Regexp:
+		return allowOrigin.MatchString(origin)
+	default:
+		return false
+	}
+}
+
 func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
 	opts := m.opts
 
