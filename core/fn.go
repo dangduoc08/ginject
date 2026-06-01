@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/utils"
 )
 
@@ -462,4 +465,89 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 	})
 
 	return reflect.ValueOf(f).Call(args)
+}
+
+func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
+	return func(c *ctx.Context) {
+		c.Event.Once(catchEvent, func(args ...any) {
+			catchFnIndex := args[2].(int)
+
+			defer func() {
+				if rec := recover(); rec != nil {
+					c.Event.Emit(catchEvent, c, rec, catchFnIndex+1)
+				}
+			}()
+
+			newC := args[0].(*ctx.Context)
+			catchFn := catchFns[catchFnIndex]
+
+			response := http.StatusText(http.StatusInternalServerError)
+
+			switch arg := args[1].(type) {
+			case exception.Exception:
+				catchFn(newC, &arg)
+				return
+			case error:
+				response = arg.Error()
+			case string:
+				response = arg
+			case int, int8, int16, int32, int64,
+				uint, uint8, uint16, uint32, uint64,
+				float32, float64, complex64, complex128, uintptr:
+				_ = arg
+			}
+			ex := exception.InternalServerErrorException(response, map[string]any{
+				"description": "Unknown exception",
+			})
+			catchFn(newC, &ex)
+		})
+
+		c.Next()
+	}
+}
+
+func buildInterceptMiddleware(key string, interceptFn func(*ctx.Context, *aggregation.Aggregation) any) ctx.Handler {
+	return func(c *ctx.Context) {
+		aggregationInstance := aggregation.NewAggregation()
+
+		if aggregations, ok := c.Context().Value(WithValueKey(key)).([]*aggregation.Aggregation); ok {
+			aggregations = append(aggregations, aggregationInstance)
+			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), aggregations))
+		} else {
+			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), []*aggregation.Aggregation{aggregationInstance}))
+		}
+
+		aggregationInstance.IsMainHandlerCalled = false
+		aggregationInstance.SetMainData(nil)
+
+		aggregationInstance.InterceptorData = interceptFn(c, aggregationInstance)
+		setErrorAggregationOperators(c, aggregationInstance)
+
+		c.Next()
+	}
+}
+
+func buildUseMiddleware(useFn common.Use) ctx.Handler {
+	return func(c *ctx.Context) { useFn(c, c.Next) }
+}
+
+func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
+	return func(c *ctx.Context) { common.HandleGuard(c, canActiveFn(c)) }
+}
+
+func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
+	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OPERATOR_ERROR)
+	if len(errorOps) == 0 {
+		return
+	}
+	var existing []aggregation.AggregationOperator
+	if v := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)); v != nil {
+		existing = v.([]aggregation.AggregationOperator)
+	}
+	merged := make([]aggregation.AggregationOperator, len(existing), len(existing)+len(errorOps))
+	copy(merged, existing)
+	for _, op := range errorOps {
+		merged = append(merged, op.Aggregation)
+	}
+	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), merged))
 }
