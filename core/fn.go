@@ -27,13 +27,11 @@ func isDynamicModule(moduleType string) bool {
 	return strings.HasPrefix(moduleType, "func(") && strings.HasSuffix(moduleType, "*core.Module")
 }
 
-// function were re-use at
-// dynamic module
-// isInjectable handler
-// checking pipe
-// due to all this patterns inject dependencies as function arguments
 func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int, reflect.Value)) {
-	injectableFnType := reflect.TypeOf(f)
+	getFnArgsByType(reflect.TypeOf(f), injectedProviders, cb)
+}
+
+func getFnArgsByType(injectableFnType reflect.Type, injectedProviders map[string]Provider, cb func(string, int, reflect.Value)) {
 	for i := 0; i < injectableFnType.NumIn(); i++ {
 		argType := injectableFnType.In(i)
 		arg := argType.PkgPath() + "/" + argType.String()
@@ -203,7 +201,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(dependencies[componentFieldKey]))
 		} else if componentFieldKey != "" && globalProviders[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviders[componentFieldKey]))
-		} else if globalInterfaces[componentFieldKey] != nil {
+		} else if componentFieldKey != "" && globalInterfaces[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalInterfaces[componentFieldKey]))
 		} else if !isInjectedProvider(componentFieldType) {
 
@@ -247,7 +245,7 @@ func logBoostrap(port int) {
 	accessURLs := utils.FmtBold("%s", utils.FmtBGYellow(" GG! Here Are Your Access URLs: ")) + "\n"
 	divider := utils.FmtDim("--------------------------------------------") + "\n"
 	host := utils.FmtBold("%s", utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
-	lan := utils.FmtBold("%s", utils.FmtWhite("      LAN: ")) + utils.FmtMagenta("%s", fmt.Sprintf("%v:%v", getLocalIP(), port)) + "\n"
+	lan := utils.FmtBold("%s", utils.FmtWhite("      LAN: ")) + utils.FmtMagenta("%v:%v", getLocalIP(), port) + "\n"
 	close := utils.FmtItalic("%s", utils.FmtGreen("Press CTRL+C to stop")) + "\n"
 
 	_, _ = fmt.Fprint(os.Stdout, "\n"+accessURLs+divider+host+lan+divider+close)
@@ -451,14 +449,15 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 }
 
 func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.Context) []reflect.Value {
-	args := make([]reflect.Value, 0, reflect.TypeOf(f).NumIn())
-	getFnArgs(f, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
+	fType := reflect.TypeOf(f)
+	args := make([]reflect.Value, 0, fType.NumIn())
+	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := dependencies[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
 				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
-				reflect.TypeOf(f).String(),
+				fType.String(),
 				i,
 			))
 		}
@@ -550,4 +549,21 @@ func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregati
 		merged = append(merged, op.Aggregation)
 	}
 	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), merged))
+}
+
+func getWSEventKeys() []string {
+	keys := make([]string, 0, len(common.InsertedEvents))
+	for k := range common.InsertedEvents {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func getContextID(c *ctx.Context) string {
+	reqID := c.Header().Get(ctx.REQUEST_ID)
+	if reqID == "" {
+		uuid, _ := utils.StrUUID()
+		return uuid
+	}
+	return reqID
 }

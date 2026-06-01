@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	stdHTTP "net/http"
 	"reflect"
 	"sync"
 	"time"
@@ -18,11 +19,12 @@ import (
 type WS struct {
 	eventToIDMu sync.RWMutex
 
-	eventMap          map[string][]ctx.Handler // to store WS layers, key = subscribe event name
-	mainHandlerMap    map[string]any           // to store WS main handler
-	eventToID         map[string][]string      // to store WS IDs, key = emit event name
+	eventMap          map[string][]ctx.Handler
+	mainHandlerMap    map[string]any
+	eventToID         map[string][]string
 	catchFnsMap       map[string][]common.Catch
 	globalMiddlewares *[]common.MiddlewareFn
+	// allowedWSOrigins  map[string]struct{}
 
 	invokeHandler func(f any, c *ctx.Context) []reflect.Value
 }
@@ -36,6 +38,29 @@ func newWS() *WS {
 	}
 
 	return &ws
+}
+
+func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, c *ctx.Context) {
+	s := websocket.Server{
+		Handler: websocket.Handler(func(wsConn *websocket.Conn) {
+			ws.handleRequest(wsConn, c)
+		}),
+		Handshake: func(cfg *websocket.Config, req *stdHTTP.Request) error {
+			return nil
+			// if len(ws.allowedWSOrigins) == 0 {
+			// 	return nil
+			// }
+			// origin := req.Header.Get("Origin")
+			// if origin == "" {
+			// 	return nil
+			// }
+			// if _, ok := ws.allowedWSOrigins[origin]; ok {
+			// 	return nil
+			// }
+			// return stdHTTP.ErrAbortHandler
+		},
+	}
+	s.ServeHTTP(w, r)
 }
 
 func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {

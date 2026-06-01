@@ -19,7 +19,7 @@ func BenchmarkServeHTTP(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		app.http.ServeHTTP(w, r)
+		app.ServeHTTP(w, r)
 	}
 }
 
