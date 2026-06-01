@@ -1,9 +1,12 @@
 package core
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
+	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/testutils"
 )
 
@@ -113,4 +116,187 @@ func TestIsInjectedProvider(t *testing.T) {
 	if isInjectedProvider(notProviderType) {
 		t.Error(testutils.DiffMessage(true, false, "anonymous struct should not be injectable"))
 	}
+}
+
+func TestSetStatusCodeInt(t *testing.T) {
+	c := newHTTPContext()
+	setStatusCode(c, reflect.ValueOf(http.StatusOK))
+	if c.Code != http.StatusOK {
+		t.Error(testutils.DiffMessage(c.Code, http.StatusOK, "setStatusCode reflect.Int"))
+	}
+}
+
+func TestSetStatusCodeInvalidInt(t *testing.T) {
+	c := newHTTPContext()
+	c.Status(http.StatusTeapot)
+	setStatusCode(c, reflect.ValueOf(9999))
+	if c.Code != http.StatusTeapot {
+		t.Error(testutils.DiffMessage(c.Code, http.StatusTeapot, "setStatusCode invalid int should not change status"))
+	}
+}
+
+func TestSetStatusCodeInterfaceValid(t *testing.T) {
+	c := newHTTPContext()
+	var v any = http.StatusCreated
+	setStatusCode(c, reflect.ValueOf(v))
+	if c.Code != http.StatusCreated {
+		t.Error(testutils.DiffMessage(c.Code, http.StatusCreated, "setStatusCode interface valid int"))
+	}
+}
+
+func TestSetStatusCodeInterfaceInvalid(t *testing.T) {
+	c := newHTTPContext()
+	c.Status(http.StatusTeapot)
+	var v any = "not-an-int"
+	setStatusCode(c, reflect.ValueOf(v))
+	if c.Code != http.StatusTeapot {
+		t.Error(testutils.DiffMessage(c.Code, http.StatusTeapot, "setStatusCode interface non-int should not change status"))
+	}
+}
+
+func TestReturnRESTString(t *testing.T) {
+	c := newHTTPContext()
+	w := c.ResponseWriter.(*httptest.ResponseRecorder)
+	returnREST(c, reflect.ValueOf("hello"))
+	if w.Body.String() != "hello" {
+		t.Error(testutils.DiffMessage(w.Body.String(), "hello", "returnREST string"))
+	}
+}
+
+func TestReturnRESTMap(t *testing.T) {
+	c := newHTTPContext()
+	w := c.ResponseWriter.(*httptest.ResponseRecorder)
+	returnREST(c, reflect.ValueOf(map[string]any{"k": "v"}))
+	if w.Body.Len() == 0 {
+		t.Error(testutils.DiffMessage(0, ">0", "returnREST map should produce JSON body"))
+	}
+}
+
+func TestReturnRESTInt(t *testing.T) {
+	c := newHTTPContext()
+	w := c.ResponseWriter.(*httptest.ResponseRecorder)
+	returnREST(c, reflect.ValueOf(42))
+	if w.Body.String() != "42" {
+		t.Error(testutils.DiffMessage(w.Body.String(), "42", "returnREST int"))
+	}
+}
+
+func TestReturnRESTBool(t *testing.T) {
+	c := newHTTPContext()
+	w := c.ResponseWriter.(*httptest.ResponseRecorder)
+	returnREST(c, reflect.ValueOf(true))
+	if w.Body.String() != "true" {
+		t.Error(testutils.DiffMessage(w.Body.String(), "true", "returnREST bool"))
+	}
+}
+
+func TestReturnRESTSlice(t *testing.T) {
+	c := newHTTPContext()
+	w := c.ResponseWriter.(*httptest.ResponseRecorder)
+	returnREST(c, reflect.ValueOf([]int{1, 2, 3}))
+	if w.Body.Len() == 0 {
+		t.Error(testutils.DiffMessage(0, ">0", "returnREST slice should produce JSON body"))
+	}
+}
+
+func TestToWSMessageString(t *testing.T) {
+	got := toWSMessage(reflect.ValueOf("hello"))
+	if got != "hello" {
+		t.Error(testutils.DiffMessage(got, "hello", "toWSMessage string"))
+	}
+}
+
+func TestToWSMessageInt(t *testing.T) {
+	got := toWSMessage(reflect.ValueOf(42))
+	if got != "42" {
+		t.Error(testutils.DiffMessage(got, "42", "toWSMessage int"))
+	}
+}
+
+func TestToWSMessageBool(t *testing.T) {
+	got := toWSMessage(reflect.ValueOf(true))
+	if got != "true" {
+		t.Error(testutils.DiffMessage(got, "true", "toWSMessage bool"))
+	}
+}
+
+func TestToWSMessageMap(t *testing.T) {
+	got := toWSMessage(reflect.ValueOf(map[string]any{"k": "v"}))
+	if got == "" {
+		t.Error(testutils.DiffMessage(got, "non-empty JSON", "toWSMessage map"))
+	}
+}
+
+func TestToWSMessageSlice(t *testing.T) {
+	got := toWSMessage(reflect.ValueOf([]int{1, 2}))
+	if got == "" {
+		t.Error(testutils.DiffMessage(got, "non-empty JSON", "toWSMessage slice"))
+	}
+}
+
+func TestGetLocalIP(t *testing.T) {
+	ip := getLocalIP()
+	if ip != "" {
+		if net := reflect.TypeOf(ip).Kind(); net != reflect.String {
+			t.Error(testutils.DiffMessage(net, reflect.String, "getLocalIP should return string"))
+		}
+	}
+}
+
+func TestGetDependencyContext(t *testing.T) {
+	c := newHTTPContext()
+	got := getDependency(CONTEXT, c, reflect.Value{})
+	if got != c {
+		t.Error(testutils.DiffMessage(got, c, "getDependency CONTEXT"))
+	}
+}
+
+func TestGetDependencyRequest(t *testing.T) {
+	c := newHTTPContext()
+	got := getDependency(REQUEST, c, reflect.Value{})
+	if got != c.Request {
+		t.Error(testutils.DiffMessage(got, c.Request, "getDependency REQUEST"))
+	}
+}
+
+func TestGetDependencyResponse(t *testing.T) {
+	c := newHTTPContext()
+	got := getDependency(RESPONSE, c, reflect.Value{})
+	if got != c.ResponseWriter {
+		t.Error(testutils.DiffMessage(got, c.ResponseWriter, "getDependency RESPONSE"))
+	}
+}
+
+func TestGetDependencyUnknownReturnsDependencies(t *testing.T) {
+	c := newHTTPContext()
+	got := getDependency("unknown-key", c, reflect.Value{})
+	if got == nil {
+		t.Error(testutils.DiffMessage(nil, "dependencies map", "getDependency unknown key should return dependencies"))
+	}
+}
+
+func TestIsInjectableHandlerValid(t *testing.T) {
+	handler := func(c *ctx.Context) {}
+	err := isInjectableHandler(handler, nil)
+	if err != nil {
+		t.Error(testutils.DiffMessage(err, nil, "isInjectableHandler valid handler"))
+	}
+}
+
+func TestIsInjectableHandlerInvalid(t *testing.T) {
+	type unknownType struct{}
+	handler := func(_ unknownType) {}
+	err := isInjectableHandler(handler, nil)
+	if err == nil {
+		t.Error(testutils.DiffMessage(nil, "error", "isInjectableHandler with unknown arg should return error"))
+	}
+}
+
+func TestLogBoostrapNoPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Error(testutils.DiffMessage(r, nil, "logBoostrap should not panic"))
+		}
+	}()
+	logBoostrap(8080)
 }

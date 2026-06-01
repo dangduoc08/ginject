@@ -26,33 +26,132 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestGetContextIDFromHeader(t *testing.T) {
+func TestNewHasGlobalExceptionFilter(t *testing.T) {
 	app := New()
+	if len(app.globalExceptionFilters) == 0 {
+		t.Error(testutils.DiffMessage(0, ">0", "New should register default global exception filter"))
+	}
+}
+
+func TestGetContextIDFromHeader(t *testing.T) {
 	c := ctx.NewContext()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set(ctx.REQUEST_ID, "test-id-123")
 	c.Request = r
 
-	got := app.http.getContextID(c)
+	got := getContextID(c)
 	if got != "test-id-123" {
 		t.Error(testutils.DiffMessage(got, "test-id-123", "getContextID should use X-Request-Id header"))
 	}
 }
 
 func TestGetContextIDGeneratesUUID(t *testing.T) {
-	app := New()
 	c1 := ctx.NewContext()
 	c1.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c2 := ctx.NewContext()
 	c2.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 
-	id1 := app.http.getContextID(c1)
-	id2 := app.http.getContextID(c2)
+	id1 := getContextID(c1)
+	id2 := getContextID(c2)
 
 	if id1 == "" {
 		t.Error(testutils.DiffMessage(id1, "non-empty UUID", "should generate UUID when header absent"))
 	}
 	if id1 == id2 {
 		t.Error(testutils.DiffMessage(id1, "different UUID", "each call should produce a unique ID"))
+	}
+}
+
+func TestBindGlobalMiddlewaresChaining(t *testing.T) {
+	app := New()
+	result := app.BindGlobalMiddlewares()
+	if result != app {
+		t.Error(testutils.DiffMessage(result, app, "BindGlobalMiddlewares should return *App"))
+	}
+}
+
+func TestBindGlobalGuardsChaining(t *testing.T) {
+	app := New()
+	result := app.BindGlobalGuards()
+	if result != app {
+		t.Error(testutils.DiffMessage(result, app, "BindGlobalGuards should return *App"))
+	}
+}
+
+func TestBindGlobalInterceptorsChaining(t *testing.T) {
+	app := New()
+	result := app.BindGlobalInterceptors()
+	if result != app {
+		t.Error(testutils.DiffMessage(result, app, "BindGlobalInterceptors should return *App"))
+	}
+}
+
+func TestBindGlobalExceptionFiltersChaining(t *testing.T) {
+	app := New()
+	result := app.BindGlobalExceptionFilters()
+	if result != app {
+		t.Error(testutils.DiffMessage(result, app, "BindGlobalExceptionFilters should return *App"))
+	}
+}
+
+func TestEnableDevtoolChaining(t *testing.T) {
+	app := New()
+	result := app.EnableDevtool()
+	if result != app {
+		t.Error(testutils.DiffMessage(result, app, "EnableDevtool should return *App"))
+	}
+	if !app.isEnableDevtool {
+		t.Error(testutils.DiffMessage(app.isEnableDevtool, true, "isEnableDevtool should be true after EnableDevtool"))
+	}
+}
+
+func TestServeHTTPNotFound(t *testing.T) {
+	app := New()
+	app.Create(ModuleBuilder().Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Error(testutils.DiffMessage(w.Code, http.StatusNotFound, "unmatched route should return 404"))
+	}
+}
+
+func TestServeHTTPSetsRequestIDHeader(t *testing.T) {
+	app := New()
+	app.Create(ModuleBuilder().Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Header().Get(ctx.REQUEST_ID) == "" {
+		t.Error(testutils.DiffMessage("", "non-empty", "ServeHTTP should set X-Request-Id response header"))
+	}
+}
+
+func TestServeHTTPPropagatesRequestID(t *testing.T) {
+	app := New()
+	app.Create(ModuleBuilder().Build())
+
+	const fixedID = "fixed-request-id"
+	r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
+	r.Header.Set(ctx.REQUEST_ID, fixedID)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Header().Get(ctx.REQUEST_ID) != fixedID {
+		t.Error(testutils.DiffMessage(w.Header().Get(ctx.REQUEST_ID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
+	}
+}
+
+func TestGetAfterCreate(t *testing.T) {
+	app := New()
+	app.Create(ModuleBuilder().Build())
+
+	got := app.Get(&mockProvider{})
+	if got != nil {
+		t.Error(testutils.DiffMessage(got, nil, "Get for unregistered provider should return nil"))
 	}
 }

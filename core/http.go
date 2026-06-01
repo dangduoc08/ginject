@@ -6,8 +6,6 @@ import (
 	"path"
 	"reflect"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
@@ -16,74 +14,24 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/utils"
 	"github.com/dangduoc08/ginject/versioning"
-	"golang.org/x/net/websocket"
 )
 
 type HTTP struct {
-	ctxPool sync.Pool
-
 	route *routing.Router
 
 	versioning                             *versioning.Versioning
 	isEnableVersioning                     bool
 	catchFnsMap                            map[string][]common.Catch
-	serveStaticMapToLastWildcardSlashIndex map[string]int // to check public dir URL if has * at last
+	serveStaticMapToLastWildcardSlashIndex map[string]int
 
 	invokeHandler func(f any, c *ctx.Context) []reflect.Value
-	wsHandler     func(wsConn *websocket.Conn, c *ctx.Context)
 }
 
 func newHTTP() *HTTP {
-	http := HTTP{
+	return &HTTP{
 		route:                                  routing.NewRouter(),
 		catchFnsMap:                            make(map[string][]common.Catch),
 		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
-		ctxPool: sync.Pool{
-			New: func() any {
-				c := ctx.NewContext()
-				c.Event = ctx.NewEvent()
-				return c
-			},
-		},
-	}
-
-	return &http
-}
-
-func (http *HTTP) ServeHTTP(w stdHTTP.ResponseWriter, r *stdHTTP.Request) {
-	c := http.ctxPool.Get().(*ctx.Context)
-	c.Timestamp = time.Now()
-	c.ResponseWriter = w
-	c.Request = r
-	ctxID := http.getContextID(c)
-	c.SetID(ctxID)
-
-	defer func() {
-		c.Reset()
-		http.ctxPool.Put(c)
-	}()
-
-	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
-		c.SetType(ctx.WSType)
-
-		s := websocket.Server{
-			Handler: websocket.Handler(func(wsConn *websocket.Conn) {
-				http.wsHandler(wsConn, c)
-			}),
-
-			Handshake: func(cfg *websocket.Config, req *stdHTTP.Request) error {
-				return nil
-			},
-		}
-
-		s.ServeHTTP(w, r)
-		return
-
-	} else {
-		c.SetType(ctx.HTTPType)
-		c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
-
-		http.handleRequest(c)
 	}
 }
 
@@ -294,16 +242,6 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 			http.returnNotFound(c)
 		}
 	}
-}
-
-func (http *HTTP) getContextID(c *ctx.Context) string {
-	reqID := c.Header().Get(ctx.REQUEST_ID)
-	if reqID == "" {
-		uuid, _ := utils.StrUUID()
-		return uuid
-	}
-
-	return reqID
 }
 
 func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
