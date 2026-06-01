@@ -5,7 +5,7 @@ import "strings"
 type Kind uint8
 
 const (
-	KindExact        Kind = iota
+	KindExact Kind = iota
 	KindGlobal
 	KindSingleSuffix
 	KindComplex
