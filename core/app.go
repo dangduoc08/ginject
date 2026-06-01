@@ -80,6 +80,10 @@ var dependencies = map[string]int{
 
 type WithValueKey string
 
+type corsOriginChecker interface {
+	AllowedOrigin(string) bool
+}
+
 func New() *App {
 	app := &App{
 		http: newHTTP(),
@@ -218,6 +222,11 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
+			if app.ws.corsAllowOrigin == nil {
+				if checker, ok := gm.(corsOriginChecker); ok {
+					app.ws.corsAllowOrigin = checker.AllowedOrigin
+				}
+			}
 			mw := func(middleware common.MiddlewareFn) ctx.Handler {
 				return func(c *ctx.Context) { middleware.Use(c, c.Next) }
 			}(gm)
