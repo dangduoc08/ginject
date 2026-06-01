@@ -9,6 +9,7 @@ import (
 
 type Controller struct {
 	common.REST
+	common.WS
 	httpclient.ClientService
 }
 
@@ -18,6 +19,12 @@ func (instance Controller) NewController() core.Controller {
 }
 
 func (instance Controller) READ_ping() ginject.Map {
+	return ginject.Map{
+		"message": "Hello, World!",
+	}
+}
+
+func (instance Controller) SUBSCRIBE_chat() ginject.Map {
 	return ginject.Map{
 		"message": "Hello, World!",
 	}
