@@ -25,9 +25,9 @@ type WS struct {
 	eventToID         map[string][]string
 	catchFnsMap       map[string][]common.Catch
 	globalMiddlewares *[]common.MiddlewareFn
-	// allowedWSOrigins  map[string]struct{}
 
-	invokeHandler func(f any, c *ctx.Context) []reflect.Value
+	corsAllowOrigin func(origin string) bool
+	invokeHandler   func(f any, c *ctx.Context) []reflect.Value
 }
 
 func newWS() *WS {
@@ -47,18 +47,17 @@ func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, c *ctx.Conte
 			ws.handleRequest(wsConn, c)
 		}),
 		Handshake: func(cfg *websocket.Config, req *stdHTTP.Request) error {
-			return nil
-			// if len(ws.allowedWSOrigins) == 0 {
-			// 	return nil
-			// }
-			// origin := req.Header.Get("Origin")
-			// if origin == "" {
-			// 	return nil
-			// }
-			// if _, ok := ws.allowedWSOrigins[origin]; ok {
-			// 	return nil
-			// }
-			// return stdHTTP.ErrAbortHandler
+			if ws.corsAllowOrigin == nil {
+				return nil
+			}
+			origin := req.Header.Get("Origin")
+			if origin == "" {
+				return nil
+			}
+			if ws.corsAllowOrigin(origin) {
+				return nil
+			}
+			return stdHTTP.ErrAbortHandler
 		},
 	}
 	s.ServeHTTP(w, r)
