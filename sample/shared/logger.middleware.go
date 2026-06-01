@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject"
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 )
@@ -15,8 +16,8 @@ type RequestLogger struct {
 
 func (instance RequestLogger) Use(c ginject.Context, next ginject.Next) {
 	fmt.Println("[Global] RequestLogger middleware")
-	c.Event.On(ctx.REQUEST_FINISHED, func(args ...any) {
-		newC := args[0].(*ctx.Context)
+	_, _ = c.Broker.Subscribe(ctx.REQUEST_FINISHED, func(m *broker.Message) {
+		newC := m.Payload.(*ctx.Context)
 		requestType := newC.GetType()
 		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
 
