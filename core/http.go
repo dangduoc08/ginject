@@ -315,7 +315,7 @@ func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir a
 			oldDir := dir
 			dir = path.Join(dir, suffix)
 
-			if len(dir) < len(oldDir) {
+			if dir != oldDir && !strings.HasPrefix(dir, oldDir+"/") {
 				http.returnInvalidURL(c)
 				return
 			}
