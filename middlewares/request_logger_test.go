@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/testutils"
 )
@@ -42,7 +43,7 @@ func newLoggerContext(method, urlPath string, typ string) *ctx.Context {
 	c := ctx.NewContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Event = ctx.NewEvent()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Timestamp = time.Now()
 	c.SetType(typ)
 	return c
@@ -64,7 +65,7 @@ func TestRequestLogger_Use_HTTPLogsURL(t *testing.T) {
 	rl := RequestLogger{Logger: log}
 	c := newLoggerContext(http.MethodGet, "/api/users", ctx.HTTPType)
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	if !log.called {
 		t.Error(testutils.DiffMessage(log.called, true, "Info should be called"))
 		return
@@ -79,7 +80,7 @@ func TestRequestLogger_Use_HTTPLogsMethod(t *testing.T) {
 	rl := RequestLogger{Logger: log}
 	c := newLoggerContext(http.MethodPost, "/api/users", ctx.HTTPType)
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	v, ok := findArg(log.args, "Method")
 	if !ok {
 		t.Error(testutils.DiffMessage(nil, "Method key", "Method key missing from log args"))
@@ -96,7 +97,7 @@ func TestRequestLogger_Use_HTTPLogsStatus(t *testing.T) {
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	c.Code = http.StatusCreated
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	v, ok := findArg(log.args, "Status")
 	if !ok {
 		t.Error(testutils.DiffMessage(nil, "Status key", "Status key missing from log args"))
@@ -112,7 +113,7 @@ func TestRequestLogger_Use_HTTPLogsProtocol(t *testing.T) {
 	rl := RequestLogger{Logger: log}
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	v, ok := findArg(log.args, "Protocol")
 	if !ok {
 		t.Error(testutils.DiffMessage(nil, "Protocol key", "Protocol key missing from log args"))
@@ -129,7 +130,7 @@ func TestRequestLogger_Use_HTTPLogsRequestID(t *testing.T) {
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	c.SetID("req-abc")
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	v, ok := findArg(log.args, ctx.REQUEST_ID)
 	if !ok {
 		t.Error(testutils.DiffMessage(nil, ctx.REQUEST_ID+" key", "REQUEST_ID key missing from log args"))
@@ -146,7 +147,7 @@ func TestRequestLogger_Use_HTTPLogsTime(t *testing.T) {
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	c.Timestamp = time.Now().Add(-50 * time.Millisecond)
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	v, ok := findArg(log.args, "Time")
 	if !ok {
 		t.Error(testutils.DiffMessage(nil, "Time key", "Time key missing from log args"))
@@ -174,7 +175,7 @@ func TestRequestLogger_Use_UnknownTypeNoLog(t *testing.T) {
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	c.Type = ""
 	rl.Use(c, func() {})
-	c.Event.Emit(ctx.REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	if log.called {
 		t.Error(testutils.DiffMessage(log.called, false, "Info should not be called for unknown type"))
 	}

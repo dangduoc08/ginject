@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
@@ -86,7 +87,7 @@ func New() *App {
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
-				c.Event = ctx.NewEvent()
+				c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 				return c
 			},
 		},

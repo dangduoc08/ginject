@@ -84,7 +84,7 @@ func (ws *WS) SendSelf(c *Context, message any) error {
 		panic(exception.InternalServerErrorException(err.Error()))
 	}
 
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 	return nil
 }
 
@@ -94,6 +94,6 @@ func (ws *WS) SendToConn(c *Context, wsConn *websocket.Conn, message string) err
 		panic(exception.InternalServerErrorException(err.Error()))
 	}
 
-	c.Event.Emit(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(REQUEST_FINISHED, c)
 	return nil
 }

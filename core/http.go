@@ -72,7 +72,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 				// Handle case if pipe error panic
 				defer func() {
 					if rec := recover(); rec != nil {
-						c.Event.Emit(catchEvent, c, rec, 0)
+						_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 					}
 				}()
 
@@ -87,8 +87,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 			// since we always set global exception filter as default
 			if _, ok := http.catchFnsMap[catchEvent]; ok && rec != nil {
 
-				// 3rd param is index of catch function
-				c.Event.Emit(catchEvent, c, rec, 0)
+				_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
 		}
 	}()
@@ -263,7 +262,7 @@ func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir a
 			http.returnNotFound(c)
 		} else {
 			stdHTTP.ServeFile(c.ResponseWriter, c.Request, dir)
-			c.Event.Emit(ctx.REQUEST_FINISHED, c)
+			_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 		}
 	} else {
 		http.returnNotFound(c)

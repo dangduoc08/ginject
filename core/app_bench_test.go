@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 )
 
@@ -33,9 +34,9 @@ func BenchmarkPublishWSEvent(b *testing.B) {
 	app.ws.eventToID[target] = []string{wsid}
 
 	c := ctx.NewContext()
-	c.Event = ctx.NewEvent()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Event.On(target+wsid, func(args ...any) {})
+	_, _ = c.Broker.Subscribe(target+wsid, func(m *broker.Message) {})
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -48,7 +49,7 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 	app.Create(ModuleBuilder().Build())
 
 	c := ctx.NewContext()
-	c.Event = ctx.NewEvent()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	handler := func() reflect.Value { return reflect.ValueOf("bench") }
 

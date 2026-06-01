@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/testutils"
 )
@@ -19,7 +20,7 @@ func newTestContext(method, origin string) (*ctx.Context, *httptest.ResponseReco
 	c := ctx.NewContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Event = ctx.NewEvent()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c, rec
 }
 

@@ -24,7 +24,7 @@ func BenchmarkRequestLogger_Use_HTTP(b *testing.B) {
 		c.Timestamp = time.Now().Add(-10 * time.Millisecond)
 		c.SetID("bench-req-id")
 		rl.Use(c, func() {})
-		c.Event.Emit(ctx.REQUEST_FINISHED, c)
+		_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
 	}
 }
 
