@@ -80,7 +80,7 @@ func TestInjectProvidersIntoRESTGuards_MainHandlerName(t *testing.T) {
 
 func TestInjectProvidersIntoWSGuards_Empty(t *testing.T) {
 	g := &Guard{}
-	ws := buildWS("chat", map[string]string{"chat_/message/": "ON_message"})
+	ws := buildWS(map[string]string{"message": "ON_message"})
 
 	items := g.InjectProvidersIntoWSGuards(ws, noopCB)
 	if len(items) != 0 {
@@ -92,9 +92,9 @@ func TestInjectProvidersIntoWSGuards_ApplyAll(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(mockGuarder{})
 
-	ws := buildWS("chat", map[string]string{
-		"chat_/message/": "ON_message",
-		"chat_/status/":  "ON_status",
+	ws := buildWS(map[string]string{
+		"message": "ON_message",
+		"status":  "ON_status",
 	})
 
 	items := g.InjectProvidersIntoWSGuards(ws, noopCB)

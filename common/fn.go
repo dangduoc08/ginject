@@ -184,6 +184,6 @@ func Construct(obj any, constructor string) any {
 	return obj
 }
 
-func ToWSEventName(n, s string) string {
-	return n + "_" + strings.TrimSuffix(strings.TrimPrefix(s, "/"), "/")
+func ToWSEventName(s string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(s, "/"), "/")
 }

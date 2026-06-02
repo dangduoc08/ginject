@@ -34,12 +34,12 @@ func TestAddHandlerToEventMap_Stores(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("chat", "ON_message", nil)
+	ws.AddHandlerToEventMap("ON_message", nil)
 	if ws.EventMap == nil {
 		t.Error(testutils.DiffMessage(ws.EventMap, "non-nil", "EventMap created"))
 		return
 	}
-	eventName := "chat_message"
+	eventName := "message"
 	if _, ok := ws.EventMap[eventName]; !ok {
 		t.Error(testutils.DiffMessage("missing", eventName, "event stored in EventMap"))
 	}
@@ -54,7 +54,7 @@ func TestAddHandlerToEventMap_IgnoresNonWS(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("chat", "READ_users", nil)
+	ws.AddHandlerToEventMap("READ_users", nil)
 	if len(ws.EventMap) != 0 {
 		t.Error(testutils.DiffMessage(len(ws.EventMap), 0, "non-WS fn should not be stored"))
 	}
@@ -66,30 +66,12 @@ func TestAddHandlerToEventMap_Conflict(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("chat", "ON_message", nil)
+	ws.AddHandlerToEventMap("ON_message", nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error(testutils.DiffMessage(nil, "panic", "duplicate event should panic"))
 		}
 	}()
-	ws.AddHandlerToEventMap("chat", "ON_message", nil)
+	ws.AddHandlerToEventMap("ON_message", nil)
 }
 
-func TestSubprotocol_SetAndGet(t *testing.T) {
-	ws := &WS{}
-	ret := ws.Subprotocol("myproto")
-	if ret != ws {
-		t.Error(testutils.DiffMessage(ret, ws, "Subprotocol should return self"))
-	}
-	if ws.GetSubprotocol() != "myproto" {
-		t.Error(testutils.DiffMessage(ws.GetSubprotocol(), "myproto", "GetSubprotocol after set"))
-	}
-}
-
-func TestGetSubprotocol_Default(t *testing.T) {
-	ws := &WS{}
-	got := ws.GetSubprotocol()
-	if got != "*" {
-		t.Error(testutils.DiffMessage(got, "*", "default subprotocol is *"))
-	}
-}

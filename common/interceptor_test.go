@@ -81,7 +81,7 @@ func TestInjectProvidersIntoRESTInterceptors_MainHandlerName(t *testing.T) {
 
 func TestInjectProvidersIntoWSInterceptors_Empty(t *testing.T) {
 	ic := &Interceptor{}
-	ws := buildWS("chat", map[string]string{"chat_/message/": "ON_message"})
+	ws := buildWS(map[string]string{"message": "ON_message"})
 
 	items := ic.InjectProvidersIntoWSInterceptors(ws, noopCB)
 	if len(items) != 0 {
@@ -93,9 +93,9 @@ func TestInjectProvidersIntoWSInterceptors_ApplyAll(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(mockInterceptable{})
 
-	ws := buildWS("chat", map[string]string{
-		"chat_/message/": "ON_message",
-		"chat_/status/":  "ON_status",
+	ws := buildWS(map[string]string{
+		"message": "ON_message",
+		"status":  "ON_status",
 	})
 
 	items := ic.InjectProvidersIntoWSInterceptors(ws, noopCB)

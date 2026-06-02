@@ -69,37 +69,32 @@ type Module struct {
 	// store WS module middlewares
 	WSMiddlewares []struct {
 		controllerName string
-		Subprotocol    string
 		EventName      string
 		Handler        any
 	}
 
 	// store WS module guards
 	WSGuards []struct {
-		Subprotocol string
-		EventName   string
-		Handler     any
+		EventName string
+		Handler   any
 	}
 
 	// store WS module interceptors
 	WSInterceptors []struct {
-		Subprotocol string
-		EventName   string
-		Handler     any
+		EventName string
+		Handler   any
 	}
 
 	// store WS module exception filters
 	WSExceptionFilters []struct {
-		Subprotocol string
-		EventName   string
-		Handler     any
+		EventName string
+		Handler   any
 	}
 
 	// store WS main handlers
 	WSMainHandlers []struct {
-		Subprotocol string
-		EventName   string
-		Handler     any
+		EventName string
+		Handler   any
 	}
 }
 
@@ -581,10 +576,9 @@ func (m *Module) NewModule() *Module {
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
-
 						// for main handler
 						handler := reflect.ValueOf(m.controllers[i]).Method(j).Interface()
-						ws.AddHandlerToEventMap(ws.GetSubprotocol(), methodName, handler)
+						ws.AddHandlerToEventMap(methodName, handler)
 					}
 
 					// apply module bound middlewares
@@ -641,13 +635,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound guards
 						for _, guardItem := range guardItemArr {
 							m.WSGuards = append(m.WSGuards, struct {
-								Subprotocol string
-								EventName   string
-								Handler     any
+								EventName string
+								Handler   any
 							}{
-								Subprotocol: ws.GetSubprotocol(),
-								EventName:   guardItem.WS.EventName,
-								Handler:     guardItem.WS.Common.Handler,
+								EventName: guardItem.WS.EventName,
+								Handler:   guardItem.WS.Common.Handler,
 							})
 						}
 					}
@@ -703,13 +695,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound interceptors
 						for _, interceptorItem := range interceptorItemArr {
 							m.WSInterceptors = append(m.WSInterceptors, struct {
-								Subprotocol string
-								EventName   string
-								Handler     any
+								EventName string
+								Handler   any
 							}{
-								Subprotocol: ws.GetSubprotocol(),
-								EventName:   interceptorItem.WS.EventName,
-								Handler:     interceptorItem.WS.Common.Handler,
+								EventName: interceptorItem.WS.EventName,
+								Handler:   interceptorItem.WS.Common.Handler,
 							})
 						}
 					}
@@ -765,13 +755,11 @@ func (m *Module) NewModule() *Module {
 						// apply controller bound exceptionFilters
 						for _, exceptionFilterItem := range exceptionFilterItemArr {
 							m.WSExceptionFilters = append(m.WSExceptionFilters, struct {
-								Subprotocol string
-								EventName   string
-								Handler     any
+								EventName string
+								Handler   any
 							}{
-								Subprotocol: ws.GetSubprotocol(),
-								EventName:   exceptionFilterItem.WS.EventName,
-								Handler:     exceptionFilterItem.WS.Common.Handler,
+								EventName: exceptionFilterItem.WS.EventName,
+								Handler:   exceptionFilterItem.WS.Common.Handler,
 							})
 						}
 					}
@@ -784,13 +772,11 @@ func (m *Module) NewModule() *Module {
 						}
 
 						m.WSMainHandlers = append(m.WSMainHandlers, struct {
-							Subprotocol string
-							EventName   string
-							Handler     any
+							EventName string
+							Handler   any
 						}{
-							Subprotocol: ws.GetSubprotocol(),
-							EventName:   eventName,
-							Handler:     handler,
+							EventName: eventName,
+							Handler:   handler,
 						})
 					}
 				}
