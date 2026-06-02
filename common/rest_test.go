@@ -102,11 +102,11 @@ func TestAddToRouters_InitMaps(t *testing.T) {
 	if r.RouterMap == nil {
 		t.Error(testutils.DiffMessage(r.RouterMap, "non-nil", "RouterMap initialized"))
 	}
-	if r.PatternToFnNameMap == nil {
-		t.Error(testutils.DiffMessage(r.PatternToFnNameMap, "non-nil", "PatternToFnNameMap initialized"))
+	if r.PatternToFuncNameMap == nil {
+		t.Error(testutils.DiffMessage(r.PatternToFuncNameMap, "non-nil", "PatternToFuncNameMap initialized"))
 	}
-	if r.FnNameToPatternMap == nil {
-		t.Error(testutils.DiffMessage(r.FnNameToPatternMap, "non-nil", "FnNameToPatternMap initialized"))
+	if r.FuncNameToPatternMap == nil {
+		t.Error(testutils.DiffMessage(r.FuncNameToPatternMap, "non-nil", "FuncNameToPatternMap initialized"))
 	}
 }
 
@@ -202,7 +202,7 @@ func TestParseFnNameToURL(t *testing.T) {
 	}
 
 	for fn, results := range testCases {
-		method, route, version := ParseFnNameToURL(fn)
+		method, route, version := ParseFuncNameToURL(fn)
 		if method != results[0] {
 			t.Error(testutils.DiffMessage(results[0], method, "method should be equal"))
 		}

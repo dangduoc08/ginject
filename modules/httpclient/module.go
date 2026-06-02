@@ -6,10 +6,10 @@ import (
 	"github.com/dangduoc08/ginject/core"
 )
 
-type HttpClientOnInitFn = func()
+type HTTPClientOnInitFn = func()
 
-// HttpClientModuleOptions configures the default HTTP client for the module.
-type HttpClientModuleOptions struct {
+// HTTPClientModuleOptions configures the default HTTP client for the module.
+type HTTPClientModuleOptions struct {
 	IsGlobal bool
 	// BaseURL is prepended to every relative request path.
 	BaseURL string
@@ -17,13 +17,13 @@ type HttpClientModuleOptions struct {
 	Headers map[string]string
 	// Timeout is the default client-level timeout for all requests.
 	Timeout time.Duration
-	OnInit  HttpClientOnInitFn
+	OnInit  HTTPClientOnInitFn
 }
 
 // Register creates a Ginject module that provides an injectable ClientService.
-func Register(opts *HttpClientModuleOptions) *core.Module {
+func Register(opts *HTTPClientModuleOptions) *core.Module {
 	if opts == nil {
-		opts = &HttpClientModuleOptions{}
+		opts = &HTTPClientModuleOptions{}
 	}
 
 	svc := ClientService{Backend: newHTTPClient(opts)}

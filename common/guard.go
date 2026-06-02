@@ -51,7 +51,7 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 }
 
 func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := make([]GuardItem, 0, len(r.PatternToFnNameMap)*len(g.GuardHandlers))
+	guardItemArr := make([]GuardItem, 0, len(r.PatternToFuncNameMap)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
 		guarderType := reflect.TypeOf(guardHandler.guarder)
@@ -68,14 +68,14 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.handlers {
-			fnName := GetFnName(handler)
-			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
+			fnName := GetFuncName(handler)
+			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
 				shouldAddGuard[pattern] = true
 			}
 		}
 		applyAll := len(shouldAddGuard) == 0
 
-		for pattern := range r.PatternToFnNameMap {
+		for pattern := range r.PatternToFuncNameMap {
 			if applyAll || shouldAddGuard[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
@@ -89,7 +89,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 						Common: CommonItem{
 							Handler:         guardHandler.guarder.CanActivate,
 							Name:            guarderType.String(),
-							MainHandlerName: r.PatternToFnNameMap[pattern],
+							MainHandlerName: r.PatternToFuncNameMap[pattern],
 						},
 					},
 				})
@@ -101,7 +101,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 }
 
 func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := make([]GuardItem, 0, len(ws.patternToFnNameMap)*len(g.GuardHandlers))
+	guardItemArr := make([]GuardItem, 0, len(ws.patternToFuncNameMap)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
 		guarderType := reflect.TypeOf(guardHandler.guarder)
@@ -118,14 +118,14 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.handlers {
-			fnName := GetFnName(handler)
-			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+			fnName := GetFuncName(handler)
+			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
 				shouldAddGuard[event] = true
 			}
 		}
 		applyAll := len(shouldAddGuard) == 0
 
-		for pattern := range ws.patternToFnNameMap {
+		for pattern := range ws.patternToFuncNameMap {
 			if applyAll || shouldAddGuard[pattern] {
 				guardItemArr = append(guardItemArr, GuardItem{
 					WS: WSGuardItem{

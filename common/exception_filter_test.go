@@ -18,23 +18,23 @@ var noopCB = func(_ int, _ reflect.Type, _ reflect.Value, _ reflect.Value) {}
 
 func buildREST(fnToRoute map[string]string) *REST {
 	r := &REST{
-		PatternToFnNameMap: make(map[string]string, len(fnToRoute)),
-		FnNameToPatternMap: make(map[string]string, len(fnToRoute)),
+		PatternToFuncNameMap: make(map[string]string, len(fnToRoute)),
+		FuncNameToPatternMap: make(map[string]string, len(fnToRoute)),
 	}
 	for fn, route := range fnToRoute {
 		p := routing.MethodRouteVersionToPattern("GET", route, "")
-		r.PatternToFnNameMap[p] = fn
-		r.FnNameToPatternMap[fn] = p
+		r.PatternToFuncNameMap[p] = fn
+		r.FuncNameToPatternMap[fn] = p
 	}
 	return r
 }
 
 func buildWS(patternToFn map[string]string) *WS {
 	ws := &WS{
-		patternToFnNameMap: make(map[string]string, len(patternToFn)),
+		patternToFuncNameMap: make(map[string]string, len(patternToFn)),
 	}
 	for p, fn := range patternToFn {
-		ws.patternToFnNameMap[p] = fn
+		ws.patternToFuncNameMap[p] = fn
 	}
 	return ws
 }

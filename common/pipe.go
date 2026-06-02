@@ -5,14 +5,14 @@ import (
 )
 
 const (
-	CONTEXT_PIPEABLE    = "context"
-	BODY_PIPEABLE       = "body"
-	FORM_PIPEABLE       = "form"
-	QUERY_PIPEABLE      = "query"
-	HEADER_PIPEABLE     = "header"
-	PARAM_PIPEABLE      = "param"
-	FILE_PIPEABLE       = "file"
-	WS_PAYLOAD_PIPEABLE = "wsPayload"
+	ContextPipeableKey    = "context"
+	BodyPipeableKey       = "body"
+	FormPipeableKey       = "form"
+	QueryPipeableKey      = "query"
+	HeaderPipeableKey     = "header"
+	ParamPipeableKey      = "param"
+	FilePipeableKey       = "file"
+	WSPayloadPipeableKey = "wsPayload"
 )
 
 type ContextPipeable interface {

@@ -13,7 +13,7 @@ func BenchmarkGet(b *testing.B) {
 	}))
 	defer srv.Close()
 
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -27,7 +27,7 @@ func BenchmarkPost_JSON(b *testing.B) {
 	}))
 	defer srv.Close()
 
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	payload := map[string]string{"name": "ginject", "email": "test@example.com"}
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -46,7 +46,7 @@ func BenchmarkMiddlewareChain_3(b *testing.B) {
 		return func(req *http.Request) (*Response, error) { return next(req) }
 	}
 
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	c.Use(noop, noop, noop)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -61,7 +61,7 @@ func BenchmarkQueryParams_5(b *testing.B) {
 	}))
 	defer srv.Close()
 
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
