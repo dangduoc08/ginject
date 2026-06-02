@@ -25,11 +25,10 @@ func buildBenchREST(n int) *REST {
 
 func buildBenchWS(n int) *WS {
 	ws := &WS{
-		subprotocol:        "bench",
 		patternToFnNameMap: make(map[string]string, n),
 	}
 	for i := range n {
-		event := fmt.Sprintf("bench_/event%d/", i)
+		event := fmt.Sprintf("event%d", i)
 		fn := fmt.Sprintf("ON_event%d", i)
 		ws.patternToFnNameMap[event] = fn
 	}

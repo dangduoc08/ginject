@@ -352,16 +352,6 @@ func (app *App) BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App {
 	return app
 }
 
-// func (app *App) AllowWSOrigins(origins ...string) *App {
-// 	if app.ws.allowedWSOrigins == nil {
-// 		app.ws.allowedWSOrigins = make(map[string]struct{}, len(origins))
-// 	}
-// 	for _, o := range origins {
-// 		app.ws.allowedWSOrigins[o] = struct{}{}
-// 	}
-// 	return app
-// }
-
 func (app *App) EnableVersioning(v versioning.Versioning) *App {
 	app.http.enableVersioning(v)
 
@@ -416,12 +406,9 @@ func (app *App) Listen(port int) error {
 	sort.Strings(eventArr)
 
 	for _, eventName := range eventArr {
-		p, e := ctx.ResolveWSEventname(eventName)
-
 		app.Logger.Info(
 			"WebSocketEvent",
-			"subprotocol", p,
-			"subscribe", e,
+			"event", eventName,
 		)
 	}
 

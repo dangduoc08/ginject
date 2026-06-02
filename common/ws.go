@@ -15,7 +15,6 @@ var InsertedEvents = make(map[string]string)
 type WS struct {
 	patternToFnNameMap map[string]string
 	EventMap           map[string]any
-	subprotocol        string
 }
 
 func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
@@ -31,11 +30,10 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 	ws.EventMap[event] = injectableHandler
 }
 
-func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler any) {
+func (ws *WS) AddHandlerToEventMap(fnName string, handler any) {
 	opr, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-
 	if opr != "" {
-		eventName = ToWSEventName(subprotocol, eventName)
+		eventName = ToWSEventName(eventName)
 
 		if InsertedEvents[eventName] == "" {
 			InsertedEvents[eventName] = fnName
@@ -51,16 +49,4 @@ func (ws *WS) AddHandlerToEventMap(subprotocol string, fnName string, handler an
 
 		ws.addToEventMap(fnName, eventName, handler)
 	}
-}
-
-func (ws *WS) Subprotocol(p string) *WS {
-	ws.subprotocol = p
-	return ws
-}
-
-func (ws *WS) GetSubprotocol() string {
-	if ws.subprotocol == "" {
-		return "*"
-	}
-	return ws.subprotocol
 }

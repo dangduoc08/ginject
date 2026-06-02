@@ -15,25 +15,9 @@ func BenchmarkAddHandlerToEventMap(b *testing.B) {
 		InsertedEvents = make(map[string]string)
 		ws := &WS{}
 		for _, fn := range fns {
-			ws.AddHandlerToEventMap("chat", fn, nil)
+			ws.AddHandlerToEventMap(fn, nil)
 		}
 		InsertedEvents = orig
 	}
 }
 
-func BenchmarkGetSubprotocol_Set(b *testing.B) {
-	ws := &WS{}
-	ws.Subprotocol("myproto")
-	b.ResetTimer()
-	for range b.N {
-		_ = ws.GetSubprotocol()
-	}
-}
-
-func BenchmarkGetSubprotocol_Default(b *testing.B) {
-	ws := &WS{}
-	b.ResetTimer()
-	for range b.N {
-		_ = ws.GetSubprotocol()
-	}
-}

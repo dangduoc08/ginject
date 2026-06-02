@@ -32,17 +32,15 @@ func ModuleBuilder() *moduleBuilder {
 type WSMiddlewareLayer struct {
 	// controllerPath string
 	// handlerName    string
-	Subprotocol string
-	EventName   string
-	Handlers    []func(*ctx.Context)
+	EventName string
+	Handlers  []func(*ctx.Context)
 }
 
 type WSCommonLayer struct {
 	// controllerPath string
 	// name           string
-	Subprotocol string
-	EventName   string
-	Handler     any
+	EventName string
+	Handler   any
 }
 
 func (m *moduleBuilder) Imports(modules ...any) *moduleBuilder {
@@ -104,29 +102,24 @@ func (m *moduleBuilder) Build() *Module {
 
 		WSMiddlewares: []struct {
 			controllerName string
-			Subprotocol    string
 			EventName      string
 			Handler        any
 		}{},
 		WSGuards: []struct {
-			Subprotocol string
-			EventName   string
-			Handler     any
+			EventName string
+			Handler   any
 		}{},
 		WSInterceptors: []struct {
-			Subprotocol string
-			EventName   string
-			Handler     any
+			EventName string
+			Handler   any
 		}{},
 		WSExceptionFilters: []struct {
-			Subprotocol string
-			EventName   string
-			Handler     any
+			EventName string
+			Handler   any
 		}{},
 		WSMainHandlers: []struct {
-			Subprotocol string
-			EventName   string
-			Handler     any
+			EventName string
+			Handler   any
 		}{},
 	}
 

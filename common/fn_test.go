@@ -29,16 +29,16 @@ func TestGetFnName(t *testing.T) {
 
 func TestToWSEventName(t *testing.T) {
 	cases := []struct {
-		n, s, want string
+		s, want string
 	}{
-		{"chat", "/message/", "chat_message"},
-		{"api", "/room/events/", "api_room/events"},
-		{"svc", "status", "svc_status"},
-		{"proto", "/nested/deep/", "proto_nested/deep"},
-		{"", "/event/", "_event"},
+		{"/message/", "message"},
+		{"/room/events/", "room/events"},
+		{"status", "status"},
+		{"/nested/deep/", "nested/deep"},
+		{"/event/", "event"},
 	}
 	for _, c := range cases {
-		got := ToWSEventName(c.n, c.s)
+		got := ToWSEventName(c.s)
 		if got != c.want {
 			t.Error(testutils.DiffMessage(got, c.want, "ToWSEventName"))
 		}
