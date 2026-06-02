@@ -77,8 +77,8 @@ func TestParseFnNameToURL_WSOperations(t *testing.T) {
 	cases := []struct {
 		fn, wantMethod, wantRoute string
 	}{
-		{"SUBSCRIBE_messages", "SUBSCRIBE", "/messages/"},
-		{"SUBSCRIBE_room_events", "SUBSCRIBE", "/room_events/"},
+		{"ON_messages", "ON", "/messages/"},
+		{"ON_room_events", "ON", "/room_events/"},
 	}
 	for _, c := range cases {
 		method, route, _ := ParseFnNameToURL(c.fn, WSOperations)

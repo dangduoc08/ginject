@@ -109,7 +109,7 @@ func TestInjectProvidersIntoRESTExceptionFilters_MainHandlerName(t *testing.T) {
 
 func TestInjectProvidersIntoWSExceptionFilters_Empty(t *testing.T) {
 	e := &ExceptionFilter{}
-	ws := buildWS("chat", map[string]string{"chat_/message/": "SUBSCRIBE_message"})
+	ws := buildWS("chat", map[string]string{"chat_/message/": "ON_message"})
 
 	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
 	if len(items) != 0 {
@@ -122,8 +122,8 @@ func TestInjectProvidersIntoWSExceptionFilters_ApplyAll(t *testing.T) {
 	e.BindExceptionFilter(mockExFilter{})
 
 	ws := buildWS("chat", map[string]string{
-		"chat_/message/": "SUBSCRIBE_message",
-		"chat_/status/":  "SUBSCRIBE_status",
+		"chat_/message/": "ON_message",
+		"chat_/status/":  "ON_status",
 	})
 
 	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)

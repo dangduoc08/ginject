@@ -80,7 +80,7 @@ func TestInjectProvidersIntoRESTMiddlewares_MainHandlerName(t *testing.T) {
 
 func TestInjectProvidersIntoWSMiddlewares_Empty(t *testing.T) {
 	m := &Middleware{}
-	ws := buildWS("chat", map[string]string{"chat_/message/": "SUBSCRIBE_message"})
+	ws := buildWS("chat", map[string]string{"chat_/message/": "ON_message"})
 
 	items := m.InjectProvidersIntoWSMiddlewares(ws, noopCB)
 	if len(items) != 0 {
@@ -93,8 +93,8 @@ func TestInjectProvidersIntoWSMiddlewares_ApplyAll(t *testing.T) {
 	m.BindMiddleware(mockMiddlewareFn{})
 
 	ws := buildWS("chat", map[string]string{
-		"chat_/message/": "SUBSCRIBE_message",
-		"chat_/status/":  "SUBSCRIBE_status",
+		"chat_/message/": "ON_message",
+		"chat_/status/":  "ON_status",
 	})
 
 	items := m.InjectProvidersIntoWSMiddlewares(ws, noopCB)
