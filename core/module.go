@@ -562,8 +562,8 @@ func (m *Module) NewModule() *Module {
 							Route:           routing.ToEndpoint(route),
 							Version:         version,
 							Handler:         handler,
-							Name:            rest.PatternToFnNameMap[pattern],
-							MainHandlerName: rest.PatternToFnNameMap[pattern],
+							Name:            rest.PatternToFuncNameMap[pattern],
+							MainHandlerName: rest.PatternToFuncNameMap[pattern],
 							Pattern:         pattern,
 						})
 					}

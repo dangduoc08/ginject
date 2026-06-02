@@ -21,9 +21,9 @@ func TestGetFnName(t *testing.T) {
 		{fnTestController{}.CREATE_orders, "CREATE_orders"},
 	}
 	for _, c := range cases {
-		got := GetFnName(c.handler)
+		got := GetFuncName(c.handler)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "GetFnName"))
+			t.Error(testutils.DiffMessage(got, c.want, "GetFuncName"))
 		}
 	}
 }
@@ -60,7 +60,7 @@ func TestParseFnNameToURL_AllHTTPMethods(t *testing.T) {
 		{"PREFLIGHT_health", "OPTIONS", "/health/"},
 	}
 	for _, c := range cases {
-		method, route, version := ParseFnNameToURL(c.fn)
+		method, route, version := ParseFuncNameToURL(c.fn)
 		if method != c.wantMethod {
 			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method"))
 		}
@@ -84,7 +84,7 @@ func TestParseFnNameToURL_InvalidInput(t *testing.T) {
 		{"", ""},
 	}
 	for _, c := range cases {
-		method, _, _ := ParseFnNameToURL(c.fn)
+		method, _, _ := ParseFuncNameToURL(c.fn)
 		if method != c.wantMethod {
 			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method should be empty"))
 		}
@@ -104,7 +104,7 @@ func TestParseFnNameToURL_VersionExtraction(t *testing.T) {
 		{"READ_users_VERSION", "/users/", ""},
 	}
 	for _, c := range cases {
-		_, route, version := ParseFnNameToURL(c.fn)
+		_, route, version := ParseFuncNameToURL(c.fn)
 		if route != c.wantRoute {
 			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
@@ -125,7 +125,7 @@ func TestParseFnNameToURL_BareOperation(t *testing.T) {
 		{"READ_VERSION_v1", "/"},
 	}
 	for _, c := range cases {
-		_, route, _ := ParseFnNameToURL(c.fn)
+		_, route, _ := ParseFuncNameToURL(c.fn)
 		if route != c.wantRoute {
 			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
@@ -135,7 +135,7 @@ func TestParseFnNameToURL_BareOperation(t *testing.T) {
 // TestParseFnNameToURL_ParamWithoutPath verifies that BY immediately after an
 // operation (no resource name) produces a clean route with no double slash.
 func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
-	_, route, _ := ParseFnNameToURL("READ_BY_id")
+	_, route, _ := ParseFuncNameToURL("READ_BY_id")
 	want := "/{id}/"
 	if route != want {
 		t.Error(testutils.DiffMessage(route, want, "READ_BY_id route"))

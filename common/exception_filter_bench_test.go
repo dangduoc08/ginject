@@ -10,27 +10,27 @@ import (
 
 func buildBenchREST(n int) *REST {
 	r := &REST{
-		PatternToFnNameMap: make(map[string]string, n),
-		FnNameToPatternMap: make(map[string]string, n),
+		PatternToFuncNameMap: make(map[string]string, n),
+		FuncNameToPatternMap: make(map[string]string, n),
 	}
 	for i := range n {
 		fn := fmt.Sprintf("READ_resource%d", i)
 		route := fmt.Sprintf("/resource%d/", i)
 		p := routing.MethodRouteVersionToPattern("GET", route, "")
-		r.PatternToFnNameMap[p] = fn
-		r.FnNameToPatternMap[fn] = p
+		r.PatternToFuncNameMap[p] = fn
+		r.FuncNameToPatternMap[fn] = p
 	}
 	return r
 }
 
 func buildBenchWS(n int) *WS {
 	ws := &WS{
-		patternToFnNameMap: make(map[string]string, n),
+		patternToFuncNameMap: make(map[string]string, n),
 	}
 	for i := range n {
 		event := fmt.Sprintf("event%d", i)
 		fn := fmt.Sprintf("ON_event%d", i)
-		ws.patternToFnNameMap[event] = fn
+		ws.patternToFuncNameMap[event] = fn
 	}
 	return ws
 }

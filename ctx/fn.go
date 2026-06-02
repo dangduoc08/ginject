@@ -922,7 +922,7 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 	return nil
 }
 
-func ResolveWSEventname(e string) (string, string) {
+func ResolveWSEventName(e string) (string, string) {
 	i := strings.IndexByte(e, '_')
 	if i < 0 {
 		return "", e

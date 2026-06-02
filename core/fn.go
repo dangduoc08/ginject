@@ -46,56 +46,56 @@ func getFnArgsByType(injectableFnType reflect.Type, injectedProviders map[string
 				panic(err)
 			}
 
-			cb(common.CONTEXT_PIPEABLE, i, newArg)
+			cb(common.ContextPipeableKey, i, newArg)
 		} else if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
 			newArg, err := injectDependencies(bodyPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.BODY_PIPEABLE, i, newArg)
+			cb(common.BodyPipeableKey, i, newArg)
 		} else if formPipeable, isImplFormPipeable := argAnyValue.(common.FormPipeable); isImplFormPipeable {
 			newArg, err := injectDependencies(formPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.FORM_PIPEABLE, i, newArg)
+			cb(common.FormPipeableKey, i, newArg)
 		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
 			newArg, err := injectDependencies(queryPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.QUERY_PIPEABLE, i, newArg)
+			cb(common.QueryPipeableKey, i, newArg)
 		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
 			newArg, err := injectDependencies(headerPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.HEADER_PIPEABLE, i, newArg)
+			cb(common.HeaderPipeableKey, i, newArg)
 		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
 			newArg, err := injectDependencies(paramPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.PARAM_PIPEABLE, i, newArg)
+			cb(common.ParamPipeableKey, i, newArg)
 		} else if filePipeable, isImplFilePipeable := argAnyValue.(common.FilePipeable); isImplFilePipeable {
 			newArg, err := injectDependencies(filePipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.FILE_PIPEABLE, i, newArg)
+			cb(common.FilePipeableKey, i, newArg)
 		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
 			newArg, err := injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 
-			cb(common.WS_PAYLOAD_PIPEABLE, i, newArg)
+			cb(common.WSPayloadPipeableKey, i, newArg)
 		} else {
 			cb(arg, i, newArg)
 		}
@@ -255,86 +255,86 @@ func logBoostrap(port int) {
 
 func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 	switch k {
-	case CONTEXT:
+	case contextKey:
 		return c
-	case WS_CONNECTION:
+	case wsConnectionKey:
 		return c.WS.Connection
-	case REQUEST:
+	case requestKey:
 		return c.Request
-	case RESPONSE:
+	case responseKey:
 		return c.ResponseWriter
-	case BODY:
+	case bodyKey:
 		return c.Body()
-	case FORM:
+	case formKey:
 		return c.Form()
-	case QUERY:
+	case queryKey:
 		return c.Query()
-	case HEADER:
+	case headerKey:
 		return c.Header()
-	case PARAM:
+	case paramKey:
 		return c.Param()
-	case FILE:
+	case fileKey:
 		return c.File()
-	case WS_PAYLOAD:
+	case wsPayloadKey:
 		return c.WS.Message.Payload
-	case NEXT:
+	case nextKey:
 		return c.Next
-	case REDIRECT:
+	case redirectKey:
 		return c.Redirect
-	case common.CONTEXT_PIPEABLE:
+	case common.ContextPipeableKey:
 		return pipeValue.
 			Interface().(common.ContextPipeable).
 			Transform(c, common.ArgumentMetadata{
-				ParamType:   common.CONTEXT_PIPEABLE,
+				ParamType:   common.ContextPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.BODY_PIPEABLE:
+	case common.BodyPipeableKey:
 		return pipeValue.
 			Interface().(common.BodyPipeable).
 			Transform(c.Body(), common.ArgumentMetadata{
-				ParamType:   common.BODY_PIPEABLE,
+				ParamType:   common.BodyPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.FORM_PIPEABLE:
+	case common.FormPipeableKey:
 		return pipeValue.
 			Interface().(common.FormPipeable).
 			Transform(c.Form(), common.ArgumentMetadata{
-				ParamType:   common.FORM_PIPEABLE,
+				ParamType:   common.FormPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.QUERY_PIPEABLE:
+	case common.QueryPipeableKey:
 		return pipeValue.
 			Interface().(common.QueryPipeable).
 			Transform(c.Query(), common.ArgumentMetadata{
-				ParamType:   common.QUERY_PIPEABLE,
+				ParamType:   common.QueryPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.HEADER_PIPEABLE:
+	case common.HeaderPipeableKey:
 		return pipeValue.
 			Interface().(common.HeaderPipeable).
 			Transform(c.Header(), common.ArgumentMetadata{
-				ParamType:   common.HEADER_PIPEABLE,
+				ParamType:   common.HeaderPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.PARAM_PIPEABLE:
+	case common.ParamPipeableKey:
 		return pipeValue.
 			Interface().(common.ParamPipeable).
 			Transform(c.Param(), common.ArgumentMetadata{
-				ParamType:   common.PARAM_PIPEABLE,
+				ParamType:   common.ParamPipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.FILE_PIPEABLE:
+	case common.FilePipeableKey:
 		return pipeValue.
 			Interface().(common.FilePipeable).
 			Transform(c.File(), common.ArgumentMetadata{
-				ParamType:   common.FILE_PIPEABLE,
+				ParamType:   common.FilePipeableKey,
 				ContextType: c.GetType(),
 			})
-	case common.WS_PAYLOAD_PIPEABLE:
+	case common.WSPayloadPipeableKey:
 		return pipeValue.
 			Interface().(common.WSPayloadPipeable).
 			Transform(c.WS.Message.Payload, common.ArgumentMetadata{
-				ParamType:   common.WS_PAYLOAD_PIPEABLE,
+				ParamType:   common.WSPayloadPipeableKey,
 				ContextType: c.GetType(),
 			})
 	}
@@ -544,12 +544,12 @@ func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
 }
 
 func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
-	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OPERATOR_ERROR)
+	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OperatorError)
 	if len(errorOps) == 0 {
 		return
 	}
 	var existing []aggregation.AggregationOperator
-	if v := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)); v != nil {
+	if v := c.Context().Value(WithValueKey(aggregation.ErrorAggregationCtxValueKey)); v != nil {
 		existing = v.([]aggregation.AggregationOperator)
 	}
 	merged := make([]aggregation.AggregationOperator, len(existing), len(existing)+len(errorOps))
@@ -557,7 +557,7 @@ func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregati
 	for _, op := range errorOps {
 		merged = append(merged, op.Aggregation)
 	}
-	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), merged))
+	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ErrorAggregationCtxValueKey), merged))
 }
 
 func getWSEventKeys() []string {
@@ -569,7 +569,7 @@ func getWSEventKeys() []string {
 }
 
 func getContextID(c *ctx.Context) string {
-	reqID := c.Header().Get(ctx.REQUEST_ID)
+	reqID := c.Header().Get(ctx.RequestID)
 	if reqID == "" {
 		uuid, _ := utils.StrUUID()
 		return uuid

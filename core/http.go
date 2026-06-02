@@ -66,7 +66,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 
 			// Pipe errors run first
 			// then exception filter
-			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ErrorAggregationCtxValueKey)).([]aggregation.AggregationOperator); ok {
 				totalErrorAggregations := len(errorAggregationOperators)
 
 				// Handle case if pipe error panic
@@ -104,7 +104,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 
 	isMatched, matchedRoute, paramKeys, paramValues, handlers := http.route.Match(c.Method, c.URL.Path, version)
 	if !isMatched {
-		isMatched, matchedRoute, paramKeys, paramValues, handlers = http.route.Match(c.Method, c.URL.Path, versioning.NEUTRAL_VERSION)
+		isMatched, matchedRoute, paramKeys, paramValues, handlers = http.route.Match(c.Method, c.URL.Path, versioning.NeutralVersion)
 	}
 
 	if http.isEnableVersioning {
@@ -262,7 +262,7 @@ func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir a
 			http.returnNotFound(c)
 		} else {
 			stdHTTP.ServeFile(c.ResponseWriter, c.Request, dir)
-			_ = c.Broker.Publish(ctx.REQUEST_FINISHED, c)
+			_ = c.Broker.Publish(ctx.RequestFinished, c)
 		}
 	} else {
 		http.returnNotFound(c)

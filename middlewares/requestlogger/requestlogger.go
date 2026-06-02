@@ -13,7 +13,7 @@ type RequestLogger struct {
 }
 
 func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
-	_, _ = c.Broker.Subscribe(ctx.REQUEST_FINISHED, func(m *broker.Message) {
+	_, _ = c.Broker.Subscribe(ctx.RequestFinished, func(m *broker.Message) {
 		newC := m.Payload.(*ctx.Context)
 		requestType := newC.GetType()
 		responseTime := time.Since(newC.Timestamp)
@@ -27,7 +27,7 @@ func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
 				"Time", responseTime.String(),
 				"Protocol", newC.Proto,
 				"User-Agent", newC.UserAgent(),
-				ctx.REQUEST_ID, newC.GetID(),
+				ctx.RequestID, newC.GetID(),
 			)
 		case ctx.WSType:
 			instance.Info(

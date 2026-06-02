@@ -53,7 +53,7 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 }
 
 func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
-	interceptorItemArr := make([]InterceptorItem, 0, len(r.PatternToFnNameMap)*len(i.InterceptorHandlers))
+	interceptorItemArr := make([]InterceptorItem, 0, len(r.PatternToFuncNameMap)*len(i.InterceptorHandlers))
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
 		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
@@ -70,14 +70,14 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.handlers {
-			fnName := GetFnName(handler)
-			if pattern, ok := r.FnNameToPatternMap[fnName]; ok {
+			fnName := GetFuncName(handler)
+			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
 				shouldAddInterceptors[pattern] = true
 			}
 		}
 		applyAll := len(shouldAddInterceptors) == 0
 
-		for pattern := range r.PatternToFnNameMap {
+		for pattern := range r.PatternToFuncNameMap {
 			if applyAll || shouldAddInterceptors[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
@@ -91,7 +91,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 						Common: CommonItem{
 							Handler:         interceptorHandler.interceptable.Intercept,
 							Name:            interceptableType.String(),
-							MainHandlerName: r.PatternToFnNameMap[pattern],
+							MainHandlerName: r.PatternToFuncNameMap[pattern],
 						},
 					},
 				})
@@ -103,7 +103,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 }
 
 func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
-	interceptorItemArr := make([]InterceptorItem, 0, len(ws.patternToFnNameMap)*len(i.InterceptorHandlers))
+	interceptorItemArr := make([]InterceptorItem, 0, len(ws.patternToFuncNameMap)*len(i.InterceptorHandlers))
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
 		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
@@ -120,14 +120,14 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.handlers {
-			fnName := GetFnName(handler)
-			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+			fnName := GetFuncName(handler)
+			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
 				shouldAddInterceptors[event] = true
 			}
 		}
 		applyAll := len(shouldAddInterceptors) == 0
 
-		for pattern := range ws.patternToFnNameMap {
+		for pattern := range ws.patternToFuncNameMap {
 			if applyAll || shouldAddInterceptors[pattern] {
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
 					WS: WSInterceptorItem{

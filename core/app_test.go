@@ -36,7 +36,7 @@ func TestNewHasGlobalExceptionFilter(t *testing.T) {
 func TestGetContextIDFromHeader(t *testing.T) {
 	c := ctx.NewContext()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Header.Set(ctx.REQUEST_ID, "test-id-123")
+	r.Header.Set(ctx.RequestID, "test-id-123")
 	c.Request = r
 
 	got := getContextID(c)
@@ -126,7 +126,7 @@ func TestServeHTTPSetsRequestIDHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, r)
 
-	if w.Header().Get(ctx.REQUEST_ID) == "" {
+	if w.Header().Get(ctx.RequestID) == "" {
 		t.Error(testutils.DiffMessage("", "non-empty", "ServeHTTP should set X-Request-Id response header"))
 	}
 }
@@ -137,12 +137,12 @@ func TestServeHTTPPropagatesRequestID(t *testing.T) {
 
 	const fixedID = "fixed-request-id"
 	r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
-	r.Header.Set(ctx.REQUEST_ID, fixedID)
+	r.Header.Set(ctx.RequestID, fixedID)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, r)
 
-	if w.Header().Get(ctx.REQUEST_ID) != fixedID {
-		t.Error(testutils.DiffMessage(w.Header().Get(ctx.REQUEST_ID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
+	if w.Header().Get(ctx.RequestID) != fixedID {
+		t.Error(testutils.DiffMessage(w.Header().Get(ctx.RequestID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
 	}
 }
 

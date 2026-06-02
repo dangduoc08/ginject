@@ -16,7 +16,7 @@ func TestParseWSFnNameToEvent_Exact(t *testing.T) {
 		{"ON_a_b_c", "a.b.c"},
 	}
 	for _, c := range cases {
-		got, ok := ParseWSFnNameToEvent(c.fn)
+		got, ok := ParseWSFuncNameToEvent(c.fn)
 		if !ok {
 			t.Error(testutils.DiffMessage(ok, true, c.fn+" should be valid WS fn"))
 		}
@@ -36,7 +36,7 @@ func TestParseWSFnNameToEvent_Wildcards(t *testing.T) {
 		{"ON_ANY", "*"},
 	}
 	for _, c := range cases {
-		got, ok := ParseWSFnNameToEvent(c.fn)
+		got, ok := ParseWSFuncNameToEvent(c.fn)
 		if !ok {
 			t.Error(testutils.DiffMessage(ok, true, c.fn+" should be valid WS fn"))
 		}
@@ -56,7 +56,7 @@ func TestParseWSFnNameToEvent_Invalid(t *testing.T) {
 		"lowercase_message",
 	}
 	for _, fn := range cases {
-		_, ok := ParseWSFnNameToEvent(fn)
+		_, ok := ParseWSFuncNameToEvent(fn)
 		if ok {
 			t.Error(testutils.DiffMessage(ok, false, fn+" should not be valid WS fn"))
 		}
@@ -64,7 +64,7 @@ func TestParseWSFnNameToEvent_Invalid(t *testing.T) {
 }
 
 func TestParseWSFnNameToEvent_CaseNormalization(t *testing.T) {
-	got, ok := ParseWSFnNameToEvent("ON_Chat_Message")
+	got, ok := ParseWSFuncNameToEvent("ON_Chat_Message")
 	if !ok {
 		t.Error(testutils.DiffMessage(ok, true, "ON_Chat_Message should parse"))
 	}
@@ -79,8 +79,8 @@ func TestAddToEventMap_InitMaps(t *testing.T) {
 	if ws.EventMap == nil {
 		t.Error(testutils.DiffMessage(ws.EventMap, "non-nil", "EventMap initialized"))
 	}
-	if ws.patternToFnNameMap == nil {
-		t.Error(testutils.DiffMessage(ws.patternToFnNameMap, "non-nil", "patternToFnNameMap initialized"))
+	if ws.patternToFuncNameMap == nil {
+		t.Error(testutils.DiffMessage(ws.patternToFuncNameMap, "non-nil", "patternToFuncNameMap initialized"))
 	}
 }
 
@@ -90,8 +90,8 @@ func TestAddToEventMap_StoresEntries(t *testing.T) {
 	if ws.EventMap["message"] != "handler" {
 		t.Error(testutils.DiffMessage(ws.EventMap["message"], "handler", "EventMap entry"))
 	}
-	if ws.patternToFnNameMap["message"] != "ON_message" {
-		t.Error(testutils.DiffMessage(ws.patternToFnNameMap["message"], "ON_message", "patternToFnNameMap entry"))
+	if ws.patternToFuncNameMap["message"] != "ON_message" {
+		t.Error(testutils.DiffMessage(ws.patternToFuncNameMap["message"], "ON_message", "patternToFuncNameMap entry"))
 	}
 }
 

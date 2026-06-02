@@ -16,7 +16,7 @@ type RequestLogger struct {
 
 func (instance RequestLogger) Use(c ginject.Context, next ginject.Next) {
 	fmt.Println("[Global] RequestLogger middleware")
-	_, _ = c.Broker.Subscribe(ctx.REQUEST_FINISHED, func(m *broker.Message) {
+	_, _ = c.Broker.Subscribe(ctx.RequestFinished, func(m *broker.Message) {
 		newC := m.Payload.(*ctx.Context)
 		requestType := newC.GetType()
 		responseTime := time.Now().UnixMilli() - newC.Timestamp.UnixMilli()
@@ -30,7 +30,7 @@ func (instance RequestLogger) Use(c ginject.Context, next ginject.Next) {
 				"Time", fmt.Sprintf("%v ms", responseTime),
 				"Protocol", newC.Proto,
 				"User-Agent", newC.UserAgent(),
-				ctx.REQUEST_ID, newC.GetID(),
+				ctx.RequestID, newC.GetID(),
 			)
 		case ctx.WSType:
 			instance.Info(

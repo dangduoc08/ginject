@@ -33,7 +33,7 @@ type httpClient struct {
 	underlying      *http.Client
 }
 
-func newHTTPClient(opts *HttpClientModuleOptions) *httpClient {
+func newHTTPClient(opts *HTTPClientModuleOptions) *httpClient {
 	c := &httpClient{
 		defaultHeaders:  make(map[string]string),
 		validateStatus:  func(code int) bool { return code >= 200 && code < 400 },
