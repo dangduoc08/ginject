@@ -121,9 +121,9 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 		shouldAddInterceptors := map[string]bool{}
 		for _, handler := range interceptorHandler.handlers {
 			fnName := GetFnName(handler)
-			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-			eventName = ToWSEventName(eventName)
-			shouldAddInterceptors[eventName] = true
+			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+				shouldAddInterceptors[event] = true
+			}
 		}
 		applyAll := len(shouldAddInterceptors) == 0
 

@@ -26,11 +26,12 @@ const (
 	TOKEN_AND     = "AND"
 	TOKEN_OF      = "OF"
 	TOKEN_ANY     = "ANY"
+	TOKEN_ALL     = "ALL"
 	TOKEN_FILE    = "FILE"
 	TOKEN_VERSION = "VERSION"
 )
 
-var TokenMap = map[string]string{
+var RESTTokenMap = map[string]string{
 	TOKEN_BY:      TOKEN_BY,
 	TOKEN_AND:     TOKEN_AND,
 	TOKEN_OF:      TOKEN_OF,
@@ -136,7 +137,7 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
-	httpMethod, route, version := ParseFnNameToURL(fnName, RESTOperations)
+	httpMethod, route, version := ParseFnNameToURL(fnName)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
 		for _, modulePrefix := range modulePrefixes {

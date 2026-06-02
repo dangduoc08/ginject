@@ -119,9 +119,9 @@ func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, refle
 		shouldAddMiddleware := map[string]bool{}
 		for _, handler := range middlewareHandler.handlers {
 			fnName := GetFnName(handler)
-			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-			eventName = ToWSEventName(eventName)
-			shouldAddMiddleware[eventName] = true
+			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+				shouldAddMiddleware[event] = true
+			}
 		}
 		applyAll := len(shouldAddMiddleware) == 0
 
