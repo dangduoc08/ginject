@@ -30,7 +30,7 @@ func buildBenchWS(n int) *WS {
 	}
 	for i := range n {
 		event := fmt.Sprintf("bench_/event%d/", i)
-		fn := fmt.Sprintf("SUBSCRIBE_event%d", i)
+		fn := fmt.Sprintf("ON_event%d", i)
 		ws.patternToFnNameMap[event] = fn
 	}
 	return ws

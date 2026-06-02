@@ -4,10 +4,10 @@ import "testing"
 
 func BenchmarkAddHandlerToEventMap(b *testing.B) {
 	fns := []string{
-		"SUBSCRIBE_message", "SUBSCRIBE_status", "SUBSCRIBE_notification",
-		"SUBSCRIBE_presence", "SUBSCRIBE_typing", "SUBSCRIBE_reaction",
-		"SUBSCRIBE_thread", "SUBSCRIBE_channel", "SUBSCRIBE_direct",
-		"SUBSCRIBE_group",
+		"ON_message", "ON_status", "ON_notification",
+		"ON_presence", "ON_typing", "ON_reaction",
+		"ON_thread", "ON_channel", "ON_direct",
+		"ON_group",
 	}
 	b.ResetTimer()
 	for range b.N {
