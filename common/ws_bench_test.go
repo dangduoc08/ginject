@@ -4,10 +4,10 @@ import "testing"
 
 func BenchmarkAddHandlerToEventMap(b *testing.B) {
 	fns := []string{
-		"ON_message", "ON_status", "ON_notification",
-		"ON_presence", "ON_typing", "ON_reaction",
-		"ON_thread", "ON_channel", "ON_direct",
-		"ON_group",
+		"ON_chat_message", "ON_chat_status", "ON_chat_ANY",
+		"ON_room_join", "ON_room_leave", "ON_room_ALL",
+		"ON_user_typing", "ON_user_presence", "ON_notification",
+		"ON_ALL",
 	}
 	b.ResetTimer()
 	for range b.N {
@@ -21,3 +21,14 @@ func BenchmarkAddHandlerToEventMap(b *testing.B) {
 	}
 }
 
+func BenchmarkWSFnToSubject(b *testing.B) {
+	fns := []string{
+		"ON_chat_message", "ON_chat_ANY", "ON_chat_ALL", "ON_ALL",
+	}
+	b.ResetTimer()
+	for range b.N {
+		for _, fn := range fns {
+			ParseWSFnNameToEvent(fn)
+		}
+	}
+}

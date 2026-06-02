@@ -21,32 +21,30 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 	if ws.EventMap == nil {
 		ws.EventMap = make(map[string]any)
 	}
-
 	if ws.patternToFnNameMap == nil {
 		ws.patternToFnNameMap = map[string]string{}
 	}
-
 	ws.patternToFnNameMap[event] = fnName
 	ws.EventMap[event] = injectableHandler
 }
 
 func (ws *WS) AddHandlerToEventMap(fnName string, handler any) {
-	opr, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-	if opr != "" {
-		eventName = ToWSEventName(eventName)
-
-		if InsertedEvents[eventName] == "" {
-			InsertedEvents[eventName] = fnName
-		} else {
-			panic(errors.New(
-				utils.FmtRed(
-					"%v method is conflicted with %v method",
-					fnName,
-					InsertedEvents[eventName],
-				),
-			))
-		}
-
-		ws.addToEventMap(fnName, eventName, handler)
+	event, ok := ParseWSFnNameToEvent(fnName)
+	if !ok {
+		return
 	}
+
+	if InsertedEvents[event] == "" {
+		InsertedEvents[event] = fnName
+	} else {
+		panic(errors.New(
+			utils.FmtRed(
+				"%v method is conflicted with %v method",
+				fnName,
+				InsertedEvents[event],
+			),
+		))
+	}
+
+	ws.addToEventMap(fnName, event, handler)
 }
