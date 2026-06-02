@@ -3,6 +3,7 @@ package common
 import (
 	"testing"
 
+	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/testutils"
 )
 
@@ -59,7 +60,7 @@ func TestParseFnNameToURL_AllHTTPMethods(t *testing.T) {
 		{"PREFLIGHT_health", "OPTIONS", "/health/"},
 	}
 	for _, c := range cases {
-		method, route, version := ParseFnNameToURL(c.fn, RESTOperations)
+		method, route, version := ParseFnNameToURL(c.fn)
 		if method != c.wantMethod {
 			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method"))
 		}
@@ -72,41 +73,18 @@ func TestParseFnNameToURL_AllHTTPMethods(t *testing.T) {
 	}
 }
 
-// TestParseFnNameToURL_WSOperations verifies WS operations parse correctly.
-func TestParseFnNameToURL_WSOperations(t *testing.T) {
-	cases := []struct {
-		fn, wantMethod, wantRoute string
-	}{
-		{"ON_messages", "ON", "/messages/"},
-		{"ON_room_events", "ON", "/room_events/"},
-	}
-	for _, c := range cases {
-		method, route, _ := ParseFnNameToURL(c.fn, WSOperations)
-		if method != c.wantMethod {
-			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method"))
-		}
-		if route != c.wantRoute {
-			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
-		}
-	}
-}
-
 // TestParseFnNameToURL_InvalidInput verifies that unrecognised or empty inputs
 // do not produce method output and do not panic.
 func TestParseFnNameToURL_InvalidInput(t *testing.T) {
 	cases := []struct {
-		fn, ops, wantMethod string
+		fn, wantMethod string
 	}{
-		{"INVALID_users", "rest", ""},
-		{"lowercase_users", "rest", ""},
-		{"", "rest", ""},
+		{"INVALID_users", ""},
+		{"lowercase_users", ""},
+		{"", ""},
 	}
 	for _, c := range cases {
-		ops := RESTOperations
-		if c.ops == "ws" {
-			ops = WSOperations
-		}
-		method, _, _ := ParseFnNameToURL(c.fn, ops)
+		method, _, _ := ParseFnNameToURL(c.fn)
 		if method != c.wantMethod {
 			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method should be empty"))
 		}
@@ -126,7 +104,7 @@ func TestParseFnNameToURL_VersionExtraction(t *testing.T) {
 		{"READ_users_VERSION", "/users/", ""},
 	}
 	for _, c := range cases {
-		_, route, version := ParseFnNameToURL(c.fn, RESTOperations)
+		_, route, version := ParseFnNameToURL(c.fn)
 		if route != c.wantRoute {
 			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
@@ -147,7 +125,7 @@ func TestParseFnNameToURL_BareOperation(t *testing.T) {
 		{"READ_VERSION_v1", "/"},
 	}
 	for _, c := range cases {
-		_, route, _ := ParseFnNameToURL(c.fn, RESTOperations)
+		_, route, _ := ParseFnNameToURL(c.fn)
 		if route != c.wantRoute {
 			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
@@ -157,7 +135,7 @@ func TestParseFnNameToURL_BareOperation(t *testing.T) {
 // TestParseFnNameToURL_ParamWithoutPath verifies that BY immediately after an
 // operation (no resource name) produces a clean route with no double slash.
 func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
-	_, route, _ := ParseFnNameToURL("READ_BY_id", RESTOperations)
+	_, route, _ := ParseFnNameToURL("READ_BY_id")
 	want := "/{id}/"
 	if route != want {
 		t.Error(testutils.DiffMessage(route, want, "READ_BY_id route"))
@@ -172,4 +150,14 @@ func TestHandleGuard_PanicOnDenied(t *testing.T) {
 		}
 	}()
 	HandleGuard(nil, false)
+}
+
+func TestHandleGuard_CallsNext(t *testing.T) {
+	called := false
+	c := &ctx.Context{}
+	c.Next = func() { called = true }
+	HandleGuard(c, true)
+	if !called {
+		t.Error(testutils.DiffMessage(called, true, "HandleGuard should call Next when access is allowed"))
+	}
 }

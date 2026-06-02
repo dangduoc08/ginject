@@ -104,3 +104,90 @@ func TestCreate_OnlyFirstCORSMiddlewareWired(t *testing.T) {
 		t.Error(testutils.DiffMessage(true, false, "second CORS middleware should not be used"))
 	}
 }
+
+func buildTestWS(patterns []string) *WS {
+	ws := newWS()
+	for _, p := range patterns {
+		ws.eventMap[p] = []ctx.Handler{func(*ctx.Context) {}}
+	}
+	ws.buildCompiledPatterns()
+	return ws
+}
+
+func TestMatchEventKey_Exact(t *testing.T) {
+	ws := buildTestWS([]string{"chat.message"})
+	key, ok := ws.matchEventKey("chat.message")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "exact match should succeed"))
+	}
+	if key != "chat.message" {
+		t.Error(testutils.DiffMessage(key, "chat.message", "matched key"))
+	}
+}
+
+func TestMatchEventKey_SingleWildcard(t *testing.T) {
+	ws := buildTestWS([]string{"chat.*"})
+	key, ok := ws.matchEventKey("chat.hello")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "wildcard match should succeed"))
+	}
+	if key != "chat.*" {
+		t.Error(testutils.DiffMessage(key, "chat.*", "matched key"))
+	}
+	_, ok2 := ws.matchEventKey("chat.hello.deep")
+	if ok2 {
+		t.Error(testutils.DiffMessage(ok2, false, "single wildcard should not match multi-level"))
+	}
+}
+
+func TestMatchEventKey_MultiWildcard(t *testing.T) {
+	ws := buildTestWS([]string{"chat.>"})
+	_, ok := ws.matchEventKey("chat.hello")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "chat.> should match chat.hello"))
+	}
+	_, ok2 := ws.matchEventKey("chat.hello.deep")
+	if !ok2 {
+		t.Error(testutils.DiffMessage(ok2, true, "chat.> should match multi-level"))
+	}
+	_, ok3 := ws.matchEventKey("other.event")
+	if ok3 {
+		t.Error(testutils.DiffMessage(ok3, false, "chat.> should not match other.event"))
+	}
+}
+
+func TestMatchEventKey_CatchAll(t *testing.T) {
+	ws := buildTestWS([]string{">"})
+	_, ok := ws.matchEventKey("anything.at.all")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "catch-all should match any event"))
+	}
+}
+
+func TestMatchEventKey_NoMatch(t *testing.T) {
+	ws := buildTestWS([]string{"chat.message"})
+	_, ok := ws.matchEventKey("room.message")
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "should not match different event"))
+	}
+}
+
+func TestMatchEventKey_ExactBeforeWildcard(t *testing.T) {
+	ws := buildTestWS([]string{"chat.*", "chat.message"})
+	key, ok := ws.matchEventKey("chat.message")
+	if !ok {
+		t.Error(testutils.DiffMessage(ok, true, "should match"))
+	}
+	if key != "chat.message" {
+		t.Error(testutils.DiffMessage(key, "chat.message", "exact should win over wildcard"))
+	}
+}
+
+func TestMatchEventKey_Empty(t *testing.T) {
+	ws := newWS()
+	ws.buildCompiledPatterns()
+	_, ok := ws.matchEventKey("chat.message")
+	if ok {
+		t.Error(testutils.DiffMessage(ok, false, "empty eventMap should match nothing"))
+	}
+}

@@ -134,6 +134,7 @@ func (app *App) Create(m *Module) {
 	app.initGuards(injectedProviders)
 	app.initInterceptors(injectedProviders)
 	app.initMainHandlers()
+	app.ws.buildCompiledPatterns()
 	if app.isEnableDevtool {
 		app.createDevtool()
 	}

@@ -119,9 +119,9 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		shouldAddGuard := map[string]bool{}
 		for _, handler := range guardHandler.handlers {
 			fnName := GetFnName(handler)
-			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-			eventName = ToWSEventName(eventName)
-			shouldAddGuard[eventName] = true
+			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+				shouldAddGuard[event] = true
+			}
 		}
 		applyAll := len(shouldAddGuard) == 0
 

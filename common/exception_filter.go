@@ -120,9 +120,9 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 		shouldAddExceptionFilter := map[string]bool{}
 		for _, handler := range exceptionFilterHandler.handlers {
 			fnName := GetFnName(handler)
-			_, eventName, _ := ParseFnNameToURL(fnName, WSOperations)
-			eventName = ToWSEventName(eventName)
-			shouldAddExceptionFilter[eventName] = true
+			if event, ok := ParseWSFnNameToEvent(fnName); ok {
+				shouldAddExceptionFilter[event] = true
+			}
 		}
 		applyAll := len(shouldAddExceptionFilter) == 0
 

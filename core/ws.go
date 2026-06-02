@@ -6,6 +6,7 @@ import (
 	"io"
 	stdHTTP "net/http"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -14,13 +15,19 @@ import (
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/matcher"
 	"golang.org/x/net/websocket"
 )
+
+type compiledWS struct {
+	pattern matcher.Pattern
+}
 
 type WS struct {
 	eventToIDMu sync.RWMutex
 
 	eventMap          map[string][]ctx.Handler
+	compiledPatterns  []compiledWS
 	mainHandlerMap    map[string]any
 	eventToID         map[string][]string
 	catchFnsMap       map[string][]common.Catch
@@ -28,6 +35,41 @@ type WS struct {
 
 	corsAllowOrigin func(origin string) bool
 	invokeHandler   func(f any, c *ctx.Context) []reflect.Value
+}
+
+func kindPriority(k matcher.Kind) int {
+	switch k {
+	case matcher.KindExact:
+		return 0
+	case matcher.KindSingleSuffix:
+		return 1
+	case matcher.KindComplex:
+		return 2
+	default:
+		return 3
+	}
+}
+
+func (ws *WS) buildCompiledPatterns() {
+	ws.compiledPatterns = make([]compiledWS, 0, len(ws.eventMap))
+	for raw := range ws.eventMap {
+		ws.compiledPatterns = append(ws.compiledPatterns, compiledWS{
+			pattern: matcher.Parse(raw),
+		})
+	}
+	sort.Slice(ws.compiledPatterns, func(i, j int) bool {
+		return kindPriority(ws.compiledPatterns[i].pattern.Kind()) <
+			kindPriority(ws.compiledPatterns[j].pattern.Kind())
+	})
+}
+
+func (ws *WS) matchEventKey(event string) (string, bool) {
+	for _, cp := range ws.compiledPatterns {
+		if matcher.Match(cp.pattern, event) {
+			return cp.pattern.Raw(), true
+		}
+	}
+	return "", false
 }
 
 func newWS() *WS {
@@ -111,7 +153,8 @@ func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {
 }
 
 func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.WSMessage, isNext *bool, wsid string, wsSubscribedEvents []string) (recurse bool) {
-	publishEventName := common.ToWSEventName(wsMsg.Event)
+	incomingEvent := wsMsg.Event
+	matchedKey, isMatched := ws.matchEventKey(incomingEvent)
 
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -120,7 +163,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 
 				defer func() {
 					if rec := recover(); rec != nil {
-						_ = c.Broker.Publish(publishEventName, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
+						_ = c.Broker.Publish(matchedKey, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 					}
 				}()
 
@@ -130,8 +173,8 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 				}
 			}
 
-			if _, ok := ws.catchFnsMap[publishEventName]; ok && rec != nil {
-				_ = c.Broker.Publish(publishEventName, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
+			if _, ok := ws.catchFnsMap[matchedKey]; ok && rec != nil {
+				_ = c.Broker.Publish(matchedKey, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
 
 			newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
@@ -148,14 +191,14 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 
 	c.WS.Message = wsMsg
 
-	if handlers, isMatched := ws.eventMap[publishEventName]; isMatched {
-		for index, handler := range handlers {
+	if isMatched {
+		for index, handler := range ws.eventMap[matchedKey] {
 			if *isNext {
 				*isNext = false
 				handler(c)
 
-				if index == len(handlers)-1 && *isNext {
-					injectableHandler := ws.mainHandlerMap[publishEventName]
+				if index == len(ws.eventMap[matchedKey])-1 && *isNext {
+					injectableHandler := ws.mainHandlerMap[matchedKey]
 
 					data := ws.invokeHandler(injectableHandler, c)
 					if len(data) == 1 {
@@ -164,7 +207,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 					}
 					configPublishedEventName := data[0].String()
 
-					if aggregations, ok := c.Context().Value(WithValueKey(publishEventName)).([]*aggregation.Aggregation); ok {
+					if aggregations, ok := c.Context().Value(WithValueKey(matchedKey)).([]*aggregation.Aggregation); ok {
 						var aggregatedData any
 						isMainHandlerCalled := true
 						totalAggregations := len(aggregations)
@@ -200,7 +243,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 			}
 		}
 	} else {
-		ws.invokeGlobalMiddlewares(c, exception.NotFoundException("Cannot emit "+wsMsg.Event+" event"))
+		ws.invokeGlobalMiddlewares(c, exception.NotFoundException("Cannot emit "+incomingEvent+" event"))
 	}
 	return false
 }

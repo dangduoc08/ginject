@@ -7,7 +7,6 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 // to ensure constructor only run once
@@ -21,15 +20,12 @@ func GetFnName(handler any) string {
 	return strings.TrimSuffix(name, "-fm")
 }
 
-func ParseFnNameToURL(fnName string, operations map[string]string) (string, string, string) {
+func ParseFnNameToURL(fnName string) (string, string, string) {
 	method := ""
 	route := ""
 	version := ""
 
-	subStr := strings.Split(fnName, "_")
-	subStr = utils.ArrFilter(subStr, func(el string, i int) bool {
-		return el != ""
-	})
+	subStr := strings.FieldsFunc(fnName, func(r rune) bool { return r == '_' })
 	j := -1
 
 	for i, b := range subStr {
@@ -42,13 +38,12 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 
 		s := b
 
-		// function name is not satisfied statements
-		if _, ok := operations[s]; !ok && i == 0 {
-			return "", "", version
-		}
-
-		if _, ok := operations[s]; ok && i == 0 {
-			method = operations[s]
+		if i == 0 {
+			var ok bool
+			method, ok = RESTOperations[s]
+			if !ok {
+				return "", "", ""
+			}
 		}
 
 		if s == TOKEN_VERSION {
@@ -58,7 +53,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 			break
 		}
 
-		if _, ok := operations[s]; ok || s == TOKEN_OF {
+		if _, ok := RESTOperations[s]; ok || s == TOKEN_OF {
 			i++
 			path := ""
 			isAny := false
@@ -120,7 +115,7 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 
 			i++
 			start := i
-			for i < len(subStr) && TokenMap[subStr[i]] == "" {
+			for i < len(subStr) && RESTTokenMap[subStr[i]] == "" {
 				i++
 			}
 			param := strings.Join(subStr[start:i], "_")
@@ -158,6 +153,33 @@ func ParseFnNameToURL(fnName string, operations map[string]string) (string, stri
 	}
 
 	return method, "/" + strings.TrimPrefix(route, "/"), version
+}
+
+func ParseWSFnNameToEvent(fnName string) (string, bool) {
+	op, rest, found := strings.Cut(fnName, "_")
+	if !found || rest == "" {
+		return "", false
+	}
+	if _, ok := WSOperations[op]; !ok {
+		return "", false
+	}
+	parts := strings.Split(rest, "_")
+	segs := parts[:0]
+	for _, p := range parts {
+		switch p {
+		case "":
+		case TOKEN_ANY:
+			segs = append(segs, "*")
+		case TOKEN_ALL:
+			segs = append(segs, ">")
+		default:
+			segs = append(segs, strings.ToLower(p))
+		}
+	}
+	if len(segs) == 0 {
+		return "", false
+	}
+	return strings.Join(segs, "."), true
 }
 
 func HandleGuard(c *ctx.Context, canActive bool) {
