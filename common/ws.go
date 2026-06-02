@@ -7,7 +7,7 @@ import (
 )
 
 var WSOperations = map[string]string{
-	"SUBSCRIBE": "SUBSCRIBE",
+	"ON": "ON",
 }
 
 var InsertedEvents = make(map[string]string)

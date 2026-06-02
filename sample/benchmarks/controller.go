@@ -24,7 +24,7 @@ func (instance Controller) READ_ping() ginject.Map {
 	}
 }
 
-func (instance Controller) SUBSCRIBE_chat() ginject.Map {
+func (instance Controller) ON_chat() ginject.Map {
 	return ginject.Map{
 		"message": "Hello, World!",
 	}
