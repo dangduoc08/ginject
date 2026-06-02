@@ -52,14 +52,14 @@ var (
 
 func TestPipeableConstants(t *testing.T) {
 	cases := []struct{ got, want string }{
-		{CONTEXT_PIPEABLE, "context"},
-		{BODY_PIPEABLE, "body"},
-		{FORM_PIPEABLE, "form"},
-		{QUERY_PIPEABLE, "query"},
-		{HEADER_PIPEABLE, "header"},
-		{PARAM_PIPEABLE, "param"},
-		{FILE_PIPEABLE, "file"},
-		{WS_PAYLOAD_PIPEABLE, "wsPayload"},
+		{ContextPipeableKey, "context"},
+		{BodyPipeableKey, "body"},
+		{FormPipeableKey, "form"},
+		{QueryPipeableKey, "query"},
+		{HeaderPipeableKey, "header"},
+		{ParamPipeableKey, "param"},
+		{FilePipeableKey, "file"},
+		{WSPayloadPipeableKey, "wsPayload"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
@@ -71,13 +71,13 @@ func TestPipeableConstants(t *testing.T) {
 func TestArgumentMetadata_Fields(t *testing.T) {
 	m := ArgumentMetadata{
 		ContextType: "http",
-		ParamType:   BODY_PIPEABLE,
+		ParamType:   BodyPipeableKey,
 	}
 	if m.ContextType != "http" {
 		t.Error(testutils.DiffMessage(m.ContextType, "http", "ContextType"))
 	}
-	if m.ParamType != BODY_PIPEABLE {
-		t.Error(testutils.DiffMessage(m.ParamType, BODY_PIPEABLE, "ParamType"))
+	if m.ParamType != BodyPipeableKey {
+		t.Error(testutils.DiffMessage(m.ParamType, BodyPipeableKey, "ParamType"))
 	}
 }
 

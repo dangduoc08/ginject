@@ -58,9 +58,9 @@ func (aggregation *Aggregation) setOperators(name string, op AggregationOperator
 func (aggregation *Aggregation) Aggregate(c *ctx.Context) any {
 	for _, operator := range aggregation.operators {
 		switch operator.Name {
-		case OPERATOR_TRANSFORM:
+		case OperatorTransform:
 			aggregation.mainData = operator.Aggregation(c, aggregation.mainData)
-		case OPERATOR_TAP:
+		case OperatorTap:
 			operator.Aggregation(c, aggregation.mainData)
 		}
 	}

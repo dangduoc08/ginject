@@ -31,85 +31,85 @@ func makeCtxEmpty() *ctx.Context {
 }
 
 func TestGetVersion_Query(t *testing.T) {
-	v := &Versioning{Type: QUERY, Key: "version", DefaultVersion: "v1"}
+	v := &Versioning{Type: QueryVersion, Key: "version", DefaultVersion: "v1"}
 
 	got := v.GetVersion(makeCtxWithQuery("version", "v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "QUERY: key present"))
+		t.Error(testutils.DiffMessage(got, "v2", "QueryVersion: key present"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "QUERY: key absent uses default"))
+		t.Error(testutils.DiffMessage(got, "v1", "QueryVersion: key absent uses default"))
 	}
 }
 
 func TestGetVersion_QueryDefaultKey(t *testing.T) {
-	v := &Versioning{Type: QUERY, Key: "v", DefaultVersion: "v3"}
+	v := &Versioning{Type: QueryVersion, Key: "v", DefaultVersion: "v3"}
 
 	got := v.GetVersion(makeCtxWithQuery("v", "v5"))
 	if got != "v5" {
-		t.Error(testutils.DiffMessage(got, "v5", "QUERY: default key 'v'"))
+		t.Error(testutils.DiffMessage(got, "v5", "QueryVersion: default key 'v'"))
 	}
 }
 
 func TestGetVersion_Header(t *testing.T) {
-	v := &Versioning{Type: HEADER, Key: "X-Api-Version", DefaultVersion: "v1"}
+	v := &Versioning{Type: HeaderVersion, Key: "X-Api-Version", DefaultVersion: "v1"}
 
 	got := v.GetVersion(makeCtxWithHeader("X-Api-Version", "v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "HEADER: key present"))
+		t.Error(testutils.DiffMessage(got, "v2", "HeaderVersion: key present"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "HEADER: key absent uses default"))
+		t.Error(testutils.DiffMessage(got, "v1", "HeaderVersion: key absent uses default"))
 	}
 }
 
 func TestGetVersion_Custom(t *testing.T) {
 	v := &Versioning{
-		Type:           CUSTOM,
+		Type:           CustomVersion,
 		DefaultVersion: "v1",
 		Extractor:      func(c *ctx.Context) string { return "v9" },
 	}
 
 	got := v.GetVersion(makeCtxEmpty())
 	if got != "v9" {
-		t.Error(testutils.DiffMessage(got, "v9", "CUSTOM: extractor called"))
+		t.Error(testutils.DiffMessage(got, "v9", "CustomVersion: extractor called"))
 	}
 
-	v2 := &Versioning{Type: CUSTOM, DefaultVersion: "v1"}
+	v2 := &Versioning{Type: CustomVersion, DefaultVersion: "v1"}
 	got = v2.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "CUSTOM: nil extractor uses default"))
+		t.Error(testutils.DiffMessage(got, "v1", "CustomVersion: nil extractor uses default"))
 	}
 }
 
 func TestGetVersion_MediaType(t *testing.T) {
-	v := &Versioning{Type: MEDIA_TYPE, Key: "v", DefaultVersion: "v1"}
+	v := &Versioning{Type: MediaType, Key: "v", DefaultVersion: "v1"}
 
 	got := v.GetVersion(makeCtxWithHeader("Accept", "application/json;v=v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "MEDIA_TYPE: v= present in Accept"))
+		t.Error(testutils.DiffMessage(got, "v2", "MediaType: v= present in Accept"))
 	}
 
 	got = v.GetVersion(makeCtxWithHeader("Accept", "application/json"))
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "MEDIA_TYPE: no v= uses default"))
+		t.Error(testutils.DiffMessage(got, "v1", "MediaType: no v= uses default"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "MEDIA_TYPE: no Accept header uses default"))
+		t.Error(testutils.DiffMessage(got, "v1", "MediaType: no Accept header uses default"))
 	}
 }
 
 func TestGetVersion_Neutral(t *testing.T) {
-	v := &Versioning{Type: QUERY, Key: "v", DefaultVersion: NEUTRAL_VERSION}
+	v := &Versioning{Type: QueryVersion, Key: "v", DefaultVersion: NeutralVersion}
 
 	got := v.GetVersion(makeCtxEmpty())
-	if got != NEUTRAL_VERSION {
-		t.Error(testutils.DiffMessage(got, NEUTRAL_VERSION, "default version can be NEUTRAL"))
+	if got != NeutralVersion {
+		t.Error(testutils.DiffMessage(got, NeutralVersion, "default version can be NEUTRAL"))
 	}
 }

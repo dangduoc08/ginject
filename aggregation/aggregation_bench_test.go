@@ -51,7 +51,7 @@ func BenchmarkGetAggregationOperators_Hit(b *testing.B) {
 	a.Error(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = a.GetAggregationOperators(OPERATOR_ERROR)
+		_ = a.GetAggregationOperators(OperatorError)
 	}
 }
 
@@ -60,7 +60,7 @@ func BenchmarkGetAggregationOperators_Miss(b *testing.B) {
 	a.Transform(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = a.GetAggregationOperators(OPERATOR_ERROR)
+		_ = a.GetAggregationOperators(OperatorError)
 	}
 }
 

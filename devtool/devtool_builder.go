@@ -230,17 +230,17 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 			pipeType, schemas := generateRequestPayload(pipe)
 			if pipeType != "" {
 				switch pipeType {
-				case common.BODY_PIPEABLE:
+				case common.BodyPipeableKey:
 					restComponent.Request.Body = schemas
-				case common.FORM_PIPEABLE:
+				case common.FormPipeableKey:
 					restComponent.Request.Form = schemas
-				case common.QUERY_PIPEABLE:
+				case common.QueryPipeableKey:
 					restComponent.Request.Query = schemas
-				case common.HEADER_PIPEABLE:
+				case common.HeaderPipeableKey:
 					restComponent.Request.Header = schemas
-				case common.PARAM_PIPEABLE:
+				case common.ParamPipeableKey:
 					restComponent.Request.Param = schemas
-				case common.FILE_PIPEABLE:
+				case common.FilePipeableKey:
 					restComponent.Request.File = schemas
 				}
 			}

@@ -39,43 +39,43 @@ type App struct {
 
 // link to aliases
 const (
-	CONTEXT       = "/*ctx.Context"
-	WS_CONNECTION = "/*websocket.Conn"
-	REQUEST       = "/*http.Request"
-	RESPONSE      = "net/http/http.ResponseWriter"
-	BODY          = "github.com/dangduoc08/ginject/ctx/ctx.Body"
-	FORM          = "github.com/dangduoc08/ginject/ctx/ctx.Form"
-	QUERY         = "github.com/dangduoc08/ginject/ctx/ctx.Query"
-	HEADER        = "github.com/dangduoc08/ginject/ctx/ctx.Header"
-	PARAM         = "github.com/dangduoc08/ginject/ctx/ctx.Param"
-	FILE          = "github.com/dangduoc08/ginject/ctx/ctx.File"
-	WS_PAYLOAD    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
-	NEXT          = "/func()"
-	REDIRECT      = "/func(string)"
+	contextKey       = "/*ctx.Context"
+	wsConnectionKey = "/*websocket.Conn"
+	requestKey       = "/*http.Request"
+	responseKey      = "net/http/http.ResponseWriter"
+	bodyKey          = "github.com/dangduoc08/ginject/ctx/ctx.Body"
+	formKey          = "github.com/dangduoc08/ginject/ctx/ctx.Form"
+	queryKey         = "github.com/dangduoc08/ginject/ctx/ctx.Query"
+	headerKey        = "github.com/dangduoc08/ginject/ctx/ctx.Header"
+	paramKey         = "github.com/dangduoc08/ginject/ctx/ctx.Param"
+	fileKey          = "github.com/dangduoc08/ginject/ctx/ctx.File"
+	wsPayloadKey    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
+	nextKey          = "/func()"
+	redirectKey      = "/func(string)"
 )
 
 var dependencies = map[string]int{
-	CONTEXT:                    1,
-	WS_CONNECTION:              1,
-	REQUEST:                    1,
-	RESPONSE:                   1,
-	BODY:                       1,
-	FORM:                       1,
-	QUERY:                      1,
-	HEADER:                     1,
-	PARAM:                      1,
-	FILE:                       1,
-	WS_PAYLOAD:                 1,
-	NEXT:                       1,
-	REDIRECT:                   1,
-	common.CONTEXT_PIPEABLE:    1,
-	common.BODY_PIPEABLE:       1,
-	common.FORM_PIPEABLE:       1,
-	common.QUERY_PIPEABLE:      1,
-	common.HEADER_PIPEABLE:     1,
-	common.PARAM_PIPEABLE:      1,
-	common.FILE_PIPEABLE:       1,
-	common.WS_PAYLOAD_PIPEABLE: 1,
+	contextKey:                    1,
+	wsConnectionKey:              1,
+	requestKey:                    1,
+	responseKey:                   1,
+	bodyKey:                       1,
+	formKey:                       1,
+	queryKey:                      1,
+	headerKey:                     1,
+	paramKey:                      1,
+	fileKey:                       1,
+	wsPayloadKey:                 1,
+	nextKey:                       1,
+	redirectKey:                   1,
+	common.ContextPipeableKey:    1,
+	common.BodyPipeableKey:       1,
+	common.FormPipeableKey:       1,
+	common.QueryPipeableKey:      1,
+	common.HeaderPipeableKey:     1,
+	common.ParamPipeableKey:      1,
+	common.FilePipeableKey:       1,
+	common.WSPayloadPipeableKey: 1,
 }
 
 type WithValueKey string
@@ -121,7 +121,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c.SetType(ctx.HTTPType)
-	c.ResponseWriter.Header().Set(ctx.REQUEST_ID, c.GetID())
+	c.ResponseWriter.Header().Set(ctx.RequestID, c.GetID())
 	app.http.handleRequest(c)
 }
 

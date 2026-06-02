@@ -245,25 +245,25 @@ func TestGetLocalIP(t *testing.T) {
 
 func TestGetDependencyContext(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(CONTEXT, c, reflect.Value{})
+	got := getDependency(contextKey, c, reflect.Value{})
 	if got != c {
-		t.Error(testutils.DiffMessage(got, c, "getDependency CONTEXT"))
+		t.Error(testutils.DiffMessage(got, c, "getDependency contextKey"))
 	}
 }
 
 func TestGetDependencyRequest(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(REQUEST, c, reflect.Value{})
+	got := getDependency(requestKey, c, reflect.Value{})
 	if got != c.Request {
-		t.Error(testutils.DiffMessage(got, c.Request, "getDependency REQUEST"))
+		t.Error(testutils.DiffMessage(got, c.Request, "getDependency requestKey"))
 	}
 }
 
 func TestGetDependencyResponse(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(RESPONSE, c, reflect.Value{})
+	got := getDependency(responseKey, c, reflect.Value{})
 	if got != c.ResponseWriter {
-		t.Error(testutils.DiffMessage(got, c.ResponseWriter, "getDependency RESPONSE"))
+		t.Error(testutils.DiffMessage(got, c.ResponseWriter, "getDependency responseKey"))
 	}
 }
 

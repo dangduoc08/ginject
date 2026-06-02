@@ -40,7 +40,7 @@ func BenchmarkResolveWSEventname(b *testing.B) {
 	e := "CHAT_HELLO_WORLD"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ResolveWSEventname(e)
+		ResolveWSEventName(e)
 	}
 }
 

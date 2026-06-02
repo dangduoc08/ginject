@@ -127,19 +127,19 @@ func TestGetAggregationOperators_Match(t *testing.T) {
 	a := NewAggregation()
 	a.Transform(func(c *ctx.Context, data any) any { return data })
 	a.Error(func(c *ctx.Context, data any) any { return data })
-	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	ops := a.GetAggregationOperators(OperatorError)
 	if len(ops) != 1 {
 		t.Error(testutils.DiffMessage(len(ops), 1, "must return exactly 1 Error operator"))
 	}
-	if ops[0].Name != OPERATOR_ERROR {
-		t.Error(testutils.DiffMessage(ops[0].Name, OPERATOR_ERROR, "returned operator must have correct name"))
+	if ops[0].Name != OperatorError {
+		t.Error(testutils.DiffMessage(ops[0].Name, OperatorError, "returned operator must have correct name"))
 	}
 }
 
 func TestGetAggregationOperators_NoMatch(t *testing.T) {
 	a := NewAggregation()
 	a.Transform(func(c *ctx.Context, data any) any { return data })
-	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	ops := a.GetAggregationOperators(OperatorError)
 	if len(ops) != 0 {
 		t.Error(testutils.DiffMessage(len(ops), 0, "must return empty slice when no match"))
 	}
@@ -149,7 +149,7 @@ func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
 	a := NewAggregation()
 	a.Error(func(c *ctx.Context, data any) any { return "e1" })
 	a.Error(func(c *ctx.Context, data any) any { return "e2" })
-	ops := a.GetAggregationOperators(OPERATOR_ERROR)
+	ops := a.GetAggregationOperators(OperatorError)
 	if len(ops) != 2 {
 		t.Error(testutils.DiffMessage(len(ops), 2, "must return all matching operators"))
 	}
@@ -157,7 +157,7 @@ func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
 
 func TestGetAggregationOperators_EmptyAggregation(t *testing.T) {
 	a := NewAggregation()
-	ops := a.GetAggregationOperators(OPERATOR_TRANSFORM)
+	ops := a.GetAggregationOperators(OperatorTransform)
 	if len(ops) != 0 {
 		t.Error(testutils.DiffMessage(len(ops), 0, "empty aggregation must return empty result"))
 	}

@@ -7,7 +7,7 @@ func BenchmarkArgumentMetadata_Init(b *testing.B) {
 	for range b.N {
 		sink = ArgumentMetadata{
 			ContextType: "http",
-			ParamType:   BODY_PIPEABLE,
+			ParamType:   BodyPipeableKey,
 		}
 	}
 	_ = sink

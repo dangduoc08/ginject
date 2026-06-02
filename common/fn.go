@@ -12,7 +12,7 @@ import (
 // to ensure constructor only run once
 var singletons = make(map[string]any)
 
-func GetFnName(handler any) string {
+func GetFuncName(handler any) string {
 	name := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
 	if i := strings.LastIndex(name, "."); i >= 0 {
 		name = name[i+1:]
@@ -20,7 +20,7 @@ func GetFnName(handler any) string {
 	return strings.TrimSuffix(name, "-fm")
 }
 
-func ParseFnNameToURL(fnName string) (string, string, string) {
+func ParseFuncNameToURL(fnName string) (string, string, string) {
 	method := ""
 	route := ""
 	version := ""
@@ -46,33 +46,33 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 			}
 		}
 
-		if s == TOKEN_VERSION {
+		if s == TokenVersion {
 			if i+1 < len(subStr) {
 				version = strings.Join(subStr[i+1:], "_")
 			}
 			break
 		}
 
-		if _, ok := RESTOperations[s]; ok || s == TOKEN_OF {
+		if _, ok := RESTOperations[s]; ok || s == TokenOf {
 			i++
 			path := ""
 			isAny := false
 
 			for i < len(subStr) &&
-				subStr[i] != TOKEN_BY &&
-				subStr[i] != TOKEN_AND &&
-				subStr[i] != TOKEN_OF &&
-				subStr[i] != TOKEN_VERSION {
+				subStr[i] != TokenBy &&
+				subStr[i] != TokenAnd &&
+				subStr[i] != TokenOf &&
+				subStr[i] != TokenVersion {
 
 				// READ_ANY
 				// or OF_ANY
 				// mapped with condition line 54
-				if subStr[i] == TOKEN_ANY {
+				if subStr[i] == TokenAny {
 					path += "*"
 					isAny = true
 				}
 
-				if subStr[i] == TOKEN_FILE {
+				if subStr[i] == TokenFile {
 					lastWildcardIndex := strings.LastIndex(path, "*")
 					if lastWildcardIndex > -1 {
 						remainPath := "*"
@@ -82,7 +82,7 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 						lastWildcardIndex := strings.LastIndex(path, "_")
 						if lastWildcardIndex > -1 {
 							remainPath := path[:lastWildcardIndex]
-							if remainPath == TOKEN_ANY {
+							if remainPath == TokenAny {
 								remainPath = "*"
 							}
 							extension := strings.ToLower(path[lastWildcardIndex+1:])
@@ -92,7 +92,7 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 					}
 				}
 
-				if subStr[i] != TOKEN_ANY && subStr[i] != TOKEN_FILE {
+				if subStr[i] != TokenAny && subStr[i] != TokenFile {
 					if path == "" || isAny {
 						path += subStr[i]
 						isAny = false
@@ -108,7 +108,7 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 			continue
 		}
 
-		if s == TOKEN_BY || s == TOKEN_AND {
+		if s == TokenBy || s == TokenAnd {
 			firstSlashIndex := strings.Index(route, "/")
 			shouldConcatRoute := route[:firstSlashIndex]
 			remainRoutes := route[firstSlashIndex:]
@@ -137,7 +137,7 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 		}
 
 		// ANY stand alone
-		if s == TOKEN_ANY && (i == len(subStr)-1 || subStr[i+1] == TOKEN_OF) {
+		if s == TokenAny && (i == len(subStr)-1 || subStr[i+1] == TokenOf) {
 
 			// ANY same as a static path
 			if route == "" {
@@ -155,7 +155,7 @@ func ParseFnNameToURL(fnName string) (string, string, string) {
 	return method, "/" + strings.TrimPrefix(route, "/"), version
 }
 
-func ParseWSFnNameToEvent(fnName string) (string, bool) {
+func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 	op, rest, found := strings.Cut(fnName, "_")
 	if !found || rest == "" {
 		return "", false
@@ -168,9 +168,9 @@ func ParseWSFnNameToEvent(fnName string) (string, bool) {
 	for _, p := range parts {
 		switch p {
 		case "":
-		case TOKEN_ANY:
+		case TokenAny:
 			segs = append(segs, "*")
-		case TOKEN_ALL:
+		case TokenAll:
 			segs = append(segs, ">")
 		default:
 			segs = append(segs, strings.ToLower(p))

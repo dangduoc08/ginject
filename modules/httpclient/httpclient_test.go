@@ -22,7 +22,7 @@ import (
 // helpers
 
 func newTestClient(srv *httptest.Server) *httpClient {
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	return c
 }
 
@@ -111,7 +111,7 @@ func TestDelete(t *testing.T) {
 	srv := statusServer(204, "")
 	defer srv.Close()
 
-	c := newHTTPClient(&HttpClientModuleOptions{
+	c := newHTTPClient(&HTTPClientModuleOptions{
 		BaseURL: srv.URL,
 		// 204 is not in default 200-399 range? Yes it is (200 ≤ 204 < 400).
 	})
@@ -201,7 +201,7 @@ func TestBaseURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newHTTPClient(&HttpClientModuleOptions{BaseURL: srv.URL})
+	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	resp, err := c.Get("/users/42").Send()
 	if err != nil {
 		t.Fatal(err)
@@ -798,7 +798,7 @@ func TestTiming_Populated(t *testing.T) {
 // --- module registration ---
 
 func TestModule_Register(t *testing.T) {
-	m := Register(&HttpClientModuleOptions{IsGlobal: true})
+	m := Register(&HTTPClientModuleOptions{IsGlobal: true})
 	if m == nil {
 		t.Fatal("Register returned nil")
 	}

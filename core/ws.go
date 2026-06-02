@@ -158,7 +158,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY)).([]aggregation.AggregationOperator); ok {
+			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ErrorAggregationCtxValueKey)).([]aggregation.AggregationOperator); ok {
 				totalErrorAggregations := len(errorAggregationOperators)
 
 				defer func() {
@@ -177,7 +177,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 				_ = c.Broker.Publish(matchedKey, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
 
-			newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
+			newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ErrorAggregationCtxValueKey), nil)
 			c.Request = c.WithContext(newCtx)
 
 			for _, eventName := range wsSubscribedEvents {
@@ -278,7 +278,7 @@ func (ws *WS) publishWSEvent(configPublishedEventName, wsMsg string, c *ctx.Cont
 	for _, wsid := range wsids {
 		_ = c.Broker.Publish(configPublishedEventName+wsid, wsMsg)
 	}
-	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ERROR_AGGREGATION_CTX_VALUE_KEY), nil)
+	newCtx := context.WithValue(c.Context(), WithValueKey(aggregation.ErrorAggregationCtxValueKey), nil)
 	c.Request = c.WithContext(newCtx)
 }
 

@@ -11,15 +11,15 @@ import (
 
 type (
 	Map      map[string]any
-	ErrFn    func(error)
+	ErrFunc    func(error)
 	Handler  = func(*Context)
 	Next     = func()
 	Redirect = func(string)
 )
 
 const (
-	REQUEST_FINISHED = "REQUEST_FINISHED"
-	CATCH_EXCEPTION  = "CATCH_EXCEPTION"
+	RequestFinished = "RequestFinished"
+	CatchException  = "CatchException"
 )
 
 type Context struct {
@@ -74,7 +74,7 @@ func (c *Context) Text(data string, args ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(RequestFinished, c)
 }
 
 func (c *Context) JSON(data ...any) {
@@ -83,7 +83,7 @@ func (c *Context) JSON(data ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(RequestFinished, c)
 }
 
 func (c *Context) JSONP(data ...any) {
@@ -99,7 +99,7 @@ func (c *Context) JSONP(data ...any) {
 		callback:       callback,
 	}
 	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(RequestFinished, c)
 }
 
 func (c *Context) GetRoute() string {
@@ -114,7 +114,7 @@ func (c *Context) SetRoute(route string) *Context {
 func (c *Context) Redirect(url string) {
 	c.Status(http.StatusMovedPermanently)
 	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
-	_ = c.Broker.Publish(REQUEST_FINISHED, c)
+	_ = c.Broker.Publish(RequestFinished, c)
 }
 
 func (c *Context) Reset() {

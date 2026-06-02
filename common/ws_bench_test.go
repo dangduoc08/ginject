@@ -28,7 +28,7 @@ func BenchmarkWSFnToSubject(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		for _, fn := range fns {
-			ParseWSFnNameToEvent(fn)
+			ParseWSFuncNameToEvent(fn)
 		}
 	}
 }

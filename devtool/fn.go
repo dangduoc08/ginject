@@ -38,12 +38,12 @@ func generateHandlerID(str string) string {
 // need to handle ws payload
 func generateRequestPayload(pipe reflect.Type) (string, []*Schema) {
 	pipeableTypes := map[string]reflect.Type{
-		common.BODY_PIPEABLE:   reflect.TypeOf((*common.BodyPipeable)(nil)).Elem(),
-		common.FORM_PIPEABLE:   reflect.TypeOf((*common.FormPipeable)(nil)).Elem(),
-		common.QUERY_PIPEABLE:  reflect.TypeOf((*common.QueryPipeable)(nil)).Elem(),
-		common.HEADER_PIPEABLE: reflect.TypeOf((*common.HeaderPipeable)(nil)).Elem(),
-		common.PARAM_PIPEABLE:  reflect.TypeOf((*common.ParamPipeable)(nil)).Elem(),
-		common.FILE_PIPEABLE:   reflect.TypeOf((*common.FilePipeable)(nil)).Elem(),
+		common.BodyPipeableKey:   reflect.TypeOf((*common.BodyPipeable)(nil)).Elem(),
+		common.FormPipeableKey:   reflect.TypeOf((*common.FormPipeable)(nil)).Elem(),
+		common.QueryPipeableKey:  reflect.TypeOf((*common.QueryPipeable)(nil)).Elem(),
+		common.HeaderPipeableKey: reflect.TypeOf((*common.HeaderPipeable)(nil)).Elem(),
+		common.ParamPipeableKey:  reflect.TypeOf((*common.ParamPipeable)(nil)).Elem(),
+		common.FilePipeableKey:   reflect.TypeOf((*common.FilePipeable)(nil)).Elem(),
 	}
 
 	for pipeableKey, interfaceType := range pipeableTypes {

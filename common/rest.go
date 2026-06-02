@@ -22,22 +22,22 @@ var RESTOperations = map[string]string{
 var InsertedRoutes = make(map[string]string)
 
 const (
-	TOKEN_BY      = "BY"
-	TOKEN_AND     = "AND"
-	TOKEN_OF      = "OF"
-	TOKEN_ANY     = "ANY"
-	TOKEN_ALL     = "ALL"
-	TOKEN_FILE    = "FILE"
-	TOKEN_VERSION = "VERSION"
+	TokenBy      = "BY"
+	TokenAnd     = "AND"
+	TokenOf      = "OF"
+	TokenAny     = "ANY"
+	TokenAll     = "ALL"
+	TokenFile    = "FILE"
+	TokenVersion = "VERSION"
 )
 
 var RESTTokenMap = map[string]string{
-	TOKEN_BY:      TOKEN_BY,
-	TOKEN_AND:     TOKEN_AND,
-	TOKEN_OF:      TOKEN_OF,
-	TOKEN_ANY:     TOKEN_ANY,
-	TOKEN_FILE:    TOKEN_FILE,
-	TOKEN_VERSION: TOKEN_VERSION,
+	TokenBy:      TokenBy,
+	TokenAnd:     TokenAnd,
+	TokenOf:      TokenOf,
+	TokenAny:     TokenAny,
+	TokenFile:    TokenFile,
+	TokenVersion: TokenVersion,
 }
 
 type RESTLayer struct {
@@ -60,8 +60,8 @@ type RESTConfiguration struct {
 
 type REST struct {
 	prefixes           []Prefix
-	PatternToFnNameMap map[string]string
-	FnNameToPatternMap map[string]string
+	PatternToFuncNameMap map[string]string
+	FuncNameToPatternMap map[string]string
 	RouterMap          map[string]any
 }
 
@@ -75,19 +75,19 @@ func (r *REST) addToRouters(fnName, route, version, method string, injectableHan
 		r.RouterMap = make(map[string]any)
 	}
 
-	if r.PatternToFnNameMap == nil {
-		r.PatternToFnNameMap = map[string]string{}
+	if r.PatternToFuncNameMap == nil {
+		r.PatternToFuncNameMap = map[string]string{}
 	}
 
-	if r.FnNameToPatternMap == nil {
-		r.FnNameToPatternMap = map[string]string{}
+	if r.FuncNameToPatternMap == nil {
+		r.FuncNameToPatternMap = map[string]string{}
 	}
 
 	pattern := routing.MethodRouteVersionToPattern(method, route, version)
 
 	r.RouterMap[pattern] = injectableHandler
-	r.PatternToFnNameMap[pattern] = fnName
-	r.FnNameToPatternMap[fnName] = pattern
+	r.PatternToFuncNameMap[pattern] = fnName
+	r.FuncNameToPatternMap[fnName] = pattern
 }
 
 func (r *REST) GetPrefixes() []map[string]string {
@@ -103,7 +103,7 @@ func (r *REST) GetPrefixes() []map[string]string {
 			prefixes = append(prefixes, map[string]string{prefixValue: "*"})
 		} else {
 			for _, handler := range prefixHandlers {
-				prefixes = append(prefixes, map[string]string{prefixValue: GetFnName(handler)})
+				prefixes = append(prefixes, map[string]string{prefixValue: GetFuncName(handler)})
 			}
 		}
 	}
@@ -137,7 +137,7 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
-	httpMethod, route, version := ParseFnNameToURL(fnName)
+	httpMethod, route, version := ParseFuncNameToURL(fnName)
 	if httpMethod != "" {
 		route = r.addPrefixesToRoute(route, fnName, prefixes)
 		for _, modulePrefix := range modulePrefixes {

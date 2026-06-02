@@ -13,7 +13,7 @@ var WSOperations = map[string]string{
 var InsertedEvents = make(map[string]string)
 
 type WS struct {
-	patternToFnNameMap map[string]string
+	patternToFuncNameMap map[string]string
 	EventMap           map[string]any
 }
 
@@ -21,15 +21,15 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 	if ws.EventMap == nil {
 		ws.EventMap = make(map[string]any)
 	}
-	if ws.patternToFnNameMap == nil {
-		ws.patternToFnNameMap = map[string]string{}
+	if ws.patternToFuncNameMap == nil {
+		ws.patternToFuncNameMap = map[string]string{}
 	}
-	ws.patternToFnNameMap[event] = fnName
+	ws.patternToFuncNameMap[event] = fnName
 	ws.EventMap[event] = injectableHandler
 }
 
 func (ws *WS) AddHandlerToEventMap(fnName string, handler any) {
-	event, ok := ParseWSFnNameToEvent(fnName)
+	event, ok := ParseWSFuncNameToEvent(fnName)
 	if !ok {
 		return
 	}

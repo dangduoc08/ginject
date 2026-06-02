@@ -6,7 +6,7 @@ import (
 
 // header keys
 const (
-	REQUEST_ID = "X-Request-Id"
+	RequestID = "X-Request-Id"
 )
 
 type Header map[string][]string

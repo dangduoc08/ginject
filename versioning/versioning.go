@@ -7,13 +7,13 @@ import (
 )
 
 const (
-	QUERY = iota + 1
-	HEADER
-	CUSTOM
-	MEDIA_TYPE
+	QueryVersion = iota + 1
+	HeaderVersion
+	CustomVersion
+	MediaType
 )
 
-const NEUTRAL_VERSION = "NEUTRAL"
+const NeutralVersion = "NEUTRAL"
 
 type ExtractorHandler = func(*ctx.Context) string
 
@@ -26,13 +26,13 @@ type Versioning struct {
 
 func (versioning *Versioning) GetTypeString() string {
 	switch versioning.Type {
-	case QUERY:
+	case QueryVersion:
 		return "query"
-	case HEADER:
+	case HeaderVersion:
 		return "header"
-	case CUSTOM:
+	case CustomVersion:
 		return "custom"
-	case MEDIA_TYPE:
+	case MediaType:
 		return "media_type"
 	default:
 		return ""
@@ -41,19 +41,19 @@ func (versioning *Versioning) GetTypeString() string {
 
 func (versioning *Versioning) GetVersion(c *ctx.Context) string {
 	switch versioning.Type {
-	case QUERY:
+	case QueryVersion:
 		if v := c.Query().Get(versioning.Key); v != "" {
 			return v
 		}
-	case HEADER:
+	case HeaderVersion:
 		if v := c.Header().Get(versioning.Key); v != "" {
 			return v
 		}
-	case CUSTOM:
+	case CustomVersion:
 		if versioning.Extractor != nil {
 			return versioning.Extractor(c)
 		}
-	case MEDIA_TYPE:
+	case MediaType:
 		if _, after, found := strings.Cut(c.Header().Get("Accept"), versioning.Key+"="); found {
 			if v, _, _ := strings.Cut(strings.TrimSpace(after), ";"); v != "" {
 				return v

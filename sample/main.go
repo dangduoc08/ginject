@@ -27,7 +27,7 @@ func main() {
 
 	// app.
 	// 	EnableVersioning(versioning.Versioning{
-	// 		Type: versioning.HEADER,
+	// 		Type: versioning.HeaderVersion,
 	// 		Key:  confs.ENV.APIVersionName,
 	// 	}).
 	// 	EnableDevtool()
