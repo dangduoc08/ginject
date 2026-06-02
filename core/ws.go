@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
-	brok "github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
@@ -64,7 +64,6 @@ func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {
 	c.WS = wsInstance
 	wsid := wsInstance.GetConnID()
 	wsSubscribedEvents := wsInstance.GetSubscribedEvents()
-	subprotocol := wsInstance.GetSubprotocol()
 
 	defer func() {
 		for _, subscribedEventName := range wsSubscribedEvents {
@@ -105,14 +104,14 @@ func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {
 		isNext := true
 		c.Next = func() { isNext = true }
 
-		if ws.dispatchMessage(c, wsConn, wsMsg, subprotocol, &isNext, wsid, wsSubscribedEvents) {
+		if ws.dispatchMessage(c, wsConn, wsMsg, &isNext, wsid, wsSubscribedEvents) {
 			return
 		}
 	}
 }
 
-func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.WSMessage, subprotocol string, isNext *bool, wsid string, wsSubscribedEvents []string) (recurse bool) {
-	publishEventName := common.ToWSEventName(subprotocol, wsMsg.Event)
+func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.WSMessage, isNext *bool, wsid string, wsSubscribedEvents []string) (recurse bool) {
+	publishEventName := common.ToWSEventName(wsMsg.Event)
 
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -207,7 +206,7 @@ func (ws *WS) dispatchMessage(c *ctx.Context, wsConn *websocket.Conn, wsMsg ctx.
 }
 
 func (ws *WS) addWSEvent(subscribedEventName, wsid string, c *ctx.Context, cb func(string)) {
-	_, _ = c.Broker.Subscribe(subscribedEventName+wsid, func(m *brok.Message) {
+	_, _ = c.Broker.Subscribe(subscribedEventName+wsid, func(m *broker.Message) {
 		cb(m.Payload.(string))
 	})
 	ws.eventToIDMu.Lock()

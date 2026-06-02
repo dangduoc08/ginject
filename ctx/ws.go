@@ -60,15 +60,7 @@ func (ws *WS) GetConnID() string {
 }
 
 func (ws *WS) CanEstablish(insertedEvents map[string]string) bool {
-	requestSubprotocol := ws.GetSubprotocol()
-	for eventname := range insertedEvents {
-		configSubprotocol, _ := ResolveWSEventname(eventname)
-		if requestSubprotocol == configSubprotocol {
-			return true
-		}
-	}
-
-	return false
+	return len(insertedEvents) > 0
 }
 
 // Use for return error response to
