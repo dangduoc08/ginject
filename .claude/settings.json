@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(perl -i -pe ' *)",
+      "Bash(make test *)",
+      "Bash(perl -i -pe 's/\\\\bpatternToFnNameMap\\\\b/patternToFuncNameMap/g' common/exception_filter_bench_test.go common/exception_filter_test.go common/ws_test.go)"
+    ]
+  }
+}
