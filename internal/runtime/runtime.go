@@ -17,4 +17,4 @@ var nodeID = func() string {
 	return string(buf)
 }()
 
-func StrNodeID() string { return nodeID }
+func NodeID() string { return nodeID }
