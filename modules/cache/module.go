@@ -7,6 +7,7 @@ type CacheOnInitFn = func()
 type CacheModuleOptions struct {
 	IsGlobal bool
 	OnInit   CacheOnInitFn
+	Engine   Cache
 }
 
 func Register(opts *CacheModuleOptions) *core.Module {
@@ -14,7 +15,14 @@ func Register(opts *CacheModuleOptions) *core.Module {
 		opts = &CacheModuleOptions{}
 	}
 
-	svc := CacheService{Backend: newMemoryCache()}
+	engine := opts.Engine
+	if engine == nil {
+		engine = newMemoryCache()
+	}
+
+	svc := CacheService{
+		Engine: engine,
+	}
 
 	module := core.ModuleBuilder().
 		Providers(svc).

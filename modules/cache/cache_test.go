@@ -13,7 +13,7 @@ import (
 var ctx = context.Background()
 
 func newSvc() *CacheService {
-	return &CacheService{Backend: newMemoryCache()}
+	return &CacheService{Engine: newMemoryCache()}
 }
 
 // --- Get ---
