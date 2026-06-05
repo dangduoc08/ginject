@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/crypto"
 )
 
 var tr = NewTrie()
@@ -13,21 +13,21 @@ var arr = make([]string, l)
 
 func init() {
 	for i := 0; i < l; i++ {
-		randStr := utils.StrRandom(10) +
+		randStr := crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10) +
+			crypto.Random(10) +
 			"/" +
-			utils.StrRandom(10)
+			crypto.Random(10)
 
 		arr[i] = randStr
 		tr.insert(randStr, '/', i, nil, nil)

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/slice"
 )
 
 func toJSONBuffer(args ...any) ([]byte, error) {
@@ -304,7 +304,7 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 		declaredTyp := declaredElem.Kind()
 
 		// recursion loop
-		utils.ArrIter(arr, dimensions, func(el any, currentDimension int) {
+		slice.Iter(arr, dimensions, func(el any, currentDimension int) {
 
 			// switch case is for actual kind from JSON
 			// we also need to check declared type

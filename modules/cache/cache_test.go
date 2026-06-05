@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 var ctx = context.Background()
@@ -22,7 +22,7 @@ func TestGet_EmptyKey(t *testing.T) {
 	svc := newSvc()
 	val, ok := svc.Get(ctx, "")
 	if ok || val != nil {
-		t.Error(testutils.DiffMessage(ok, false, "empty key must return miss"))
+		t.Error(test.DiffMessage(ok, false, "empty key must return miss"))
 	}
 }
 
@@ -30,7 +30,7 @@ func TestGet_Missing(t *testing.T) {
 	svc := newSvc()
 	val, ok := svc.Get(ctx, "nonexistent")
 	if ok || val != nil {
-		t.Error(testutils.DiffMessage(ok, false, "missing key must return miss"))
+		t.Error(test.DiffMessage(ok, false, "missing key must return miss"))
 	}
 }
 
@@ -39,10 +39,10 @@ func TestGet_AfterSet(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("hello"), 0)
 	val, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "key should exist after Set"))
+		t.Error(test.DiffMessage(ok, true, "key should exist after Set"))
 	}
 	if string(val) != "hello" {
-		t.Error(testutils.DiffMessage(string(val), "hello", "value mismatch"))
+		t.Error(test.DiffMessage(string(val), "hello", "value mismatch"))
 	}
 }
 
@@ -52,7 +52,7 @@ func TestSet_EmptyKey(t *testing.T) {
 	svc := newSvc()
 	err := svc.Set(ctx, "", []byte("v"), 0)
 	if err == nil {
-		t.Error(testutils.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
+		t.Error(test.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
 	}
 }
 
@@ -60,14 +60,14 @@ func TestSet_NilVal(t *testing.T) {
 	svc := newSvc()
 	err := svc.Set(ctx, "k", nil, 0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "nil val must not error"))
+		t.Error(test.DiffMessage(err, nil, "nil val must not error"))
 	}
 	val, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "nil val key should exist"))
+		t.Error(test.DiffMessage(ok, true, "nil val key should exist"))
 	}
 	if len(val) != 0 {
-		t.Error(testutils.DiffMessage(len(val), 0, "nil val should retrieve as empty"))
+		t.Error(test.DiffMessage(len(val), 0, "nil val should retrieve as empty"))
 	}
 }
 
@@ -76,10 +76,10 @@ func TestSet_EmptyVal(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte{}, 0)
 	val, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "empty val key should exist"))
+		t.Error(test.DiffMessage(ok, true, "empty val key should exist"))
 	}
 	if len(val) != 0 {
-		t.Error(testutils.DiffMessage(len(val), 0, "empty val should retrieve as empty"))
+		t.Error(test.DiffMessage(len(val), 0, "empty val should retrieve as empty"))
 	}
 }
 
@@ -89,10 +89,10 @@ func TestSet_Overwrite(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("second"), 0)
 	val, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "key should exist after overwrite"))
+		t.Error(test.DiffMessage(ok, true, "key should exist after overwrite"))
 	}
 	if string(val) != "second" {
-		t.Error(testutils.DiffMessage(string(val), "second", "overwritten value mismatch"))
+		t.Error(test.DiffMessage(string(val), "second", "overwritten value mismatch"))
 	}
 }
 
@@ -103,7 +103,7 @@ func TestSet_ValCopy_Mutation_After_Set(t *testing.T) {
 	orig[0] = 'X'
 	val, _ := svc.Get(ctx, "k")
 	if val[0] == 'X' {
-		t.Error(testutils.DiffMessage(string(val), "mutable", "Set must copy val; caller mutation must not affect stored"))
+		t.Error(test.DiffMessage(string(val), "mutable", "Set must copy val; caller mutation must not affect stored"))
 	}
 }
 
@@ -114,7 +114,7 @@ func TestGet_ValCopy_Mutation_After_Get(t *testing.T) {
 	val[0] = 'X'
 	val2, _ := svc.Get(ctx, "k")
 	if val2[0] == 'X' {
-		t.Error(testutils.DiffMessage(string(val2), "immutable", "Get must return a copy; mutation must not affect stored"))
+		t.Error(test.DiffMessage(string(val2), "immutable", "Get must return a copy; mutation must not affect stored"))
 	}
 }
 
@@ -124,7 +124,7 @@ func TestDelete_EmptyKey(t *testing.T) {
 	svc := newSvc()
 	err := svc.Delete(ctx, "")
 	if err == nil {
-		t.Error(testutils.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
+		t.Error(test.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
 	}
 }
 
@@ -134,7 +134,7 @@ func TestDelete_Removes(t *testing.T) {
 	_ = svc.Delete(ctx, "k")
 	_, ok := svc.Get(ctx, "k")
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "key should be gone after Delete"))
+		t.Error(test.DiffMessage(ok, false, "key should be gone after Delete"))
 	}
 }
 
@@ -142,7 +142,7 @@ func TestDelete_Missing_NoError(t *testing.T) {
 	svc := newSvc()
 	err := svc.Delete(ctx, "nonexistent")
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "deleting missing key must not error"))
+		t.Error(test.DiffMessage(err, nil, "deleting missing key must not error"))
 	}
 }
 
@@ -154,7 +154,7 @@ func TestTTL_ExpiredEntry_ReturnsMiss(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	_, ok := svc.Get(ctx, "k")
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "expired entry must return miss"))
+		t.Error(test.DiffMessage(ok, false, "expired entry must return miss"))
 	}
 }
 
@@ -163,7 +163,7 @@ func TestTTL_NotYetExpired_ReturnsHit(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("v"), 1*time.Hour)
 	_, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "not-yet-expired entry must return hit"))
+		t.Error(test.DiffMessage(ok, true, "not-yet-expired entry must return hit"))
 	}
 }
 
@@ -173,7 +173,7 @@ func TestTTL_Zero_NeverExpires(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	_, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "ttl=0 must never expire"))
+		t.Error(test.DiffMessage(ok, true, "ttl=0 must never expire"))
 	}
 }
 
@@ -183,7 +183,7 @@ func TestTTL_Negative_NeverExpires(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	_, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "ttl<0 must never expire"))
+		t.Error(test.DiffMessage(ok, true, "ttl<0 must never expire"))
 	}
 }
 
@@ -194,10 +194,10 @@ func TestTTL_OverwriteResetsExpiry(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	val, ok := svc.Get(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "overwrite with longer TTL must not expire"))
+		t.Error(test.DiffMessage(ok, true, "overwrite with longer TTL must not expire"))
 	}
 	if string(val) != "v2" {
-		t.Error(testutils.DiffMessage(string(val), "v2", "overwritten value mismatch"))
+		t.Error(test.DiffMessage(string(val), "v2", "overwritten value mismatch"))
 	}
 }
 
@@ -222,11 +222,11 @@ func TestLargeKey(t *testing.T) {
 	key := string(bytes.Repeat([]byte("k"), 4096))
 	err := svc.Set(ctx, key, []byte("v"), 0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "large key must not error"))
+		t.Error(test.DiffMessage(err, nil, "large key must not error"))
 	}
 	val, ok := svc.Get(ctx, key)
 	if !ok || string(val) != "v" {
-		t.Error(testutils.DiffMessage(ok, true, "large key must retrieve correctly"))
+		t.Error(test.DiffMessage(ok, true, "large key must retrieve correctly"))
 	}
 }
 
@@ -253,10 +253,10 @@ func TestSetNX_EmptyKey(t *testing.T) {
 	svc := newSvc()
 	ok, err := svc.SetNX(ctx, "", []byte("v"), 0)
 	if err == nil {
-		t.Error(testutils.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
+		t.Error(test.DiffMessage(err, ErrEmptyKey, "empty key must return error"))
 	}
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "empty key must return false"))
+		t.Error(test.DiffMessage(ok, false, "empty key must return false"))
 	}
 }
 
@@ -264,14 +264,14 @@ func TestSetNX_SetsWhenAbsent(t *testing.T) {
 	svc := newSvc()
 	ok, err := svc.SetNX(ctx, "k", []byte("v"), 0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "must not error on absent key"))
+		t.Error(test.DiffMessage(err, nil, "must not error on absent key"))
 	}
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "must return true when key was absent"))
+		t.Error(test.DiffMessage(ok, true, "must return true when key was absent"))
 	}
 	val, exists := svc.Get(ctx, "k")
 	if !exists || string(val) != "v" {
-		t.Error(testutils.DiffMessage(string(val), "v", "value must be stored"))
+		t.Error(test.DiffMessage(string(val), "v", "value must be stored"))
 	}
 }
 
@@ -280,14 +280,14 @@ func TestSetNX_NoOverwriteWhenPresent(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("original"), 0)
 	ok, err := svc.SetNX(ctx, "k", []byte("new"), 0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "must not error when key exists"))
+		t.Error(test.DiffMessage(err, nil, "must not error when key exists"))
 	}
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "must return false when key already exists"))
+		t.Error(test.DiffMessage(ok, false, "must return false when key already exists"))
 	}
 	val, _ := svc.Get(ctx, "k")
 	if string(val) != "original" {
-		t.Error(testutils.DiffMessage(string(val), "original", "existing value must not be overwritten"))
+		t.Error(test.DiffMessage(string(val), "original", "existing value must not be overwritten"))
 	}
 }
 
@@ -297,14 +297,14 @@ func TestSetNX_SetsWhenExpired(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	ok, err := svc.SetNX(ctx, "k", []byte("new"), 0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "must not error on expired key"))
+		t.Error(test.DiffMessage(err, nil, "must not error on expired key"))
 	}
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "must return true when previous entry was expired"))
+		t.Error(test.DiffMessage(ok, true, "must return true when previous entry was expired"))
 	}
 	val, _ := svc.Get(ctx, "k")
 	if string(val) != "new" {
-		t.Error(testutils.DiffMessage(string(val), "new", "new value must be stored after expiry"))
+		t.Error(test.DiffMessage(string(val), "new", "new value must be stored after expiry"))
 	}
 }
 
@@ -312,7 +312,7 @@ func TestSetNX_NilVal(t *testing.T) {
 	svc := newSvc()
 	ok, err := svc.SetNX(ctx, "k", nil, 0)
 	if err != nil || !ok {
-		t.Error(testutils.DiffMessage(ok, true, "nil val must be stored on absent key"))
+		t.Error(test.DiffMessage(ok, true, "nil val must be stored on absent key"))
 	}
 }
 
@@ -338,7 +338,7 @@ func TestSetNX_ConcurrentOnlyOneWins(t *testing.T) {
 		}
 	}
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "exactly one goroutine must win SetNX"))
+		t.Error(test.DiffMessage(count, 1, "exactly one goroutine must win SetNX"))
 	}
 }
 
@@ -348,7 +348,7 @@ func TestKeys_Empty(t *testing.T) {
 	svc := newSvc()
 	keys := svc.Keys(ctx)
 	if len(keys) != 0 {
-		t.Error(testutils.DiffMessage(len(keys), 0, "empty cache must return no keys"))
+		t.Error(test.DiffMessage(len(keys), 0, "empty cache must return no keys"))
 	}
 }
 
@@ -358,7 +358,7 @@ func TestKeys_ReturnsLiveKeys(t *testing.T) {
 	_ = svc.Set(ctx, "b", []byte("2"), 0)
 	keys := svc.Keys(ctx)
 	if len(keys) != 2 {
-		t.Error(testutils.DiffMessage(len(keys), 2, "must return all live keys"))
+		t.Error(test.DiffMessage(len(keys), 2, "must return all live keys"))
 	}
 }
 
@@ -369,7 +369,7 @@ func TestKeys_ExcludesExpired(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	for _, k := range svc.Keys(ctx) {
 		if k == "dead" {
-			t.Error(testutils.DiffMessage("dead", "<absent>", "expired key must not appear in Keys"))
+			t.Error(test.DiffMessage("dead", "<absent>", "expired key must not appear in Keys"))
 		}
 	}
 }
@@ -380,7 +380,7 @@ func TestKeys_AfterDelete(t *testing.T) {
 	_ = svc.Delete(ctx, "k")
 	keys := svc.Keys(ctx)
 	if len(keys) != 0 {
-		t.Error(testutils.DiffMessage(len(keys), 0, "deleted key must not appear in Keys"))
+		t.Error(test.DiffMessage(len(keys), 0, "deleted key must not appear in Keys"))
 	}
 }
 
@@ -390,7 +390,7 @@ func TestTTLMethod_Missing(t *testing.T) {
 	svc := newSvc()
 	_, ok := svc.TTL(ctx, "nonexistent")
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "missing key must return false"))
+		t.Error(test.DiffMessage(ok, false, "missing key must return false"))
 	}
 }
 
@@ -398,7 +398,7 @@ func TestTTLMethod_EmptyKey(t *testing.T) {
 	svc := newSvc()
 	_, ok := svc.TTL(ctx, "")
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "empty key must return false"))
+		t.Error(test.DiffMessage(ok, false, "empty key must return false"))
 	}
 }
 
@@ -407,10 +407,10 @@ func TestTTLMethod_Permanent(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("v"), 0)
 	d, ok := svc.TTL(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "permanent key must return true"))
+		t.Error(test.DiffMessage(ok, true, "permanent key must return true"))
 	}
 	if d != 0 {
-		t.Error(testutils.DiffMessage(d, time.Duration(0), "permanent key must return duration 0"))
+		t.Error(test.DiffMessage(d, time.Duration(0), "permanent key must return duration 0"))
 	}
 }
 
@@ -419,10 +419,10 @@ func TestTTLMethod_WithExpiry(t *testing.T) {
 	_ = svc.Set(ctx, "k", []byte("v"), time.Hour)
 	d, ok := svc.TTL(ctx, "k")
 	if !ok {
-		t.Error(testutils.DiffMessage(ok, true, "key with TTL must return true"))
+		t.Error(test.DiffMessage(ok, true, "key with TTL must return true"))
 	}
 	if d <= 0 || d > time.Hour {
-		t.Error(testutils.DiffMessage(d, "0 < d <= 1h", "remaining TTL must be positive and within set range"))
+		t.Error(test.DiffMessage(d, "0 < d <= 1h", "remaining TTL must be positive and within set range"))
 	}
 }
 
@@ -432,7 +432,7 @@ func TestTTLMethod_Expired(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	_, ok := svc.TTL(ctx, "k")
 	if ok {
-		t.Error(testutils.DiffMessage(ok, false, "expired key must return false"))
+		t.Error(test.DiffMessage(ok, false, "expired key must return false"))
 	}
 }
 
@@ -443,7 +443,7 @@ func TestTTLMethod_Decreases(t *testing.T) {
 	time.Sleep(5 * time.Millisecond)
 	d2, _ := svc.TTL(ctx, "k")
 	if d2 >= d1 {
-		t.Error(testutils.DiffMessage(d2, "<d1", "TTL must decrease over time"))
+		t.Error(test.DiffMessage(d2, "<d1", "TTL must decrease over time"))
 	}
 }
 

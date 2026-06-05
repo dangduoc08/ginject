@@ -10,7 +10,7 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func noop() {}
@@ -66,30 +66,30 @@ func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken strin
 func TestLoadCSRFOptions_Defaults(t *testing.T) {
 	opts := loadCSRFOptions(&CSRF{})
 	if opts.tokenLength != csrfDefaultTokenLength {
-		t.Error(testutils.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "default token length"))
+		t.Error(test.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "default token length"))
 	}
 	if opts.cookieName != csrfDefaultCookieName {
-		t.Error(testutils.DiffMessage(opts.cookieName, csrfDefaultCookieName, "default cookie name"))
+		t.Error(test.DiffMessage(opts.cookieName, csrfDefaultCookieName, "default cookie name"))
 	}
 	if opts.headerName != csrfDefaultHeaderName {
-		t.Error(testutils.DiffMessage(opts.headerName, csrfDefaultHeaderName, "default header name"))
+		t.Error(test.DiffMessage(opts.headerName, csrfDefaultHeaderName, "default header name"))
 	}
 	if opts.contextKey != csrfDefaultContextKey {
-		t.Error(testutils.DiffMessage(opts.contextKey, csrfDefaultContextKey, "default context key"))
+		t.Error(test.DiffMessage(opts.contextKey, csrfDefaultContextKey, "default context key"))
 	}
 }
 
 func TestLoadCSRFOptions_ZeroTokenLengthUsesDefault(t *testing.T) {
 	opts := loadCSRFOptions(&CSRF{TokenLength: 0})
 	if opts.tokenLength != csrfDefaultTokenLength {
-		t.Error(testutils.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "zero length must default"))
+		t.Error(test.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "zero length must default"))
 	}
 }
 
 func TestLoadCSRFOptions_NegativeTokenLengthUsesDefault(t *testing.T) {
 	opts := loadCSRFOptions(&CSRF{TokenLength: -1})
 	if opts.tokenLength != csrfDefaultTokenLength {
-		t.Error(testutils.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "negative length must default"))
+		t.Error(test.DiffMessage(opts.tokenLength, csrfDefaultTokenLength, "negative length must default"))
 	}
 }
 
@@ -101,13 +101,13 @@ func TestLoadCSRFOptions_CustomValues(t *testing.T) {
 		ContextKey:  "my_key",
 	})
 	if opts.tokenLength != 64 {
-		t.Error(testutils.DiffMessage(opts.tokenLength, 64, "custom token length"))
+		t.Error(test.DiffMessage(opts.tokenLength, 64, "custom token length"))
 	}
 	if opts.cookieName != "my_csrf" {
-		t.Error(testutils.DiffMessage(opts.cookieName, "my_csrf", "custom cookie name"))
+		t.Error(test.DiffMessage(opts.cookieName, "my_csrf", "custom cookie name"))
 	}
 	if opts.headerName != "X-My-CSRF" {
-		t.Error(testutils.DiffMessage(opts.headerName, "X-My-CSRF", "custom header name"))
+		t.Error(test.DiffMessage(opts.headerName, "X-My-CSRF", "custom header name"))
 	}
 }
 
@@ -116,10 +116,10 @@ func TestLoadCSRFOptions_CustomValues(t *testing.T) {
 func TestGenerateCSRFToken_Length(t *testing.T) {
 	tok, err := GenerateCSRFToken(32)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "must not error"))
+		t.Error(test.DiffMessage(err, nil, "must not error"))
 	}
 	if len(tok) != 64 {
-		t.Error(testutils.DiffMessage(len(tok), 64, "32 bytes → 64 hex chars"))
+		t.Error(test.DiffMessage(len(tok), 64, "32 bytes → 64 hex chars"))
 	}
 }
 
@@ -127,17 +127,17 @@ func TestGenerateCSRFToken_Uniqueness(t *testing.T) {
 	a, _ := GenerateCSRFToken(32)
 	b, _ := GenerateCSRFToken(32)
 	if a == b {
-		t.Error(testutils.DiffMessage(a, "<different>", "tokens must be unique"))
+		t.Error(test.DiffMessage(a, "<different>", "tokens must be unique"))
 	}
 }
 
 func TestGenerateCSRFToken_ZeroLengthUsesDefault(t *testing.T) {
 	tok, err := GenerateCSRFToken(0)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "zero length must not error"))
+		t.Error(test.DiffMessage(err, nil, "zero length must not error"))
 	}
 	if len(tok) != csrfDefaultTokenLength*2 {
-		t.Error(testutils.DiffMessage(len(tok), csrfDefaultTokenLength*2, "zero length must use default"))
+		t.Error(test.DiffMessage(len(tok), csrfDefaultTokenLength*2, "zero length must use default"))
 	}
 }
 
@@ -145,7 +145,7 @@ func TestGenerateCSRFToken_OnlyHexChars(t *testing.T) {
 	tok, _ := GenerateCSRFToken(32)
 	for _, ch := range tok {
 		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
-			t.Error(testutils.DiffMessage(string(ch), "hex char", "token must be lowercase hex"))
+			t.Error(test.DiffMessage(string(ch), "hex char", "token must be lowercase hex"))
 			return
 		}
 	}
@@ -155,25 +155,25 @@ func TestGenerateCSRFToken_OnlyHexChars(t *testing.T) {
 
 func TestCompareTokensSecurely_Equal(t *testing.T) {
 	if !CompareTokensSecurely("abc", "abc") {
-		t.Error(testutils.DiffMessage(false, true, "equal tokens must match"))
+		t.Error(test.DiffMessage(false, true, "equal tokens must match"))
 	}
 }
 
 func TestCompareTokensSecurely_Unequal(t *testing.T) {
 	if CompareTokensSecurely("abc", "xyz") {
-		t.Error(testutils.DiffMessage(true, false, "unequal tokens must not match"))
+		t.Error(test.DiffMessage(true, false, "unequal tokens must not match"))
 	}
 }
 
 func TestCompareTokensSecurely_EmptyBothEqual(t *testing.T) {
 	if !CompareTokensSecurely("", "") {
-		t.Error(testutils.DiffMessage(false, true, "two empty strings must match"))
+		t.Error(test.DiffMessage(false, true, "two empty strings must match"))
 	}
 }
 
 func TestCompareTokensSecurely_OneEmpty(t *testing.T) {
 	if CompareTokensSecurely("abc", "") {
-		t.Error(testutils.DiffMessage(true, false, "non-empty vs empty must not match"))
+		t.Error(test.DiffMessage(true, false, "non-empty vs empty must not match"))
 	}
 }
 
@@ -185,7 +185,7 @@ func TestCSRF_SafeMethod_GET(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "GET must pass through"))
+		t.Error(test.DiffMessage(called, true, "GET must pass through"))
 	}
 }
 
@@ -195,7 +195,7 @@ func TestCSRF_SafeMethod_HEAD(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "HEAD must pass through"))
+		t.Error(test.DiffMessage(called, true, "HEAD must pass through"))
 	}
 }
 
@@ -205,7 +205,7 @@ func TestCSRF_SafeMethod_OPTIONS(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "OPTIONS must pass through"))
+		t.Error(test.DiffMessage(called, true, "OPTIONS must pass through"))
 	}
 }
 
@@ -223,7 +223,7 @@ func TestCSRF_SetsCookieWhenMissing(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error(testutils.DiffMessage(found, true, "must set CSRF cookie when missing"))
+		t.Error(test.DiffMessage(found, true, "must set CSRF cookie when missing"))
 	}
 }
 
@@ -233,7 +233,7 @@ func TestCSRF_ReusesExistingCookie(t *testing.T) {
 	mw.Use(c, noop)
 	for _, ck := range rec.Result().Cookies() {
 		if ck.Name == csrfDefaultCookieName {
-			t.Error(testutils.DiffMessage("cookie set", "no new cookie", "must not overwrite existing cookie"))
+			t.Error(test.DiffMessage("cookie set", "no new cookie", "must not overwrite existing cookie"))
 		}
 	}
 }
@@ -246,7 +246,7 @@ func TestCSRF_StoresTokenInContext(t *testing.T) {
 	mw.Use(c, func() {
 		val := c.Request.Context().Value("csrf_token")
 		if val != "mytoken" {
-			t.Error(testutils.DiffMessage(val, "mytoken", "token must be stored in request context"))
+			t.Error(test.DiffMessage(val, "mytoken", "token must be stored in request context"))
 		}
 	})
 }
@@ -259,7 +259,7 @@ func TestCSRF_POST_ValidHeader(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "POST with valid header token must pass"))
+		t.Error(test.DiffMessage(called, true, "POST with valid header token must pass"))
 	}
 }
 
@@ -269,7 +269,7 @@ func TestCSRF_POST_ValidAltHeader(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "POST with X-XSRF-TOKEN must pass"))
+		t.Error(test.DiffMessage(called, true, "POST with X-XSRF-TOKEN must pass"))
 	}
 }
 
@@ -279,7 +279,7 @@ func TestCSRF_POST_ValidFormField(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "POST with valid form field must pass"))
+		t.Error(test.DiffMessage(called, true, "POST with valid form field must pass"))
 	}
 }
 
@@ -289,7 +289,7 @@ func TestCSRF_PUT_ValidHeader(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "PUT with valid token must pass"))
+		t.Error(test.DiffMessage(called, true, "PUT with valid token must pass"))
 	}
 }
 
@@ -299,7 +299,7 @@ func TestCSRF_PATCH_ValidHeader(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "PATCH with valid token must pass"))
+		t.Error(test.DiffMessage(called, true, "PATCH with valid token must pass"))
 	}
 }
 
@@ -309,7 +309,7 @@ func TestCSRF_DELETE_ValidHeader(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "DELETE with valid token must pass"))
+		t.Error(test.DiffMessage(called, true, "DELETE with valid token must pass"))
 	}
 }
 
@@ -320,7 +320,7 @@ func TestCSRF_POST_MissingToken_Panics(t *testing.T) {
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "", "tok")
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "missing token must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "missing token must panic"))
 		}
 	}()
 	mw.Use(c, noop)
@@ -331,7 +331,7 @@ func TestCSRF_POST_WrongToken_Panics(t *testing.T) {
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "wrong", "correct")
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "wrong token must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "wrong token must panic"))
 		}
 	}()
 	mw.Use(c, noop)
@@ -342,7 +342,7 @@ func TestCSRF_POST_SpecialCharsToken_Panics(t *testing.T) {
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "../../../etc/passwd", "correct")
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "path traversal token must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "path traversal token must panic"))
 		}
 	}()
 	mw.Use(c, noop)
@@ -353,7 +353,7 @@ func TestCSRF_POST_EmptyToken_Panics(t *testing.T) {
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "", "tok")
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "empty submitted token must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "empty submitted token must panic"))
 		}
 	}()
 	mw.Use(c, noop)
@@ -364,7 +364,7 @@ func TestCSRF_POST_EmptyToken_Panics(t *testing.T) {
 func TestCSRF_NewMiddleware_ReturnsCompiledCSRF(t *testing.T) {
 	mw := CSRF{TokenLength: 16}.NewMiddleware()
 	if _, ok := mw.(compiledCSRF); !ok {
-		t.Error(testutils.DiffMessage(mw, "compiledCSRF", "NewMiddleware must return compiledCSRF"))
+		t.Error(test.DiffMessage(mw, "compiledCSRF", "NewMiddleware must return compiledCSRF"))
 	}
 }
 

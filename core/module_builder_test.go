@@ -3,14 +3,14 @@ package core
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func TestModuleBuilderImports(t *testing.T) {
 	child := ModuleBuilder().Build()
 	b := ModuleBuilder().Imports(child)
 	if len(b.imports) != 1 {
-		t.Error(testutils.DiffMessage(len(b.imports), 1, "Imports length"))
+		t.Error(test.DiffMessage(len(b.imports), 1, "Imports length"))
 	}
 }
 
@@ -18,7 +18,7 @@ func TestModuleBuilderProviders(t *testing.T) {
 	p := &mockProvider{}
 	b := ModuleBuilder().Providers(p)
 	if len(b.providers) != 1 {
-		t.Error(testutils.DiffMessage(len(b.providers), 1, "Providers length"))
+		t.Error(test.DiffMessage(len(b.providers), 1, "Providers length"))
 	}
 }
 
@@ -26,7 +26,7 @@ func TestModuleBuilderControllers(t *testing.T) {
 	c := &mockController{}
 	b := ModuleBuilder().Controllers(c)
 	if len(b.controllers) != 1 {
-		t.Error(testutils.DiffMessage(len(b.controllers), 1, "Controllers length"))
+		t.Error(test.DiffMessage(len(b.controllers), 1, "Controllers length"))
 	}
 }
 
@@ -42,20 +42,20 @@ func TestModuleBuilderBuild(t *testing.T) {
 		Build()
 
 	if m == nil {
-		t.Fatal(testutils.DiffMessage(nil, "*Module", "Build returned nil"))
+		t.Fatal(test.DiffMessage(nil, "*Module", "Build returned nil"))
 		return
 	}
 	if m.ID() == "" {
-		t.Error(testutils.DiffMessage("", "non-empty id", "module ID should not be empty"))
+		t.Error(test.DiffMessage("", "non-empty id", "module ID should not be empty"))
 	}
 	if len(m.providers) != 1 {
-		t.Error(testutils.DiffMessage(len(m.providers), 1, "module providers length"))
+		t.Error(test.DiffMessage(len(m.providers), 1, "module providers length"))
 	}
 	if len(m.controllers) != 1 {
-		t.Error(testutils.DiffMessage(len(m.controllers), 1, "module controllers length"))
+		t.Error(test.DiffMessage(len(m.controllers), 1, "module controllers length"))
 	}
 	if len(m.staticModules) != 1 {
-		t.Error(testutils.DiffMessage(len(m.staticModules), 1, "module staticModules length"))
+		t.Error(test.DiffMessage(len(m.staticModules), 1, "module staticModules length"))
 	}
 }
 
@@ -66,17 +66,17 @@ func TestGetModuleTypeStaticOnly(t *testing.T) {
 
 	statics, dynamics := b.getModuleType()
 	if len(statics) != 2 {
-		t.Error(testutils.DiffMessage(len(statics), 2, "static modules count"))
+		t.Error(test.DiffMessage(len(statics), 2, "static modules count"))
 	}
 	if len(dynamics) != 0 {
-		t.Error(testutils.DiffMessage(len(dynamics), 0, "dynamic modules count"))
+		t.Error(test.DiffMessage(len(dynamics), 0, "dynamic modules count"))
 	}
 }
 
 func TestGetModuleTypeInvalidPanics(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "invalid import should panic"))
+			t.Error(test.DiffMessage(nil, "panic", "invalid import should panic"))
 		}
 	}()
 	b := ModuleBuilder().Imports("not a module")
@@ -90,9 +90,9 @@ func TestModuleBuilderChaining(t *testing.T) {
 
 	b := ModuleBuilder().Providers(p1).Providers(p2).Controllers(c1)
 	if len(b.providers) != 2 {
-		t.Error(testutils.DiffMessage(len(b.providers), 2, "chained providers"))
+		t.Error(test.DiffMessage(len(b.providers), 2, "chained providers"))
 	}
 	if len(b.controllers) != 1 {
-		t.Error(testutils.DiffMessage(len(b.controllers), 1, "chained controllers"))
+		t.Error(test.DiffMessage(len(b.controllers), 1, "chained controllers"))
 	}
 }

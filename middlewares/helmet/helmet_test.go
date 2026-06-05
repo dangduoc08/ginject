@@ -8,7 +8,7 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func noop() {}
@@ -31,7 +31,7 @@ func newTestContext(method, origin string) (*ctx.Context, *httptest.ResponseReco
 func TestLoadHelmetOptions_DefaultCSP(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.contentSecurityPolicy != helmetDefaultCSP {
-		t.Error(testutils.DiffMessage(opts.contentSecurityPolicy, helmetDefaultCSP, "default CSP"))
+		t.Error(test.DiffMessage(opts.contentSecurityPolicy, helmetDefaultCSP, "default CSP"))
 	}
 }
 
@@ -39,56 +39,56 @@ func TestLoadHelmetOptions_CustomCSP(t *testing.T) {
 	csp := "default-src 'none'"
 	opts := loadHelmetOptions(&Helmet{ContentSecurityPolicy: csp})
 	if opts.contentSecurityPolicy != csp {
-		t.Error(testutils.DiffMessage(opts.contentSecurityPolicy, csp, "custom CSP"))
+		t.Error(test.DiffMessage(opts.contentSecurityPolicy, csp, "custom CSP"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultCrossOriginEmbedderPolicy(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.crossOriginEmbedderPolicy != "require-corp" {
-		t.Error(testutils.DiffMessage(opts.crossOriginEmbedderPolicy, "require-corp", "default COEP"))
+		t.Error(test.DiffMessage(opts.crossOriginEmbedderPolicy, "require-corp", "default COEP"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultCrossOriginOpenerPolicy(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.crossOriginOpenerPolicy != "same-origin" {
-		t.Error(testutils.DiffMessage(opts.crossOriginOpenerPolicy, "same-origin", "default COOP"))
+		t.Error(test.DiffMessage(opts.crossOriginOpenerPolicy, "same-origin", "default COOP"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultCrossOriginResourcePolicy(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.crossOriginResourcePolicy != "same-origin" {
-		t.Error(testutils.DiffMessage(opts.crossOriginResourcePolicy, "same-origin", "default CORP"))
+		t.Error(test.DiffMessage(opts.crossOriginResourcePolicy, "same-origin", "default CORP"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultDNSPrefetchControl(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.dnsPrefetchControl != "off" {
-		t.Error(testutils.DiffMessage(opts.dnsPrefetchControl, "off", "default DNS prefetch control"))
+		t.Error(test.DiffMessage(opts.dnsPrefetchControl, "off", "default DNS prefetch control"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultFrameOptions(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.frameOptions != "SAMEORIGIN" {
-		t.Error(testutils.DiffMessage(opts.frameOptions, "SAMEORIGIN", "default frame options"))
+		t.Error(test.DiffMessage(opts.frameOptions, "SAMEORIGIN", "default frame options"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultPermittedCrossDomainPolicies(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.permittedCrossDomainPolicies != "none" {
-		t.Error(testutils.DiffMessage(opts.permittedCrossDomainPolicies, "none", "default permitted cross domain policies"))
+		t.Error(test.DiffMessage(opts.permittedCrossDomainPolicies, "none", "default permitted cross domain policies"))
 	}
 }
 
 func TestLoadHelmetOptions_DefaultReferrerPolicy(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.referrerPolicy != "no-referrer" {
-		t.Error(testutils.DiffMessage(opts.referrerPolicy, "no-referrer", "default referrer policy"))
+		t.Error(test.DiffMessage(opts.referrerPolicy, "no-referrer", "default referrer policy"))
 	}
 }
 
@@ -96,38 +96,38 @@ func TestLoadHelmetOptions_DefaultHSTS(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	want := "max-age=15552000; includeSubDomains"
 	if opts.hsts != want {
-		t.Error(testutils.DiffMessage(opts.hsts, want, "default HSTS"))
+		t.Error(test.DiffMessage(opts.hsts, want, "default HSTS"))
 	}
 }
 
 func TestLoadHelmetOptions_CustomHSTSMaxAge(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{HSTSMaxAge: 3600})
 	if !strings.HasPrefix(opts.hsts, "max-age=3600") {
-		t.Error(testutils.DiffMessage(opts.hsts, "max-age=3600...", "custom HSTS max-age"))
+		t.Error(test.DiffMessage(opts.hsts, "max-age=3600...", "custom HSTS max-age"))
 	}
 }
 
 func TestLoadHelmetOptions_HSTSDisabledByFlag(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{DisableHSTS: true})
 	if opts.hsts != "" {
-		t.Error(testutils.DiffMessage(opts.hsts, "", "HSTS should be disabled"))
+		t.Error(test.DiffMessage(opts.hsts, "", "HSTS should be disabled"))
 	}
 }
 
 func TestLoadHelmetOptions_HSTSExcludeSubDomains(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{HSTSExcludeSubDomains: true})
 	if strings.Contains(opts.hsts, "includeSubDomains") {
-		t.Error(testutils.DiffMessage(opts.hsts, "no includeSubDomains", "HSTS should exclude subdomains"))
+		t.Error(test.DiffMessage(opts.hsts, "no includeSubDomains", "HSTS should exclude subdomains"))
 	}
 	if !strings.HasPrefix(opts.hsts, "max-age=") {
-		t.Error(testutils.DiffMessage(opts.hsts, "max-age=...", "HSTS max-age still required"))
+		t.Error(test.DiffMessage(opts.hsts, "max-age=...", "HSTS max-age still required"))
 	}
 }
 
 func TestLoadHelmetOptions_HSTSPreload(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{HSTSPreload: true})
 	if !strings.HasSuffix(opts.hsts, "; preload") {
-		t.Error(testutils.DiffMessage(opts.hsts, "...preload", "HSTS preload missing"))
+		t.Error(test.DiffMessage(opts.hsts, "...preload", "HSTS preload missing"))
 	}
 }
 
@@ -135,7 +135,7 @@ func TestLoadHelmetOptions_HSTSCustomMaxAgeAndSubDomains(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{HSTSMaxAge: 86400, HSTSExcludeSubDomains: true, HSTSPreload: true})
 	want := "max-age=86400; preload"
 	if opts.hsts != want {
-		t.Error(testutils.DiffMessage(opts.hsts, want, "HSTS with custom max-age, no subdomains, preload"))
+		t.Error(test.DiffMessage(opts.hsts, want, "HSTS with custom max-age, no subdomains, preload"))
 	}
 }
 
@@ -146,13 +146,13 @@ func TestLoadHelmetOptions_CustomCrossOriginPolicies(t *testing.T) {
 		CrossOriginResourcePolicy: "cross-origin",
 	})
 	if opts.crossOriginEmbedderPolicy != "unsafe-none" {
-		t.Error(testutils.DiffMessage(opts.crossOriginEmbedderPolicy, "unsafe-none", "custom COEP"))
+		t.Error(test.DiffMessage(opts.crossOriginEmbedderPolicy, "unsafe-none", "custom COEP"))
 	}
 	if opts.crossOriginOpenerPolicy != "same-origin-allow-popups" {
-		t.Error(testutils.DiffMessage(opts.crossOriginOpenerPolicy, "same-origin-allow-popups", "custom COOP"))
+		t.Error(test.DiffMessage(opts.crossOriginOpenerPolicy, "same-origin-allow-popups", "custom COOP"))
 	}
 	if opts.crossOriginResourcePolicy != "cross-origin" {
-		t.Error(testutils.DiffMessage(opts.crossOriginResourcePolicy, "cross-origin", "custom CORP"))
+		t.Error(test.DiffMessage(opts.crossOriginResourcePolicy, "cross-origin", "custom CORP"))
 	}
 }
 
@@ -164,7 +164,7 @@ func TestHelmet_Use_CallsNext(t *testing.T) {
 	called := false
 	mw.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "next should always be called"))
+		t.Error(test.DiffMessage(called, true, "next should always be called"))
 	}
 }
 
@@ -173,7 +173,7 @@ func TestHelmet_Use_SetsXContentTypeOptions(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-Content-Type-Options"), "nosniff", "X-Content-Type-Options"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-Content-Type-Options"), "nosniff", "X-Content-Type-Options"))
 	}
 }
 
@@ -182,7 +182,7 @@ func TestHelmet_Use_SetsXDownloadOptions(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-Download-Options") != "noopen" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-Download-Options"), "noopen", "X-Download-Options"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-Download-Options"), "noopen", "X-Download-Options"))
 	}
 }
 
@@ -191,7 +191,7 @@ func TestHelmet_Use_SetsXXSSProtectionToZero(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-XSS-Protection") != "0" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-XSS-Protection"), "0", "X-XSS-Protection must be 0"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-XSS-Protection"), "0", "X-XSS-Protection must be 0"))
 	}
 }
 
@@ -200,7 +200,7 @@ func TestHelmet_Use_SetsOriginAgentCluster(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Origin-Agent-Cluster") != "?1" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Origin-Agent-Cluster"), "?1", "Origin-Agent-Cluster"))
+		t.Error(test.DiffMessage(rec.Header().Get("Origin-Agent-Cluster"), "?1", "Origin-Agent-Cluster"))
 	}
 }
 
@@ -209,7 +209,7 @@ func TestHelmet_Use_SetsDefaultCSP(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Content-Security-Policy") != helmetDefaultCSP {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Content-Security-Policy"), helmetDefaultCSP, "default CSP header"))
+		t.Error(test.DiffMessage(rec.Header().Get("Content-Security-Policy"), helmetDefaultCSP, "default CSP header"))
 	}
 }
 
@@ -219,7 +219,7 @@ func TestHelmet_Use_SetsCustomCSP(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Content-Security-Policy") != csp {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Content-Security-Policy"), csp, "custom CSP header"))
+		t.Error(test.DiffMessage(rec.Header().Get("Content-Security-Policy"), csp, "custom CSP header"))
 	}
 }
 
@@ -229,7 +229,7 @@ func TestHelmet_Use_SetsDefaultHSTS(t *testing.T) {
 	mw.Use(c, noop)
 	want := "max-age=15552000; includeSubDomains"
 	if rec.Header().Get("Strict-Transport-Security") != want {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Strict-Transport-Security"), want, "default HSTS header"))
+		t.Error(test.DiffMessage(rec.Header().Get("Strict-Transport-Security"), want, "default HSTS header"))
 	}
 }
 
@@ -238,7 +238,7 @@ func TestHelmet_Use_SkipsHSTSWhenDisabled(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Strict-Transport-Security") != "" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Strict-Transport-Security"), "", "HSTS should not be set"))
+		t.Error(test.DiffMessage(rec.Header().Get("Strict-Transport-Security"), "", "HSTS should not be set"))
 	}
 }
 
@@ -247,7 +247,7 @@ func TestHelmet_Use_SetsDefaultFrameOptions(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-Frame-Options") != "SAMEORIGIN" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-Frame-Options"), "SAMEORIGIN", "X-Frame-Options"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-Frame-Options"), "SAMEORIGIN", "X-Frame-Options"))
 	}
 }
 
@@ -256,7 +256,7 @@ func TestHelmet_Use_SetsDefaultReferrerPolicy(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Referrer-Policy") != "no-referrer" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Referrer-Policy"), "no-referrer", "Referrer-Policy"))
+		t.Error(test.DiffMessage(rec.Header().Get("Referrer-Policy"), "no-referrer", "Referrer-Policy"))
 	}
 }
 
@@ -265,13 +265,13 @@ func TestHelmet_Use_SetsCrossOriginHeaders(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Cross-Origin-Embedder-Policy") != "require-corp" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Cross-Origin-Embedder-Policy"), "require-corp", "COEP"))
+		t.Error(test.DiffMessage(rec.Header().Get("Cross-Origin-Embedder-Policy"), "require-corp", "COEP"))
 	}
 	if rec.Header().Get("Cross-Origin-Opener-Policy") != "same-origin" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Cross-Origin-Opener-Policy"), "same-origin", "COOP"))
+		t.Error(test.DiffMessage(rec.Header().Get("Cross-Origin-Opener-Policy"), "same-origin", "COOP"))
 	}
 	if rec.Header().Get("Cross-Origin-Resource-Policy") != "same-origin" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Cross-Origin-Resource-Policy"), "same-origin", "CORP"))
+		t.Error(test.DiffMessage(rec.Header().Get("Cross-Origin-Resource-Policy"), "same-origin", "CORP"))
 	}
 }
 
@@ -280,7 +280,7 @@ func TestHelmet_Use_SetsCustomFrameOptions(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-Frame-Options") != "DENY" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-Frame-Options"), "DENY", "custom frame options"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-Frame-Options"), "DENY", "custom frame options"))
 	}
 }
 
@@ -289,7 +289,7 @@ func TestHelmet_Use_SetsCustomReferrerPolicy(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("Referrer-Policy") != "strict-origin" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("Referrer-Policy"), "strict-origin", "custom referrer policy"))
+		t.Error(test.DiffMessage(rec.Header().Get("Referrer-Policy"), "strict-origin", "custom referrer policy"))
 	}
 }
 
@@ -298,7 +298,7 @@ func TestHelmet_Use_SetsDefaultDNSPrefetchControl(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-DNS-Prefetch-Control") != "off" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-DNS-Prefetch-Control"), "off", "X-DNS-Prefetch-Control"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-DNS-Prefetch-Control"), "off", "X-DNS-Prefetch-Control"))
 	}
 }
 
@@ -307,6 +307,6 @@ func TestHelmet_Use_SetsDefaultPermittedCrossDomainPolicies(t *testing.T) {
 	c, rec := newTestContext(http.MethodGet, "")
 	mw.Use(c, noop)
 	if rec.Header().Get("X-Permitted-Cross-Domain-Policies") != "none" {
-		t.Error(testutils.DiffMessage(rec.Header().Get("X-Permitted-Cross-Domain-Policies"), "none", "X-Permitted-Cross-Domain-Policies"))
+		t.Error(test.DiffMessage(rec.Header().Get("X-Permitted-Cross-Domain-Policies"), "none", "X-Permitted-Cross-Domain-Policies"))
 	}
 }

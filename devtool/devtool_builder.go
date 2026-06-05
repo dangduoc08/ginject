@@ -5,8 +5,8 @@ import (
 	"sort"
 
 	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/internal/slice"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/utils"
 	"github.com/dangduoc08/ginject/versioning"
 )
 
@@ -92,7 +92,7 @@ func (devtoolBuilder *devtoolBuilder) AddRESTMainHandlers(restMainHandlers []com
 }
 
 func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Layer, []*Layer, []*Layer) {
-	globalExceptionFilters := utils.ArrMap(
+	globalExceptionFilters := slice.Map(
 		devtoolBuilder.globalExceptionFilters,
 		func(el common.ExceptionFilterable, i int) *Layer {
 			return &Layer{
@@ -102,7 +102,7 @@ func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Lay
 		},
 	)
 
-	globalMiddlewares := utils.ArrMap(
+	globalMiddlewares := slice.Map(
 		devtoolBuilder.globalMiddlewares,
 		func(el common.MiddlewareFn, i int) *Layer {
 			return &Layer{
@@ -112,7 +112,7 @@ func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Lay
 		},
 	)
 
-	globalGuarders := utils.ArrMap(
+	globalGuarders := slice.Map(
 		devtoolBuilder.globalGuarders,
 		func(el common.Guarder, i int) *Layer {
 			return &Layer{
@@ -122,7 +122,7 @@ func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Lay
 		},
 	)
 
-	globalInterceptors := utils.ArrMap(
+	globalInterceptors := slice.Map(
 		devtoolBuilder.globalInterceptors,
 		func(el common.Interceptable, i int) *Layer {
 			return &Layer{
@@ -136,7 +136,7 @@ func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Lay
 }
 
 func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPattern string) ([]*Layer, []*Layer, []*Layer, []*Layer) {
-	moduleExceptionFilters := utils.ArrMap(
+	moduleExceptionFilters := slice.Map(
 		devtoolBuilder.exceptionFiltersByPattern[moduleHandlerPattern],
 		func(el *common.RESTLayer, i int) *Layer {
 			return &Layer{
@@ -146,7 +146,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 		},
 	)
 
-	moduleMiddlewares := utils.ArrMap(
+	moduleMiddlewares := slice.Map(
 		devtoolBuilder.middlewaresByPattern[moduleHandlerPattern],
 		func(el *common.RESTLayer, i int) *Layer {
 			return &Layer{
@@ -156,7 +156,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 		},
 	)
 
-	moduleGuards := utils.ArrMap(
+	moduleGuards := slice.Map(
 		devtoolBuilder.guardsByPattern[moduleHandlerPattern],
 		func(el *common.RESTLayer, i int) *Layer {
 			return &Layer{
@@ -166,7 +166,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 		},
 	)
 
-	moduleInterceptors := utils.ArrMap(
+	moduleInterceptors := slice.Map(
 		devtoolBuilder.interceptorsByPattern[moduleHandlerPattern],
 		func(el *common.RESTLayer, i int) *Layer {
 			return &Layer{

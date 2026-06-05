@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type mockContextPipeable struct{}
@@ -63,7 +63,7 @@ func TestPipeableConstants(t *testing.T) {
 	}
 	for _, c := range cases {
 		if c.got != c.want {
-			t.Error(testutils.DiffMessage(c.got, c.want, "pipeable constant"))
+			t.Error(test.DiffMessage(c.got, c.want, "pipeable constant"))
 		}
 	}
 }
@@ -74,19 +74,19 @@ func TestArgumentMetadata_Fields(t *testing.T) {
 		ParamType:   BodyPipeableKey,
 	}
 	if m.ContextType != "http" {
-		t.Error(testutils.DiffMessage(m.ContextType, "http", "ContextType"))
+		t.Error(test.DiffMessage(m.ContextType, "http", "ContextType"))
 	}
 	if m.ParamType != BodyPipeableKey {
-		t.Error(testutils.DiffMessage(m.ParamType, BodyPipeableKey, "ParamType"))
+		t.Error(test.DiffMessage(m.ParamType, BodyPipeableKey, "ParamType"))
 	}
 }
 
 func TestArgumentMetadata_Zero(t *testing.T) {
 	var m ArgumentMetadata
 	if m.ContextType != "" {
-		t.Error(testutils.DiffMessage(m.ContextType, "", "zero ContextType"))
+		t.Error(test.DiffMessage(m.ContextType, "", "zero ContextType"))
 	}
 	if m.ParamType != "" {
-		t.Error(testutils.DiffMessage(m.ParamType, "", "zero ParamType"))
+		t.Error(test.DiffMessage(m.ParamType, "", "zero ParamType"))
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func TestRouteAdd(t *testing.T) {
@@ -26,7 +26,7 @@ func TestRouteAdd(t *testing.T) {
 	expected1 := 19
 	actual1 := r.len()
 	if actual1 != expected1 {
-		t.Error(testutils.DiffMessage(actual1, expected1, "trie length should be equal"))
+		t.Error(test.DiffMessage(actual1, expected1, "trie length should be equal"))
 	}
 
 	expected2 := map[string][]int{
@@ -37,12 +37,12 @@ func TestRouteAdd(t *testing.T) {
 
 	for key, indexs := range expected2 {
 		if actual2[key] == nil {
-			t.Error(testutils.DiffMessage(actual2[key], expected2, "params should not be null"))
+			t.Error(test.DiffMessage(actual2[key], expected2, "params should not be null"))
 		}
 
 		for i, index := range indexs {
 			if actual2[key][i] != index {
-				t.Error(testutils.DiffMessage(actual2[key][i], index, "params index should be equal"))
+				t.Error(test.DiffMessage(actual2[key][i], index, "params index should be equal"))
 			}
 		}
 	}
@@ -83,7 +83,7 @@ func TestRouterMatch(t *testing.T) {
 		_, actualRoute, _, _, _ := r.Match(http.MethodPost, requestedRoute, "")
 
 		if actualRoute != expectedRoute {
-			t.Error(testutils.DiffMessage(actualRoute, expectedRoute, "routes should be matched"))
+			t.Error(test.DiffMessage(actualRoute, expectedRoute, "routes should be matched"))
 		}
 	}
 }
@@ -117,7 +117,7 @@ func TestRouterGroup(t *testing.T) {
 	_, actualRoute1, _, _, _ := gr.Match(http.MethodPatch, "/v1/users/update/123/", "")
 	expectedRoute1 := MethodRouteVersionToPattern(http.MethodPatch, "/v1"+case2[0], "")
 	if actualRoute1 != expectedRoute1 {
-		t.Error(testutils.DiffMessage(actualRoute1, expectedRoute1, "routes should be matched"))
+		t.Error(test.DiffMessage(actualRoute1, expectedRoute1, "routes should be matched"))
 	}
 }
 
@@ -154,7 +154,7 @@ func TestRouterMiddleware(t *testing.T) {
 	_, _, _, _, handlers := r0.Match(http.MethodHead, "/test0/", "")
 
 	if len(handlers) != 3 {
-		t.Error(testutils.DiffMessage(len(handlers), 3, "router 0 handlers total should be equal"))
+		t.Error(test.DiffMessage(len(handlers), 3, "router 0 handlers total should be equal"))
 	}
 
 	isNext := true
@@ -168,15 +168,15 @@ func TestRouterMiddleware(t *testing.T) {
 			handler(c)
 
 			if i == 0 && counter != 1 {
-				t.Error(testutils.DiffMessage(counter, 1, "router 0 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 1, "router 0 handlers increase counter should be equal"))
 			}
 
 			if i == 1 && counter != 2 {
-				t.Error(testutils.DiffMessage(counter, 2, "router 0 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 2, "router 0 handlers increase counter should be equal"))
 			}
 
 			if i == 2 && counter != 3 {
-				t.Error(testutils.DiffMessage(counter, 3, "router 0 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 3, "router 0 handlers increase counter should be equal"))
 			}
 		}
 	}
@@ -193,7 +193,7 @@ func TestRouterMiddleware(t *testing.T) {
 	_, _, _, _, handlers = r1.Match(http.MethodPatch, "/test1/", "")
 
 	if len(handlers) != 5 {
-		t.Error(testutils.DiffMessage(len(handlers), 5, "router 1 handlers total should be equal"))
+		t.Error(test.DiffMessage(len(handlers), 5, "router 1 handlers total should be equal"))
 	}
 
 	isNext = true
@@ -207,23 +207,23 @@ func TestRouterMiddleware(t *testing.T) {
 			handler(c)
 
 			if i == 0 && counter != 4 {
-				t.Error(testutils.DiffMessage(counter, 4, "router 1 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 4, "router 1 handlers increase counter should be equal"))
 			}
 
 			if i == 1 && counter != 6 {
-				t.Error(testutils.DiffMessage(counter, 6, "router 1 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 6, "router 1 handlers increase counter should be equal"))
 			}
 
 			if i == 2 && counter != 10 {
-				t.Error(testutils.DiffMessage(counter, 10, "router 1 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 10, "router 1 handlers increase counter should be equal"))
 			}
 
 			if i == 3 && counter != 13 {
-				t.Error(testutils.DiffMessage(counter, 13, "router 1 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 13, "router 1 handlers increase counter should be equal"))
 			}
 
 			if i == 4 && counter != 14 {
-				t.Error(testutils.DiffMessage(counter, 14, "router 1 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 14, "router 1 handlers increase counter should be equal"))
 			}
 		}
 	}
@@ -239,7 +239,7 @@ func TestRouterMiddleware(t *testing.T) {
 	_, _, _, _, handlers = r2.Match(http.MethodOptions, "/test2/123/", "")
 
 	if len(handlers) != 4 {
-		t.Error(testutils.DiffMessage(len(handlers), 4, "router 2 handlers total should be equal"))
+		t.Error(test.DiffMessage(len(handlers), 4, "router 2 handlers total should be equal"))
 	}
 
 	isNext = true
@@ -253,19 +253,19 @@ func TestRouterMiddleware(t *testing.T) {
 			handler(c)
 
 			if i == 0 && counter != 15 {
-				t.Error(testutils.DiffMessage(counter, 15, "router 2 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 15, "router 2 handlers increase counter should be equal"))
 			}
 
 			if i == 1 && counter != 17 {
-				t.Error(testutils.DiffMessage(counter, 17, "router 2 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 17, "router 2 handlers increase counter should be equal"))
 			}
 
 			if i == 2 && counter != 20 {
-				t.Error(testutils.DiffMessage(counter, 20, "router 2 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 20, "router 2 handlers increase counter should be equal"))
 			}
 
 			if i == 3 && counter != 24 {
-				t.Error(testutils.DiffMessage(counter, 24, "router 2 handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 24, "router 2 handlers increase counter should be equal"))
 			}
 		}
 	}
@@ -281,7 +281,7 @@ func TestRouterMiddleware(t *testing.T) {
 	_, _, _, _, handlers = gr.Match(http.MethodOptions, "/group/test2/123/", "")
 
 	if len(handlers) != 8 {
-		t.Error(testutils.DiffMessage(len(handlers), 8, "router group handlers total should be equal"))
+		t.Error(test.DiffMessage(len(handlers), 8, "router group handlers total should be equal"))
 	}
 
 	isNext = true
@@ -295,41 +295,41 @@ func TestRouterMiddleware(t *testing.T) {
 			handler(c)
 
 			if i == 0 && counter != 28 {
-				t.Error(testutils.DiffMessage(counter, 28, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 28, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 1 && counter != 30 {
-				t.Error(testutils.DiffMessage(counter, 30, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 30, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 2 && counter != 31 {
-				t.Error(testutils.DiffMessage(counter, 31, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 31, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 3 && counter != 32 {
-				t.Error(testutils.DiffMessage(counter, 32, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 32, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 4 && counter != 34 {
-				t.Error(testutils.DiffMessage(counter, 34, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 34, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 5 && counter != 37 {
-				t.Error(testutils.DiffMessage(counter, 37, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 37, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 6 && counter != 41 {
-				t.Error(testutils.DiffMessage(counter, 41, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 41, "router group handlers increase counter should be equal"))
 			}
 
 			if i == 7 && counter != 44 {
-				t.Error(testutils.DiffMessage(counter, 44, "router group handlers increase counter should be equal"))
+				t.Error(test.DiffMessage(counter, 44, "router group handlers increase counter should be equal"))
 			}
 		}
 	}
 
 	if counter != 44 {
-		t.Error(testutils.DiffMessage(counter, 44, "final counter should be equal"))
+		t.Error(test.DiffMessage(counter, 44, "final counter should be equal"))
 	}
 }
 

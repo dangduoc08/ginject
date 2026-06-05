@@ -4,10 +4,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/slice"
 )
 
-var matchMethodReg = regexp.MustCompile(strings.Join(utils.ArrMap(HTTPMethods, func(el string, i int) string {
+var matchMethodReg = regexp.MustCompile(strings.Join(slice.Map(HTTPMethods, func(el string, i int) string {
 	return "/" + "\\" + "[" + el + "\\" + "]"
 }), "|"))
 

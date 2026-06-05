@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type TestStrArrDTO struct {
@@ -146,205 +146,205 @@ func TestBindStrArr(t *testing.T) {
 
 	for _, fl := range fls {
 		if fl.Field() == "Complex1" && dto.Complex1 != fl.Value() {
-			t.Error(testutils.DiffMessage(dto.Complex1, fl.Value(), "Complex1 should be binded"))
+			t.Error(test.DiffMessage(dto.Complex1, fl.Value(), "Complex1 should be binded"))
 		}
 	}
 
 	actual1 := dto.Bool1
 	expected1 := true
 	if actual1 != expected1 {
-		t.Error(testutils.DiffMessage(actual1, expected1, "bool should be binded"))
+		t.Error(test.DiffMessage(actual1, expected1, "bool should be binded"))
 	}
 
 	actual2 := dto.Bool2
 	expected2 := true
 	if actual2 != expected2 {
-		t.Error(testutils.DiffMessage(actual2, expected2, "bool should be binded"))
+		t.Error(test.DiffMessage(actual2, expected2, "bool should be binded"))
 	}
 
 	actual3 := dto.Bool3
 	expected3 := false
 	if actual3 != expected3 {
-		t.Error(testutils.DiffMessage(actual3, expected3, "bool should be binded"))
+		t.Error(test.DiffMessage(actual3, expected3, "bool should be binded"))
 	}
 
 	actual4 := dto.String1
 	expected4 := "this is string"
 	if actual4 != expected4 {
-		t.Error(testutils.DiffMessage(actual4, expected4, "string should be binded"))
+		t.Error(test.DiffMessage(actual4, expected4, "string should be binded"))
 	}
 
 	actual5 := dto.String2
 	expected5 := "this is string 2"
 	if actual5 != expected5 {
-		t.Error(testutils.DiffMessage(actual5, expected5, "string should be binded"))
+		t.Error(test.DiffMessage(actual5, expected5, "string should be binded"))
 	}
 
 	actual6 := dto.Integer1
 	expected6 := -9223372036854775808
 	if actual6 != expected6 {
-		t.Error(testutils.DiffMessage(actual6, expected6, "integer should be binded"))
+		t.Error(test.DiffMessage(actual6, expected6, "integer should be binded"))
 	}
 
 	actual7 := dto.Integer2
 	var expected7 int8 = -128
 	if actual7 != expected7 {
-		t.Error(testutils.DiffMessage(actual7, expected7, "integer should be binded"))
+		t.Error(test.DiffMessage(actual7, expected7, "integer should be binded"))
 	}
 
 	actual8 := dto.Integer3
 	var expected8 int16 = -32768
 	if actual8 != expected8 {
-		t.Error(testutils.DiffMessage(actual8, expected8, "integer should be binded"))
+		t.Error(test.DiffMessage(actual8, expected8, "integer should be binded"))
 	}
 
 	actual9 := dto.Integer4
 	var expected9 int32 = -2147483648
 	if actual9 != expected9 {
-		t.Error(testutils.DiffMessage(actual9, expected9, "integer should be binded"))
+		t.Error(test.DiffMessage(actual9, expected9, "integer should be binded"))
 	}
 
 	actual10 := dto.Integer5
 	var expected10 int64 = -9223372036854775808
 	if actual10 != expected10 {
-		t.Error(testutils.DiffMessage(actual10, expected10, "integer should be binded"))
+		t.Error(test.DiffMessage(actual10, expected10, "integer should be binded"))
 	}
 
 	actual11 := dto.Integer6
 	expected11 := 0
 	if actual11 != expected11 {
-		t.Error(testutils.DiffMessage(actual11, expected11, "integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual11, expected11, "integer shouldn't be binded"))
 	}
 
 	actual12 := dto.Integer7
 	expected12 := 0
 	if actual12 != expected12 {
-		t.Error(testutils.DiffMessage(actual12, expected12, "integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual12, expected12, "integer shouldn't be binded"))
 	}
 
 	actual13 := dto.Integer8
 	expected13 := 0
 	if actual13 != expected13 {
-		t.Error(testutils.DiffMessage(actual13, expected13, "integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual13, expected13, "integer shouldn't be binded"))
 	}
 
 	actual14 := dto.Uinteger1
 	var expected14 uint = 18446744073709551615
 	if actual14 != expected14 {
-		t.Error(testutils.DiffMessage(actual14, expected14, "unsigned integer should be binded"))
+		t.Error(test.DiffMessage(actual14, expected14, "unsigned integer should be binded"))
 	}
 
 	actual15 := dto.Uinteger2
 	var expected15 uint8 = 255
 	if actual15 != expected15 {
-		t.Error(testutils.DiffMessage(actual15, expected15, "unsigned integer should be binded"))
+		t.Error(test.DiffMessage(actual15, expected15, "unsigned integer should be binded"))
 	}
 
 	actual16 := dto.Uinteger3
 	var expected16 uint16 = 65535
 	if actual16 != expected16 {
-		t.Error(testutils.DiffMessage(actual16, expected16, "unsigned integer should be binded"))
+		t.Error(test.DiffMessage(actual16, expected16, "unsigned integer should be binded"))
 	}
 
 	actual17 := dto.Uinteger4
 	var expected17 uint32 = 4294967295
 	if actual17 != expected17 {
-		t.Error(testutils.DiffMessage(actual17, expected17, "unsigned integer should be binded"))
+		t.Error(test.DiffMessage(actual17, expected17, "unsigned integer should be binded"))
 	}
 
 	actual18 := dto.Uinteger5
 	var expected18 uint64 = 18446744073709551615
 	if actual18 != expected18 {
-		t.Error(testutils.DiffMessage(actual18, expected18, "unsigned integer should be binded"))
+		t.Error(test.DiffMessage(actual18, expected18, "unsigned integer should be binded"))
 	}
 
 	actual19 := dto.Uinteger6
 	var expected19 uint = 0
 	if actual19 != expected19 {
-		t.Error(testutils.DiffMessage(actual19, expected19, "unsigned integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual19, expected19, "unsigned integer shouldn't be binded"))
 	}
 
 	actual20 := dto.Uinteger7
 	var expected20 uint = 0
 	if actual20 != expected20 {
-		t.Error(testutils.DiffMessage(actual20, expected20, "unsigned integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual20, expected20, "unsigned integer shouldn't be binded"))
 	}
 
 	actual21 := dto.Uinteger8
 	var expected21 uint = 0
 	if actual21 != expected21 {
-		t.Error(testutils.DiffMessage(actual21, expected21, "unsigned integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual21, expected21, "unsigned integer shouldn't be binded"))
 	}
 
 	actual22 := dto.Uinteger9
 	var expected22 uint = 0
 	if actual22 != expected22 {
-		t.Error(testutils.DiffMessage(actual22, expected22, "unsigned integer shouldn't be binded"))
+		t.Error(test.DiffMessage(actual22, expected22, "unsigned integer shouldn't be binded"))
 	}
 
 	actual23 := dto.Float1
 	var expected23 float32 = 1.401298464e-45
 	if actual23 != expected23 {
-		t.Error(testutils.DiffMessage(actual23, expected23, "float should be binded"))
+		t.Error(test.DiffMessage(actual23, expected23, "float should be binded"))
 	}
 
 	actual24 := dto.Float2
 	expected24 := 1.7976931348623157e+308
 	if actual24 != expected24 {
-		t.Error(testutils.DiffMessage(actual24, expected24, "float should be binded"))
+		t.Error(test.DiffMessage(actual24, expected24, "float should be binded"))
 	}
 
 	actual25 := dto.Float3
 	var expected25 float32 = 18446744073709551615
 	if actual25 != expected25 {
-		t.Error(testutils.DiffMessage(actual25, expected25, "float should be binded"))
+		t.Error(test.DiffMessage(actual25, expected25, "float should be binded"))
 	}
 
 	actual26 := dto.Float4
 	var expected26 float64 = 0
 	if actual26 != expected26 {
-		t.Error(testutils.DiffMessage(actual26, expected26, "float shouldn't be binded"))
+		t.Error(test.DiffMessage(actual26, expected26, "float shouldn't be binded"))
 	}
 
 	actual27 := dto.Float5
 	var expected27 float64 = 0
 	if actual27 != expected27 {
-		t.Error(testutils.DiffMessage(actual27, expected27, "float shouldn't be binded"))
+		t.Error(test.DiffMessage(actual27, expected27, "float shouldn't be binded"))
 	}
 
 	actual28 := dto.Float6
 	var expected28 float64 = -128
 	if actual28 != expected28 {
-		t.Error(testutils.DiffMessage(actual28, expected28, "float shouldn be binded"))
+		t.Error(test.DiffMessage(actual28, expected28, "float shouldn be binded"))
 	}
 
 	actual29 := dto.Complex1
 	var expected29 complex64 = 5 + 10i
 	if actual29 != expected29 {
-		t.Error(testutils.DiffMessage(actual29, expected29, "complex shouldn be binded"))
+		t.Error(test.DiffMessage(actual29, expected29, "complex shouldn be binded"))
 	}
 
 	actual30 := dto.Complex2
 	expected30 := 21.20 + 21i
 	if actual30 != expected30 {
-		t.Error(testutils.DiffMessage(actual30, expected30, "complex shouldn be binded"))
+		t.Error(test.DiffMessage(actual30, expected30, "complex shouldn be binded"))
 	}
 
 	actual31 := dto.Complex3
 	expected31 := 0 + 0i
 	if actual31 != expected31 {
-		t.Error(testutils.DiffMessage(actual31, expected31, "complex shouldn be binded"))
+		t.Error(test.DiffMessage(actual31, expected31, "complex shouldn be binded"))
 	}
 
 	actual32 := dto.Complex4
 	expected32 := -123.14 + 0i
 	if actual32 != expected32 {
-		t.Error(testutils.DiffMessage(actual32, expected32, "complex shouldn be binded"))
+		t.Error(test.DiffMessage(actual32, expected32, "complex shouldn be binded"))
 	}
 
 	actual33 := dto.Complex5
 	expected33 := 1.8446744073709552e+19 + 0i
 	if actual33 != expected33 {
-		t.Error(testutils.DiffMessage(actual33, expected33, "complex shouldn be binded"))
+		t.Error(test.DiffMessage(actual33, expected33, "complex shouldn be binded"))
 	}
 }
