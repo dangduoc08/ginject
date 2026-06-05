@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type fnTestController struct{}
@@ -23,7 +23,7 @@ func TestGetFnName(t *testing.T) {
 	for _, c := range cases {
 		got := GetFuncName(c.handler)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "GetFuncName"))
+			t.Error(test.DiffMessage(got, c.want, "GetFuncName"))
 		}
 	}
 }
@@ -41,7 +41,7 @@ func TestToWSEventName(t *testing.T) {
 	for _, c := range cases {
 		got := ToWSEventName(c.s)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "ToWSEventName"))
+			t.Error(test.DiffMessage(got, c.want, "ToWSEventName"))
 		}
 	}
 }
@@ -62,13 +62,13 @@ func TestParseFnNameToURL_AllHTTPMethods(t *testing.T) {
 	for _, c := range cases {
 		method, route, version := ParseFuncNameToURL(c.fn)
 		if method != c.wantMethod {
-			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method"))
+			t.Error(test.DiffMessage(method, c.wantMethod, c.fn+" method"))
 		}
 		if route != c.wantRoute {
-			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
+			t.Error(test.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
 		if version != "" {
-			t.Error(testutils.DiffMessage(version, "", c.fn+" version"))
+			t.Error(test.DiffMessage(version, "", c.fn+" version"))
 		}
 	}
 }
@@ -86,7 +86,7 @@ func TestParseFnNameToURL_InvalidInput(t *testing.T) {
 	for _, c := range cases {
 		method, _, _ := ParseFuncNameToURL(c.fn)
 		if method != c.wantMethod {
-			t.Error(testutils.DiffMessage(method, c.wantMethod, c.fn+" method should be empty"))
+			t.Error(test.DiffMessage(method, c.wantMethod, c.fn+" method should be empty"))
 		}
 	}
 }
@@ -106,10 +106,10 @@ func TestParseFnNameToURL_VersionExtraction(t *testing.T) {
 	for _, c := range cases {
 		_, route, version := ParseFuncNameToURL(c.fn)
 		if route != c.wantRoute {
-			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
+			t.Error(test.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
 		if version != c.wantVersion {
-			t.Error(testutils.DiffMessage(version, c.wantVersion, c.fn+" version"))
+			t.Error(test.DiffMessage(version, c.wantVersion, c.fn+" version"))
 		}
 	}
 }
@@ -127,7 +127,7 @@ func TestParseFnNameToURL_BareOperation(t *testing.T) {
 	for _, c := range cases {
 		_, route, _ := ParseFuncNameToURL(c.fn)
 		if route != c.wantRoute {
-			t.Error(testutils.DiffMessage(route, c.wantRoute, c.fn+" route"))
+			t.Error(test.DiffMessage(route, c.wantRoute, c.fn+" route"))
 		}
 	}
 }
@@ -138,7 +138,7 @@ func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
 	_, route, _ := ParseFuncNameToURL("READ_BY_id")
 	want := "/{id}/"
 	if route != want {
-		t.Error(testutils.DiffMessage(route, want, "READ_BY_id route"))
+		t.Error(test.DiffMessage(route, want, "READ_BY_id route"))
 	}
 }
 
@@ -146,7 +146,7 @@ func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
 func TestHandleGuard_PanicOnDenied(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(r, "non-nil panic", "HandleGuard(nil, false) should panic"))
+			t.Error(test.DiffMessage(r, "non-nil panic", "HandleGuard(nil, false) should panic"))
 		}
 	}()
 	HandleGuard(nil, false)
@@ -158,6 +158,6 @@ func TestHandleGuard_CallsNext(t *testing.T) {
 	c.Next = func() { called = true }
 	HandleGuard(c, true)
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "HandleGuard should call Next when access is allowed"))
+		t.Error(test.DiffMessage(called, true, "HandleGuard should call Next when access is allowed"))
 	}
 }

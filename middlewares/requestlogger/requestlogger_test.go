@@ -9,7 +9,7 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type mockLogger struct {
@@ -56,7 +56,7 @@ func TestRequestLogger_Use_CallsNext(t *testing.T) {
 	called := false
 	rl.Use(c, func() { called = true })
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "next should always be called"))
+		t.Error(test.DiffMessage(called, true, "next should always be called"))
 	}
 }
 
@@ -67,11 +67,11 @@ func TestRequestLogger_Use_HTTPLogsURL(t *testing.T) {
 	rl.Use(c, func() {})
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	if !log.called {
-		t.Error(testutils.DiffMessage(log.called, true, "Info should be called"))
+		t.Error(test.DiffMessage(log.called, true, "Info should be called"))
 		return
 	}
 	if log.msg != "/api/users" {
-		t.Error(testutils.DiffMessage(log.msg, "/api/users", "log message should be URL path"))
+		t.Error(test.DiffMessage(log.msg, "/api/users", "log message should be URL path"))
 	}
 }
 
@@ -83,11 +83,11 @@ func TestRequestLogger_Use_HTTPLogsMethod(t *testing.T) {
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Method")
 	if !ok {
-		t.Error(testutils.DiffMessage(nil, "Method key", "Method key missing from log args"))
+		t.Error(test.DiffMessage(nil, "Method key", "Method key missing from log args"))
 		return
 	}
 	if v != http.MethodPost {
-		t.Error(testutils.DiffMessage(v, http.MethodPost, "Method value mismatch"))
+		t.Error(test.DiffMessage(v, http.MethodPost, "Method value mismatch"))
 	}
 }
 
@@ -100,11 +100,11 @@ func TestRequestLogger_Use_HTTPLogsStatus(t *testing.T) {
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Status")
 	if !ok {
-		t.Error(testutils.DiffMessage(nil, "Status key", "Status key missing from log args"))
+		t.Error(test.DiffMessage(nil, "Status key", "Status key missing from log args"))
 		return
 	}
 	if v != http.StatusCreated {
-		t.Error(testutils.DiffMessage(v, http.StatusCreated, "Status value mismatch"))
+		t.Error(test.DiffMessage(v, http.StatusCreated, "Status value mismatch"))
 	}
 }
 
@@ -116,11 +116,11 @@ func TestRequestLogger_Use_HTTPLogsProtocol(t *testing.T) {
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Protocol")
 	if !ok {
-		t.Error(testutils.DiffMessage(nil, "Protocol key", "Protocol key missing from log args"))
+		t.Error(test.DiffMessage(nil, "Protocol key", "Protocol key missing from log args"))
 		return
 	}
 	if v != "HTTP/1.1" {
-		t.Error(testutils.DiffMessage(v, "HTTP/1.1", "Protocol value mismatch"))
+		t.Error(test.DiffMessage(v, "HTTP/1.1", "Protocol value mismatch"))
 	}
 }
 
@@ -133,11 +133,11 @@ func TestRequestLogger_Use_HTTPLogsRequestID(t *testing.T) {
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, ctx.RequestID)
 	if !ok {
-		t.Error(testutils.DiffMessage(nil, ctx.RequestID+" key", "RequestID key missing from log args"))
+		t.Error(test.DiffMessage(nil, ctx.RequestID+" key", "RequestID key missing from log args"))
 		return
 	}
 	if v != "req-abc" {
-		t.Error(testutils.DiffMessage(v, "req-abc", "RequestID value mismatch"))
+		t.Error(test.DiffMessage(v, "req-abc", "RequestID value mismatch"))
 	}
 }
 
@@ -150,12 +150,12 @@ func TestRequestLogger_Use_HTTPLogsTime(t *testing.T) {
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Time")
 	if !ok {
-		t.Error(testutils.DiffMessage(nil, "Time key", "Time key missing from log args"))
+		t.Error(test.DiffMessage(nil, "Time key", "Time key missing from log args"))
 		return
 	}
 	s, ok := v.(string)
 	if !ok || !strings.HasSuffix(s, "ms") {
-		t.Error(testutils.DiffMessage(v, "Xms", "Time value should end with 'ms'"))
+		t.Error(test.DiffMessage(v, "Xms", "Time value should end with 'ms'"))
 	}
 }
 
@@ -165,7 +165,7 @@ func TestRequestLogger_Use_NoLogWithoutEventEmit(t *testing.T) {
 	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
 	rl.Use(c, func() {})
 	if log.called {
-		t.Error(testutils.DiffMessage(log.called, false, "Info should not be called before RequestFinished"))
+		t.Error(test.DiffMessage(log.called, false, "Info should not be called before RequestFinished"))
 	}
 }
 
@@ -177,6 +177,6 @@ func TestRequestLogger_Use_UnknownTypeNoLog(t *testing.T) {
 	rl.Use(c, func() {})
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	if log.called {
-		t.Error(testutils.DiffMessage(log.called, false, "Info should not be called for unknown type"))
+		t.Error(test.DiffMessage(log.called, false, "Info should not be called for unknown type"))
 	}
 }

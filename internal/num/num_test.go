@@ -1,13 +1,13 @@
-package utils
+package num
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func TestNumF64ToAnyNum(t *testing.T) {
+func TestF64ToAnyNum(t *testing.T) {
 	cases := []struct {
 		in   float64
 		kind reflect.Kind
@@ -36,9 +36,9 @@ func TestNumF64ToAnyNum(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		got := NumF64ToAnyNum(c.in, c.kind)
+		got := F64ToAnyNum(c.in, c.kind)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "NumF64ToAnyNum"))
+			t.Error(test.DiffMessage(got, c.want, "NumF64ToAnyNum"))
 		}
 	}
 }

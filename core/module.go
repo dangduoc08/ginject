@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/internal/color"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 var mainModulePtr uintptr
@@ -310,7 +310,7 @@ func (m *Module) NewModule() *Module {
 
 									if !token.IsExported(exceptionFilterFieldNameKey) {
 										panic(errors.New(
-											utils.FmtRed(
+											color.FmtRed(
 												"can't set value to unexported '%v' field of the '%v' exceptionFilter",
 												exceptionFilterFieldNameKey,
 												exceptionFilterableType.Name(),
@@ -334,7 +334,7 @@ func (m *Module) NewModule() *Module {
 										newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
 									} else {
 										panic(errors.New(
-											utils.FmtRed(
+											color.FmtRed(
 												"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' exceptionFilter",
 												exceptionFilterFieldType.String(),
 												i,
@@ -373,7 +373,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(middlewareFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' middleware function",
 										middlewareFieldNameKey,
 										middlewareFnType.Name(),
@@ -397,7 +397,7 @@ func (m *Module) NewModule() *Module {
 								newMiddleware.Elem().Field(i).Set(middlewareFnValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' middleware function",
 										middlewareFieldType.String(),
 										i,
@@ -436,7 +436,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(guardFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' guarder",
 										guardFieldNameKey,
 										guarderType.Name(),
@@ -460,7 +460,7 @@ func (m *Module) NewModule() *Module {
 								newGuard.Elem().Field(i).Set(guarderValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
 										guardFieldType.String(),
 										i,
@@ -499,7 +499,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(interceptorFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' interceptor",
 										interceptorFieldNameKey,
 										interceptableType.Name(),
@@ -523,7 +523,7 @@ func (m *Module) NewModule() *Module {
 								newInterceptor.Elem().Field(i).Set(interceptableValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' interceptor",
 										interceptorFieldType.String(),
 										i,
@@ -553,7 +553,7 @@ func (m *Module) NewModule() *Module {
 					// add for consistency with another layers
 					for pattern, handler := range rest.RouterMap {
 						if err := isInjectableHandler(handler, injectedProviders); err != nil {
-							panic(utils.FmtRed("%s", err.Error()))
+							panic(color.FmtRed("%s", err.Error()))
 						}
 						method, route, version := routing.PatternToMethodRouteVersion(pattern)
 						m.RESTMainHandlers = append(m.RESTMainHandlers, common.RESTLayer{
@@ -598,7 +598,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(guardFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' guarder",
 										guardFieldNameKey,
 										guarderType.Name(),
@@ -622,7 +622,7 @@ func (m *Module) NewModule() *Module {
 								newGuard.Elem().Field(i).Set(guarderValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' guarder",
 										guardFieldType.String(),
 										i,
@@ -658,7 +658,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(interceptorFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' interceptor",
 										interceptorFieldNameKey,
 										interceptableType.Name(),
@@ -682,7 +682,7 @@ func (m *Module) NewModule() *Module {
 								newInterceptor.Elem().Field(i).Set(interceptableValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' interceptor",
 										interceptorFieldType.String(),
 										i,
@@ -718,7 +718,7 @@ func (m *Module) NewModule() *Module {
 
 							if !token.IsExported(exceptionFilterFieldNameKey) {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't set value to unexported '%v' field of the '%v' exceptionFilter",
 										exceptionFilterFieldNameKey,
 										exceptionFilterableType.Name(),
@@ -742,7 +742,7 @@ func (m *Module) NewModule() *Module {
 								newExceptionFilter.Elem().Field(i).Set(exceptionFilterableValue.Field(i))
 							} else {
 								panic(errors.New(
-									utils.FmtRed(
+									color.FmtRed(
 										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' exceptionFilter",
 										exceptionFilterFieldType.String(),
 										i,
@@ -768,7 +768,7 @@ func (m *Module) NewModule() *Module {
 					for eventName, handler := range ws.EventMap {
 
 						if err := isInjectableHandler(handler, injectedProviders); err != nil {
-							panic(utils.FmtRed("%s", err.Error()))
+							panic(color.FmtRed("%s", err.Error()))
 						}
 
 						m.WSMainHandlers = append(m.WSMainHandlers, struct {

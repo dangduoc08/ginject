@@ -15,7 +15,7 @@ Commit staged changes with an auto-generated message. If $ARGUMENTS is provided,
 4. For each commit group, generate a message:
    - Follow the Conventional Commits format: `<type>(<scope>): <description>`
    - Types: `feat`, `fix`, `refactor`, `perf`, `test`, `chore`, `docs`
-   - Scope: the package or module affected (e.g. `utils`, `routing`, `core`)
+   - Scope: the package or module affected (e.g. `internal`, `routing`, `core`)
    - Description: imperative mood, lowercase, no period, max 72 chars
    - Add a body only if the change needs more context (non-obvious why)
 

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 // helpers
@@ -62,10 +62,10 @@ func TestGet_Success(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, want := resp.StatusCode, 200; got != want {
-		t.Error(testutils.DiffMessage(got, want, "status code"))
+		t.Error(test.DiffMessage(got, want, "status code"))
 	}
 	if got, want := resp.Text(), "hello"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "body"))
+		t.Error(test.DiffMessage(got, want, "body"))
 	}
 }
 
@@ -85,11 +85,11 @@ func TestPost_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got["name"] != "ginject" {
-		t.Error(testutils.DiffMessage(got["name"], "ginject", "json field name"))
+		t.Error(test.DiffMessage(got["name"], "ginject", "json field name"))
 	}
 	ct := resp.Headers.Get("Content-Type")
 	if !strings.Contains(ct, "application/json") {
-		t.Error(testutils.DiffMessage(ct, "application/json", "Content-Type"))
+		t.Error(test.DiffMessage(ct, "application/json", "Content-Type"))
 	}
 }
 
@@ -103,7 +103,7 @@ func TestPut(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Headers.Get("X-Method") != http.MethodPut {
-		t.Error(testutils.DiffMessage(resp.Headers.Get("X-Method"), "PUT", "method"))
+		t.Error(test.DiffMessage(resp.Headers.Get("X-Method"), "PUT", "method"))
 	}
 }
 
@@ -120,7 +120,7 @@ func TestDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 204 {
-		t.Error(testutils.DiffMessage(resp.StatusCode, 204, "status"))
+		t.Error(test.DiffMessage(resp.StatusCode, 204, "status"))
 	}
 }
 
@@ -140,10 +140,10 @@ func TestQueryParams(t *testing.T) {
 	}
 	q := resp.Headers.Get("X-Query")
 	if !strings.Contains(q, "page=2") {
-		t.Error(testutils.DiffMessage(q, "page=2", "query param page"))
+		t.Error(test.DiffMessage(q, "page=2", "query param page"))
 	}
 	if !strings.Contains(q, "tags=go") {
-		t.Error(testutils.DiffMessage(q, "tags=go", "query param tags"))
+		t.Error(test.DiffMessage(q, "tags=go", "query param tags"))
 	}
 }
 
@@ -159,7 +159,7 @@ func TestCustomHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Headers.Get("Echo-X-Custom") != "hello" {
-		t.Error(testutils.DiffMessage(resp.Headers.Get("Echo-X-Custom"), "hello", "custom header"))
+		t.Error(test.DiffMessage(resp.Headers.Get("Echo-X-Custom"), "hello", "custom header"))
 	}
 }
 
@@ -174,7 +174,7 @@ func TestDefaultHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Headers.Get("Echo-X-App") != "myapp" {
-		t.Error(testutils.DiffMessage(resp.Headers.Get("Echo-X-App"), "myapp", "default header"))
+		t.Error(test.DiffMessage(resp.Headers.Get("Echo-X-App"), "myapp", "default header"))
 	}
 }
 
@@ -189,7 +189,7 @@ func TestHeaderOverridesDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Headers.Get("Echo-X-Version") != "2" {
-		t.Error(testutils.DiffMessage(resp.Headers.Get("Echo-X-Version"), "2", "header override"))
+		t.Error(test.DiffMessage(resp.Headers.Get("Echo-X-Version"), "2", "header override"))
 	}
 }
 
@@ -207,7 +207,7 @@ func TestBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, want := resp.Text(), "/users/42"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "path"))
+		t.Error(test.DiffMessage(got, want, "path"))
 	}
 }
 
@@ -223,7 +223,7 @@ func TestFullURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Error(testutils.DiffMessage(resp.StatusCode, 200, "full url status"))
+		t.Error(test.DiffMessage(resp.StatusCode, 200, "full url status"))
 	}
 }
 
@@ -248,7 +248,7 @@ func TestMiddleware(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !called {
-		t.Error(testutils.DiffMessage(called, true, "middleware called"))
+		t.Error(test.DiffMessage(called, true, "middleware called"))
 	}
 }
 
@@ -273,7 +273,7 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(order) != 3 || order[0] != 1 || order[1] != 2 || order[2] != 3 {
-		t.Error(testutils.DiffMessage(order, []int{1, 2, 3}, "middleware order"))
+		t.Error(test.DiffMessage(order, []int{1, 2, 3}, "middleware order"))
 	}
 }
 
@@ -297,7 +297,7 @@ func TestRetry_On500(t *testing.T) {
 		t.Error("expected error for status 500")
 	}
 	if got, want := int(atomic.LoadInt32(&count)), 4; got != want {
-		t.Error(testutils.DiffMessage(got, want, "retry attempts (1 original + 3 retries)"))
+		t.Error(test.DiffMessage(got, want, "retry attempts (1 original + 3 retries)"))
 	}
 }
 
@@ -321,10 +321,10 @@ func TestRetry_SuccessOnThirdAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Error(testutils.DiffMessage(resp.StatusCode, 200, "status after retry"))
+		t.Error(test.DiffMessage(resp.StatusCode, 200, "status after retry"))
 	}
 	if got, want := int(atomic.LoadInt32(&count)), 3; got != want {
-		t.Error(testutils.DiffMessage(got, want, "attempts"))
+		t.Error(test.DiffMessage(got, want, "attempts"))
 	}
 }
 
@@ -340,7 +340,7 @@ func TestRetry_PerRequest(t *testing.T) {
 	c.SetValidateStatus(func(code int) bool { return code < 500 })
 	_, _ = c.Get("/").Retry(2).RetryBackoff(1*time.Millisecond, 5*time.Millisecond).Send()
 	if got, want := int(atomic.LoadInt32(&count)), 3; got != want {
-		t.Error(testutils.DiffMessage(got, want, "per-request retry attempts"))
+		t.Error(test.DiffMessage(got, want, "per-request retry attempts"))
 	}
 }
 
@@ -360,7 +360,7 @@ func TestValidateStatus_DefaultRejects4xx(t *testing.T) {
 		t.Errorf("expected *Error, got %T", err)
 	}
 	if httpErr.Response.StatusCode != 404 {
-		t.Error(testutils.DiffMessage(httpErr.Response.StatusCode, 404, "error response status"))
+		t.Error(test.DiffMessage(httpErr.Response.StatusCode, 404, "error response status"))
 	}
 }
 
@@ -375,7 +375,7 @@ func TestValidateStatus_Custom(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 404 {
-		t.Error(testutils.DiffMessage(resp.StatusCode, 404, "status with custom validator"))
+		t.Error(test.DiffMessage(resp.StatusCode, 404, "status with custom validator"))
 	}
 }
 
@@ -396,14 +396,14 @@ func TestStream_BodyNotBuffered(t *testing.T) {
 	defer func() { _ = resp.BodyStream.Close() }()
 
 	if resp.Body != nil {
-		t.Error(testutils.DiffMessage(resp.Body, nil, "Body should be nil in stream mode"))
+		t.Error(test.DiffMessage(resp.Body, nil, "Body should be nil in stream mode"))
 	}
 	if resp.BodyStream == nil {
-		t.Error(testutils.DiffMessage(resp.BodyStream, "non-nil ReadCloser", "BodyStream"))
+		t.Error(test.DiffMessage(resp.BodyStream, "non-nil ReadCloser", "BodyStream"))
 	}
 	data, _ := io.ReadAll(resp.BodyStream)
 	if string(data) != "streamed" {
-		t.Error(testutils.DiffMessage(string(data), "streamed", "stream content"))
+		t.Error(test.DiffMessage(string(data), "streamed", "stream content"))
 	}
 }
 
@@ -418,13 +418,13 @@ func TestSSEReader(t *testing.T) {
 		t.Fatal("expected first event")
 	}
 	if got, want := evt.ID, "1"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "event 1 ID"))
+		t.Error(test.DiffMessage(got, want, "event 1 ID"))
 	}
 	if got, want := evt.Event, "update"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "event 1 type"))
+		t.Error(test.DiffMessage(got, want, "event 1 type"))
 	}
 	if got, want := evt.Data, "hello\nworld"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "event 1 data"))
+		t.Error(test.DiffMessage(got, want, "event 1 data"))
 	}
 
 	evt, ok = sr.Next()
@@ -432,10 +432,10 @@ func TestSSEReader(t *testing.T) {
 		t.Fatal("expected second event")
 	}
 	if got, want := evt.ID, "2"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "event 2 ID"))
+		t.Error(test.DiffMessage(got, want, "event 2 ID"))
 	}
 	if got, want := evt.Data, "bye"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "event 2 data"))
+		t.Error(test.DiffMessage(got, want, "event 2 data"))
 	}
 
 	_, ok = sr.Next()
@@ -449,7 +449,7 @@ func TestSSEReader_Comment(t *testing.T) {
 	sr := NewSSEReader(strings.NewReader(raw))
 	evt, ok := sr.Next()
 	if !ok || evt.Data != "val" {
-		t.Error(testutils.DiffMessage(evt, "data=val", "SSE comment skipped"))
+		t.Error(test.DiffMessage(evt, "data=val", "SSE comment skipped"))
 	}
 }
 
@@ -461,7 +461,7 @@ func TestSSEReader_RetryField(t *testing.T) {
 		t.Fatal("expected event")
 	}
 	if evt.Retry != 3000 {
-		t.Error(testutils.DiffMessage(evt.Retry, 3000, "retry field"))
+		t.Error(test.DiffMessage(evt.Retry, 3000, "retry field"))
 	}
 }
 
@@ -484,7 +484,7 @@ func TestDownload(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(data) != content {
-		t.Error(testutils.DiffMessage(string(data), content, "downloaded file content"))
+		t.Error(test.DiffMessage(string(data), content, "downloaded file content"))
 	}
 }
 
@@ -531,7 +531,7 @@ func TestHook_BeforeRequest(t *testing.T) {
 		t.Error("OnBeforeRequest not called")
 	}
 	if resp.Headers.Get("Echo-X-Hook") != "injected" {
-		t.Error(testutils.DiffMessage(resp.Headers.Get("Echo-X-Hook"), "injected", "hook-injected header"))
+		t.Error(test.DiffMessage(resp.Headers.Get("Echo-X-Hook"), "injected", "hook-injected header"))
 	}
 }
 
@@ -544,7 +544,7 @@ func TestHook_BeforeRequest_Error(t *testing.T) {
 	c.OnBeforeRequest(func(_ *http.Request) error { return hookErr })
 	_, err := c.Get("/").Send()
 	if !errors.Is(err, hookErr) {
-		t.Error(testutils.DiffMessage(err, hookErr, "before-request hook error"))
+		t.Error(test.DiffMessage(err, hookErr, "before-request hook error"))
 	}
 }
 
@@ -563,7 +563,7 @@ func TestHook_AfterResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	if seen != 200 {
-		t.Error(testutils.DiffMessage(seen, 200, "after-response hook status"))
+		t.Error(test.DiffMessage(seen, 200, "after-response hook status"))
 	}
 }
 
@@ -597,7 +597,7 @@ func TestMaxResponseSize(t *testing.T) {
 		t.Error("expected error when response exceeds max size")
 	}
 	if !strings.Contains(err.Error(), "exceeds limit") {
-		t.Error(testutils.DiffMessage(err.Error(), "contains 'exceeds limit'", "error message"))
+		t.Error(test.DiffMessage(err.Error(), "contains 'exceeds limit'", "error message"))
 	}
 }
 
@@ -631,7 +631,7 @@ func TestSSRF_HostNotAllowed(t *testing.T) {
 		t.Error("expected SSRF error")
 	}
 	if !strings.Contains(err.Error(), "host not allowed") {
-		t.Error(testutils.DiffMessage(err.Error(), "host not allowed", "SSRF error message"))
+		t.Error(test.DiffMessage(err.Error(), "host not allowed", "SSRF error message"))
 	}
 }
 
@@ -660,7 +660,7 @@ func TestRequireHTTPS_Rejects_HTTP(t *testing.T) {
 		t.Error("expected error: HTTPS required")
 	}
 	if !strings.Contains(err.Error(), "HTTPS required") {
-		t.Error(testutils.DiffMessage(err.Error(), "HTTPS required", "error message"))
+		t.Error(test.DiffMessage(err.Error(), "HTTPS required", "error message"))
 	}
 }
 
@@ -683,7 +683,7 @@ func TestEnableCookies(t *testing.T) {
 	_, _ = c.Get("/check").Send()
 
 	if !strings.Contains(cookieHeader, "sess=abc") {
-		t.Error(testutils.DiffMessage(cookieHeader, "contains sess=abc", "cookie jar"))
+		t.Error(test.DiffMessage(cookieHeader, "contains sess=abc", "cookie jar"))
 	}
 }
 
@@ -702,7 +702,7 @@ func TestForm_URLEncoded(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, want := resp.Text(), "ginject"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "form field"))
+		t.Error(test.DiffMessage(got, want, "form field"))
 	}
 }
 
@@ -730,7 +730,7 @@ func TestMultipart_File(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, want := resp.Text(), "photo.jpg"; got != want {
-		t.Error(testutils.DiffMessage(got, want, "uploaded filename"))
+		t.Error(test.DiffMessage(got, want, "uploaded filename"))
 	}
 }
 
@@ -753,7 +753,7 @@ func TestResponse_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result["count"] != 42 {
-		t.Error(testutils.DiffMessage(result["count"], 42, "json field count"))
+		t.Error(test.DiffMessage(result["count"], 42, "json field count"))
 	}
 }
 
@@ -803,7 +803,7 @@ func TestModule_Register(t *testing.T) {
 		t.Fatal("Register returned nil")
 	}
 	if !m.IsGlobal {
-		t.Error(testutils.DiffMessage(m.IsGlobal, true, "IsGlobal"))
+		t.Error(test.DiffMessage(m.IsGlobal, true, "IsGlobal"))
 	}
 }
 
@@ -834,7 +834,7 @@ func TestError_Message_WithResponse(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "404") {
-		t.Error(testutils.DiffMessage(err.Error(), "contains 404", "error message"))
+		t.Error(test.DiffMessage(err.Error(), "contains 404", "error message"))
 	}
 }
 
@@ -850,7 +850,7 @@ func TestGet_EmptyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != 200 {
-		t.Error(testutils.DiffMessage(resp.StatusCode, 200, "empty path status"))
+		t.Error(test.DiffMessage(resp.StatusCode, 200, "empty path status"))
 	}
 }
 

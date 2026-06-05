@@ -8,7 +8,7 @@ import (
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func newHTTPContext() *ctx.Context {
@@ -29,7 +29,7 @@ func TestGlobalExceptionFilterHTTPFullException(t *testing.T) {
 	filter.Catch(c, &ex)
 
 	if w.Code != http.StatusBadRequest {
-		t.Error(testutils.DiffMessage(w.Code, http.StatusBadRequest, "HTTP status for BadRequest"))
+		t.Error(test.DiffMessage(w.Code, http.StatusBadRequest, "HTTP status for BadRequest"))
 	}
 }
 
@@ -42,7 +42,7 @@ func TestGlobalExceptionFilterHTTPStructMessage(t *testing.T) {
 	filter.Catch(c, &ex)
 
 	if w.Code != http.StatusInternalServerError {
-		t.Error(testutils.DiffMessage(w.Code, http.StatusInternalServerError, "HTTP status"))
+		t.Error(test.DiffMessage(w.Code, http.StatusInternalServerError, "HTTP status"))
 	}
 }
 

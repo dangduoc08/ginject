@@ -3,7 +3,7 @@ package common
 import (
 	"errors"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
 var WSOperations = map[string]string{
@@ -14,7 +14,7 @@ var InsertedEvents = make(map[string]string)
 
 type WS struct {
 	patternToFuncNameMap map[string]string
-	EventMap           map[string]any
+	EventMap             map[string]any
 }
 
 func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
@@ -38,7 +38,7 @@ func (ws *WS) AddHandlerToEventMap(fnName string, handler any) {
 		InsertedEvents[event] = fnName
 	} else {
 		panic(errors.New(
-			utils.FmtRed(
+			color.FmtRed(
 				"%v method is conflicted with %v method",
 				fnName,
 				InsertedEvents[event],

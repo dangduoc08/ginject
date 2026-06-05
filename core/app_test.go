@@ -6,30 +6,30 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func TestNew(t *testing.T) {
 	app := New()
 	if app == nil {
-		t.Fatal(testutils.DiffMessage(nil, "*App", "New should not return nil"))
+		t.Fatal(test.DiffMessage(nil, "*App", "New should not return nil"))
 		return
 	}
 	if app.http.route == nil {
-		t.Error(testutils.DiffMessage(nil, "router", "route not initialized"))
+		t.Error(test.DiffMessage(nil, "router", "route not initialized"))
 	}
 	if app.http.catchFnsMap == nil {
-		t.Error(testutils.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
+		t.Error(test.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
 	}
 	if app.Logger != nil {
-		t.Error(testutils.DiffMessage(app.Logger, nil, "Logger should be nil before Create"))
+		t.Error(test.DiffMessage(app.Logger, nil, "Logger should be nil before Create"))
 	}
 }
 
 func TestNewHasGlobalExceptionFilter(t *testing.T) {
 	app := New()
 	if len(app.globalExceptionFilters) == 0 {
-		t.Error(testutils.DiffMessage(0, ">0", "New should register default global exception filter"))
+		t.Error(test.DiffMessage(0, ">0", "New should register default global exception filter"))
 	}
 }
 
@@ -41,7 +41,7 @@ func TestGetContextIDFromHeader(t *testing.T) {
 
 	got := getContextID(c)
 	if got != "test-id-123" {
-		t.Error(testutils.DiffMessage(got, "test-id-123", "getContextID should use X-Request-Id header"))
+		t.Error(test.DiffMessage(got, "test-id-123", "getContextID should use X-Request-Id header"))
 	}
 }
 
@@ -55,10 +55,10 @@ func TestGetContextIDGeneratesUUID(t *testing.T) {
 	id2 := getContextID(c2)
 
 	if id1 == "" {
-		t.Error(testutils.DiffMessage(id1, "non-empty UUID", "should generate UUID when header absent"))
+		t.Error(test.DiffMessage(id1, "non-empty UUID", "should generate UUID when header absent"))
 	}
 	if id1 == id2 {
-		t.Error(testutils.DiffMessage(id1, "different UUID", "each call should produce a unique ID"))
+		t.Error(test.DiffMessage(id1, "different UUID", "each call should produce a unique ID"))
 	}
 }
 
@@ -66,7 +66,7 @@ func TestBindGlobalMiddlewaresChaining(t *testing.T) {
 	app := New()
 	result := app.BindGlobalMiddlewares()
 	if result != app {
-		t.Error(testutils.DiffMessage(result, app, "BindGlobalMiddlewares should return *App"))
+		t.Error(test.DiffMessage(result, app, "BindGlobalMiddlewares should return *App"))
 	}
 }
 
@@ -74,7 +74,7 @@ func TestBindGlobalGuardsChaining(t *testing.T) {
 	app := New()
 	result := app.BindGlobalGuards()
 	if result != app {
-		t.Error(testutils.DiffMessage(result, app, "BindGlobalGuards should return *App"))
+		t.Error(test.DiffMessage(result, app, "BindGlobalGuards should return *App"))
 	}
 }
 
@@ -82,7 +82,7 @@ func TestBindGlobalInterceptorsChaining(t *testing.T) {
 	app := New()
 	result := app.BindGlobalInterceptors()
 	if result != app {
-		t.Error(testutils.DiffMessage(result, app, "BindGlobalInterceptors should return *App"))
+		t.Error(test.DiffMessage(result, app, "BindGlobalInterceptors should return *App"))
 	}
 }
 
@@ -90,7 +90,7 @@ func TestBindGlobalExceptionFiltersChaining(t *testing.T) {
 	app := New()
 	result := app.BindGlobalExceptionFilters()
 	if result != app {
-		t.Error(testutils.DiffMessage(result, app, "BindGlobalExceptionFilters should return *App"))
+		t.Error(test.DiffMessage(result, app, "BindGlobalExceptionFilters should return *App"))
 	}
 }
 
@@ -98,10 +98,10 @@ func TestEnableDevtoolChaining(t *testing.T) {
 	app := New()
 	result := app.EnableDevtool()
 	if result != app {
-		t.Error(testutils.DiffMessage(result, app, "EnableDevtool should return *App"))
+		t.Error(test.DiffMessage(result, app, "EnableDevtool should return *App"))
 	}
 	if !app.isEnableDevtool {
-		t.Error(testutils.DiffMessage(app.isEnableDevtool, true, "isEnableDevtool should be true after EnableDevtool"))
+		t.Error(test.DiffMessage(app.isEnableDevtool, true, "isEnableDevtool should be true after EnableDevtool"))
 	}
 }
 
@@ -114,7 +114,7 @@ func TestServeHTTPNotFound(t *testing.T) {
 	app.ServeHTTP(w, r)
 
 	if w.Code != http.StatusNotFound {
-		t.Error(testutils.DiffMessage(w.Code, http.StatusNotFound, "unmatched route should return 404"))
+		t.Error(test.DiffMessage(w.Code, http.StatusNotFound, "unmatched route should return 404"))
 	}
 }
 
@@ -127,7 +127,7 @@ func TestServeHTTPSetsRequestIDHeader(t *testing.T) {
 	app.ServeHTTP(w, r)
 
 	if w.Header().Get(ctx.RequestID) == "" {
-		t.Error(testutils.DiffMessage("", "non-empty", "ServeHTTP should set X-Request-Id response header"))
+		t.Error(test.DiffMessage("", "non-empty", "ServeHTTP should set X-Request-Id response header"))
 	}
 }
 
@@ -142,7 +142,7 @@ func TestServeHTTPPropagatesRequestID(t *testing.T) {
 	app.ServeHTTP(w, r)
 
 	if w.Header().Get(ctx.RequestID) != fixedID {
-		t.Error(testutils.DiffMessage(w.Header().Get(ctx.RequestID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
+		t.Error(test.DiffMessage(w.Header().Get(ctx.RequestID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
 	}
 }
 
@@ -152,6 +152,6 @@ func TestGetAfterCreate(t *testing.T) {
 
 	got := app.Get(&mockProvider{})
 	if got != nil {
-		t.Error(testutils.DiffMessage(got, nil, "Get for unregistered provider should return nil"))
+		t.Error(test.DiffMessage(got, nil, "Get for unregistered provider should return nil"))
 	}
 }

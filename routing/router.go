@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
 const SERVE = "SERVE" // Serving static files directive
@@ -227,7 +227,7 @@ func (r *Router) AddInjectableHandler(method, route, version string, handler any
 	handlerKind := reflect.TypeOf(handler).Kind()
 	if handler == nil || handlerKind != reflect.Func {
 		panic(errors.New(
-			utils.FmtRed(
+			color.FmtRed(
 				"%v is not a handler",
 				handlerKind,
 			),

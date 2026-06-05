@@ -39,7 +39,7 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
    - If **tests exist** → review them and add missing cases (see coverage checklist below).
    - If **no benchmark file** exists → create one with realistic inputs (1 000+ iterations, real-world-sized data).
    - If **benchmarks exist** → add cases for any new code paths.
-   - When writing test assertions use `t.Error(testutils.DiffMessage(actual, expected, "desc"))` (import `"github.com/dangduoc08/ginject/testutils"`), not raw `t.Errorf`.
+   - When writing test assertions use `t.Error(test.DiffMessage(actual, expected, "desc"))` (import `"github.com/dangduoc08/ginject/internal/test"`), not raw `t.Errorf`.
 
    **Coverage checklist** — for every public function/method, verify at least:
    - Happy path (valid input, expected output).

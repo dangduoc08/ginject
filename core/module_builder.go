@@ -9,7 +9,7 @@ import (
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
 type moduleBuilder struct {
@@ -68,7 +68,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 	}
 
 	if len(errors) > 0 {
-		panic(utils.FmtRed("%s", strings.Join(errors, "\n       ")))
+		panic(color.FmtRed("%s", strings.Join(errors, "\n       ")))
 	}
 
 	return staticModules, dynamicModules

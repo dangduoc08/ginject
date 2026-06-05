@@ -3,32 +3,32 @@ package config
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func TestIsValidKey_Empty(t *testing.T) {
 	if isValidKey("") {
-		t.Error(testutils.DiffMessage(true, false, "empty key should be invalid"))
+		t.Error(test.DiffMessage(true, false, "empty key should be invalid"))
 	}
 }
 
 func TestMatchParams_Found(t *testing.T) {
 	got := matchParams("${KEY1}_middle_${KEY2}")
 	if len(got) != 2 {
-		t.Error(testutils.DiffMessage(len(got), 2, "should find 2 params"))
+		t.Error(test.DiffMessage(len(got), 2, "should find 2 params"))
 	}
 	if got[0] != "${KEY1}" {
-		t.Error(testutils.DiffMessage(got[0], "${KEY1}", "first param"))
+		t.Error(test.DiffMessage(got[0], "${KEY1}", "first param"))
 	}
 	if got[1] != "${KEY2}" {
-		t.Error(testutils.DiffMessage(got[1], "${KEY2}", "second param"))
+		t.Error(test.DiffMessage(got[1], "${KEY2}", "second param"))
 	}
 }
 
 func TestMatchParams_None(t *testing.T) {
 	got := matchParams("no_params_here")
 	if len(got) != 0 {
-		t.Error(testutils.DiffMessage(len(got), 0, "no params expected"))
+		t.Error(test.DiffMessage(len(got), 0, "no params expected"))
 	}
 }
 
@@ -37,7 +37,7 @@ func TestParseParamsToValue_Substitution(t *testing.T) {
 	got := parseParamsToValue("RESULT", "${BASE}_world", envMap)
 	want := "hello_world"
 	if got != want {
-		t.Error(testutils.DiffMessage(got, want, "param substitution"))
+		t.Error(test.DiffMessage(got, want, "param substitution"))
 	}
 }
 
@@ -45,14 +45,14 @@ func TestParseParamsToValue_NoParams(t *testing.T) {
 	envMap := map[string]any{}
 	got := parseParamsToValue("K", "plain_value", envMap)
 	if got != "plain_value" {
-		t.Error(testutils.DiffMessage(got, "plain_value", "no params passthrough"))
+		t.Error(test.DiffMessage(got, "plain_value", "no params passthrough"))
 	}
 }
 
 func TestParseParamsToValue_SelfReference(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "self-reference should panic"))
+			t.Error(test.DiffMessage(nil, "panic", "self-reference should panic"))
 		}
 	}()
 	parseParamsToValue("KEY", "${KEY}", map[string]any{"KEY": "val"})
