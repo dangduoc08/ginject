@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type mockMiddlewareFn struct{}
@@ -15,14 +15,14 @@ func TestBindMiddleware_Chaining(t *testing.T) {
 	m := &Middleware{}
 	ret := m.BindMiddleware(mockMiddlewareFn{})
 	if ret != m {
-		t.Error(testutils.DiffMessage(ret, m, "BindMiddleware should return self"))
+		t.Error(test.DiffMessage(ret, m, "BindMiddleware should return self"))
 	}
 	if len(m.MiddlewareHandlers) != 1 {
-		t.Error(testutils.DiffMessage(len(m.MiddlewareHandlers), 1, "one handler after one bind"))
+		t.Error(test.DiffMessage(len(m.MiddlewareHandlers), 1, "one handler after one bind"))
 	}
 	m.BindMiddleware(mockMiddlewareFn{})
 	if len(m.MiddlewareHandlers) != 2 {
-		t.Error(testutils.DiffMessage(len(m.MiddlewareHandlers), 2, "two handlers after two binds"))
+		t.Error(test.DiffMessage(len(m.MiddlewareHandlers), 2, "two handlers after two binds"))
 	}
 }
 
@@ -32,7 +32,7 @@ func TestInjectProvidersIntoRESTMiddlewares_Empty(t *testing.T) {
 
 	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
 	if len(items) != 0 {
-		t.Error(testutils.DiffMessage(len(items), 0, "no bound middlewares → empty result"))
+		t.Error(test.DiffMessage(len(items), 0, "no bound middlewares → empty result"))
 	}
 }
 
@@ -47,17 +47,17 @@ func TestInjectProvidersIntoRESTMiddlewares_ApplyAll(t *testing.T) {
 
 	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
 	if len(items) != 2 {
-		t.Error(testutils.DiffMessage(len(items), 2, "middleware with no handlers applies to all patterns"))
+		t.Error(test.DiffMessage(len(items), 2, "middleware with no handlers applies to all patterns"))
 	}
 	for _, item := range items {
 		if item.REST.Method != "GET" {
-			t.Error(testutils.DiffMessage(item.REST.Method, "GET", "method"))
+			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
 		}
 		if item.REST.Pattern == "" {
-			t.Error(testutils.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
+			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
 		}
 		if item.REST.Common.Name == "" {
-			t.Error(testutils.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
+			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
 		}
 	}
 }
@@ -70,11 +70,11 @@ func TestInjectProvidersIntoRESTMiddlewares_MainHandlerName(t *testing.T) {
 	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
 
 	if len(items) != 1 {
-		t.Error(testutils.DiffMessage(len(items), 1, "one pattern → one item"))
+		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
 		return
 	}
 	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(testutils.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
 	}
 }
 
@@ -84,7 +84,7 @@ func TestInjectProvidersIntoWSMiddlewares_Empty(t *testing.T) {
 
 	items := m.InjectProvidersIntoWSMiddlewares(ws, noopCB)
 	if len(items) != 0 {
-		t.Error(testutils.DiffMessage(len(items), 0, "no bound middlewares → empty result"))
+		t.Error(test.DiffMessage(len(items), 0, "no bound middlewares → empty result"))
 	}
 }
 
@@ -99,14 +99,14 @@ func TestInjectProvidersIntoWSMiddlewares_ApplyAll(t *testing.T) {
 
 	items := m.InjectProvidersIntoWSMiddlewares(ws, noopCB)
 	if len(items) != 2 {
-		t.Error(testutils.DiffMessage(len(items), 2, "middleware with no handlers applies to all WS patterns"))
+		t.Error(test.DiffMessage(len(items), 2, "middleware with no handlers applies to all WS patterns"))
 	}
 	for _, item := range items {
 		if item.WS.EventName == "" {
-			t.Error(testutils.DiffMessage(item.WS.EventName, "non-empty", "event name"))
+			t.Error(test.DiffMessage(item.WS.EventName, "non-empty", "event name"))
 		}
 		if item.WS.Common.Name == "" {
-			t.Error(testutils.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
+			t.Error(test.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
 		}
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"go/token"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/num"
 )
 
 const (
@@ -95,7 +95,7 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, par
 						reflect.Complex64,
 						reflect.Complex128:
 						if f64, ok := bindedValue.(float64); ok {
-							val := utils.NumF64ToAnyNum(f64, structField.Type.Kind())
+							val := num.F64ToAnyNum(f64, structField.Type.Kind())
 							fl.val = val
 							*fls = append(*fls, fl)
 							setValueToStructField(val)
@@ -175,7 +175,7 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, par
 							reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 							reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
 							if f64, ok := bindedValue.(float64); ok {
-								numVal := utils.NumF64ToAnyNum(f64, elemKind)
+								numVal := num.F64ToAnyNum(f64, elemKind)
 								ptr := reflect.New(structField.Type.Elem())
 								ptr.Elem().Set(reflect.ValueOf(numVal))
 								fl.val = ptr.Interface()

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dangduoc08/ginject/internal/color"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 var RESTOperations = map[string]string{
@@ -59,10 +59,10 @@ type RESTConfiguration struct {
 }
 
 type REST struct {
-	prefixes           []Prefix
+	prefixes             []Prefix
 	PatternToFuncNameMap map[string]string
 	FuncNameToPatternMap map[string]string
-	RouterMap          map[string]any
+	RouterMap            map[string]any
 }
 
 type Prefix struct {
@@ -149,7 +149,7 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 			InsertedRoutes[pattern] = fnName
 		} else {
 			panic(errors.New(
-				utils.FmtRed(
+				color.FmtRed(
 					"%v method is conflicted with %v method",
 					fnName,
 					InsertedRoutes[pattern],

@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/slice"
 )
 
 type Body map[string]any
@@ -37,7 +37,7 @@ func (c *Context) Body() Body {
 
 func (b Body) Set(k string, v any) {
 	keys := strings.Split(k, ".")
-	keys = utils.ArrFilter[string](keys, func(el string, i int) bool {
+	keys = slice.Filter[string](keys, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
 	obj := b
@@ -71,7 +71,7 @@ func (b Body) Set(k string, v any) {
 
 func (b Body) Get(k string) any {
 	keys := strings.Split(k, ".")
-	keys = utils.ArrFilter(keys, func(el string, i int) bool {
+	keys = slice.Filter(keys, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
 	obj := b

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func TestPatternToMethodRouteVersion(t *testing.T) {
@@ -37,13 +37,13 @@ func TestPatternToMethodRouteVersion(t *testing.T) {
 	for _, c := range cases {
 		method, route, version := PatternToMethodRouteVersion(c.pattern)
 		if method != c.wantMethod {
-			t.Error(testutils.DiffMessage(method, c.wantMethod, "PatternToMethodRouteVersion method"))
+			t.Error(test.DiffMessage(method, c.wantMethod, "PatternToMethodRouteVersion method"))
 		}
 		if route != c.wantRoute {
-			t.Error(testutils.DiffMessage(route, c.wantRoute, "PatternToMethodRouteVersion route"))
+			t.Error(test.DiffMessage(route, c.wantRoute, "PatternToMethodRouteVersion route"))
 		}
 		if version != c.wantVersion {
-			t.Error(testutils.DiffMessage(version, c.wantVersion, "PatternToMethodRouteVersion version"))
+			t.Error(test.DiffMessage(version, c.wantVersion, "PatternToMethodRouteVersion version"))
 		}
 	}
 }
@@ -64,7 +64,7 @@ func TestToEndpoint(t *testing.T) {
 	for _, c := range cases {
 		got := ToEndpoint(c.in)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "ToEndpoint"))
+			t.Error(test.DiffMessage(got, c.want, "ToEndpoint"))
 		}
 	}
 }
@@ -73,21 +73,21 @@ func TestParseToParamKey(t *testing.T) {
 	str, keys := ParseToParamKey("/users/{userId}/friends/{friendId}/")
 	wantStr := "/users/$/friends/$/"
 	if str != wantStr {
-		t.Error(testutils.DiffMessage(str, wantStr, "ParseToParamKey str"))
+		t.Error(test.DiffMessage(str, wantStr, "ParseToParamKey str"))
 	}
 	if keys["userId"][0] != 0 {
-		t.Error(testutils.DiffMessage(keys["userId"][0], 0, "ParseToParamKey userId index"))
+		t.Error(test.DiffMessage(keys["userId"][0], 0, "ParseToParamKey userId index"))
 	}
 	if keys["friendId"][0] != 1 {
-		t.Error(testutils.DiffMessage(keys["friendId"][0], 1, "ParseToParamKey friendId index"))
+		t.Error(test.DiffMessage(keys["friendId"][0], 1, "ParseToParamKey friendId index"))
 	}
 
 	str2, keys2 := ParseToParamKey("/plain/route/")
 	if str2 != "/plain/route/" {
-		t.Error(testutils.DiffMessage(str2, "/plain/route/", "ParseToParamKey no params"))
+		t.Error(test.DiffMessage(str2, "/plain/route/", "ParseToParamKey no params"))
 	}
 	if len(keys2) != 0 {
-		t.Error(testutils.DiffMessage(len(keys2), 0, "ParseToParamKey no param keys"))
+		t.Error(test.DiffMessage(len(keys2), 0, "ParseToParamKey no param keys"))
 	}
 }
 
@@ -109,7 +109,7 @@ func TestMatchWildcard(t *testing.T) {
 	for _, c := range cases {
 		got := matchWildcard(c.str, c.route)
 		if got != c.want {
-			t.Error(testutils.DiffMessage(got, c.want, "matchWildcard("+c.str+", "+c.route+")"))
+			t.Error(test.DiffMessage(got, c.want, "matchWildcard("+c.str+", "+c.route+")"))
 		}
 	}
 }
@@ -118,15 +118,15 @@ func TestFromMethodtoPattern(t *testing.T) {
 	got := fromMethodtoPattern(http.MethodGet)
 	want := "[GET]"
 	if got != want {
-		t.Error(testutils.DiffMessage(got, want, "fromMethodtoPattern"))
+		t.Error(test.DiffMessage(got, want, "fromMethodtoPattern"))
 	}
 }
 
 func TestFromVersiontoPattern(t *testing.T) {
 	if got := fromVersiontoPattern(""); got != "||" {
-		t.Error(testutils.DiffMessage(got, "||", "fromVersiontoPattern empty"))
+		t.Error(test.DiffMessage(got, "||", "fromVersiontoPattern empty"))
 	}
 	if got := fromVersiontoPattern("v2"); got != "|v2|" {
-		t.Error(testutils.DiffMessage(got, "|v2|", "fromVersiontoPattern v2"))
+		t.Error(test.DiffMessage(got, "|v2|", "fromVersiontoPattern v2"))
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/str"
 )
 
 type (
@@ -47,7 +47,7 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	node := tr
 	start := strings.IndexByte(path, sep)
 
-	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {
+	for seg, next := str.Segment(path, sep, start); next > -1; seg, next = str.Segment(path, sep, next) {
 		isExist := node.Children[seg] != nil
 
 		if !isExist {
@@ -78,7 +78,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 	methodPattern := fromMethodtoPattern(method)
 	versionPattern := fromVersiontoPattern(version)
 
-	for seg, next := utils.StrSegment(path, sep, start); next > -1; seg, next = utils.StrSegment(path, sep, next) {
+	for seg, next := str.Segment(path, sep, start); next > -1; seg, next = str.Segment(path, sep, next) {
 		if node.Children[seg] == nil {
 
 			// Handle segs have paramVals

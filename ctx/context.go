@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/broker"
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/str"
 )
 
 type (
 	Map      map[string]any
-	ErrFunc    func(error)
+	ErrFunc  func(error)
 	Handler  = func(*Context)
 	Next     = func()
 	Redirect = func(string)
@@ -87,7 +87,7 @@ func (c *Context) JSON(data ...any) {
 }
 
 func (c *Context) JSONP(data ...any) {
-	callback := utils.StrRemoveSpace(c.URL.Query().Get("callback"))
+	callback := str.RemoveSpace(c.URL.Query().Get("callback"))
 	if callback == "" {
 		c.JSON(data...)
 		return

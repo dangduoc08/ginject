@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 type Address struct {
@@ -349,69 +349,69 @@ func TestBindStruct_Pointers(t *testing.T) {
 	dto := d.(PtrDTO)
 
 	if dto.PtrBool == nil || *dto.PtrBool != true {
-		t.Error(testutils.DiffMessage(dto.PtrBool, boolPtr(true), "*bool"))
+		t.Error(test.DiffMessage(dto.PtrBool, boolPtr(true), "*bool"))
 	}
 	if dto.PtrInt == nil || *dto.PtrInt != 42 {
-		t.Error(testutils.DiffMessage(dto.PtrInt, intPtr(42), "*int"))
+		t.Error(test.DiffMessage(dto.PtrInt, intPtr(42), "*int"))
 	}
 	if dto.PtrInt8 == nil || *dto.PtrInt8 != -12 {
-		t.Error(testutils.DiffMessage(dto.PtrInt8, int8Ptr(-12), "*int8"))
+		t.Error(test.DiffMessage(dto.PtrInt8, int8Ptr(-12), "*int8"))
 	}
 	if dto.PtrInt16 == nil || *dto.PtrInt16 != -1000 {
-		t.Error(testutils.DiffMessage(dto.PtrInt16, int16Ptr(-1000), "*int16"))
+		t.Error(test.DiffMessage(dto.PtrInt16, int16Ptr(-1000), "*int16"))
 	}
 	if dto.PtrInt32 == nil || *dto.PtrInt32 != -100000 {
-		t.Error(testutils.DiffMessage(dto.PtrInt32, int32Ptr(-100000), "*int32"))
+		t.Error(test.DiffMessage(dto.PtrInt32, int32Ptr(-100000), "*int32"))
 	}
 	if dto.PtrInt64 == nil || *dto.PtrInt64 != -9223372036854775808 {
-		t.Error(testutils.DiffMessage(dto.PtrInt64, int64Ptr(-9223372036854775808), "*int64"))
+		t.Error(test.DiffMessage(dto.PtrInt64, int64Ptr(-9223372036854775808), "*int64"))
 	}
 	if dto.PtrUint == nil || *dto.PtrUint != 99 {
-		t.Error(testutils.DiffMessage(dto.PtrUint, uintPtr(99), "*uint"))
+		t.Error(test.DiffMessage(dto.PtrUint, uintPtr(99), "*uint"))
 	}
 	if dto.PtrUint8 == nil || *dto.PtrUint8 != 255 {
-		t.Error(testutils.DiffMessage(dto.PtrUint8, uint8Ptr(255), "*uint8"))
+		t.Error(test.DiffMessage(dto.PtrUint8, uint8Ptr(255), "*uint8"))
 	}
 	if dto.PtrUint16 == nil || *dto.PtrUint16 != 65535 {
-		t.Error(testutils.DiffMessage(dto.PtrUint16, uint16Ptr(65535), "*uint16"))
+		t.Error(test.DiffMessage(dto.PtrUint16, uint16Ptr(65535), "*uint16"))
 	}
 	if dto.PtrUint32 == nil || *dto.PtrUint32 != 4294967295 {
-		t.Error(testutils.DiffMessage(dto.PtrUint32, uint32Ptr(4294967295), "*uint32"))
+		t.Error(test.DiffMessage(dto.PtrUint32, uint32Ptr(4294967295), "*uint32"))
 	}
 	if dto.PtrUint64 == nil {
-		t.Error(testutils.DiffMessage(dto.PtrUint64, new(uint64), "*uint64 should be non-nil"))
+		t.Error(test.DiffMessage(dto.PtrUint64, new(uint64), "*uint64 should be non-nil"))
 	}
 	if dto.PtrFloat32 == nil {
-		t.Error(testutils.DiffMessage(dto.PtrFloat32, float32Ptr(3.14), "*float32"))
+		t.Error(test.DiffMessage(dto.PtrFloat32, float32Ptr(3.14), "*float32"))
 	}
 	if dto.PtrFloat64 == nil || *dto.PtrFloat64 != 1.7976931348623157e+308 {
-		t.Error(testutils.DiffMessage(dto.PtrFloat64, float64Ptr(1.7976931348623157e+308), "*float64"))
+		t.Error(test.DiffMessage(dto.PtrFloat64, float64Ptr(1.7976931348623157e+308), "*float64"))
 	}
 	if dto.PtrComplex64 == nil || *dto.PtrComplex64 != complex64(complex(2.5, 0)) {
-		t.Error(testutils.DiffMessage(dto.PtrComplex64, new(complex64), "*complex64"))
+		t.Error(test.DiffMessage(dto.PtrComplex64, new(complex64), "*complex64"))
 	}
 	if dto.PtrComplex128 == nil || *dto.PtrComplex128 != complex(9.9, 0) {
-		t.Error(testutils.DiffMessage(dto.PtrComplex128, new(complex128), "*complex128"))
+		t.Error(test.DiffMessage(dto.PtrComplex128, new(complex128), "*complex128"))
 	}
 	if dto.PtrString == nil || *dto.PtrString != "hello" {
-		t.Error(testutils.DiffMessage(dto.PtrString, stringPtr("hello"), "*string"))
+		t.Error(test.DiffMessage(dto.PtrString, stringPtr("hello"), "*string"))
 	}
 	if dto.PtrStruct == nil || dto.PtrStruct.City != "Anytown" || dto.PtrStruct.Street != "1 Main St" {
-		t.Error(testutils.DiffMessage(dto.PtrStruct, &Address{Street: "1 Main St", City: "Anytown", ZipCode: "00001"}, "*Struct"))
+		t.Error(test.DiffMessage(dto.PtrStruct, &Address{Street: "1 Main St", City: "Anytown", ZipCode: "00001"}, "*Struct"))
 	}
 	if dto.PtrSlice == nil || len(*dto.PtrSlice) != 3 || (*dto.PtrSlice)[0] != "a" {
-		t.Error(testutils.DiffMessage(dto.PtrSlice, &[]string{"a", "b", "c"}, "*[]string"))
+		t.Error(test.DiffMessage(dto.PtrSlice, &[]string{"a", "b", "c"}, "*[]string"))
 	}
 	if dto.PtrMap == nil {
-		t.Error(testutils.DiffMessage(dto.PtrMap, &map[string]string{"k1": "v1", "k2": "v2"}, "*map"))
+		t.Error(test.DiffMessage(dto.PtrMap, &map[string]string{"k1": "v1", "k2": "v2"}, "*map"))
 	} else {
 		m := *dto.PtrMap
 		if m["k1"] != "v1" || m["k2"] != "v2" {
-			t.Error(testutils.DiffMessage(m, map[string]string{"k1": "v1", "k2": "v2"}, "*map values"))
+			t.Error(test.DiffMessage(m, map[string]string{"k1": "v1", "k2": "v2"}, "*map values"))
 		}
 	}
 	if dto.PtrMissing != nil {
-		t.Error(testutils.DiffMessage(dto.PtrMissing, nil, "*string missing key should be nil"))
+		t.Error(test.DiffMessage(dto.PtrMissing, nil, "*string missing key should be nil"))
 	}
 }
 
@@ -433,21 +433,21 @@ func TestBindStruct_Pointers_NilOnWrongType(t *testing.T) {
 	dto := d.(PtrDTO)
 
 	if dto.PtrBool != nil {
-		t.Error(testutils.DiffMessage(dto.PtrBool, nil, "*bool wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrBool, nil, "*bool wrong type should be nil"))
 	}
 	if dto.PtrInt != nil {
-		t.Error(testutils.DiffMessage(dto.PtrInt, nil, "*int wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrInt, nil, "*int wrong type should be nil"))
 	}
 	if dto.PtrString != nil {
-		t.Error(testutils.DiffMessage(dto.PtrString, nil, "*string wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrString, nil, "*string wrong type should be nil"))
 	}
 	if dto.PtrStruct != nil {
-		t.Error(testutils.DiffMessage(dto.PtrStruct, nil, "*struct wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrStruct, nil, "*struct wrong type should be nil"))
 	}
 	if dto.PtrSlice != nil {
-		t.Error(testutils.DiffMessage(dto.PtrSlice, nil, "*slice wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrSlice, nil, "*slice wrong type should be nil"))
 	}
 	if dto.PtrMap != nil {
-		t.Error(testutils.DiffMessage(dto.PtrMap, nil, "*map wrong type should be nil"))
+		t.Error(test.DiffMessage(dto.PtrMap, nil, "*map wrong type should be nil"))
 	}
 }

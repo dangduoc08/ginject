@@ -6,8 +6,8 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/testutils"
 )
 
 type mockExFilter struct{}
@@ -43,14 +43,14 @@ func TestBindExceptionFilter_Chaining(t *testing.T) {
 	e := &ExceptionFilter{}
 	ret := e.BindExceptionFilter(mockExFilter{})
 	if ret != e {
-		t.Error(testutils.DiffMessage(ret, e, "BindExceptionFilter should return self"))
+		t.Error(test.DiffMessage(ret, e, "BindExceptionFilter should return self"))
 	}
 	if len(e.ExceptionFilterHandlers) != 1 {
-		t.Error(testutils.DiffMessage(len(e.ExceptionFilterHandlers), 1, "one handler after one bind"))
+		t.Error(test.DiffMessage(len(e.ExceptionFilterHandlers), 1, "one handler after one bind"))
 	}
 	e.BindExceptionFilter(mockExFilter{})
 	if len(e.ExceptionFilterHandlers) != 2 {
-		t.Error(testutils.DiffMessage(len(e.ExceptionFilterHandlers), 2, "two handlers after two binds"))
+		t.Error(test.DiffMessage(len(e.ExceptionFilterHandlers), 2, "two handlers after two binds"))
 	}
 }
 
@@ -60,7 +60,7 @@ func TestInjectProvidersIntoRESTExceptionFilters_Empty(t *testing.T) {
 
 	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
 	if len(items) != 0 {
-		t.Error(testutils.DiffMessage(len(items), 0, "no bound filters → empty result"))
+		t.Error(test.DiffMessage(len(items), 0, "no bound filters → empty result"))
 	}
 }
 
@@ -75,17 +75,17 @@ func TestInjectProvidersIntoRESTExceptionFilters_ApplyAll(t *testing.T) {
 
 	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
 	if len(items) != 2 {
-		t.Error(testutils.DiffMessage(len(items), 2, "filter with no handlers applies to all patterns"))
+		t.Error(test.DiffMessage(len(items), 2, "filter with no handlers applies to all patterns"))
 	}
 	for _, item := range items {
 		if item.REST.Method != "GET" {
-			t.Error(testutils.DiffMessage(item.REST.Method, "GET", "method"))
+			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
 		}
 		if item.REST.Pattern == "" {
-			t.Error(testutils.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
+			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
 		}
 		if item.REST.Common.Name == "" {
-			t.Error(testutils.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
+			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
 		}
 	}
 }
@@ -98,11 +98,11 @@ func TestInjectProvidersIntoRESTExceptionFilters_MainHandlerName(t *testing.T) {
 	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
 
 	if len(items) != 1 {
-		t.Error(testutils.DiffMessage(len(items), 1, "one pattern → one item"))
+		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
 		return
 	}
 	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(testutils.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
 	}
 }
 
@@ -112,7 +112,7 @@ func TestInjectProvidersIntoWSExceptionFilters_Empty(t *testing.T) {
 
 	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
 	if len(items) != 0 {
-		t.Error(testutils.DiffMessage(len(items), 0, "no bound filters → empty result"))
+		t.Error(test.DiffMessage(len(items), 0, "no bound filters → empty result"))
 	}
 }
 
@@ -127,14 +127,14 @@ func TestInjectProvidersIntoWSExceptionFilters_ApplyAll(t *testing.T) {
 
 	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
 	if len(items) != 2 {
-		t.Error(testutils.DiffMessage(len(items), 2, "filter with no handlers applies to all WS patterns"))
+		t.Error(test.DiffMessage(len(items), 2, "filter with no handlers applies to all WS patterns"))
 	}
 	for _, item := range items {
 		if item.WS.EventName == "" {
-			t.Error(testutils.DiffMessage(item.WS.EventName, "non-empty", "event name"))
+			t.Error(test.DiffMessage(item.WS.EventName, "non-empty", "event name"))
 		}
 		if item.WS.Common.Name == "" {
-			t.Error(testutils.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
+			t.Error(test.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
 		}
 	}
 }

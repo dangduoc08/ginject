@@ -1,4 +1,4 @@
-package utils
+package slice
 
 import "testing"
 
@@ -38,32 +38,26 @@ var benchNumStrs = func() []string {
 	return s
 }()
 
-func BenchmarkArrMap(b *testing.B) {
+func BenchmarkMap(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		ArrMap(benchInts, func(el int, _ int) int { return el * 2 })
+		Map(benchInts, func(el int, _ int) int { return el * 2 })
 	}
 }
 
-func BenchmarkArrFilter(b *testing.B) {
+func BenchmarkFilter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		ArrFilter(benchStrings, func(el string, _ int) bool { return el == "keep" })
+		Filter(benchStrings, func(el string, _ int) bool { return el == "keep" })
 	}
 }
 
-func BenchmarkArrToUnique(b *testing.B) {
+func BenchmarkToUnique(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		ArrToUnique(benchDups)
+		ToUnique(benchDups)
 	}
 }
 
-func BenchmarkArrIncludes(b *testing.B) {
+func BenchmarkStrParseInt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		ArrIncludes(benchInts, 999)
-	}
-}
-
-func BenchmarkArrStrParseInt(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		ArrStrParseInt(benchNumStrs)
+		StrParseInt(benchNumStrs)
 	}
 }

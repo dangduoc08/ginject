@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func makeCtxWithQuery(key, val string) *ctx.Context {
@@ -35,12 +35,12 @@ func TestGetVersion_Query(t *testing.T) {
 
 	got := v.GetVersion(makeCtxWithQuery("version", "v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "QueryVersion: key present"))
+		t.Error(test.DiffMessage(got, "v2", "QueryVersion: key present"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "QueryVersion: key absent uses default"))
+		t.Error(test.DiffMessage(got, "v1", "QueryVersion: key absent uses default"))
 	}
 }
 
@@ -49,7 +49,7 @@ func TestGetVersion_QueryDefaultKey(t *testing.T) {
 
 	got := v.GetVersion(makeCtxWithQuery("v", "v5"))
 	if got != "v5" {
-		t.Error(testutils.DiffMessage(got, "v5", "QueryVersion: default key 'v'"))
+		t.Error(test.DiffMessage(got, "v5", "QueryVersion: default key 'v'"))
 	}
 }
 
@@ -58,12 +58,12 @@ func TestGetVersion_Header(t *testing.T) {
 
 	got := v.GetVersion(makeCtxWithHeader("X-Api-Version", "v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "HeaderVersion: key present"))
+		t.Error(test.DiffMessage(got, "v2", "HeaderVersion: key present"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "HeaderVersion: key absent uses default"))
+		t.Error(test.DiffMessage(got, "v1", "HeaderVersion: key absent uses default"))
 	}
 }
 
@@ -76,13 +76,13 @@ func TestGetVersion_Custom(t *testing.T) {
 
 	got := v.GetVersion(makeCtxEmpty())
 	if got != "v9" {
-		t.Error(testutils.DiffMessage(got, "v9", "CustomVersion: extractor called"))
+		t.Error(test.DiffMessage(got, "v9", "CustomVersion: extractor called"))
 	}
 
 	v2 := &Versioning{Type: CustomVersion, DefaultVersion: "v1"}
 	got = v2.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "CustomVersion: nil extractor uses default"))
+		t.Error(test.DiffMessage(got, "v1", "CustomVersion: nil extractor uses default"))
 	}
 }
 
@@ -91,17 +91,17 @@ func TestGetVersion_MediaType(t *testing.T) {
 
 	got := v.GetVersion(makeCtxWithHeader("Accept", "application/json;v=v2"))
 	if got != "v2" {
-		t.Error(testutils.DiffMessage(got, "v2", "MediaType: v= present in Accept"))
+		t.Error(test.DiffMessage(got, "v2", "MediaType: v= present in Accept"))
 	}
 
 	got = v.GetVersion(makeCtxWithHeader("Accept", "application/json"))
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "MediaType: no v= uses default"))
+		t.Error(test.DiffMessage(got, "v1", "MediaType: no v= uses default"))
 	}
 
 	got = v.GetVersion(makeCtxEmpty())
 	if got != "v1" {
-		t.Error(testutils.DiffMessage(got, "v1", "MediaType: no Accept header uses default"))
+		t.Error(test.DiffMessage(got, "v1", "MediaType: no Accept header uses default"))
 	}
 }
 
@@ -110,6 +110,6 @@ func TestGetVersion_Neutral(t *testing.T) {
 
 	got := v.GetVersion(makeCtxEmpty())
 	if got != NeutralVersion {
-		t.Error(testutils.DiffMessage(got, NeutralVersion, "default version can be NEUTRAL"))
+		t.Error(test.DiffMessage(got, NeutralVersion, "default version can be NEUTRAL"))
 	}
 }

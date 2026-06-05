@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/crypto"
+	"github.com/dangduoc08/ginject/internal/slice"
 	"golang.org/x/net/websocket"
 )
 
@@ -26,7 +27,7 @@ func NewWS(wsConn *websocket.Conn) *WS {
 	}
 
 	if ws.uuid == "" {
-		uuid, err := utils.StrUUID()
+		uuid, err := crypto.UUID()
 		if err != nil {
 			panic(err)
 		}
@@ -47,10 +48,10 @@ func (ws *WS) GetSubprotocol() string {
 func (ws *WS) GetSubscribedEvents() []string {
 	wsSubscribedEvents := strings.Split(ws.Connection.Request().URL.Query().Get("events"), ",")
 	wsSubscribedEvents = append(wsSubscribedEvents, "*")
-	wsSubscribedEvents = utils.ArrFilter(wsSubscribedEvents, func(el string, i int) bool {
+	wsSubscribedEvents = slice.Filter(wsSubscribedEvents, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
-	wsSubscribedEvents = utils.ArrToUnique(wsSubscribedEvents)
+	wsSubscribedEvents = slice.ToUnique(wsSubscribedEvents)
 	return wsSubscribedEvents
 }
 

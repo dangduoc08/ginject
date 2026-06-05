@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
 type PrettyHandlerOptions struct {
@@ -152,7 +152,7 @@ func NewPrettyHandler(out io.Writer, opts *PrettyHandlerOptions) *PrettyHandler 
 		if label == labelInfo || label == labelWarn {
 			space = "  "
 		}
-		return utils.FmtBold("%s", bg(" %s%s", label, space))
+		return color.FmtBold("%s", bg(" "+label+space))
 	}
 
 	h := &PrettyHandler{
@@ -160,10 +160,10 @@ func NewPrettyHandler(out io.Writer, opts *PrettyHandlerOptions) *PrettyHandler 
 		writer:      out,
 		timeFormat:  opts.TimeFormat,
 	}
-	h.levelColors[0] = levelColor{buildLabel(labelDebug, utils.FmtBGBlue), utils.FmtBGBlue(" ")}
-	h.levelColors[1] = levelColor{buildLabel(labelInfo, utils.FmtBGGreen), utils.FmtBGGreen(" ")}
-	h.levelColors[2] = levelColor{buildLabel(labelWarn, utils.FmtBGYellow), utils.FmtBGYellow(" ")}
-	h.levelColors[3] = levelColor{buildLabel(labelError, utils.FmtBGRed), utils.FmtBGRed(" ")}
-	h.levelColors[4] = levelColor{buildLabel(labelFatal, utils.FmtBGRed), utils.FmtBGRed(" ")}
+	h.levelColors[0] = levelColor{buildLabel(labelDebug, color.FmtBGBlue), color.FmtBGBlue(" ")}
+	h.levelColors[1] = levelColor{buildLabel(labelInfo, color.FmtBGGreen), color.FmtBGGreen(" ")}
+	h.levelColors[2] = levelColor{buildLabel(labelWarn, color.FmtBGYellow), color.FmtBGYellow(" ")}
+	h.levelColors[3] = levelColor{buildLabel(labelError, color.FmtBGRed), color.FmtBGRed(" ")}
+	h.levelColors[4] = levelColor{buildLabel(labelFatal, color.FmtBGRed), color.FmtBGRed(" ")}
 	return h
 }

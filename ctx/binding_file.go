@@ -5,7 +5,7 @@ import (
 	"mime/multipart"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/utils"
+	"github.com/dangduoc08/ginject/internal/slice"
 )
 
 func BindFile(f File, s any) (map[string][]*DataFile, any) {
@@ -30,7 +30,7 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 
 					case reflect.Ptr:
 						if len(bindedValue) > 0 {
-							if fileHeader, ok := utils.ArrGet(bindedValue, bindedIndex); ok {
+							if fileHeader, ok := slice.Get(bindedValue, bindedIndex); ok {
 								dataFile := []*DataFile{
 									{
 										FileHeader: fileHeader,
@@ -50,7 +50,7 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 						continue
 
 					case reflect.Slice:
-						dataFile := utils.ArrMap(
+						dataFile := slice.Map(
 							bindedValue,
 							func(fileHeader *multipart.FileHeader, index int) *DataFile {
 								return &DataFile{

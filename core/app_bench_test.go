@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -21,26 +20,6 @@ func BenchmarkServeHTTP(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		app.ServeHTTP(w, r)
-	}
-}
-
-func BenchmarkPublishWSEvent(b *testing.B) {
-	app := New()
-	for i := 0; i < 50; i++ {
-		app.ws.eventToID[fmt.Sprintf("other:%d", i)] = []string{"wsid"}
-	}
-	const target = "target-event"
-	const wsid = "conn-1"
-	app.ws.eventToID[target] = []string{wsid}
-
-	c := ctx.NewContext()
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	_, _ = c.Broker.Subscribe(target+wsid, func(m *broker.Message) {})
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		app.ws.publishWSEvent(target, "hello", c)
 	}
 }
 

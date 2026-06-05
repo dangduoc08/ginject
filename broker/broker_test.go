@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -39,19 +39,19 @@ func TestSubscribeAndPublish(t *testing.T) {
 	}
 
 	if got == nil {
-		t.Error(testutils.DiffMessage(nil, "non-nil *Message", "handler should have been called"))
+		t.Error(test.DiffMessage(nil, "non-nil *Message", "handler should have been called"))
 	} else {
 		if got.Topic != "user.created" {
-			t.Error(testutils.DiffMessage(got.Topic, "user.created", "message topic"))
+			t.Error(test.DiffMessage(got.Topic, "user.created", "message topic"))
 		}
 		if got.Payload != "alice" {
-			t.Error(testutils.DiffMessage(got.Payload, "alice", "message payload"))
+			t.Error(test.DiffMessage(got.Payload, "alice", "message payload"))
 		}
 		if got.ID == "" {
-			t.Error(testutils.DiffMessage("", "non-empty UUID", "message ID"))
+			t.Error(test.DiffMessage("", "non-empty UUID", "message ID"))
 		}
 		if got.Timestamp.IsZero() {
-			t.Error(testutils.DiffMessage(got.Timestamp, "non-zero time", "message timestamp"))
+			t.Error(test.DiffMessage(got.Timestamp, "non-zero time", "message timestamp"))
 		}
 	}
 }
@@ -74,7 +74,7 @@ func TestOnce_FiresExactlyOnce(t *testing.T) {
 	_ = b.Publish("ping", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Once handler should fire exactly once"))
+		t.Error(test.DiffMessage(count, 1, "Once handler should fire exactly once"))
 	}
 }
 
@@ -96,7 +96,7 @@ func TestWildcardGlobal_ReceivesAllTopics(t *testing.T) {
 	_ = b.Publish("x.y.z", nil)
 
 	if len(topics) != 3 {
-		t.Error(testutils.DiffMessage(len(topics), 3, "global wildcard should receive every published message"))
+		t.Error(test.DiffMessage(len(topics), 3, "global wildcard should receive every published message"))
 	}
 }
 
@@ -118,11 +118,11 @@ func TestWildcardPrefix_ReceivesMatchingPrefix(t *testing.T) {
 	_ = b.Publish("user.created", nil) // should NOT match
 
 	if len(received) != 2 {
-		t.Error(testutils.DiffMessage(len(received), 2, "prefix wildcard should match only 'order.*' topics"))
+		t.Error(test.DiffMessage(len(received), 2, "prefix wildcard should match only 'order.*' topics"))
 	}
 	for _, top := range received {
 		if len(top) < 6 || top[:6] != "order." {
-			t.Error(testutils.DiffMessage(top, "order.*", "received topic should have 'order.' prefix"))
+			t.Error(test.DiffMessage(top, "order.*", "received topic should have 'order.' prefix"))
 		}
 	}
 }
@@ -141,7 +141,7 @@ func TestWildcardPrefix_DoesNotMatchUnrelatedTopics(t *testing.T) {
 	_ = b.Publish("foo", nil) // no dot → no prefix match
 
 	if count != 0 {
-		t.Error(testutils.DiffMessage(count, 0, "prefix wildcard should not match unrelated topics"))
+		t.Error(test.DiffMessage(count, 0, "prefix wildcard should not match unrelated topics"))
 	}
 }
 
@@ -165,7 +165,7 @@ func TestUnsubscribe_HandlerNotCalledAfter(t *testing.T) {
 	_ = b.Publish("evt", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "handler should fire once before unsubscribe, zero times after"))
+		t.Error(test.DiffMessage(count, 1, "handler should fire once before unsubscribe, zero times after"))
 	}
 }
 
@@ -179,7 +179,7 @@ func TestUnsubscribeViaInterface(t *testing.T) {
 	_ = b.Publish("topic", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Subscription.Unsubscribe() should prevent further delivery"))
+		t.Error(test.DiffMessage(count, 1, "Subscription.Unsubscribe() should prevent further delivery"))
 	}
 }
 
@@ -204,7 +204,7 @@ func TestOff_RemovesAllHandlersForTopic(t *testing.T) {
 	_ = b.Publish("click", nil) // should add 0
 
 	if count != 3 {
-		t.Error(testutils.DiffMessage(count, 3, "Off should remove all handlers; only 3 deliveries expected"))
+		t.Error(test.DiffMessage(count, 3, "Off should remove all handlers; only 3 deliveries expected"))
 	}
 }
 
@@ -218,7 +218,7 @@ func TestOff_WildcardGlobal(t *testing.T) {
 	_ = b.Publish("x", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Off('*') should remove global handler"))
+		t.Error(test.DiffMessage(count, 1, "Off('*') should remove global handler"))
 	}
 }
 
@@ -232,7 +232,7 @@ func TestOff_WildcardPrefix(t *testing.T) {
 	_ = b.Publish("ns.b", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Off('ns.*') should remove prefix handler"))
+		t.Error(test.DiffMessage(count, 1, "Off('ns.*') should remove prefix handler"))
 	}
 }
 
@@ -249,12 +249,12 @@ func TestListenerCount(t *testing.T) {
 	sub3, _ := b.Subscribe("t", noop)
 
 	if n := b.ListenerCount("t"); n != 3 {
-		t.Error(testutils.DiffMessage(n, 3, "ListenerCount should be 3"))
+		t.Error(test.DiffMessage(n, 3, "ListenerCount should be 3"))
 	}
 
 	_ = b.Unsubscribe(sub3)
 	if n := b.ListenerCount("t"); n != 2 {
-		t.Error(testutils.DiffMessage(n, 2, "ListenerCount should be 2 after unsubscribe"))
+		t.Error(test.DiffMessage(n, 2, "ListenerCount should be 2 after unsubscribe"))
 	}
 }
 
@@ -267,10 +267,10 @@ func TestListenerCount_Wildcard(t *testing.T) {
 	_, _ = b.Subscribe("a.*", noop)
 
 	if n := b.ListenerCount("*"); n != 2 {
-		t.Error(testutils.DiffMessage(n, 2, "ListenerCount('*') should be 2"))
+		t.Error(test.DiffMessage(n, 2, "ListenerCount('*') should be 2"))
 	}
 	if n := b.ListenerCount("a.*"); n != 1 {
-		t.Error(testutils.DiffMessage(n, 1, "ListenerCount('a.*') should be 1"))
+		t.Error(test.DiffMessage(n, 1, "ListenerCount('a.*') should be 1"))
 	}
 }
 
@@ -291,11 +291,11 @@ func TestTopics(t *testing.T) {
 
 	want := []string{"*", "alpha", "beta.*"}
 	if len(topics) != len(want) {
-		t.Fatal(testutils.DiffMessage(topics, want, "Topics() length mismatch"))
+		t.Fatal(test.DiffMessage(topics, want, "Topics() length mismatch"))
 	}
 	for i, w := range want {
 		if topics[i] != w {
-			t.Error(testutils.DiffMessage(topics[i], w, "Topics() element mismatch"))
+			t.Error(test.DiffMessage(topics[i], w, "Topics() element mismatch"))
 		}
 	}
 }
@@ -308,7 +308,7 @@ func TestTopics_EmptyAfterClear(t *testing.T) {
 
 	topics := b.Topics()
 	if len(topics) != 0 {
-		t.Error(testutils.DiffMessage(len(topics), 0, "Topics() should be empty after Clear"))
+		t.Error(test.DiffMessage(len(topics), 0, "Topics() should be empty after Clear"))
 	}
 }
 
@@ -329,7 +329,7 @@ func TestClear(t *testing.T) {
 	_ = b.Publish("e2", nil)
 
 	if count != 0 {
-		t.Error(testutils.DiffMessage(count, 0, "Clear should remove all subscriptions"))
+		t.Error(test.DiffMessage(count, 0, "Clear should remove all subscriptions"))
 	}
 }
 
@@ -342,19 +342,19 @@ func TestClose_ReturnErrClosed(t *testing.T) {
 	_ = b.Close()
 
 	if err := b.Publish("t", nil); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "Publish after Close should return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "Publish after Close should return ErrClosed"))
 	}
 	if _, err := b.Subscribe("t", func(_ *Message) {}); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "Subscribe after Close should return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "Subscribe after Close should return ErrClosed"))
 	}
 	if err := b.PublishAsync("t", nil); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "PublishAsync after Close should return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "PublishAsync after Close should return ErrClosed"))
 	}
 	if err := b.Off("t"); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "Off after Close should return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "Off after Close should return ErrClosed"))
 	}
 	if err := b.Clear(); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "Clear after Close should return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "Clear after Close should return ErrClosed"))
 	}
 }
 
@@ -367,12 +367,12 @@ func TestNilHandler_ReturnsError(t *testing.T) {
 
 	_, err := b.Subscribe("t", nil)
 	if err != ErrNilHandler {
-		t.Error(testutils.DiffMessage(err, ErrNilHandler, "nil handler should return ErrNilHandler"))
+		t.Error(test.DiffMessage(err, ErrNilHandler, "nil handler should return ErrNilHandler"))
 	}
 
 	_, err = b.Once("t", nil)
 	if err != ErrNilHandler {
-		t.Error(testutils.DiffMessage(err, ErrNilHandler, "Once with nil handler should return ErrNilHandler"))
+		t.Error(test.DiffMessage(err, ErrNilHandler, "Once with nil handler should return ErrNilHandler"))
 	}
 }
 
@@ -381,16 +381,16 @@ func TestEmptyTopic_ReturnsError(t *testing.T) {
 
 	noop := func(_ *Message) {}
 	if _, err := b.Subscribe("", noop); err != ErrEmptyTopic {
-		t.Error(testutils.DiffMessage(err, ErrEmptyTopic, "empty topic in Subscribe"))
+		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Subscribe"))
 	}
 	if _, err := b.Once("", noop); err != ErrEmptyTopic {
-		t.Error(testutils.DiffMessage(err, ErrEmptyTopic, "empty topic in Once"))
+		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Once"))
 	}
 	if err := b.Publish("", nil); err != ErrEmptyTopic {
-		t.Error(testutils.DiffMessage(err, ErrEmptyTopic, "empty topic in Publish"))
+		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Publish"))
 	}
 	if err := b.PublishAsync("", nil); err != ErrEmptyTopic {
-		t.Error(testutils.DiffMessage(err, ErrEmptyTopic, "empty topic in PublishAsync"))
+		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in PublishAsync"))
 	}
 }
 
@@ -417,7 +417,7 @@ func TestPublishAsync_HandlerEventuallyFires(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Error(testutils.DiffMessage(count.Load(), int32(5), "PublishAsync: all 5 messages should be delivered"))
+	t.Error(test.DiffMessage(count.Load(), int32(5), "PublishAsync: all 5 messages should be delivered"))
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -437,7 +437,7 @@ func TestOnce_WithGlobalWildcard(t *testing.T) {
 	_ = b.Publish("b", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Once('*') should fire exactly once across all topics"))
+		t.Error(test.DiffMessage(count, 1, "Once('*') should fire exactly once across all topics"))
 	}
 }
 
@@ -464,7 +464,7 @@ func TestConcurrentPublish(t *testing.T) {
 	wg.Wait()
 
 	if got := received.Load(); got != goroutines {
-		t.Error(testutils.DiffMessage(got, goroutines, "each goroutine publishes one message; exact count expected"))
+		t.Error(test.DiffMessage(got, goroutines, "each goroutine publishes one message; exact count expected"))
 	}
 }
 
@@ -505,10 +505,10 @@ func TestSubscription_IDAndTopic(t *testing.T) {
 	}
 
 	if sub.ID() == "" {
-		t.Error(testutils.DiffMessage("", "non-empty UUID", "Subscription.ID() should be non-empty"))
+		t.Error(test.DiffMessage("", "non-empty UUID", "Subscription.ID() should be non-empty"))
 	}
 	if sub.Topic() != "my.topic" {
-		t.Error(testutils.DiffMessage(sub.Topic(), "my.topic", "Subscription.Topic() mismatch"))
+		t.Error(test.DiffMessage(sub.Topic(), "my.topic", "Subscription.Topic() mismatch"))
 	}
 }
 
@@ -603,11 +603,11 @@ func TestMultipleSubscribers_SameMessage(t *testing.T) {
 
 	for i, m := range msgs {
 		if m == nil {
-			t.Errorf("subscriber %d: %s", i, testutils.DiffMessage(nil, "non-nil *Message", "should have been called"))
+			t.Errorf("subscriber %d: %s", i, test.DiffMessage(nil, "non-nil *Message", "should have been called"))
 			continue
 		}
 		if m.Payload != "payload" {
-			t.Errorf("subscriber %d: %s", i, testutils.DiffMessage(m.Payload, "payload", "received wrong payload"))
+			t.Errorf("subscriber %d: %s", i, test.DiffMessage(m.Payload, "payload", "received wrong payload"))
 		}
 	}
 }
@@ -623,7 +623,7 @@ func TestSubscribeQueue_OnlyOneHandlerReceives(t *testing.T) {
 	_ = b.Publish("task", nil)
 
 	if n := count.Load(); n != 1 {
-		t.Error(testutils.DiffMessage(n, int64(1), "queue: exactly 1 handler should receive per publish"))
+		t.Error(test.DiffMessage(n, int64(1), "queue: exactly 1 handler should receive per publish"))
 	}
 }
 
@@ -650,7 +650,7 @@ func TestSubscribeQueue_DistributesAcrossWorkers(t *testing.T) {
 		total += n
 	}
 	if total != msgs {
-		t.Error(testutils.DiffMessage(total, int64(msgs), "total deliveries must equal publish count"))
+		t.Error(test.DiffMessage(total, int64(msgs), "total deliveries must equal publish count"))
 	}
 }
 
@@ -666,10 +666,10 @@ func TestSubscribeQueue_MultipleGroups_EachGetsOne(t *testing.T) {
 	_ = b.Publish("task", nil)
 
 	if groupA.Load() != 1 {
-		t.Error(testutils.DiffMessage(groupA.Load(), int64(1), "groupA should receive exactly 1"))
+		t.Error(test.DiffMessage(groupA.Load(), int64(1), "groupA should receive exactly 1"))
 	}
 	if groupB.Load() != 1 {
-		t.Error(testutils.DiffMessage(groupB.Load(), int64(1), "groupB should receive exactly 1"))
+		t.Error(test.DiffMessage(groupB.Load(), int64(1), "groupB should receive exactly 1"))
 	}
 }
 
@@ -687,7 +687,7 @@ func TestSubscribeQueue_Unsubscribe(t *testing.T) {
 	}
 
 	if n := count.Load(); n != 20 {
-		t.Error(testutils.DiffMessage(n, int64(20), "after unsubscribe only 1 worker remains, should still handle all 20"))
+		t.Error(test.DiffMessage(n, int64(20), "after unsubscribe only 1 worker remains, should still handle all 20"))
 	}
 }
 
@@ -697,7 +697,7 @@ func TestSubscribeQueue_ListenerCount(t *testing.T) {
 		_, _ = b.SubscribeQueue("task", "workers", func(*Message) {})
 	}
 	if n := b.ListenerCount("task"); n != 4 {
-		t.Error(testutils.DiffMessage(n, 4, "ListenerCount should include queue subscribers"))
+		t.Error(test.DiffMessage(n, 4, "ListenerCount should include queue subscribers"))
 	}
 }
 
@@ -705,7 +705,7 @@ func TestSubscribeQueue_EmptyGroup_ReturnsError(t *testing.T) {
 	b := newBroker(t)
 	_, err := b.SubscribeQueue("task", "", func(*Message) {})
 	if err != ErrEmptyGroup {
-		t.Error(testutils.DiffMessage(err, ErrEmptyGroup, "empty group should return ErrEmptyGroup"))
+		t.Error(test.DiffMessage(err, ErrEmptyGroup, "empty group should return ErrEmptyGroup"))
 	}
 }
 
@@ -721,7 +721,7 @@ func TestSubscribeQueue_Topics_Included(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error(testutils.DiffMessage(topics, []string{"task.process"}, "queue topic should appear in Topics()"))
+		t.Error(test.DiffMessage(topics, []string{"task.process"}, "queue topic should appear in Topics()"))
 	}
 }
 
@@ -745,7 +745,7 @@ func TestSubscribeQueue_ConcurrentPublish(t *testing.T) {
 	wg.Wait()
 
 	if n := total.Load(); n != msgs {
-		t.Error(testutils.DiffMessage(n, int64(msgs), "concurrent queue publish: total must equal message count"))
+		t.Error(test.DiffMessage(n, int64(msgs), "concurrent queue publish: total must equal message count"))
 	}
 }
 
@@ -762,10 +762,10 @@ func TestSubscribeQueue_FanOutAndQueueCoexist(t *testing.T) {
 	_ = b.Publish("task", nil)
 
 	if fanOut.Load() != 2 {
-		t.Error(testutils.DiffMessage(fanOut.Load(), int64(2), "fan-out subs should all receive"))
+		t.Error(test.DiffMessage(fanOut.Load(), int64(2), "fan-out subs should all receive"))
 	}
 	if queue.Load() != 1 {
-		t.Error(testutils.DiffMessage(queue.Load(), int64(1), "queue group should deliver to exactly 1"))
+		t.Error(test.DiffMessage(queue.Load(), int64(1), "queue group should deliver to exactly 1"))
 	}
 }
 
@@ -819,10 +819,10 @@ func TestEmptyBucketCleanup_Exact(t *testing.T) {
 	_ = b.Publish("ephemeral.topic", nil) // fires once-sub → removed
 
 	if len(b.Topics()) != 0 {
-		t.Error(testutils.DiffMessage(b.Topics(), []string{}, "Topics() should be empty after once-sub fires"))
+		t.Error(test.DiffMessage(b.Topics(), []string{}, "Topics() should be empty after once-sub fires"))
 	}
 	if n := b.ListenerCount("ephemeral.topic"); n != 0 {
-		t.Error(testutils.DiffMessage(n, 0, "ListenerCount should be 0 after once-sub fires"))
+		t.Error(test.DiffMessage(n, 0, "ListenerCount should be 0 after once-sub fires"))
 	}
 
 	// Verify the map entry itself is gone (no empty bucket).
@@ -1189,7 +1189,7 @@ func TestHook_BeforePublish_Panic_DeliveryNotAborted(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 1 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(1), "BeforePublish panic must not abort delivery"))
+		t.Error(test.DiffMessage(received.Load(), int64(1), "BeforePublish panic must not abort delivery"))
 	}
 }
 
@@ -1205,7 +1205,7 @@ func TestHook_AfterPublish_Panic_DoesNotCrash(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 1 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(1), "AfterPublish panic must not abort delivery"))
+		t.Error(test.DiffMessage(received.Load(), int64(1), "AfterPublish panic must not abort delivery"))
 	}
 }
 
@@ -1223,7 +1223,7 @@ func TestHook_BeforeDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 3 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(3), "BeforeDispatch panic must not skip subscribers"))
+		t.Error(test.DiffMessage(received.Load(), int64(3), "BeforeDispatch panic must not skip subscribers"))
 	}
 }
 
@@ -1241,7 +1241,7 @@ func TestHook_AfterDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 3 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(3), "AfterDispatch panic must not skip subscribers"))
+		t.Error(test.DiffMessage(received.Load(), int64(3), "AfterDispatch panic must not skip subscribers"))
 	}
 }
 
@@ -1258,7 +1258,7 @@ func TestHook_OnPanic_Panic_DoesNotCrash(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 1 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(1), "OnPanic panic must not crash broker or skip other subscribers"))
+		t.Error(test.DiffMessage(received.Load(), int64(1), "OnPanic panic must not crash broker or skip other subscribers"))
 	}
 }
 
@@ -1280,7 +1280,7 @@ func TestHook_AllPanic_AllSubscribersStillReceive(t *testing.T) {
 	_ = b.Publish("t", nil)
 
 	if received.Load() != 5 {
-		t.Error(testutils.DiffMessage(received.Load(), int64(5), "all hooks panicking must not drop any subscriber delivery"))
+		t.Error(test.DiffMessage(received.Load(), int64(5), "all hooks panicking must not drop any subscriber delivery"))
 	}
 }
 
@@ -1295,7 +1295,7 @@ func TestSubscribe_MultiLevel_MatchesDeepTopics(t *testing.T) {
 	_ = b.Publish("order.created", nil)
 
 	if len(received) != 3 {
-		t.Error(testutils.DiffMessage(len(received), 3, "user.> should match 3 deep topics"))
+		t.Error(test.DiffMessage(len(received), 3, "user.> should match 3 deep topics"))
 	}
 }
 
@@ -1307,7 +1307,7 @@ func TestSubscribe_MultiLevel_DoesNotMatchParent(t *testing.T) {
 	_ = b.Publish("user", nil)
 
 	if count != 0 {
-		t.Error(testutils.DiffMessage(count, 0, "user.> must not match 'user' itself"))
+		t.Error(test.DiffMessage(count, 0, "user.> must not match 'user' itself"))
 	}
 }
 
@@ -1321,7 +1321,7 @@ func TestSubscribe_GlobalMulti_MatchesAll(t *testing.T) {
 	_ = b.Publish("a.b.c", nil)
 
 	if count != 3 {
-		t.Error(testutils.DiffMessage(count, 3, "> should match every published topic"))
+		t.Error(test.DiffMessage(count, 3, "> should match every published topic"))
 	}
 }
 
@@ -1336,7 +1336,7 @@ func TestSubscribe_Complex_MiddleWildcard(t *testing.T) {
 	_ = b.Publish("tenant.1.2.user.created", nil)
 
 	if len(received) != 2 {
-		t.Error(testutils.DiffMessage(len(received), 2, "tenant.*.user.created should match 2 topics"))
+		t.Error(test.DiffMessage(len(received), 2, "tenant.*.user.created should match 2 topics"))
 	}
 }
 
@@ -1351,7 +1351,7 @@ func TestSubscribe_Complex_Mixed(t *testing.T) {
 	_ = b.Publish("tenant.1.user", nil)
 
 	if len(received) != 2 {
-		t.Error(testutils.DiffMessage(len(received), 2, "tenant.*.user.> should match 2 topics"))
+		t.Error(test.DiffMessage(len(received), 2, "tenant.*.user.> should match 2 topics"))
 	}
 }
 
@@ -1365,7 +1365,7 @@ func TestOff_Complex_Pattern(t *testing.T) {
 	_ = b.Publish("a.x.b.y", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "Off(complex pattern) should remove all its subscribers"))
+		t.Error(test.DiffMessage(count, 1, "Off(complex pattern) should remove all its subscribers"))
 	}
 }
 
@@ -1373,7 +1373,7 @@ func TestSubscribeQueue_Wildcard_ReturnsError(t *testing.T) {
 	b := newBroker(t)
 	_, err := b.SubscribeQueue("user.*", "workers", func(*Message) {})
 	if err != ErrWildcardInQueue {
-		t.Error(testutils.DiffMessage(err, ErrWildcardInQueue, "wildcard topic in SubscribeQueue should return ErrWildcardInQueue"))
+		t.Error(test.DiffMessage(err, ErrWildcardInQueue, "wildcard topic in SubscribeQueue should return ErrWildcardInQueue"))
 	}
 }
 
@@ -1386,7 +1386,7 @@ func TestSubscribe_BackwardCompat_StarAlias(t *testing.T) {
 	_ = b.Publish("x", nil)
 
 	if count != 2 {
-		t.Error(testutils.DiffMessage(count, 2, "* should be an alias for > and match all topics"))
+		t.Error(test.DiffMessage(count, 2, "* should be an alias for > and match all topics"))
 	}
 }
 
@@ -1399,6 +1399,6 @@ func TestSubscribe_BackwardCompat_UserStar(t *testing.T) {
 	_ = b.Publish("user.profile.updated", nil)
 
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "user.* should still match only one level"))
+		t.Error(test.DiffMessage(count, 1, "user.* should still match only one level"))
 	}
 }

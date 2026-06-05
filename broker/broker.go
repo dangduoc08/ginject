@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dangduoc08/ginject/internal/color"
+	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/matcher"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 var (
@@ -192,9 +193,9 @@ func NewWithConfig(cfg Config) Broker {
 }
 
 func newID() string {
-	id, err := utils.StrUUID()
+	id, err := crypto.UUID()
 	if err != nil {
-		panic(utils.FmtRed("broker: failed to generate UUID: %v", err))
+		panic(color.FmtRed("broker: failed to generate UUID: %v", err))
 	}
 	return id
 }

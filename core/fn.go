@@ -15,12 +15,13 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/internal/color"
+	"github.com/dangduoc08/ginject/internal/crypto"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/utils"
 )
 
 var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
@@ -146,7 +147,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
 		return errors.New(
-			utils.FmtRed(
+			color.FmtRed(
 				"can't resolve argument of '%v'. Please make sure that the argument '%v' at index [%v] is available in the injected providers",
 				strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
 				dynamicArgKey,
@@ -185,7 +186,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 
 		if !token.IsExported(componentFieldName) {
 			panic(errors.New(
-				utils.FmtRed(
+				color.FmtRed(
 					"can't set value to unexported '%v' field of the %v %v",
 					componentFieldName,
 					componentName,
@@ -213,7 +214,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 			newComponent.Elem().Field(j).Set(componentValue.Field(j))
 		} else {
 			return reflect.ValueOf(nil), errors.New(
-				utils.FmtRed(
+				color.FmtRed(
 					"can't resolve dependency '%v' of the %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					componentFieldType.String(),
 					kind,
@@ -244,11 +245,11 @@ func getLocalIP() string {
 }
 
 func logBoostrap(port int) {
-	accessURLs := utils.FmtBold("%s", utils.FmtBGYellow(" GG! Here Are Your Access URLs: ")) + "\n"
-	divider := utils.FmtDim("--------------------------------------------") + "\n"
-	host := utils.FmtBold("%s", utils.FmtWhite("Localhost: ")) + utils.FmtMagenta("%v:%v", "localhost", port) + "\n"
-	lan := utils.FmtBold("%s", utils.FmtWhite("      LAN: ")) + utils.FmtMagenta("%v:%v", getLocalIP(), port) + "\n"
-	close := utils.FmtItalic("%s", utils.FmtGreen("Press CTRL+C to stop")) + "\n"
+	accessURLs := color.FmtBold("%s", color.FmtBGYellow(" GG! Here Are Your Access URLs: ")) + "\n"
+	divider := color.FmtDim("--------------------------------------------") + "\n"
+	host := color.FmtBold("%s", color.FmtWhite("Localhost: ")) + color.FmtMagenta("%v:%v", "localhost", port) + "\n"
+	lan := color.FmtBold("%s", color.FmtWhite("      LAN: ")) + color.FmtMagenta("%v:%v", getLocalIP(), port) + "\n"
+	close := color.FmtItalic("%s", color.FmtGreen("Press CTRL+C to stop")) + "\n"
 
 	_, _ = fmt.Fprint(os.Stdout, "\n"+accessURLs+divider+host+lan+divider+close)
 }
@@ -571,7 +572,7 @@ func getWSEventKeys() []string {
 func getContextID(c *ctx.Context) string {
 	reqID := c.Header().Get(ctx.RequestID)
 	if reqID == "" {
-		uuid, _ := utils.StrUUID()
+		uuid, _ := crypto.UUID()
 		return uuid
 	}
 	return reqID

@@ -3,15 +3,15 @@ package matcher_test
 import (
 	"testing"
 
+	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/matcher"
-	"github.com/dangduoc08/ginject/testutils"
 )
 
 func assertKind(t *testing.T, raw string, want matcher.Kind) {
 	t.Helper()
 	p := matcher.Parse(raw)
 	if p.Kind() != want {
-		t.Error(testutils.DiffMessage(p.Kind(), want, "Parse("+raw+").Kind()"))
+		t.Error(test.DiffMessage(p.Kind(), want, "Parse("+raw+").Kind()"))
 	}
 }
 
@@ -20,7 +20,7 @@ func assertMatch(t *testing.T, pattern, topic string, want bool) {
 	p := matcher.Parse(pattern)
 	got := matcher.Match(p, topic)
 	if got != want {
-		t.Error(testutils.DiffMessage(got, want, "Match("+pattern+", "+topic+")"))
+		t.Error(test.DiffMessage(got, want, "Match("+pattern+", "+topic+")"))
 	}
 }
 
@@ -50,7 +50,7 @@ func TestParse_SingleSuffix_SimplePrefix(t *testing.T) {
 	for _, c := range cases {
 		p := matcher.Parse(c.raw)
 		if p.SimplePrefix() != c.prefix {
-			t.Error(testutils.DiffMessage(p.SimplePrefix(), c.prefix, "SimplePrefix for "+c.raw))
+			t.Error(test.DiffMessage(p.SimplePrefix(), c.prefix, "SimplePrefix for "+c.raw))
 		}
 	}
 }

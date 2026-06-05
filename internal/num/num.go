@@ -1,10 +1,10 @@
-package utils
+package num
 
 import (
 	"reflect"
 )
 
-func NumF64ToAnyNum(f64 float64, t reflect.Kind) any {
+func F64ToAnyNum(f64 float64, t reflect.Kind) any {
 	switch t {
 	case reflect.Int:
 		return int(f64)

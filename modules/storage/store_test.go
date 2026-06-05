@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/testutils"
+	"github.com/dangduoc08/ginject/internal/test"
 )
 
 func tempDB(t *testing.T) (*DB, func()) {
@@ -34,32 +34,32 @@ func TestEncodeDecodeRecord_RoundTrip(t *testing.T) {
 	data := encodeRecord(r)
 	got, n, err := decodeRecord(data)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "decode must not error"))
+		t.Error(test.DiffMessage(err, nil, "decode must not error"))
 	}
 	if n != len(data) {
-		t.Error(testutils.DiffMessage(n, len(data), "consumed bytes must equal record length"))
+		t.Error(test.DiffMessage(n, len(data), "consumed bytes must equal record length"))
 	}
 	if got.rtype != r.rtype {
-		t.Error(testutils.DiffMessage(got.rtype, r.rtype, "rtype"))
+		t.Error(test.DiffMessage(got.rtype, r.rtype, "rtype"))
 	}
 	if got.txID != r.txID {
-		t.Error(testutils.DiffMessage(got.txID, r.txID, "txID"))
+		t.Error(test.DiffMessage(got.txID, r.txID, "txID"))
 	}
 	if got.table != r.table {
-		t.Error(testutils.DiffMessage(got.table, r.table, "table"))
+		t.Error(test.DiffMessage(got.table, r.table, "table"))
 	}
 	if got.id != r.id {
-		t.Error(testutils.DiffMessage(got.id, r.id, "id"))
+		t.Error(test.DiffMessage(got.id, r.id, "id"))
 	}
 	if string(got.payload) != string(r.payload) {
-		t.Error(testutils.DiffMessage(string(got.payload), string(r.payload), "payload"))
+		t.Error(test.DiffMessage(string(got.payload), string(r.payload), "payload"))
 	}
 }
 
 func TestDecodeRecord_Corrupt_TruncatedInput(t *testing.T) {
 	_, _, err := decodeRecord([]byte{1, 2, 3})
 	if err != ErrCorrupt {
-		t.Error(testutils.DiffMessage(err, ErrCorrupt, "short input must return ErrCorrupt"))
+		t.Error(test.DiffMessage(err, ErrCorrupt, "short input must return ErrCorrupt"))
 	}
 }
 
@@ -69,7 +69,7 @@ func TestDecodeRecord_Corrupt_BadChecksum(t *testing.T) {
 	data[5] ^= 0xFF // corrupt checksum byte
 	_, _, err := decodeRecord(data)
 	if err != ErrCorrupt {
-		t.Error(testutils.DiffMessage(err, ErrCorrupt, "bad checksum must return ErrCorrupt"))
+		t.Error(test.DiffMessage(err, ErrCorrupt, "bad checksum must return ErrCorrupt"))
 	}
 }
 
@@ -78,10 +78,10 @@ func TestEncodeDecodeRecord_EmptyPayload(t *testing.T) {
 	data := encodeRecord(r)
 	got, _, err := decodeRecord(data)
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "empty payload must decode"))
+		t.Error(test.DiffMessage(err, nil, "empty payload must decode"))
 	}
 	if len(got.payload) != 0 {
-		t.Error(testutils.DiffMessage(len(got.payload), 0, "empty payload"))
+		t.Error(test.DiffMessage(len(got.payload), 0, "empty payload"))
 	}
 }
 
@@ -100,13 +100,13 @@ func TestMarshalUnmarshalPayload_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if gotData["name"] != "Alice" {
-		t.Error(testutils.DiffMessage(gotData["name"], "Alice", "name field"))
+		t.Error(test.DiffMessage(gotData["name"], "Alice", "name field"))
 	}
 	if !gotCreated.Equal(createdAt) {
-		t.Error(testutils.DiffMessage(gotCreated, createdAt, "createdAt"))
+		t.Error(test.DiffMessage(gotCreated, createdAt, "createdAt"))
 	}
 	if !gotUpdated.Equal(updatedAt) {
-		t.Error(testutils.DiffMessage(gotUpdated, updatedAt, "updatedAt"))
+		t.Error(test.DiffMessage(gotUpdated, updatedAt, "updatedAt"))
 	}
 }
 
@@ -115,10 +115,10 @@ func TestMarshalUnmarshalPayload_RoundTrip(t *testing.T) {
 func TestTokenize_Basic(t *testing.T) {
 	tokens := tokenize("Hello World")
 	if len(tokens) != 2 {
-		t.Error(testutils.DiffMessage(len(tokens), 2, "two tokens"))
+		t.Error(test.DiffMessage(len(tokens), 2, "two tokens"))
 	}
 	if tokens[0] != "hello" {
-		t.Error(testutils.DiffMessage(tokens[0], "hello", "lowercase"))
+		t.Error(test.DiffMessage(tokens[0], "hello", "lowercase"))
 	}
 }
 
@@ -127,7 +127,7 @@ func TestTokenize_ShortTokensDropped(t *testing.T) {
 	// "a" (len=1) dropped, "bb" (len=2) kept, "ccc" kept
 	for _, tok := range tokens {
 		if len(tok) < 2 {
-			t.Error(testutils.DiffMessage(tok, "(len>=2)", "short token must be dropped"))
+			t.Error(test.DiffMessage(tok, "(len>=2)", "short token must be dropped"))
 		}
 	}
 }
@@ -135,14 +135,14 @@ func TestTokenize_ShortTokensDropped(t *testing.T) {
 func TestTokenize_Punctuation(t *testing.T) {
 	tokens := tokenize("foo-bar,baz")
 	if len(tokens) != 3 {
-		t.Error(testutils.DiffMessage(len(tokens), 3, "punctuation splits tokens"))
+		t.Error(test.DiffMessage(len(tokens), 3, "punctuation splits tokens"))
 	}
 }
 
 func TestTokenize_EmptyString(t *testing.T) {
 	tokens := tokenize("")
 	if len(tokens) != 0 {
-		t.Error(testutils.DiffMessage(len(tokens), 0, "empty input"))
+		t.Error(test.DiffMessage(len(tokens), 0, "empty input"))
 	}
 }
 
@@ -152,7 +152,7 @@ func TestValidateTableName_Valid(t *testing.T) {
 	cases := []string{"users", "blog_posts", "A1", "TABLE_123"}
 	for _, name := range cases {
 		if err := validateTableName(name); err != nil {
-			t.Error(testutils.DiffMessage(err, nil, name+" must be valid"))
+			t.Error(test.DiffMessage(err, nil, name+" must be valid"))
 		}
 	}
 }
@@ -161,7 +161,7 @@ func TestValidateTableName_Invalid(t *testing.T) {
 	cases := []string{"", "foo/bar", "../etc", "foo bar", "foo.bar"}
 	for _, name := range cases {
 		if err := validateTableName(name); err == nil {
-			t.Error(testutils.DiffMessage(nil, ErrInvalidTable, name+" must be invalid"))
+			t.Error(test.DiffMessage(nil, ErrInvalidTable, name+" must be invalid"))
 		}
 	}
 }
@@ -178,10 +178,10 @@ func TestModel_Create_FindByID(t *testing.T) {
 		t.Fatal(err)
 	}
 	if doc.ID == "" {
-		t.Error(testutils.DiffMessage(doc.ID, "<non-empty>", "ID must be set"))
+		t.Error(test.DiffMessage(doc.ID, "<non-empty>", "ID must be set"))
 	}
 	if doc.Data["name"] != "Bob" {
-		t.Error(testutils.DiffMessage(doc.Data["name"], "Bob", "name"))
+		t.Error(test.DiffMessage(doc.Data["name"], "Bob", "name"))
 	}
 
 	found, err := m.FindByID(doc.ID)
@@ -189,10 +189,10 @@ func TestModel_Create_FindByID(t *testing.T) {
 		t.Fatal(err)
 	}
 	if found.ID != doc.ID {
-		t.Error(testutils.DiffMessage(found.ID, doc.ID, "FindByID returns correct doc"))
+		t.Error(test.DiffMessage(found.ID, doc.ID, "FindByID returns correct doc"))
 	}
 	if found.Data["name"] != "Bob" {
-		t.Error(testutils.DiffMessage(found.Data["name"], "Bob", "name persisted"))
+		t.Error(test.DiffMessage(found.Data["name"], "Bob", "name persisted"))
 	}
 }
 
@@ -202,7 +202,7 @@ func TestModel_FindByID_NotFound(t *testing.T) {
 
 	_, err := db.Model("users").FindByID("nonexistent")
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "missing id must return ErrNotFound"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "missing id must return ErrNotFound"))
 	}
 }
 
@@ -212,7 +212,7 @@ func TestModel_FindByID_EmptyID(t *testing.T) {
 
 	_, err := db.Model("users").FindByID("")
 	if err != ErrInvalidID {
-		t.Error(testutils.DiffMessage(err, ErrInvalidID, "empty id must return ErrInvalidID"))
+		t.Error(test.DiffMessage(err, ErrInvalidID, "empty id must return ErrInvalidID"))
 	}
 }
 
@@ -230,10 +230,10 @@ func TestModel_UpdateByID(t *testing.T) {
 		t.Fatal(err)
 	}
 	if updated.Data["name"] != "Alice2" {
-		t.Error(testutils.DiffMessage(updated.Data["name"], "Alice2", "update must persist"))
+		t.Error(test.DiffMessage(updated.Data["name"], "Alice2", "update must persist"))
 	}
 	if !updated.CreatedAt.Equal(doc.CreatedAt) {
-		t.Error(testutils.DiffMessage(updated.CreatedAt, doc.CreatedAt, "createdAt must not change on update"))
+		t.Error(test.DiffMessage(updated.CreatedAt, doc.CreatedAt, "createdAt must not change on update"))
 	}
 }
 
@@ -243,7 +243,7 @@ func TestModel_UpdateByID_NotFound(t *testing.T) {
 
 	err := db.Model("users").UpdateByID("ghost", map[string]any{"x": 1})
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "update missing doc must error"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "update missing doc must error"))
 	}
 }
 
@@ -258,7 +258,7 @@ func TestModel_DeleteByID(t *testing.T) {
 	}
 	_, err := m.FindByID(doc.ID)
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "deleted doc must not be found"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "deleted doc must not be found"))
 	}
 }
 
@@ -268,7 +268,7 @@ func TestModel_DeleteByID_NotFound(t *testing.T) {
 
 	err := db.Model("users").DeleteByID("ghost")
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "delete missing doc must error"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "delete missing doc must error"))
 	}
 }
 
@@ -287,7 +287,7 @@ func TestQuery_Find_All(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(docs) != 5 {
-		t.Error(testutils.DiffMessage(len(docs), 5, "find all returns 5 docs"))
+		t.Error(test.DiffMessage(len(docs), 5, "find all returns 5 docs"))
 	}
 }
 
@@ -301,7 +301,7 @@ func TestQuery_Find_WithLimit(t *testing.T) {
 	}
 	docs, _ := m.Find().Limit(3).Exec()
 	if len(docs) != 3 {
-		t.Error(testutils.DiffMessage(len(docs), 3, "limit 3"))
+		t.Error(test.DiffMessage(len(docs), 3, "limit 3"))
 	}
 }
 
@@ -315,7 +315,7 @@ func TestQuery_Find_WithSkip(t *testing.T) {
 	}
 	docs, _ := m.Find().Skip(3).Exec()
 	if len(docs) != 2 {
-		t.Error(testutils.DiffMessage(len(docs), 2, "skip 3 of 5"))
+		t.Error(test.DiffMessage(len(docs), 2, "skip 3 of 5"))
 	}
 }
 
@@ -335,7 +335,7 @@ func TestQuery_Where_EqSecondaryIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(docs) != 2 {
-		t.Error(testutils.DiffMessage(len(docs), 2, "two admins"))
+		t.Error(test.DiffMessage(len(docs), 2, "two admins"))
 	}
 }
 
@@ -352,7 +352,7 @@ func TestQuery_Where_EqFullScan(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(docs) != 1 {
-		t.Error(testutils.DiffMessage(len(docs), 1, "one admin via full scan"))
+		t.Error(test.DiffMessage(len(docs), 1, "one admin via full scan"))
 	}
 }
 
@@ -366,7 +366,7 @@ func TestQuery_Where_Contains(t *testing.T) {
 
 	docs, _ := m.Find().Where("title", OpContains, "Hello").Exec()
 	if len(docs) != 1 {
-		t.Error(testutils.DiffMessage(len(docs), 1, "contains match"))
+		t.Error(test.DiffMessage(len(docs), 1, "contains match"))
 	}
 }
 
@@ -379,7 +379,7 @@ func TestQuery_Where_NoMatch(t *testing.T) {
 
 	docs, _ := m.Find().Where("role", OpEq, "admin").Exec()
 	if len(docs) != 0 {
-		t.Error(testutils.DiffMessage(len(docs), 0, "no match"))
+		t.Error(test.DiffMessage(len(docs), 0, "no match"))
 	}
 }
 
@@ -401,7 +401,7 @@ func TestModel_Search(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(docs) != 2 {
-		t.Error(testutils.DiffMessage(len(docs), 2, "two golang docs"))
+		t.Error(test.DiffMessage(len(docs), 2, "two golang docs"))
 	}
 }
 
@@ -417,7 +417,7 @@ func TestModel_Search_MultiTermAND(t *testing.T) {
 
 	docs, _ := m.Search("golang embedded")
 	if len(docs) != 1 {
-		t.Error(testutils.DiffMessage(len(docs), 1, "AND semantics: only embedded golang"))
+		t.Error(test.DiffMessage(len(docs), 1, "AND semantics: only embedded golang"))
 	}
 }
 
@@ -431,7 +431,7 @@ func TestModel_Search_NoResults(t *testing.T) {
 	_, _ = m.Create(map[string]any{"content": "hello world"})
 	docs, _ := m.Search("golang")
 	if len(docs) != 0 {
-		t.Error(testutils.DiffMessage(len(docs), 0, "no match"))
+		t.Error(test.DiffMessage(len(docs), 0, "no match"))
 	}
 }
 
@@ -459,10 +459,10 @@ func TestTx_Commit(t *testing.T) {
 	}
 	m := db.Model("users")
 	if _, err := m.FindByID(id1); err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "doc1 must exist after tx commit"))
+		t.Error(test.DiffMessage(err, nil, "doc1 must exist after tx commit"))
 	}
 	if _, err := m.FindByID(id2); err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "doc2 must exist after tx commit"))
+		t.Error(test.DiffMessage(err, nil, "doc2 must exist after tx commit"))
 	}
 }
 
@@ -482,7 +482,7 @@ func TestTx_Rollback_OnError(t *testing.T) {
 	m := db.Model("users")
 	_, err := m.FindByID(savedID)
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "rolled-back doc must not be found"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "rolled-back doc must not be found"))
 	}
 }
 
@@ -492,7 +492,7 @@ func TestTx_EmptyCommit(t *testing.T) {
 
 	err := db.Tx(func(tx *Tx) error { return nil })
 	if err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "empty tx must not error"))
+		t.Error(test.DiffMessage(err, nil, "empty tx must not error"))
 	}
 }
 
@@ -516,10 +516,10 @@ func TestPersistence_AfterReopen(t *testing.T) {
 	m2 := db2.Model("users")
 	found, err := m2.FindByID(doc.ID)
 	if err != nil {
-		t.Fatal(testutils.DiffMessage(err, nil, "doc must survive reopen"))
+		t.Fatal(test.DiffMessage(err, nil, "doc must survive reopen"))
 	}
 	if found.Data["name"] != "Persist" {
-		t.Error(testutils.DiffMessage(found.Data["name"], "Persist", "name persisted"))
+		t.Error(test.DiffMessage(found.Data["name"], "Persist", "name persisted"))
 	}
 }
 
@@ -535,7 +535,7 @@ func TestPersistence_DeleteSurvivesReopen(t *testing.T) {
 	defer func() { _ = db2.Close() }()
 	_, err := db2.Model("users").FindByID(doc.ID)
 	if err != ErrNotFound {
-		t.Error(testutils.DiffMessage(err, ErrNotFound, "deleted doc must stay deleted after reopen"))
+		t.Error(test.DiffMessage(err, ErrNotFound, "deleted doc must stay deleted after reopen"))
 	}
 }
 
@@ -563,13 +563,13 @@ func TestCompact_LiveRecordsPreserved(t *testing.T) {
 	// deleted docs gone
 	for _, id := range ids[:5] {
 		if _, err := m.FindByID(id); err != ErrNotFound {
-			t.Error(testutils.DiffMessage(err, ErrNotFound, "deleted doc must not exist post-compact"))
+			t.Error(test.DiffMessage(err, ErrNotFound, "deleted doc must not exist post-compact"))
 		}
 	}
 	// live docs still accessible
 	for _, id := range ids[5:] {
 		if _, err := m.FindByID(id); err != nil {
-			t.Error(testutils.DiffMessage(err, nil, "live doc must survive compact"))
+			t.Error(test.DiffMessage(err, nil, "live doc must survive compact"))
 		}
 	}
 }
@@ -586,10 +586,10 @@ func TestHooks_Pre_Post(t *testing.T) {
 
 	_, _ = db.Model("users").Create(map[string]any{"x": 1})
 	if len(preEvents) != 1 {
-		t.Error(testutils.DiffMessage(len(preEvents), 1, "pre hook must fire"))
+		t.Error(test.DiffMessage(len(preEvents), 1, "pre hook must fire"))
 	}
 	if len(postEvents) != 1 {
-		t.Error(testutils.DiffMessage(len(postEvents), 1, "post hook must fire"))
+		t.Error(test.DiffMessage(len(postEvents), 1, "post hook must fire"))
 	}
 }
 
@@ -606,10 +606,10 @@ func TestWatch_CreateEvent(t *testing.T) {
 
 	_, _ = m.Create(map[string]any{"name": "Alice"})
 	if len(events) != 1 {
-		t.Error(testutils.DiffMessage(len(events), 1, "create event must fire"))
+		t.Error(test.DiffMessage(len(events), 1, "create event must fire"))
 	}
 	if events[0].Type != EventCreate {
-		t.Error(testutils.DiffMessage(events[0].Type, EventCreate, "event type"))
+		t.Error(test.DiffMessage(events[0].Type, EventCreate, "event type"))
 	}
 }
 
@@ -624,7 +624,7 @@ func TestWatch_Unsubscribe(t *testing.T) {
 	unsub()
 	_, _ = m.Create(map[string]any{"x": 2})
 	if count != 1 {
-		t.Error(testutils.DiffMessage(count, 1, "unsubscribed watcher must not fire again"))
+		t.Error(test.DiffMessage(count, 1, "unsubscribed watcher must not fire again"))
 	}
 }
 
@@ -635,7 +635,7 @@ func TestFlush_NoError(t *testing.T) {
 	defer cleanup()
 	_, _ = db.Model("users").Create(map[string]any{"x": 1})
 	if err := db.Flush(); err != nil {
-		t.Error(testutils.DiffMessage(err, nil, "Flush must not error"))
+		t.Error(test.DiffMessage(err, nil, "Flush must not error"))
 	}
 }
 
@@ -644,7 +644,7 @@ func TestClose_ErrClosed(t *testing.T) {
 	db, _ := Open(dir)
 	_ = db.Close()
 	if err := db.Close(); err != ErrClosed {
-		t.Error(testutils.DiffMessage(err, ErrClosed, "double close must return ErrClosed"))
+		t.Error(test.DiffMessage(err, ErrClosed, "double close must return ErrClosed"))
 	}
 }
 
@@ -655,7 +655,7 @@ func TestModel_PathTraversal_Panics(t *testing.T) {
 	defer cleanup()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "path traversal must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "path traversal must panic"))
 		}
 	}()
 	_ = db.Model("../../etc/passwd")
@@ -666,7 +666,7 @@ func TestModel_EmptyTableName_Panics(t *testing.T) {
 	defer cleanup()
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error(testutils.DiffMessage(nil, "panic", "empty table must panic"))
+			t.Error(test.DiffMessage(nil, "panic", "empty table must panic"))
 		}
 	}()
 	_ = db.Model("")
@@ -694,7 +694,7 @@ func TestConcurrent_Creates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(docs) != 100 {
-		t.Error(testutils.DiffMessage(len(docs), 100, "all concurrent creates persisted"))
+		t.Error(test.DiffMessage(len(docs), 100, "all concurrent creates persisted"))
 	}
 }
 
@@ -741,7 +741,7 @@ func TestSegmentFile_Created(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error(testutils.DiffMessage(found, true, "seg_0000000.db must exist"))
+		t.Error(test.DiffMessage(found, true, "seg_0000000.db must exist"))
 	}
 }
 
@@ -760,11 +760,11 @@ func TestSecondaryIndex_UpdateRemovesOldEntry(t *testing.T) {
 	// old "user" entry must be gone
 	users, _ := m.Find().Where("role", OpEq, "user").Exec()
 	if len(users) != 0 {
-		t.Error(testutils.DiffMessage(len(users), 0, "old role entry must be removed"))
+		t.Error(test.DiffMessage(len(users), 0, "old role entry must be removed"))
 	}
 	admins, _ := m.Find().Where("role", OpEq, "admin").Exec()
 	if len(admins) != 1 {
-		t.Error(testutils.DiffMessage(len(admins), 1, "new role entry must exist"))
+		t.Error(test.DiffMessage(len(admins), 1, "new role entry must exist"))
 	}
 }
 
@@ -780,6 +780,6 @@ func TestTextIndex_DeleteRemovesTerms(t *testing.T) {
 
 	results, _ := m.Search("golang")
 	if len(results) != 0 {
-		t.Error(testutils.DiffMessage(len(results), 0, "deleted doc must not appear in search"))
+		t.Error(test.DiffMessage(len(results), 0, "deleted doc must not appear in search"))
 	}
 }

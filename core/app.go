@@ -39,42 +39,42 @@ type App struct {
 
 // link to aliases
 const (
-	contextKey       = "/*ctx.Context"
+	contextKey      = "/*ctx.Context"
 	wsConnectionKey = "/*websocket.Conn"
-	requestKey       = "/*http.Request"
-	responseKey      = "net/http/http.ResponseWriter"
-	bodyKey          = "github.com/dangduoc08/ginject/ctx/ctx.Body"
-	formKey          = "github.com/dangduoc08/ginject/ctx/ctx.Form"
-	queryKey         = "github.com/dangduoc08/ginject/ctx/ctx.Query"
-	headerKey        = "github.com/dangduoc08/ginject/ctx/ctx.Header"
-	paramKey         = "github.com/dangduoc08/ginject/ctx/ctx.Param"
-	fileKey          = "github.com/dangduoc08/ginject/ctx/ctx.File"
+	requestKey      = "/*http.Request"
+	responseKey     = "net/http/http.ResponseWriter"
+	bodyKey         = "github.com/dangduoc08/ginject/ctx/ctx.Body"
+	formKey         = "github.com/dangduoc08/ginject/ctx/ctx.Form"
+	queryKey        = "github.com/dangduoc08/ginject/ctx/ctx.Query"
+	headerKey       = "github.com/dangduoc08/ginject/ctx/ctx.Header"
+	paramKey        = "github.com/dangduoc08/ginject/ctx/ctx.Param"
+	fileKey         = "github.com/dangduoc08/ginject/ctx/ctx.File"
 	wsPayloadKey    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
-	nextKey          = "/func()"
-	redirectKey      = "/func(string)"
+	nextKey         = "/func()"
+	redirectKey     = "/func(string)"
 )
 
 var dependencies = map[string]int{
-	contextKey:                    1,
-	wsConnectionKey:              1,
-	requestKey:                    1,
-	responseKey:                   1,
-	bodyKey:                       1,
-	formKey:                       1,
-	queryKey:                      1,
-	headerKey:                     1,
-	paramKey:                      1,
-	fileKey:                       1,
-	wsPayloadKey:                 1,
-	nextKey:                       1,
-	redirectKey:                   1,
-	common.ContextPipeableKey:    1,
-	common.BodyPipeableKey:       1,
-	common.FormPipeableKey:       1,
-	common.QueryPipeableKey:      1,
-	common.HeaderPipeableKey:     1,
-	common.ParamPipeableKey:      1,
-	common.FilePipeableKey:       1,
+	contextKey:                  1,
+	wsConnectionKey:             1,
+	requestKey:                  1,
+	responseKey:                 1,
+	bodyKey:                     1,
+	formKey:                     1,
+	queryKey:                    1,
+	headerKey:                   1,
+	paramKey:                    1,
+	fileKey:                     1,
+	wsPayloadKey:                1,
+	nextKey:                     1,
+	redirectKey:                 1,
+	common.ContextPipeableKey:   1,
+	common.BodyPipeableKey:      1,
+	common.FormPipeableKey:      1,
+	common.QueryPipeableKey:     1,
+	common.HeaderPipeableKey:    1,
+	common.ParamPipeableKey:     1,
+	common.FilePipeableKey:      1,
 	common.WSPayloadPipeableKey: 1,
 }
 

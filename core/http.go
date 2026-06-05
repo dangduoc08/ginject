@@ -11,8 +11,8 @@ import (
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
-	"github.com/dangduoc08/ginject/utils"
 	"github.com/dangduoc08/ginject/versioning"
 )
 
@@ -246,7 +246,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
 	if dir, ok := dir.(string); ok {
 		if lastWildcardSlashIndex != 0 {
-			urlPath := utils.StrRemoveDup(c.URL.Path, "/")
+			urlPath := str.RemoveDup(c.URL.Path, "/")
 			urlPathArr := strings.Split(urlPath, "/")
 			suffix := strings.Join(urlPathArr[lastWildcardSlashIndex:], "/")
 			oldDir := dir
