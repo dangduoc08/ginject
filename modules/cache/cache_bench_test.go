@@ -10,7 +10,7 @@ import (
 var bctx = context.Background()
 
 func BenchmarkGet_Hit(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	_ = svc.Set(bctx, "key", []byte("value"), 0)
 	b.ResetTimer()
 	for range b.N {
@@ -19,7 +19,7 @@ func BenchmarkGet_Hit(b *testing.B) {
 }
 
 func BenchmarkGet_Miss(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	b.ResetTimer()
 	for range b.N {
 		svc.Get(bctx, "nonexistent")
@@ -27,7 +27,7 @@ func BenchmarkGet_Miss(b *testing.B) {
 }
 
 func BenchmarkSet(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	val := []byte("benchmark-value")
 	b.ResetTimer()
 	for i := range b.N {
@@ -36,7 +36,7 @@ func BenchmarkSet(b *testing.B) {
 }
 
 func BenchmarkSet_FixedKey(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	val := []byte("benchmark-value")
 	b.ResetTimer()
 	for range b.N {
@@ -45,7 +45,7 @@ func BenchmarkSet_FixedKey(b *testing.B) {
 }
 
 func BenchmarkGet_Parallel(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	_ = svc.Set(bctx, "key", []byte("value"), 0)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -56,7 +56,7 @@ func BenchmarkGet_Parallel(b *testing.B) {
 }
 
 func BenchmarkSet_Parallel(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	val := []byte("benchmark-value")
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -69,7 +69,7 @@ func BenchmarkSet_Parallel(b *testing.B) {
 }
 
 func BenchmarkMixed_Parallel(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	for i := 0; i < 1000; i++ {
 		_ = svc.Set(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
 	}
@@ -88,7 +88,7 @@ func BenchmarkMixed_Parallel(b *testing.B) {
 }
 
 func BenchmarkGet_TTL_Expired(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	_ = svc.Set(bctx, "k", []byte("v"), time.Nanosecond)
 	time.Sleep(time.Millisecond)
 	b.ResetTimer()
@@ -98,7 +98,7 @@ func BenchmarkGet_TTL_Expired(b *testing.B) {
 }
 
 func BenchmarkSetNX_Miss(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	b.ResetTimer()
 	for i := range b.N {
 		_, _ = svc.SetNX(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
@@ -106,7 +106,7 @@ func BenchmarkSetNX_Miss(b *testing.B) {
 }
 
 func BenchmarkSetNX_Hit(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	_ = svc.Set(bctx, "key", []byte("v"), 0)
 	b.ResetTimer()
 	for range b.N {
@@ -115,7 +115,7 @@ func BenchmarkSetNX_Hit(b *testing.B) {
 }
 
 func BenchmarkSetNX_Parallel(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
@@ -127,7 +127,7 @@ func BenchmarkSetNX_Parallel(b *testing.B) {
 }
 
 func BenchmarkKeys(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	for i := 0; i < 1000; i++ {
 		_ = svc.Set(bctx, fmt.Sprintf("k%d", i), []byte("v"), 0)
 	}
@@ -138,7 +138,7 @@ func BenchmarkKeys(b *testing.B) {
 }
 
 func BenchmarkTTL_Hit(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	_ = svc.Set(bctx, "key", []byte("v"), time.Hour)
 	b.ResetTimer()
 	for range b.N {
@@ -147,7 +147,7 @@ func BenchmarkTTL_Hit(b *testing.B) {
 }
 
 func BenchmarkTTL_Miss(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	b.ResetTimer()
 	for range b.N {
 		svc.TTL(bctx, "nonexistent")
@@ -155,7 +155,7 @@ func BenchmarkTTL_Miss(b *testing.B) {
 }
 
 func BenchmarkDelete(b *testing.B) {
-	svc := &CacheService{Backend: newMemoryCache()}
+	svc := &CacheService{Engine: newMemoryCache()}
 	b.ResetTimer()
 	for i := range b.N {
 		key := fmt.Sprintf("k%d", i)
