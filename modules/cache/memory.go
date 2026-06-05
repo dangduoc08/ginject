@@ -26,24 +26,30 @@ type shard struct {
 type memoryCache struct {
 	shards [numShards]*shard
 	done   chan struct{}
+	wg     sync.WaitGroup
 }
 
-func NewMemoryCache() *memoryCache { return newMemoryCache() }
+func NewMemoryCache() *memoryCache {
+	return newMemoryCache()
+}
 
 func newMemoryCache() *memoryCache {
 	mc := &memoryCache{done: make(chan struct{})}
 	for i := range mc.shards {
 		mc.shards[i] = &shard{items: make(map[string]item)}
 	}
+	mc.wg.Add(1)
 	go mc.sweep()
 	return mc
 }
 
 func (mc *memoryCache) Stop() {
 	close(mc.done)
+	mc.wg.Wait()
 }
 
 func (mc *memoryCache) sweep() {
+	defer mc.wg.Done()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -90,6 +96,11 @@ func (mc *memoryCache) Get(_ context.Context, key string) ([]byte, bool) {
 		return nil, false
 	}
 	if it.expiresAt != 0 && time.Now().UnixNano() > it.expiresAt {
+		s.mu.Lock()
+		if cur, still := s.items[key]; still && cur.expiresAt != 0 && time.Now().UnixNano() > cur.expiresAt {
+			delete(s.items, key)
+		}
+		s.mu.Unlock()
 		return nil, false
 	}
 	out := make([]byte, len(it.val))
@@ -103,7 +114,7 @@ func (mc *memoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 	}
 	var expiresAt int64
 	if ttl > 0 {
-		expiresAt = time.Now().UnixNano() + int64(ttl)
+		expiresAt = time.Now().Add(ttl).UnixNano()
 	}
 	stored := make([]byte, len(val))
 	copy(stored, val)
@@ -131,7 +142,7 @@ func (mc *memoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 	}
 	var expiresAt int64
 	if ttl > 0 {
-		expiresAt = time.Now().UnixNano() + int64(ttl)
+		expiresAt = time.Now().Add(ttl).UnixNano()
 	}
 	stored := make([]byte, len(val))
 	copy(stored, val)
@@ -190,6 +201,11 @@ func (mc *memoryCache) TTL(_ context.Context, key string) (time.Duration, bool) 
 	}
 	remaining := it.expiresAt - time.Now().UnixNano()
 	if remaining <= 0 {
+		s.mu.Lock()
+		if cur, still := s.items[key]; still && cur.expiresAt != 0 && time.Now().UnixNano() > cur.expiresAt {
+			delete(s.items, key)
+		}
+		s.mu.Unlock()
 		return 0, false
 	}
 	return time.Duration(remaining), true
