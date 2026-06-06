@@ -1,13 +1,16 @@
 package cache
 
-import "github.com/dangduoc08/ginject/core"
+import (
+	"github.com/dangduoc08/ginject/core"
+	"github.com/dangduoc08/ginject/memcache"
+)
 
 type CacheOnInitFn = func()
 
 type CacheModuleOptions struct {
 	IsGlobal bool
 	OnInit   CacheOnInitFn
-	Engine   Cache
+	Backend  Cache
 }
 
 func Register(opts *CacheModuleOptions) *core.Module {
@@ -15,13 +18,13 @@ func Register(opts *CacheModuleOptions) *core.Module {
 		opts = &CacheModuleOptions{}
 	}
 
-	engine := opts.Engine
-	if engine == nil {
-		engine = newMemoryCache()
+	backend := opts.Backend
+	if backend == nil {
+		backend = memcache.NewMemoryCache()
 	}
 
 	svc := CacheService{
-		Engine: engine,
+		Backend: backend,
 	}
 
 	module := core.ModuleBuilder().

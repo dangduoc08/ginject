@@ -10,7 +10,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
-	"github.com/dangduoc08/ginject/modules/cache"
+	"github.com/dangduoc08/ginject/memcache"
 )
 
 type testCache struct {
@@ -69,7 +69,7 @@ func newGuard(limit int64, ttl time.Duration, strategy Strategy) Throttler {
 		TTL:      ttl,
 		Strategy: strategy,
 		KeyFunc:  func(*ctx.Context) string { return "testkey" },
-		Store:    &testCache{items: make(map[string][]byte)},
+		Backend:  &testCache{items: make(map[string][]byte)},
 	}
 }
 
@@ -92,19 +92,19 @@ func TestNewThrottler_Defaults(t *testing.T) {
 	if g.TTL != time.Minute {
 		t.Error(test.DiffMessage(g.TTL, time.Minute, "default TTL must be 1 minute"))
 	}
-	if g.Store == nil {
-		t.Error(test.DiffMessage(g.Store, "non-nil", "default Store must be set"))
+	if g.Backend == nil {
+		t.Error(test.DiffMessage(g.Backend, "non-nil", "default Backend must be set"))
 	}
 	if g.KeyFunc == nil {
 		t.Error(test.DiffMessage(g.KeyFunc, "non-nil", "default KeyFunc must be set"))
 	}
 }
 
-func TestNewThrottler_CustomStore(t *testing.T) {
+func TestNewThrottler_CustomBackend(t *testing.T) {
 	tc := &testCache{items: make(map[string][]byte)}
-	g := Throttler{Store: tc}.NewGuard()
-	if g.Store != tc {
-		t.Error(test.DiffMessage(g.Store, tc, "custom Store must be used"))
+	g := Throttler{Backend: tc}.NewGuard()
+	if g.Backend != tc {
+		t.Error(test.DiffMessage(g.Backend, tc, "custom Backend must be used"))
 	}
 }
 
@@ -388,7 +388,7 @@ func TestThrottler_WorksWithRealMemoryCache(t *testing.T) {
 		TTL:      time.Minute,
 		Strategy: FixedWindow,
 		KeyFunc:  func(*ctx.Context) string { return "ip" },
-		Store:    cache.NewMemoryCache(),
+		Backend:  memcache.NewMemoryCache(),
 	}
 	for i := 0; i < 3; i++ {
 		res := g.fixedWindow(context.Background(), "ip")
