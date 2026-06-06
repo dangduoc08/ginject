@@ -1,7 +1,8 @@
-package cache
+package memcache
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
@@ -29,11 +30,9 @@ type memoryCache struct {
 	wg     sync.WaitGroup
 }
 
-func NewMemoryCache() *memoryCache {
-	return newMemoryCache()
-}
+var ErrEmptyKey = errors.New("cache: key must not be empty")
 
-func newMemoryCache() *memoryCache {
+func NewMemoryCache() *memoryCache {
 	mc := &memoryCache{done: make(chan struct{})}
 	for i := range mc.shards {
 		mc.shards[i] = &shard{items: make(map[string]item)}
@@ -71,19 +70,6 @@ func (mc *memoryCache) sweep() {
 	}
 }
 
-func hashKey(key string) uint32 {
-	const (
-		offset32 = uint32(2166136261)
-		prime32  = uint32(16777619)
-	)
-	h := offset32
-	for i := 0; i < len(key); i++ {
-		h ^= uint32(key[i])
-		h *= prime32
-	}
-	return h
-}
-
 func (mc *memoryCache) Get(_ context.Context, key string) ([]byte, bool) {
 	if key == "" {
 		return nil, false
@@ -95,9 +81,10 @@ func (mc *memoryCache) Get(_ context.Context, key string) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	if it.expiresAt != 0 && time.Now().UnixNano() > it.expiresAt {
+	now := time.Now().UnixNano()
+	if it.expiresAt != 0 && now > it.expiresAt {
 		s.mu.Lock()
-		if cur, still := s.items[key]; still && cur.expiresAt != 0 && time.Now().UnixNano() > cur.expiresAt {
+		if cur, still := s.items[key]; still && cur.expiresAt != 0 && now > cur.expiresAt {
 			delete(s.items, key)
 		}
 		s.mu.Unlock()
@@ -112,9 +99,10 @@ func (mc *memoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 	if key == "" {
 		return ErrEmptyKey
 	}
+	now := time.Now()
 	var expiresAt int64
 	if ttl > 0 {
-		expiresAt = time.Now().Add(ttl).UnixNano()
+		expiresAt = now.Add(ttl).UnixNano()
 	}
 	stored := make([]byte, len(val))
 	copy(stored, val)
@@ -125,9 +113,9 @@ func (mc *memoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 	s.writes++
 	if s.writes >= cleanupEvery {
 		s.writes = 0
-		now := time.Now().UnixNano()
+		nowNano := now.UnixNano()
 		for k, it := range s.items {
-			if it.expiresAt != 0 && now > it.expiresAt {
+			if it.expiresAt != 0 && nowNano > it.expiresAt {
 				delete(s.items, k)
 			}
 		}
@@ -144,8 +132,6 @@ func (mc *memoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 	if ttl > 0 {
 		expiresAt = time.Now().Add(ttl).UnixNano()
 	}
-	stored := make([]byte, len(val))
-	copy(stored, val)
 
 	s := mc.shards[hashKey(key)&shardMask]
 	s.mu.Lock()
@@ -154,6 +140,8 @@ func (mc *memoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 		s.mu.Unlock()
 		return false, nil
 	}
+	stored := make([]byte, len(val))
+	copy(stored, val)
 	s.items[key] = item{val: stored, expiresAt: expiresAt}
 	s.mu.Unlock()
 	return true, nil
@@ -172,7 +160,13 @@ func (mc *memoryCache) Delete(_ context.Context, key string) error {
 
 func (mc *memoryCache) Keys(_ context.Context) []string {
 	now := time.Now().UnixNano()
-	var keys []string
+	var total int
+	for _, s := range mc.shards {
+		s.mu.RLock()
+		total += len(s.items)
+		s.mu.RUnlock()
+	}
+	keys := make([]string, 0, total)
 	for _, s := range mc.shards {
 		s.mu.RLock()
 		for k, it := range s.items {
@@ -199,10 +193,11 @@ func (mc *memoryCache) TTL(_ context.Context, key string) (time.Duration, bool) 
 	if it.expiresAt == 0 {
 		return 0, true
 	}
-	remaining := it.expiresAt - time.Now().UnixNano()
+	now := time.Now().UnixNano()
+	remaining := it.expiresAt - now
 	if remaining <= 0 {
 		s.mu.Lock()
-		if cur, still := s.items[key]; still && cur.expiresAt != 0 && time.Now().UnixNano() > cur.expiresAt {
+		if cur, still := s.items[key]; still && cur.expiresAt != 0 && now > cur.expiresAt {
 			delete(s.items, key)
 		}
 		s.mu.Unlock()

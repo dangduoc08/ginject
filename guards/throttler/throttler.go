@@ -11,6 +11,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/memcache"
 	"github.com/dangduoc08/ginject/modules/cache"
 )
 
@@ -27,7 +28,7 @@ type Throttler struct {
 	TTL      time.Duration
 	Strategy Strategy
 	KeyFunc  func(*ctx.Context) string
-	Store    cache.Cache
+	Backend  cache.Cache
 }
 
 func (g Throttler) NewGuard() Throttler {
@@ -40,8 +41,8 @@ func (g Throttler) NewGuard() Throttler {
 	if g.KeyFunc == nil {
 		g.KeyFunc = defaultThrottlerKeyFunc
 	}
-	if g.Store == nil {
-		g.Store = cache.NewMemoryCache()
+	if g.Backend == nil {
+		g.Backend = memcache.NewMemoryCache()
 	}
 	return g
 }
@@ -89,14 +90,14 @@ func (g Throttler) fixedWindow(bgCtx context.Context, key string) rateLimitResul
 	resetAt := (windowID + 1) * windowSec
 
 	var count int64 = 1
-	if raw, ok := g.Store.Get(bgCtx, cacheKey); ok && len(raw) == 8 {
+	if raw, ok := g.Backend.Get(bgCtx, cacheKey); ok && len(raw) == 8 {
 		count = int64(binary.BigEndian.Uint64(raw)) + 1
 	}
 
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(count))
 	ttlRemaining := max(time.Duration(resetAt-nowSec)*time.Second, time.Second)
-	_ = g.Store.Set(bgCtx, cacheKey, buf[:], ttlRemaining)
+	_ = g.Backend.Set(bgCtx, cacheKey, buf[:], ttlRemaining)
 
 	remaining := max(g.Limit-count, 0)
 	return rateLimitResult{
@@ -121,12 +122,12 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 	ratio := float64(elapsedInWindow) / float64(windowSec)
 
 	var prevCount int64
-	if raw, ok := g.Store.Get(bgCtx, prevKey); ok && len(raw) == 8 {
+	if raw, ok := g.Backend.Get(bgCtx, prevKey); ok && len(raw) == 8 {
 		prevCount = int64(binary.BigEndian.Uint64(raw))
 	}
 
 	var currCount int64 = 1
-	if raw, ok := g.Store.Get(bgCtx, currKey); ok && len(raw) == 8 {
+	if raw, ok := g.Backend.Get(bgCtx, currKey); ok && len(raw) == 8 {
 		currCount = int64(binary.BigEndian.Uint64(raw)) + 1
 	}
 
@@ -134,7 +135,7 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], uint64(currCount))
-	_ = g.Store.Set(bgCtx, currKey, buf[:], time.Duration(2*windowSec)*time.Second)
+	_ = g.Backend.Set(bgCtx, currKey, buf[:], time.Duration(2*windowSec)*time.Second)
 
 	remaining := max(g.Limit-weighted, 0)
 	return rateLimitResult{
@@ -153,7 +154,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	now := time.Now().UnixNano()
 	var tokens float64
 
-	if raw, ok := g.Store.Get(bgCtx, cacheKey); ok && len(raw) == 16 {
+	if raw, ok := g.Backend.Get(bgCtx, cacheKey); ok && len(raw) == 16 {
 		tokens = math.Float64frombits(binary.BigEndian.Uint64(raw[:8]))
 		lastRefill := int64(binary.BigEndian.Uint64(raw[8:]))
 		elapsed := float64(now - lastRefill)
@@ -170,7 +171,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	var buf [16]byte
 	binary.BigEndian.PutUint64(buf[:8], math.Float64bits(tokens))
 	binary.BigEndian.PutUint64(buf[8:], uint64(now))
-	_ = g.Store.Set(bgCtx, cacheKey, buf[:], g.TTL*2)
+	_ = g.Backend.Set(bgCtx, cacheKey, buf[:], g.TTL*2)
 
 	var resetAt int64
 	if !allowed && refillRate > 0 {

@@ -2,11 +2,8 @@ package cache
 
 import (
 	"context"
-	"errors"
 	"time"
 )
-
-var ErrEmptyKey = errors.New("cache: key must not be empty")
 
 type Cache interface {
 	Get(ctx context.Context, key string) ([]byte, bool)

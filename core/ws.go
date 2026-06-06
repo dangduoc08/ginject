@@ -5,7 +5,6 @@ import (
 	stdHTTP "net/http"
 	"reflect"
 	"sort"
-	"sync"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -18,8 +17,6 @@ type compiledWS struct {
 }
 
 type WS struct {
-	eventToIDMu sync.RWMutex
-
 	eventMap          map[string][]ctx.Handler
 	compiledPatterns  []compiledWS
 	mainHandlerMap    map[string]any
@@ -29,6 +26,8 @@ type WS struct {
 
 	corsAllowOrigin func(origin string) bool
 	invokeHandler   func(f any, c *ctx.Context) []reflect.Value
+
+	// connectionManager *connmgr.ConnectionManager
 }
 
 func kindPriority(k matcher.Kind) int {
