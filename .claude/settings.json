@@ -3,7 +3,17 @@
     "allow": [
       "Bash(perl -i -pe ' *)",
       "Bash(make test *)",
-      "Bash(perl -i -pe 's/\\\\bpatternToFnNameMap\\\\b/patternToFuncNameMap/g' common/exception_filter_bench_test.go common/exception_filter_test.go common/ws_test.go)"
+      "Bash(perl -i -pe 's/\\\\bpatternToFnNameMap\\\\b/patternToFuncNameMap/g' common/exception_filter_bench_test.go common/exception_filter_test.go common/ws_test.go)",
+      "Bash(kill 75772)",
+      "Bash(curl -s 'localhost:4000/store/categories?page=2&limit=2' -H 'Authorization: Bearer __CMDSUB_OUTPUT__')",
+      "Bash(golangci-lint cache *)",
+      "Bash(curl -s -X POST http://localhost:4000/users -H 'Content-Type: application/json' -d '{\"email\":\"restruct_test___CMDSUB_OUTPUT__@example.com\",\"name\":\"Restruct Tester\",\"password\":\"password123\"}')",
+      "Bash(tee /tmp/login.json)",
+      "Bash(kill 82648 82636)",
+      "Bash(git status *)",
+      "Bash(git check-ignore *)",
+      "Read(//dev/**)",
+      "Bash(git hash-object *)"
     ]
   }
 }
