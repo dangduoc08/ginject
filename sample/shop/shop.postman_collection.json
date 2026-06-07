@@ -1,0 +1,290 @@
+{
+  "info": {
+    "name": "Ginject Shop Sample",
+    "description": "Demo API for sample/shop: account registration, session-based login/logout, and per-user store/category/product management.\n\nFlow: Register -> Login (captures {{token}} automatically) -> Store/Category/Product CRUD (Authorization: Bearer {{token}}).\n\nResponses are wrapped as { \"data\": ... } on success and { \"code\", \"error\", \"message\" } on failure (see BUILDING_WITH_GINJECT.md).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "ginject-shop-sample"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "email", "value": "alice@example.com" },
+    { "key": "password", "value": "secret123" },
+    { "key": "token", "value": "" },
+    { "key": "categoryId", "value": "" },
+    { "key": "productId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"name\": \"Alice\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] },
+            "description": "Creates an account and auto-provisions its store. 201 on success; 409 if the email is already registered; 400 on validation errors (email format, password length, ...)."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.data.token);",
+                  "    pm.test('captured bearer token', () => pm.expect(body.data.token).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/sessions", "host": ["{{baseUrl}}"], "path": ["sessions"] },
+            "description": "Exchanges email/password for a bearer token and stores it in {{token}} for subsequent requests. 401 on bad credentials."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/sessions", "host": ["{{baseUrl}}"], "path": ["sessions"] },
+            "description": "Revokes the bearer token sent in the Authorization header. Idempotent — unknown/expired tokens are ignored."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Store",
+      "item": [
+        {
+          "name": "Get my store",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/store", "host": ["{{baseUrl}}"], "path": ["store"] },
+            "description": "Returns the authenticated caller's own store. 403 without a valid bearer token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Create category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('categoryId', body.data.ID);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Electronics\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/store/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories"]
+            },
+            "description": "Adds a category to the caller's store and stores its id in {{categoryId}}. 400 if name is blank."
+          },
+          "response": []
+        },
+        {
+          "name": "List categories",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories"],
+              "query": [
+                { "key": "page", "value": "1", "description": "1-based page number; defaults to 1" },
+                { "key": "limit", "value": "20", "description": "items per page; defaults to 20, capped at 100" }
+              ]
+            },
+            "description": "Returns a page of the caller's categories: { items, page, limit, total, totalPages }."
+          },
+          "response": []
+        },
+        {
+          "name": "Get category",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}"]
+            },
+            "description": "404 if the category doesn't exist or belongs to another store."
+          },
+          "response": []
+        },
+        {
+          "name": "Update category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Gadgets\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete category",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}"]
+            },
+            "description": "Removes the category and every product placed under it."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Create product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('productId', body.data.ID);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Phone\",\n  \"price\": 499.99\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}", "products"]
+            },
+            "description": "Adds a product under {{categoryId}} and stores its id in {{productId}}. 400 if name is blank or price isn't a positive number."
+          },
+          "response": []
+        },
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}/products?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}", "products"],
+              "query": [
+                { "key": "page", "value": "1", "description": "1-based page number; defaults to 1" },
+                { "key": "limit", "value": "20", "description": "items per page; defaults to 20, capped at 100" }
+              ]
+            },
+            "description": "Returns a page of {{categoryId}}'s products: { items, page, limit, total, totalPages }."
+          },
+          "response": []
+        },
+        {
+          "name": "Get product",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}", "products", "{{productId}}"]
+            },
+            "description": "404 if the product doesn't exist or doesn't belong to this category/store."
+          },
+          "response": []
+        },
+        {
+          "name": "Update product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Smartphone\",\n  \"price\": 549.50\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}", "products", "{{productId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete product",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/store/categories/{{categoryId}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["store", "categories", "{{categoryId}}", "products", "{{productId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
