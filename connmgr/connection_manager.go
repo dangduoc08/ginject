@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/matcher"
+	"github.com/dangduoc08/ginject/memcache"
 	"golang.org/x/net/websocket"
 )
 
@@ -17,9 +18,9 @@ type Connection struct {
 }
 
 type ConnectionManager struct {
-	// Storage cache.Cache
-	Conns map[string]*Connection
-	rwMu  *sync.RWMutex
+	Storage memcache.MemoryCache
+	Conns   map[string]*Connection
+	rwMu    *sync.RWMutex
 }
 
 // func NewConnectionManager() *ConnectionManager {
