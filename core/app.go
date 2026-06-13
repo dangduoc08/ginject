@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +36,8 @@ type App struct {
 	Logger common.Logger
 }
 
-// link to aliases
+// Reflect-type keys mirroring the public type aliases declared in aliases.go;
+// used to resolve handler parameters by their type during injection.
 const (
 	contextKey      = "/*ctx.Context"
 	wsConnectionKey = "/*websocket.Conn"
@@ -91,7 +91,11 @@ func New() *App {
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
-				c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
+				c.Broker = broker.NewWithConfig(
+					broker.Config{
+						RecoverPanics: true,
+					},
+				)
 				return c
 			},
 		},
@@ -104,22 +108,17 @@ func New() *App {
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := app.ctxPool.Get().(*ctx.Context)
-	c.Timestamp = time.Now()
-	c.ResponseWriter = w
-	c.Request = r
-	c.SetID(getContextID(c))
+	c.Init(w, r)
 
-	defer func() {
-		c.Reset()
-		app.ctxPool.Put(c)
-	}()
-
-	if strings.TrimSuffix(r.URL.Path, "/") == "/ws" {
+	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
 		c.SetType(ctx.WSType)
-		app.ws.upgrade(w, r, c)
+		app.ws.upgrade(w, r, func() {
+			app.releaseCtx(c)
+		})
 		return
 	}
 
+	defer app.releaseCtx(c)
 	c.SetType(ctx.HTTPType)
 	c.ResponseWriter.Header().Set(ctx.RequestID, c.GetID())
 	app.http.handleRequest(c)
@@ -150,7 +149,7 @@ func (app *App) initLogger() {
 func (app *App) initProviders(m *Module) map[string]Provider {
 	app.module = m.NewModule()
 
-	injectedProviders := make(map[string]Provider)
+	injectedProviders := make(map[string]Provider, len(app.module.providers))
 	for _, provider := range app.module.providers {
 		injectedProviders[genProviderKey(provider)] = provider
 	}
@@ -327,6 +326,11 @@ func (app *App) initMainHandlers() {
 	for _, h := range app.module.WSMainHandlers {
 		app.ws.mainHandlerMap[h.EventName] = h.Handler
 	}
+}
+
+func (app *App) releaseCtx(c *ctx.Context) {
+	c.Reset()
+	app.ctxPool.Put(c)
 }
 
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {

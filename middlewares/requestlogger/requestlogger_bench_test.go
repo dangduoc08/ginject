@@ -22,7 +22,6 @@ func BenchmarkRequestLogger_Use_HTTP(b *testing.B) {
 	for range b.N {
 		c := newLoggerContext(http.MethodGet, "/api/users", ctx.HTTPType)
 		c.Timestamp = time.Now().Add(-10 * time.Millisecond)
-		c.SetID("bench-req-id")
 		rl.Use(c, func() {})
 		_ = c.Broker.Publish(ctx.RequestFinished, c)
 	}

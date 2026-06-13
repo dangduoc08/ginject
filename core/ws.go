@@ -7,10 +7,26 @@ import (
 	"sort"
 
 	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/connmgr"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/matcher"
 	"golang.org/x/net/websocket"
 )
+
+// TODO: we need enhancing handshake auth mechanism
+
+// TODO: we will support codec base on sub-protcol passed from client
+// but now support json first
+/**
+type CodecType string
+
+const (
+	CodecJSON    CodecType = "json"
+	CodecMsgPack CodecType = "msgpack"
+	CodecProto   CodecType = "protobuf"
+)
+
+**/
 
 type compiledWS struct {
 	pattern matcher.Pattern
@@ -27,7 +43,7 @@ type WS struct {
 	corsAllowOrigin func(origin string) bool
 	invokeHandler   func(f any, c *ctx.Context) []reflect.Value
 
-	// connectionManager *connmgr.ConnectionManager
+	connectionManager *connmgr.ConnectionManager
 }
 
 func kindPriority(k matcher.Kind) int {
@@ -76,24 +92,51 @@ func newWS() *WS {
 	return &ws
 }
 
-func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, c *ctx.Context) {
+func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, deferFunc func()) {
 	s := websocket.Server{
-		Handler: websocket.Handler(func(wsConn *websocket.Conn) {
-			ws.handleRequest(wsConn, c)
-		}),
-		Handshake: func(cfg *websocket.Config, _ *stdHTTP.Request) error {
-			if ws.corsAllowOrigin == nil || cfg.Origin == nil {
-				return nil
-			}
-			if ws.corsAllowOrigin(cfg.Origin.String()) {
-				return nil
-			}
-			return stdHTTP.ErrAbortHandler
+		Handler: websocket.Handler(ws.handleRequest),
+		Handshake: func(cfg *websocket.Config, r *stdHTTP.Request) error {
+			defer deferFunc()
+
+			return ws.handshake(cfg, r)
 		},
 	}
 	s.ServeHTTP(w, r)
 }
 
-func (ws *WS) handleRequest(wsConn *websocket.Conn, c *ctx.Context) {
-	fmt.Println(wsConn)
+func (ws *WS) handshake(cfg *websocket.Config, _ *stdHTTP.Request) error {
+	fmt.Println("handshakre")
+	if ws.corsAllowOrigin == nil || cfg.Origin == nil {
+		return nil
+	}
+	if ws.corsAllowOrigin(cfg.Origin.String()) {
+		return nil
+	}
+	return stdHTTP.ErrAbortHandler
+}
+
+func (ws *WS) handleRequest(wsConn *websocket.Conn) {
+	fmt.Println("Zo")
+	var msg map[string]any
+
+	websocket.JSON.Receive(wsConn, &msg)
+
+	fmt.Println("ms", msg)
+
+	defer func() {
+		wsConn.Close()
+	}()
+
+	// for {
+	// 	var msg map[string]any
+
+	// 	err := websocket.JSON.Receive(wsConn, &msg)
+
+	// 	fmt.Println(msg)
+
+	// 	err = websocket.Message.Send(wsConn, "hello client")
+	// 	if err != nil {
+	// 		return
+	// 	}
+	// }
 }

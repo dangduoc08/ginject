@@ -16,7 +16,6 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/color"
-	"github.com/dangduoc08/ginject/internal/crypto"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
@@ -567,13 +566,4 @@ func getWSEventKeys() []string {
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-func getContextID(c *ctx.Context) string {
-	reqID := c.Header().Get(ctx.RequestID)
-	if reqID == "" {
-		uuid, _ := crypto.UUID()
-		return uuid
-	}
-	return reqID
 }
