@@ -39,12 +39,19 @@ func findArg(args []any, key string) (any, bool) {
 
 func newLoggerContext(method, urlPath string, typ string) *ctx.Context {
 	req := httptest.NewRequest(method, urlPath, nil)
-	rec := httptest.NewRecorder()
 	c := ctx.NewContext()
-	c.Request = req
-	c.ResponseWriter = rec
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
-	c.Timestamp = time.Now()
+	c.Init(httptest.NewRecorder(), req)
+	c.SetType(typ)
+	return c
+}
+
+func newLoggerContextWithID(method, urlPath, id, typ string) *ctx.Context {
+	req := httptest.NewRequest(method, urlPath, nil)
+	req.Header.Set(ctx.RequestID, id)
+	c := ctx.NewContext()
+	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
+	c.Init(httptest.NewRecorder(), req)
 	c.SetType(typ)
 	return c
 }
@@ -127,8 +134,7 @@ func TestRequestLogger_Use_HTTPLogsProtocol(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsRequestID(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
-	c.SetID("req-abc")
+	c := newLoggerContextWithID(http.MethodGet, "/", "req-abc", ctx.HTTPType)
 	rl.Use(c, func() {})
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, ctx.RequestID)

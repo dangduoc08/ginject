@@ -1,0 +1,215 @@
+package ctx
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/internal/test"
+)
+
+func newTestContext() *Context {
+	c := NewContext()
+	c.Broker = broker.New()
+	return c
+}
+
+func TestNewContext_DefaultCode(t *testing.T) {
+	c := NewContext()
+	if c.Code != http.StatusOK {
+		t.Error(test.DiffMessage(c.Code, http.StatusOK, "NewContext default Code"))
+	}
+}
+
+func TestStatus_SetsCodeAndReturnsSelf(t *testing.T) {
+	c := newTestContext()
+	ret := c.Status(http.StatusCreated)
+	if c.Code != http.StatusCreated {
+		t.Error(test.DiffMessage(c.Code, http.StatusCreated, "Status code"))
+	}
+	if ret != c {
+		t.Error(test.DiffMessage(ret, c, "Status returns self"))
+	}
+}
+
+func TestSetRouteGetRoute_NoVersion(t *testing.T) {
+	cases := []struct {
+		method string
+		route  string
+		want   string
+	}{
+		{"GET", "/users/{id}/||/[GET]/", "/users/{id}/||"},
+		{"POST", "/items/||/[POST]/", "/items/||"},
+		{"DELETE", "/users/{id}/||/[DELETE]/", "/users/{id}/||"},
+		{"PUT", "/orders/{id}/||/[PUT]/", "/orders/{id}/||"},
+		{"PATCH", "/products/{id}/||/[PATCH]/", "/products/{id}/||"},
+	}
+	for _, tc := range cases {
+		c := newTestContext()
+		r := httptest.NewRequest(tc.method, "/", nil)
+		c.Init(httptest.NewRecorder(), r)
+		c.SetRoute(tc.route)
+		got := c.GetRoute()
+		if got != tc.want {
+			t.Error(test.DiffMessage(got, tc.want, "GetRoute method="+tc.method))
+		}
+	}
+}
+
+func TestSetRouteGetRoute_WithVersion(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	c.Init(httptest.NewRecorder(), r)
+	c.SetRoute("/users/{id}/|v1|/[GET]/")
+	got := c.GetRoute()
+	want := "/users/{id}/|v1|"
+	if got != want {
+		t.Error(test.DiffMessage(got, want, "GetRoute with version"))
+	}
+}
+
+func TestSetRouteGetRoute_Root(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	c.Init(httptest.NewRecorder(), r)
+	c.SetRoute("/||/[GET]/")
+	got := c.GetRoute()
+	want := "/||"
+	if got != want {
+		t.Error(test.DiffMessage(got, want, "GetRoute root path"))
+	}
+}
+
+func TestSetRouteGetRoute_ReturnsSetterSelf(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	c.Init(httptest.NewRecorder(), r)
+	ret := c.SetRoute("/test/||/[GET]/")
+	if ret != c {
+		t.Error(test.DiffMessage(ret, c, "SetRoute returns self"))
+	}
+}
+
+func TestSetType_ValidTypes(t *testing.T) {
+	types := []string{HTTPType, WSType, RPCType, GQLType}
+	for _, typ := range types {
+		c := newTestContext()
+		c.SetType(typ)
+		if c.GetType() != typ {
+			t.Error(test.DiffMessage(c.GetType(), typ, "SetType "+typ))
+		}
+	}
+}
+
+func TestSetType_InvalidIgnored(t *testing.T) {
+	c := newTestContext()
+	c.SetType("invalid")
+	if c.GetType() != "" {
+		t.Error(test.DiffMessage(c.GetType(), "", "SetType invalid stays empty"))
+	}
+}
+
+func TestSetType_Idempotent(t *testing.T) {
+	c := newTestContext()
+	c.SetType(HTTPType)
+	c.SetType(WSType)
+	if c.GetType() != HTTPType {
+		t.Error(test.DiffMessage(c.GetType(), HTTPType, "SetType first value wins"))
+	}
+}
+
+func TestSetType_ReturnsSelf(t *testing.T) {
+	c := newTestContext()
+	ret := c.SetType(HTTPType)
+	if ret != c {
+		t.Error(test.DiffMessage(ret, c, "SetType returns self"))
+	}
+}
+
+func TestSetID_FromHeader(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(RequestID, "test-request-id")
+	c.Init(httptest.NewRecorder(), r)
+	if c.id != "test-request-id" {
+		t.Error(test.DiffMessage(c.id, "test-request-id", "SetID from header"))
+	}
+}
+
+func TestSetID_GeneratedWhenNoHeader(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	c.Init(httptest.NewRecorder(), r)
+	if c.id == "" {
+		t.Error(test.DiffMessage(c.id, "<non-empty UUID>", "SetID generates UUID"))
+	}
+}
+
+func TestSetID_Idempotent(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	c.Init(httptest.NewRecorder(), r)
+	first := c.id
+	c.SetID()
+	if c.id != first {
+		t.Error(test.DiffMessage(c.id, first, "SetID idempotent"))
+	}
+}
+
+func TestGetID(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(RequestID, "abc-123")
+	c.Init(httptest.NewRecorder(), r)
+	if c.GetID() != "abc-123" {
+		t.Error(test.DiffMessage(c.GetID(), "abc-123", "GetID"))
+	}
+}
+
+func TestReset_ClearsAllFields(t *testing.T) {
+	c := newTestContext()
+	r := httptest.NewRequest("GET", "/test", nil)
+	r.Header.Set(RequestID, "some-id")
+	w := httptest.NewRecorder()
+	c.Init(w, r)
+	c.SetRoute("/test/||/[GET]/")
+	c.SetType(HTTPType)
+	c.Status(http.StatusNotFound)
+
+	c.Reset()
+
+	if c.Code != http.StatusOK {
+		t.Error(test.DiffMessage(c.Code, http.StatusOK, "Reset Code"))
+	}
+	if c.route != "" {
+		t.Error(test.DiffMessage(c.route, "", "Reset route"))
+	}
+	if c.Type != "" {
+		t.Error(test.DiffMessage(c.Type, "", "Reset Type"))
+	}
+	if c.id != "" {
+		t.Error(test.DiffMessage(c.id, "", "Reset ID"))
+	}
+	if c.Request != nil {
+		t.Error(test.DiffMessage(c.Request, nil, "Reset Request"))
+	}
+	if c.ResponseWriter != nil {
+		t.Error(test.DiffMessage(c.ResponseWriter, nil, "Reset ResponseWriter"))
+	}
+	if c.body != nil {
+		t.Error(test.DiffMessage(c.body, nil, "Reset body"))
+	}
+	if c.ParamKeys != nil {
+		t.Error(test.DiffMessage(c.ParamKeys, nil, "Reset ParamKeys"))
+	}
+	if c.ParamValues != nil {
+		t.Error(test.DiffMessage(c.ParamValues, nil, "Reset ParamValues"))
+	}
+	if c.Next != nil {
+		t.Error(test.DiffMessage(c.Next, nil, "Reset Next"))
+	}
+	if c.WS != nil {
+		t.Error(test.DiffMessage(c.WS, nil, "Reset WS"))
+	}
+}
