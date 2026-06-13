@@ -2,10 +2,10 @@ package ctx
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
 )
 
@@ -37,9 +37,10 @@ type Context struct {
 	ParamKeys   map[string][]int
 	ParamValues []string
 
-	route string
-	ID    string
-	Type  string
+	route      string
+	cleanRoute string
+	id         string
+	Type       string
 
 	Next      Next
 	Broker    broker.Broker
@@ -60,6 +61,13 @@ func NewContext() *Context {
 	return &Context{
 		Code: http.StatusOK,
 	}
+}
+
+func (c *Context) Init(w http.ResponseWriter, r *http.Request) {
+	c.Timestamp = time.Now()
+	c.ResponseWriter = w
+	c.Request = r
+	c.SetID()
 }
 
 func (c *Context) Status(code int) *Context {
@@ -103,11 +111,13 @@ func (c *Context) JSONP(data ...any) {
 }
 
 func (c *Context) GetRoute() string {
-	return strings.Replace(c.route, "/["+c.Method+"]/", "", 1)
+	return c.cleanRoute
 }
 
 func (c *Context) SetRoute(route string) *Context {
 	c.route = route
+	suffix := "/[" + c.Method + "]/"
+	c.cleanRoute = route[:len(route)-len(suffix)]
 	return c
 }
 
@@ -120,8 +130,9 @@ func (c *Context) Redirect(url string) {
 func (c *Context) Reset() {
 	c.Code = http.StatusOK
 	c.route = ""
+	c.cleanRoute = ""
 	c.Type = ""
-	c.ID = ""
+	c.id = ""
 	c.WS = nil
 	c.body = nil
 	c.form = nil
@@ -152,13 +163,17 @@ func (c *Context) GetType() string {
 	return c.Type
 }
 
-func (c *Context) SetID(id string) *Context {
-	if c.ID == "" {
-		c.ID = id
+func (c *Context) SetID() {
+	reqID := c.Header().Get(RequestID)
+	if reqID == "" {
+		reqID, _ = crypto.UUID()
 	}
-	return c
+
+	if c.id == "" {
+		c.id = reqID
+	}
 }
 
 func (c *Context) GetID() string {
-	return c.ID
+	return c.id
 }
