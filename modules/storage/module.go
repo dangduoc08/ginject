@@ -9,6 +9,10 @@ type StoreModuleOptions struct {
 	IsGlobal bool
 	Path     string  // directory where data files are stored; required
 	OnInit   OnInitFn
+
+	// DisableGitignore turns off the default behavior of adding Path to the
+	// project's .gitignore (creating the file if it doesn't exist yet).
+	DisableGitignore bool
 }
 
 // Register creates and returns a configured store module.
@@ -19,6 +23,10 @@ func Register(opts *StoreModuleOptions) *core.Module {
 	}
 	if opts.Path == "" {
 		panic("store: StoreModuleOptions.Path must not be empty")
+	}
+
+	if !opts.DisableGitignore {
+		ensureGitignoreEntry(opts.Path)
 	}
 
 	db, err := Open(opts.Path)
