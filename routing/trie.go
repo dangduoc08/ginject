@@ -2,24 +2,17 @@ package routing
 
 import (
 	"encoding/json"
-	"reflect"
-	"runtime"
 	"strings"
 
-	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/str"
 )
 
-type (
-	Node   map[string]*Trie
-	ScanFn func(string, *Trie)
-)
+type Node map[string]*Trie
 
 type Trie struct {
-	Children  Node
-	Handlers  []ctx.Handler
-	ParamKeys map[string][]int
-	Index     int
+	Children Node
+	Index    int
+	Raw      string
 }
 
 func NewTrie() *Trie {
@@ -43,21 +36,20 @@ func (tr *Trie) len() int {
 	return counter
 }
 
-func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]int, handlers []ctx.Handler) *Trie {
+func (tr *Trie) insert(raw, insertedStr string, sep byte, index int) *Trie {
 	node := tr
-	start := strings.IndexByte(path, sep)
+	start := strings.IndexByte(insertedStr, sep)
 
-	for seg, next := str.Segment(path, sep, start); next > -1; seg, next = str.Segment(path, sep, next) {
+	for seg, next := str.Segment(insertedStr, sep, start); next > -1; seg, next = str.Segment(insertedStr, sep, next) {
 		isExist := node.Children[seg] != nil
 
 		if !isExist {
 			node.Children[seg] = NewTrie()
 		}
 
-		if next == len(path)-1 {
+		if next == len(insertedStr)-1 {
 			node.Children[seg].Index = index
-			node.Children[seg].ParamKeys = paramKeys
-			node.Children[seg].Handlers = handlers
+			node.Children[seg].Raw = raw
 		}
 		node = node.Children[seg]
 	}
@@ -65,16 +57,15 @@ func (tr *Trie) insert(path string, sep byte, index int, paramKeys map[string][]
 	return tr
 }
 
-func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]int, []string, []ctx.Handler) {
+func (tr *Trie) find(path, method, version string, sep byte) (int, string, []string) {
 	node := tr
 	var matchedNode *Trie
-	var lastWildcardNode *Trie
+	var wildcardNode *Trie
 	start := strings.IndexByte(path, sep)
 
 	i := -1
-	var paramKeys map[string][]int
+	raw := ""
 	var paramVals []string
-	var handlers []ctx.Handler
 	methodPattern := fromMethodtoPattern(method)
 	versionPattern := fromVersiontoPattern(version)
 
@@ -90,7 +81,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 				// then cannot fallback to wildcard
 				// due to trie already be traversed
 				// we will store temp node and return if no route matched
-				lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
+				wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
 
 				// pushed /lv1 => /lv/{id}
 				// but still matched
@@ -104,7 +95,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 				node = node.Children["$"]
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
-				lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
+				wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
 				node = node.Children["*"]
 			} else {
 				isNotMatchAnythings := true
@@ -125,7 +116,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 
 				// if not matched any route
 				// but has last wildcard node
-				// then fallback to lastWildcardNode
+				// then fallback to wildcardNode
 				// jump to line 185
 				// if not break in this conditions
 				// pushed /lv1/{id} and /lv1/*
@@ -141,7 +132,7 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 			// then cannot fallback to wildcard
 			// due to trie already be traversed
 			// we will store temp node and return if no route matched
-			lastWildcardNode = getLastWildcardNode(node, versionPattern, methodPattern)
+			wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
 			node = node.Children[seg]
 		}
 
@@ -150,28 +141,26 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, map[string][]
 
 			// if not matched any route
 			// but has last wildcard node
-			// then fallback to lastWildcardNode
-			if matchedNode.Index < 0 && lastWildcardNode != nil {
-				matchedNode = lastWildcardNode
+			// then fallback to wildcardNode
+			if matchedNode.Index < 0 && wildcardNode != nil {
+				matchedNode = wildcardNode
 			}
 
 			i = matchedNode.Index
-			paramKeys = matchedNode.ParamKeys
-			handlers = matchedNode.Handlers
+			raw = matchedNode.Raw
 			break
 		}
 
 		continue
 	}
 
-	if i < 0 && lastWildcardNode != nil {
-		matchedNode = lastWildcardNode
+	if i < 0 && wildcardNode != nil {
+		matchedNode = wildcardNode
 		i = matchedNode.Index
-		paramKeys = matchedNode.ParamKeys
-		handlers = matchedNode.Handlers
+		raw = matchedNode.Raw
 	}
 
-	return i, paramKeys, paramVals, handlers
+	return i, raw, paramVals
 }
 
 func (tr *Trie) ToJSON() (string, error) {
@@ -196,26 +185,6 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 			if node.Children != nil {
 				trieMap := node.genTrieMap(route)
 				trieMap["index"] = node.Index
-				trieMap["params"] = node.ParamKeys
-
-				if len(node.Handlers) > 0 {
-					handlers := make([]any, 0, len(node.Handlers))
-					for _, handler := range node.Handlers {
-						fnName := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
-
-						if fnName == "" {
-							handlers = append(handlers, nil)
-							break
-						} else {
-							lastDotIndex := strings.LastIndex(fnName, ".")
-							if lastDotIndex > -1 {
-								fnName = fnName[lastDotIndex+1:]
-							}
-							handlers = append(handlers, fnName)
-						}
-					}
-					trieMap["handlers"] = handlers
-				}
 
 				nodeMap["children"] = append(nodeMap["children"].([]map[string]any), trieMap)
 			}
