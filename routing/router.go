@@ -46,10 +46,10 @@ const (
 )
 
 type RouterItem struct {
-	Index                 int
-	HandlerIndex          int
-	Handlers              []ctx.Handler
-	isRouteContainsParams bool
+	Index        int
+	HandlerIndex int
+	Handlers     []ctx.Handler
+	ParamKeys    map[string][]int
 }
 
 type Router struct {
@@ -140,25 +140,35 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	}
 
 	parsedRoute, paramKey := ParseToParamKey(endpoint)
-	item.isRouteContainsParams = checkRouteContainsParams(parsedRoute)
+	if len(paramKey) > 0 {
+		item.ParamKeys = paramKey
+	}
+
 	r.Hash[endpoint] = item
-	r.insert(parsedRoute, '/', r.Hash[endpoint].Index, paramKey, r.Hash[endpoint].Handlers)
+	r.insert(endpoint, parsedRoute, '/', r.Hash[endpoint].Index)
 
 	return r
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
 	route = path.Clean(route) + "/|" + version + "|/[" + method + "]/"
-	if matchedRouterHash, ok := r.Hash[route]; ok && !matchedRouterHash.isRouteContainsParams {
+	if matchedRouterHash, ok := r.Hash[route]; ok && len(matchedRouterHash.ParamKeys) == 0 {
 		return ok, route, nil, nil, matchedRouterHash.Handlers
 	}
 
-	i, paramKeys, paramVals, handlers := r.find(route, method, version, '/')
+	i, raw, paramVals := r.find(route, method, version, '/')
 	matchedRoute := ""
 	isMatched := false
 	if i > -1 {
 		isMatched = true
 		matchedRoute = r.List[i]
+	}
+
+	var handlers []ctx.Handler
+	var paramKeys map[string][]int
+	if routerItem, ok := r.Hash[raw]; ok {
+		handlers = routerItem.Handlers
+		paramKeys = routerItem.ParamKeys
 	}
 
 	return isMatched, matchedRoute, paramKeys, paramVals, handlers

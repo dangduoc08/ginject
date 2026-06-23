@@ -144,26 +144,25 @@ func matchWildcard(str, route string) bool {
 	return len(str) == 0
 }
 
-// get node which has * at last
-func getLastWildcardNode(node *Trie, versionPattern, methodPattern string) *Trie {
+func resolveWildcardRoute(node *Trie, versionPattern, methodPattern string) *Trie {
+	segmentPriority := []string{
+		"*",
+		versionPattern,
+		methodPattern,
+	}
 
-	if node.Children["*"] != nil {
-		wildcardNode := node.Children["*"]
-		if wildcardNode.Children[versionPattern] != nil {
-			wildcardNode = wildcardNode.Children[versionPattern]
-		}
+	for _, seg := range segmentPriority {
+		childNode := node.Children[seg]
+		if childNode != nil {
+			if childNode.Index > -1 {
+				return childNode
+			}
 
-		if wildcardNode.Children[methodPattern] != nil &&
-			wildcardNode.Children[methodPattern].Index > -1 {
-			return wildcardNode.Children[methodPattern]
+			node = childNode
 		}
 	}
 
 	return nil
-}
-
-func checkRouteContainsParams(route string) bool {
-	return strings.Contains(route, "$")
 }
 
 func fromMethodtoPattern(method string) string {
