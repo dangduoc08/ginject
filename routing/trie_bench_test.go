@@ -17,7 +17,7 @@ func buildBenchTrie() *Trie {
 	}
 	tr := NewTrie()
 	for i, r := range routes {
-		tr.insert(r, '/', i, nil, nil)
+		tr.insert(r, r, '/', i)
 	}
 	return tr
 }

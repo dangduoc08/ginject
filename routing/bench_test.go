@@ -30,7 +30,7 @@ func init() {
 			crypto.Random(10)
 
 		arr[i] = randStr
-		tr.insert(randStr, '/', i, nil, nil)
+		tr.insert(randStr, randStr, '/', i)
 	}
 }
 
@@ -42,7 +42,7 @@ func BenchmarkTrieInsert(b *testing.B) {
 		if j == l-1 {
 			j = 0
 		}
-		trie.insert(arr[j], '/', i, nil, nil)
+		trie.insert(arr[j], arr[j], '/', i)
 	}
 }
 

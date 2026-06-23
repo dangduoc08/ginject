@@ -28,24 +28,6 @@ func TestRouteAdd(t *testing.T) {
 	if actual1 != expected1 {
 		t.Error(test.DiffMessage(actual1, expected1, "trie length should be equal"))
 	}
-
-	expected2 := map[string][]int{
-		"schoolId":  {0, 2},
-		"subjectId": {1},
-	}
-	actual2 := r.Children["schools"].Children["$"].Children["subjects"].Children["$"].Children["$"].Children["|v2|"].Children[fromMethodtoPattern(http.MethodGet)].ParamKeys
-
-	for key, indexs := range expected2 {
-		if actual2[key] == nil {
-			t.Error(test.DiffMessage(actual2[key], expected2, "params should not be null"))
-		}
-
-		for i, index := range indexs {
-			if actual2[key][i] != index {
-				t.Error(test.DiffMessage(actual2[key][i], index, "params index should be equal"))
-			}
-		}
-	}
 }
 
 func TestRouterMatch(t *testing.T) {
