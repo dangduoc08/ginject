@@ -1,12 +1,23 @@
 package routing
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/dangduoc08/ginject/internal/test"
 )
+
+func TestTrieLenEmpty(t *testing.T) {
+	tr := NewTrie()
+
+	actual := tr.len()
+	expected := 0
+	if actual != expected {
+		t.Error(test.DiffMessage(actual, expected, "empty trie length should be equal"))
+	}
+}
 
 func TestTrieLen(t *testing.T) {
 	paths := []string{
@@ -79,10 +90,10 @@ func TestTrieInsert(t *testing.T) {
 
 func TestTrieFind(t *testing.T) {
 	cases := []string{
-		fmt.Sprintf("/users/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/feeds/all/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/users/$/friends/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/*/feeds/{feed*Id}/*/files/*.html/*/%v/", fromMethodtoPattern(http.MethodGet)),
+		fmt.Sprintf("/users/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/feeds/all/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/users/$/friends/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/*/feeds/{feed*Id}/*/files/*.html/*/%v/", toPattern(http.MethodGet, "[", "]")),
 	}
 	tr := NewTrie()
 
@@ -128,5 +139,84 @@ func TestTrieFind(t *testing.T) {
 	expectedIndex4 := 3
 	if actualIndex4 != expectedIndex4 {
 		t.Error(test.DiffMessage(actualIndex4, expectedIndex4, "trie node index should be equal"))
+	}
+}
+
+func TestTrieFindWildcardFallbackThroughUnrelatedSibling(t *testing.T) {
+	cases := []string{
+		fmt.Sprintf("/lv1/*/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/lv1/lv2/lv3/pong/%v/", toPattern(http.MethodGet, "[", "]")),
+	}
+	tr := NewTrie()
+
+	for i, path := range cases {
+		tr.insert(path, path, '/', i)
+	}
+
+	testPath := fmt.Sprintf("/lv1/lv2/lv3/extra/[%v]/", http.MethodGet)
+	actualIndex, _, _ := tr.find(testPath, http.MethodGet, "", '/')
+	expectedIndex := 0
+	if actualIndex != expectedIndex {
+		t.Error(test.DiffMessage(actualIndex, expectedIndex, "should fall back to /lv1/* despite unrelated deeper sibling"))
+	}
+}
+
+func findChildByPath(children []any, path string) map[string]any {
+	for _, c := range children {
+		child := c.(map[string]any)
+		if child["path"] == path {
+			return child
+		}
+	}
+	return nil
+}
+
+func TestTrieToJSON(t *testing.T) {
+	tr := NewTrie()
+	tr.insert("/users/$/", "/users/$/", '/', 0)
+	tr.insert("/feeds/all/", "/feeds/all/", '/', 1)
+
+	js, err := tr.ToJSON()
+	if err != nil {
+		t.Error(test.DiffMessage(err, nil, "ToJSON should not error"))
+	}
+
+	var root map[string]any
+	if err := json.Unmarshal([]byte(js), &root); err != nil {
+		t.Error(test.DiffMessage(err, nil, "ToJSON output should be valid JSON"))
+	}
+
+	rootChildren := root["children"].([]any)
+	expectedRootChildren := 2
+	if len(rootChildren) != expectedRootChildren {
+		t.Error(test.DiffMessage(len(rootChildren), expectedRootChildren, "root children count should be equal"))
+	}
+
+	usersNode := findChildByPath(rootChildren, "users")
+	if usersNode == nil {
+		t.Error(test.DiffMessage(usersNode, "users", "users node should exist"))
+	} else {
+		if usersNode["index"].(float64) != -1 {
+			t.Error(test.DiffMessage(usersNode["index"], -1, "users node index should be equal"))
+		}
+
+		paramNode := findChildByPath(usersNode["children"].([]any), "$")
+		if paramNode == nil {
+			t.Error(test.DiffMessage(paramNode, "$", "$ node should exist"))
+		} else if paramNode["index"].(float64) != 0 {
+			t.Error(test.DiffMessage(paramNode["index"], 0, "$ node index should be equal"))
+		}
+	}
+
+	feedsNode := findChildByPath(rootChildren, "feeds")
+	if feedsNode == nil {
+		t.Error(test.DiffMessage(feedsNode, "feeds", "feeds node should exist"))
+	} else {
+		allNode := findChildByPath(feedsNode["children"].([]any), "all")
+		if allNode == nil {
+			t.Error(test.DiffMessage(allNode, "all", "all node should exist"))
+		} else if allNode["index"].(float64) != 1 {
+			t.Error(test.DiffMessage(allNode["index"], 1, "all node index should be equal"))
+		}
 	}
 }

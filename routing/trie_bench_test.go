@@ -8,12 +8,12 @@ import (
 
 func buildBenchTrie() *Trie {
 	routes := []string{
-		fmt.Sprintf("/users/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/users/$/friends/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/feeds/all/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/products/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/products/$/reviews/$/%v/", fromMethodtoPattern(http.MethodGet)),
-		fmt.Sprintf("/*/feeds/{feed*Id}/*/files/*.html/*/%v/", fromMethodtoPattern(http.MethodGet)),
+		fmt.Sprintf("/users/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/users/$/friends/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/feeds/all/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/products/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/products/$/reviews/$/%v/", toPattern(http.MethodGet, "[", "]")),
+		fmt.Sprintf("/*/feeds/{feed*Id}/*/files/*.html/*/%v/", toPattern(http.MethodGet, "[", "]")),
 	}
 	tr := NewTrie()
 	for i, r := range routes {

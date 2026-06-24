@@ -15,6 +15,16 @@ type Trie struct {
 	Raw      string
 }
 
+const paramValsInitialCap = 4
+
+var methodPatternCache = func() map[string]string {
+	m := make(map[string]string, len(HTTPMethods))
+	for _, method := range HTTPMethods {
+		m[method] = toPattern(method, "[", "]")
+	}
+	return m
+}()
+
 func NewTrie() *Trie {
 	return &Trie{
 		Children: make(Node),
@@ -66,11 +76,18 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, string, []str
 	i := -1
 	raw := ""
 	var paramVals []string
-	methodPattern := fromMethodtoPattern(method)
-	versionPattern := fromVersiontoPattern(version)
+	versionPattern := "||"
+	if version != "" {
+		versionPattern = toPattern(version, "|", "|")
+	}
+	methodPattern, ok := methodPatternCache[method]
+	if !ok {
+		methodPattern = toPattern(method, "[", "]")
+	}
 
 	for seg, next := str.Segment(path, sep, start); next > -1; seg, next = str.Segment(path, sep, next) {
-		if node.Children[seg] == nil {
+		exactNode := node.Children[seg]
+		if exactNode == nil {
 
 			// Handle segs have paramVals
 			// param have higher priority than wildcard
@@ -81,7 +98,11 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, string, []str
 				// then cannot fallback to wildcard
 				// due to trie already be traversed
 				// we will store temp node and return if no route matched
-				wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
+				if node.Children["*"] != nil {
+					if w := resolveWildcardRoute(node, versionPattern, methodPattern); w != nil {
+						wildcardNode = w
+					}
+				}
 
 				// pushed /lv1 => /lv/{id}
 				// but still matched
@@ -93,9 +114,14 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, string, []str
 				}
 
 				node = node.Children["$"]
+				if paramVals == nil {
+					paramVals = make([]string, 0, paramValsInitialCap)
+				}
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
-				wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
+				if w := resolveWildcardRoute(node, versionPattern, methodPattern); w != nil {
+					wildcardNode = w
+				}
 				node = node.Children["*"]
 			} else {
 				isNotMatchAnythings := true
@@ -132,8 +158,12 @@ func (tr *Trie) find(path, method, version string, sep byte) (int, string, []str
 			// then cannot fallback to wildcard
 			// due to trie already be traversed
 			// we will store temp node and return if no route matched
-			wildcardNode = resolveWildcardRoute(node, versionPattern, methodPattern)
-			node = node.Children[seg]
+			if node.Children["*"] != nil {
+				if w := resolveWildcardRoute(node, versionPattern, methodPattern); w != nil {
+					wildcardNode = w
+				}
+			}
+			node = exactNode
 		}
 
 		if next == len(path)-1 {
