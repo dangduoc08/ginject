@@ -15,7 +15,7 @@ var matchParamReg = regexp.MustCompile(`\{(.*?)\}`)
 
 func PatternToMethodRouteVersion(pattern string) (string, string, string) {
 	method := matchMethodReg.FindString(pattern)
-	noMethodRoute := matchMethodReg.ReplaceAllString(pattern, "")
+	noMethodRoute := pattern[:len(pattern)-len(method)]
 
 	route := noMethodRoute[:len(noMethodRoute)-1]
 
@@ -69,22 +69,57 @@ func isASCIISpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
 }
 
-func MethodRouteVersionToPattern(method, route, version string) string {
-	return ToEndpoint(route) + fromVersiontoPattern(version) + "/" + fromMethodtoPattern(method) + "/"
+func MethodRouteVersionToPattern(
+	method,
+	route,
+	version string,
+) string {
+	routePattern := ToEndpoint(route)
+	versionPattern := toPattern(version, "|", "|")
+	methodPattern, ok := methodPatternCache[method]
+	if !ok {
+		methodPattern = toPattern(method, "[", "]")
+	}
+
+	size := len(routePattern)
+
+	if versionPattern != "" {
+		size += len(versionPattern) + 1
+	}
+
+	if methodPattern != "" {
+		size += len(methodPattern) + 1
+	}
+
+	var pattern strings.Builder
+	pattern.Grow(size)
+
+	pattern.WriteString(routePattern)
+
+	if versionPattern != "" {
+		pattern.WriteString(versionPattern)
+		pattern.WriteByte('/')
+	}
+
+	if methodPattern != "" {
+		pattern.WriteString(methodPattern)
+		pattern.WriteByte('/')
+	}
+
+	return pattern.String()
 }
 
 func ParseToParamKey(str string) (string, map[string][]int) {
-	paramKey := make(map[string][]int)
-
 	if str == "" || strings.IndexByte(str, '{') < 0 {
-		return str, paramKey
+		return str, nil
 	}
 
 	matches := matchParamReg.FindAllStringSubmatchIndex(str, -1)
 	if len(matches) == 0 {
-		return str, paramKey
+		return str, nil
 	}
 
+	paramKey := make(map[string][]int, len(matches))
 	var b strings.Builder
 	b.Grow(len(str))
 	prev := 0
@@ -165,38 +200,23 @@ func resolveWildcardRoute(node *Trie, versionPattern, methodPattern string) *Tri
 	return nil
 }
 
-func fromMethodtoPattern(method string) string {
-	if method == "" {
-		return method
-	}
-	hasL := strings.HasPrefix(method, "[")
-	hasR := strings.HasSuffix(method, "]")
-	if hasL && hasR {
-		return method
-	}
-	if !hasL && !hasR {
-		return "[" + method + "]"
-	}
-	if !hasL {
-		return "[" + method
-	}
-	return method + "]"
-}
+func toPattern(s, l, r string) string {
+	s = strings.TrimSpace(s)
 
-func fromVersiontoPattern(version string) string {
-	if version == "" {
-		return "||"
+	if s == "" {
+		return l + r
 	}
-	hasL := strings.HasPrefix(version, "|")
-	hasR := strings.HasSuffix(version, "|")
+
+	hasL := strings.HasPrefix(s, l)
+	hasR := strings.HasSuffix(s, r)
 	if hasL && hasR {
-		return version
+		return s
 	}
 	if !hasL && !hasR {
-		return "|" + version + "|"
+		return l + s + r
 	}
 	if !hasL {
-		return "|" + version
+		return l + s
 	}
-	return version + "|"
+	return s + r
 }
