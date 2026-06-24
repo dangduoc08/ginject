@@ -315,6 +315,40 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 }
 
+func TestAddInjectableHandler(t *testing.T) {
+	r := NewRouter()
+	handler := func() {}
+	r.AddInjectableHandler(http.MethodGet, "/users/{userId}", "", handler)
+
+	pattern := MethodRouteVersionToPattern(http.MethodGet, "/users/{userId}", "")
+	if _, ok := r.InjectableHandlers[pattern]; !ok {
+		t.Error(test.DiffMessage(ok, true, "injectable handler should be stored under its pattern"))
+	}
+
+	isMatched, _, _, _, _ := r.Match(http.MethodGet, "/users/123/", "")
+	if !isMatched {
+		t.Error(test.DiffMessage(isMatched, true, "AddInjectableHandler should also register the route via Add"))
+	}
+}
+
+func TestAddInjectableHandlerPanicsOnNil(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when handler is nil")
+		}
+	}()
+	NewRouter().AddInjectableHandler(http.MethodGet, "/x", "", nil)
+}
+
+func TestAddInjectableHandlerPanicsOnNonFunc(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected panic when handler is not a func")
+		}
+	}()
+	NewRouter().AddInjectableHandler(http.MethodGet, "/x", "", "not a func")
+}
+
 func TestRouteToJSON(t *testing.T) {
 	if os.Getenv("v") == "true" {
 		paths := []string{

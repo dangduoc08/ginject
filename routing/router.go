@@ -79,8 +79,7 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 		item.Index = len(r.List) - 1
 		item.HandlerIndex = -1
 	} else {
-		item = r.Hash[endpoint]
-		item.Index = matchedRouterHash.Index
+		item = matchedRouterHash
 	}
 
 	handlerTotal := len(item.Handlers)
@@ -234,7 +233,10 @@ func (r *Router) Add(method, route, version string, handler ctx.Handler) *Router
 }
 
 func (r *Router) AddInjectableHandler(method, route, version string, handler any) *Router {
-	handlerKind := reflect.TypeOf(handler).Kind()
+	var handlerKind reflect.Kind
+	if handler != nil {
+		handlerKind = reflect.TypeOf(handler).Kind()
+	}
 	if handler == nil || handlerKind != reflect.Func {
 		panic(errors.New(
 			color.FmtRed(
