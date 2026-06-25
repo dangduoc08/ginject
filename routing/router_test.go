@@ -23,10 +23,46 @@ func TestRouteAdd(t *testing.T) {
 		r.Add(http.MethodGet, path, "v2", nil)
 	}
 
-	expected1 := 19
-	actual1 := r.len()
+	expected1 := 11
+	actual1 := r.Len()
 	if actual1 != expected1 {
 		t.Error(test.DiffMessage(actual1, expected1, "trie length should be equal"))
+	}
+}
+
+func TestRouterMatchSamePathDifferentMethodAndVersion(t *testing.T) {
+	r := NewRouter()
+	getHandler := func(c *ctx.Context) {}
+	postHandler := func(c *ctx.Context) {}
+	getV2Handler := func(c *ctx.Context) {}
+
+	r.Add(http.MethodGet, "/users/{id}", "", getHandler)
+	r.Add(http.MethodPost, "/users/{id}", "", postHandler)
+	r.Add(http.MethodGet, "/users/{id}", "v2", getV2Handler)
+
+	isMatched, _, _, paramVals, handlers := r.Match(http.MethodGet, "/users/123/", "")
+	if !isMatched || len(handlers) != 1 || paramVals[0] != "123" {
+		t.Error(test.DiffMessage(isMatched, true, "GET, no version should match"))
+	}
+
+	isMatched, _, _, _, handlers = r.Match(http.MethodPost, "/users/123/", "")
+	if !isMatched || len(handlers) != 1 {
+		t.Error(test.DiffMessage(isMatched, true, "POST, no version should match"))
+	}
+
+	isMatched, _, _, _, handlers = r.Match(http.MethodGet, "/users/123/", "v2")
+	if !isMatched || len(handlers) != 1 {
+		t.Error(test.DiffMessage(isMatched, true, "GET, v2 should match"))
+	}
+
+	isMatched, _, _, _, _ = r.Match(http.MethodDelete, "/users/123/", "")
+	if isMatched {
+		t.Error(test.DiffMessage(isMatched, false, "DELETE was never registered, should not match"))
+	}
+
+	isMatched, _, _, _, _ = r.Match(http.MethodPost, "/users/123/", "v2")
+	if isMatched {
+		t.Error(test.DiffMessage(isMatched, false, "POST + v2 was never registered, should not match"))
 	}
 }
 

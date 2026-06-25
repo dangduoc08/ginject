@@ -384,9 +384,11 @@ func (app *App) Listen(port int) error {
 
 	// REST logs
 	var routeArr []string
-	for r, item := range app.http.route.Hash {
-		if item.HandlerIndex > -1 {
-			routeArr = append(routeArr, r)
+	for _, items := range app.http.route.Hash {
+		for _, item := range items {
+			if item.HandlerIndex > -1 {
+				routeArr = append(routeArr, item.Pattern)
+			}
 		}
 	}
 	sort.Strings(routeArr)
