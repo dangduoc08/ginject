@@ -10,7 +10,7 @@ import (
 type Node map[string]*Trie
 
 type Trie struct {
-	ID       int
+	Index    int
 	Raw      string
 	Children Node
 }
@@ -20,7 +20,7 @@ const paramValsInitialCap = 4
 func NewTrie() *Trie {
 	return &Trie{
 		Children: make(Node),
-		ID:       -1,
+		Index:    -1,
 	}
 }
 
@@ -38,7 +38,7 @@ func (tr *Trie) Len() int {
 	return counter
 }
 
-func (tr *Trie) Insert(raw, insertedStr string, sep byte, id int) *Trie {
+func (tr *Trie) Insert(raw, insertedStr string, sep byte, index int) *Trie {
 	node := tr
 	start := strings.IndexByte(insertedStr, sep)
 
@@ -48,7 +48,7 @@ func (tr *Trie) Insert(raw, insertedStr string, sep byte, id int) *Trie {
 		}
 
 		if next == len(insertedStr)-1 {
-			node.Children[seg].ID = id
+			node.Children[seg].Index = index
 			node.Children[seg].Raw = raw
 		}
 		node = node.Children[seg]
@@ -71,7 +71,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 
 			if node.Children["$"] != nil {
 
-				if w := node.Children["*"]; w != nil && w.ID > -1 {
+				if w := node.Children["*"]; w != nil && w.Index > -1 {
 					wildcardNode = w
 				}
 
@@ -81,7 +81,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 				}
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
-				if w := node.Children["*"]; w.ID > -1 {
+				if w := node.Children["*"]; w.Index > -1 {
 					wildcardNode = w
 				}
 				node = node.Children["*"]
@@ -102,7 +102,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 			}
 		} else {
 
-			if w := node.Children["*"]; w != nil && w.ID > -1 {
+			if w := node.Children["*"]; w != nil && w.Index > -1 {
 				wildcardNode = w
 			}
 			node = exactNode
@@ -111,7 +111,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 		if next == len(path)-1 {
 			matchedNode = node
 
-			if w := node.Children["*"]; w != nil && w.ID > -1 {
+			if w := node.Children["*"]; w != nil && w.Index > -1 {
 				wildcardNode = w
 			}
 			break
@@ -120,20 +120,20 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 		continue
 	}
 
-	matchedID := -1
+	matchedIndex := -1
 	matchedRaw := ""
 	if matchedNode != nil {
-		matchedID = matchedNode.ID
+		matchedIndex = matchedNode.Index
 		matchedRaw = matchedNode.Raw
 	}
-	wildcardID := -1
+	wildcardIndex := -1
 	wildcardRaw := ""
 	if wildcardNode != nil {
-		wildcardID = wildcardNode.ID
+		wildcardIndex = wildcardNode.Index
 		wildcardRaw = wildcardNode.Raw
 	}
 
-	return matchedID, matchedRaw, wildcardID, wildcardRaw, paramVals
+	return matchedIndex, matchedRaw, wildcardIndex, wildcardRaw, paramVals
 }
 
 func (tr *Trie) ToJSON() (string, error) {
@@ -157,7 +157,7 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 		if route != "" {
 			if node.Children != nil {
 				trieMap := node.genTrieMap(route)
-				trieMap["id"] = node.ID
+				trieMap["index"] = node.Index
 
 				nodeMap["children"] = append(nodeMap["children"].([]map[string]any), trieMap)
 			}
