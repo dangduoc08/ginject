@@ -19,12 +19,6 @@ func BenchmarkParseToParamKey(b *testing.B) {
 	}
 }
 
-func BenchmarkMatchWildcard(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		matchWildcard("index.html", "in*.html")
-	}
-}
-
 func BenchmarkToEndpoint(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ToEndpoint("//users//profile//settings//")

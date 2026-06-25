@@ -13,6 +13,14 @@ var matchMethodReg = regexp.MustCompile(strings.Join(slice.Map(HTTPMethods, func
 
 var matchParamReg = regexp.MustCompile(`\{(.*?)\}`)
 
+var methodPatternCache = func() map[string]string {
+	m := make(map[string]string, len(HTTPMethods))
+	for _, method := range HTTPMethods {
+		m[method] = toPattern(method, "[", "]")
+	}
+	return m
+}()
+
 func PatternToMethodRouteVersion(pattern string) (string, string, string) {
 	method := matchMethodReg.FindString(pattern)
 	noMethodRoute := pattern[:len(pattern)-len(method)]
@@ -131,73 +139,6 @@ func ParseToParamKey(str string) (string, map[string][]int) {
 	}
 	b.WriteString(str[prev:])
 	return b.String(), paramKey
-}
-
-func matchWildcard(str, route string) bool {
-	if strings.IndexByte(route, '*') < 0 {
-		return str == route
-	}
-
-	subStrArr := strings.Split(route, "*")
-
-	if len(route) < len(subStrArr) {
-		return false
-	}
-
-	for i, subStr := range subStrArr {
-
-		// s = *
-		if subStr == "" {
-			if i == 0 {
-				nextSubStr := subStrArr[1]
-				matchedIdx := strings.Index(str, nextSubStr)
-				if matchedIdx < 0 {
-					return false
-				}
-				str = str[matchedIdx:]
-			} else if i == len(subStrArr)-1 {
-				str = ""
-			}
-			continue
-		} else if len(str) >= len(subStr) && str[0:len(subStr)] == subStr {
-			str = str[len(subStr):]
-			if i == len(subStrArr)-1 {
-				continue
-			}
-			nextSubStr := subStrArr[i+1]
-			matchedIdx := strings.Index(str, nextSubStr)
-			if matchedIdx < 0 {
-				return false
-			}
-			str = str[matchedIdx:]
-			continue
-		} else {
-			return false
-		}
-	}
-
-	return len(str) == 0
-}
-
-func resolveWildcardRoute(node *Trie, versionPattern, methodPattern string) *Trie {
-	segmentPriority := []string{
-		"*",
-		versionPattern,
-		methodPattern,
-	}
-
-	for _, seg := range segmentPriority {
-		childNode := node.Children[seg]
-		if childNode != nil {
-			if childNode.Index > -1 {
-				return childNode
-			}
-
-			node = childNode
-		}
-	}
-
-	return nil
 }
 
 func toPattern(s, l, r string) string {

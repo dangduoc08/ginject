@@ -91,29 +91,6 @@ func TestParseToParamKey(t *testing.T) {
 	}
 }
 
-func TestMatchWildcard(t *testing.T) {
-	cases := []struct {
-		str   string
-		route string
-		want  bool
-	}{
-		{"index.html", "*.html", true},
-		{"image.png", "image.*", true},
-		{"index.html", "in*.html", true},
-		{"in.html", "in*.html", true},
-		{"index.html", "*.png", false},
-		{"foo", "foo", true},
-		{"foobar", "foo", false},
-	}
-
-	for _, c := range cases {
-		got := matchWildcard(c.str, c.route)
-		if got != c.want {
-			t.Error(test.DiffMessage(got, c.want, "matchWildcard("+c.str+", "+c.route+")"))
-		}
-	}
-}
-
 func TestFromMethodtoPattern(t *testing.T) {
 	got := toPattern(http.MethodGet, "[", "]")
 	want := "[GET]"
@@ -166,44 +143,5 @@ func TestMethodRouteVersionToPattern(t *testing.T) {
 		if got != c.want {
 			t.Error(test.DiffMessage(got, c.want, "MethodRouteVersionToPattern("+c.method+", "+c.route+", "+c.version+")"))
 		}
-	}
-}
-
-func TestResolveWildcardRoute(t *testing.T) {
-	versionPattern := "|v2|"
-	methodPattern := "{method}"
-
-	cases := []struct {
-		name        string
-		insertedStr string
-		wantIndex   int
-	}{
-		{"terminal at *", "/abc/xyz/*/", 10},
-		{"full depth */version/method", "/abc/xyz/*/|v2|/{method}/", 11},
-		{"terminal at version, no method", "/abc/xyz/*/|v2|/", 12},
-		{"method directly under *, no version", "/abc/xyz/*/{method}/", 13},
-	}
-
-	for _, c := range cases {
-		tr := NewTrie()
-		tr.insert(c.insertedStr, c.insertedStr, '/', c.wantIndex)
-
-		xyzNode := tr.Children["abc"].Children["xyz"]
-		got := resolveWildcardRoute(xyzNode, versionPattern, methodPattern)
-
-		if got == nil {
-			t.Error(test.DiffMessage(got, c.wantIndex, c.name+": expected a resolved node"))
-			continue
-		}
-		if got.Index != c.wantIndex {
-			t.Error(test.DiffMessage(got.Index, c.wantIndex, c.name+": resolved node Index"))
-		}
-	}
-
-	noMatch := NewTrie()
-	noMatch.insert("/abc/xyz/sibling/", "/abc/xyz/sibling/", '/', 99)
-	xyzNode := noMatch.Children["abc"].Children["xyz"]
-	if got := resolveWildcardRoute(xyzNode, versionPattern, methodPattern); got != nil {
-		t.Error(test.DiffMessage(got.Index, -1, "no * / version / method reachable: expected nil"))
 	}
 }
