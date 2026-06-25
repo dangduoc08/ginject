@@ -53,19 +53,19 @@ func TestTrieInsert(t *testing.T) {
 		tr.Insert(path, path, '/', i)
 	}
 
-	wantID2 := -1
-	wantID7 := 2
+	wantIndex2 := -1
+	wantIndex7 := 2
 	cases := []struct {
-		name   string
-		node   *Trie
-		wantID *int
+		name      string
+		node      *Trie
+		wantIndex *int
 	}{
 		{name: "users", node: tr.Children["users"]},
 		{name: "users/{userId}", node: tr.Children["users"].Children["{userId}"]},
-		{name: "users/{userId}/friends", node: tr.Children["users"].Children["{userId}"].Children["friends"], wantID: &wantID2},
+		{name: "users/{userId}/friends", node: tr.Children["users"].Children["{userId}"].Children["friends"], wantIndex: &wantIndex2},
 		{name: "feeds", node: tr.Children["feeds"]},
 		{name: "feeds/all", node: tr.Children["feeds"].Children["all"]},
-		{name: "users/{userId}/friends/all", node: tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"], wantID: &wantID7},
+		{name: "users/{userId}/friends/all", node: tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"], wantIndex: &wantIndex7},
 	}
 
 	for _, c := range cases {
@@ -73,8 +73,8 @@ func TestTrieInsert(t *testing.T) {
 			t.Error(test.DiffMessage(c.node, nil, c.name+": trie node should not be null"))
 			continue
 		}
-		if c.wantID != nil && c.node.ID != *c.wantID {
-			t.Error(test.DiffMessage(c.node.ID, *c.wantID, c.name+": trie node id should be equal"))
+		if c.wantIndex != nil && c.node.Index != *c.wantIndex {
+			t.Error(test.DiffMessage(c.node.Index, *c.wantIndex, c.name+": trie node index should be equal"))
 		}
 	}
 }
@@ -178,7 +178,7 @@ func TestTrieFindWildcardFallbackThroughUnrelatedSibling(t *testing.T) {
 
 type trieJSONNode struct {
 	Path     string         `json:"path"`
-	ID       int            `json:"id"`
+	Index    int            `json:"index"`
 	Children []trieJSONNode `json:"children"`
 }
 
@@ -215,15 +215,15 @@ func TestTrieToJSON(t *testing.T) {
 	if usersNode == nil {
 		t.Error(test.DiffMessage(usersNode, "users", "users node should exist"))
 	} else {
-		if usersNode.ID != -1 {
-			t.Error(test.DiffMessage(usersNode.ID, -1, "users node id should be equal"))
+		if usersNode.Index != -1 {
+			t.Error(test.DiffMessage(usersNode.Index, -1, "users node index should be equal"))
 		}
 
 		paramNode := findChildByPath(usersNode.Children, "$")
 		if paramNode == nil {
 			t.Error(test.DiffMessage(paramNode, "$", "$ node should exist"))
-		} else if paramNode.ID != 0 {
-			t.Error(test.DiffMessage(paramNode.ID, 0, "$ node id should be equal"))
+		} else if paramNode.Index != 0 {
+			t.Error(test.DiffMessage(paramNode.Index, 0, "$ node index should be equal"))
 		}
 	}
 
@@ -234,8 +234,8 @@ func TestTrieToJSON(t *testing.T) {
 		allNode := findChildByPath(feedsNode.Children, "all")
 		if allNode == nil {
 			t.Error(test.DiffMessage(allNode, "all", "all node should exist"))
-		} else if allNode.ID != 1 {
-			t.Error(test.DiffMessage(allNode.ID, 1, "all node id should be equal"))
+		} else if allNode.Index != 1 {
+			t.Error(test.DiffMessage(allNode.Index, 1, "all node index should be equal"))
 		}
 	}
 }
