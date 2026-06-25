@@ -8,6 +8,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/color"
+	"github.com/dangduoc08/ginject/internal/ds"
 )
 
 const SERVE = "SERVE" // Serving static files directive
@@ -45,16 +46,32 @@ const (
 	GROUP
 )
 
+// RouterItem holds everything Match needs once the trie has resolved a
+// path: which method/version it was registered for, and the handler chain.
+// Several RouterItems can share the same trie leaf (same Index, same route)
+// when the same path is registered under different methods/versions.
 type RouterItem struct {
+	Method       string
+	Version      string
+	Pattern      string
 	Index        int
 	HandlerIndex int
 	Handlers     []ctx.Handler
 	ParamKeys    map[string][]int
 }
 
+func findRouterItem(items []RouterItem, method, version string) (RouterItem, bool) {
+	for _, item := range items {
+		if item.Method == method && item.Version == version {
+			return item, true
+		}
+	}
+	return RouterItem{}, false
+}
+
 type Router struct {
-	*Trie
-	Hash               map[string]RouterItem
+	*ds.Trie
+	Hash               map[string][]RouterItem
 	List               []string
 	GlobalMiddlewares  []ctx.Handler
 	InjectableHandlers map[string]any
@@ -62,24 +79,43 @@ type Router struct {
 
 func NewRouter() *Router {
 	return &Router{
-		Trie:               NewTrie(),
-		Hash:               make(map[string]RouterItem),
+		Trie:               ds.NewTrie(),
+		Hash:               make(map[string][]RouterItem),
 		GlobalMiddlewares:  []ctx.Handler{},
 		InjectableHandlers: make(map[string]any),
 	}
 }
 
 func (r *Router) push(method, route, version string, caller int, handlers ...ctx.Handler) *Router {
-	endpoint := MethodRouteVersionToPattern(method, route, version)
+	routePattern := ToEndpoint(route)
+
+	items := r.Hash[routePattern]
+	itemPos := -1
+	for i := range items {
+		if items[i].Method == method && items[i].Version == version {
+			itemPos = i
+			break
+		}
+	}
 
 	var item RouterItem
-
-	if matchedRouterHash, ok := r.Hash[endpoint]; !ok {
-		r.List = append(r.List, endpoint)
-		item.Index = len(r.List) - 1
-		item.HandlerIndex = -1
+	if itemPos == -1 {
+		var routeIndex int
+		if len(items) > 0 {
+			routeIndex = items[0].Index
+		} else {
+			r.List = append(r.List, routePattern)
+			routeIndex = len(r.List) - 1
+		}
+		item = RouterItem{
+			Method:       method,
+			Version:      version,
+			Pattern:      MethodRouteVersionToPattern(method, route, version),
+			Index:        routeIndex,
+			HandlerIndex: -1,
+		}
 	} else {
-		item = matchedRouterHash
+		item = items[itemPos]
 	}
 
 	handlerTotal := len(item.Handlers)
@@ -138,58 +174,59 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 		}
 	}
 
-	parsedRoute, paramKey := ParseToParamKey(endpoint)
+	parsedRoute, paramKey := ParseToParamKey(routePattern)
 	if len(paramKey) > 0 {
 		item.ParamKeys = paramKey
 	}
 
-	r.Hash[endpoint] = item
-	r.insert(endpoint, parsedRoute, '/', r.Hash[endpoint].Index)
+	if itemPos == -1 {
+		items = append(items, item)
+	} else {
+		items[itemPos] = item
+	}
+	r.Hash[routePattern] = items
+
+	r.Insert(routePattern, parsedRoute, '/', item.Index)
 
 	return r
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	route = path.Clean(route) + "/|" + version + "|/[" + method + "]/"
-	if matchedRouterHash, ok := r.Hash[route]; ok && len(matchedRouterHash.ParamKeys) == 0 {
-		return ok, route, nil, nil, matchedRouterHash.Handlers
+	searchPath := ToEndpoint(path.Clean(route))
+	_, matchedRaw, _, wildcardRaw, paramVals := r.Find(searchPath, '/')
+
+	item, ok := findRouterItem(r.Hash[matchedRaw], method, version)
+	if !ok {
+		item, ok = findRouterItem(r.Hash[wildcardRaw], method, version)
+	}
+	if !ok {
+		return false, "", nil, nil, nil
 	}
 
-	i, raw, paramVals := r.find(route, method, version, '/')
-	matchedRoute := ""
-	isMatched := false
-	if i > -1 {
-		isMatched = true
-		matchedRoute = r.List[i]
-	}
-
-	var handlers []ctx.Handler
-	var paramKeys map[string][]int
-	if routerItem, ok := r.Hash[raw]; ok {
-		handlers = routerItem.Handlers
-		paramKeys = routerItem.ParamKeys
-	}
-
-	return isMatched, matchedRoute, paramKeys, paramVals, handlers
+	return true, item.Pattern, item.ParamKeys, paramVals, item.Handlers
 }
 
 func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 	for _, subRouter := range subRouters {
-		for route, routerItem := range subRouter.Hash {
-			method, path, version := PatternToMethodRouteVersion(route)
-			groupPath := prefix + path
+		for route, items := range subRouter.Hash {
+			groupPath := prefix + route
 
-			if routerItem.HandlerIndex > -1 {
-				endpoint := MethodRouteVersionToPattern(method, groupPath, version)
-				r.List = append(r.List, endpoint)
-				r.Hash[endpoint] = RouterItem{
-					Index:        len(r.List) - 1,
-					HandlerIndex: routerItem.HandlerIndex,
+			for _, routerItem := range items {
+				if routerItem.HandlerIndex > -1 {
+					groupPathPattern := ToEndpoint(groupPath)
+					r.List = append(r.List, groupPathPattern)
+					r.Hash[groupPathPattern] = append(r.Hash[groupPathPattern], RouterItem{
+						Method:       routerItem.Method,
+						Version:      routerItem.Version,
+						Pattern:      MethodRouteVersionToPattern(routerItem.Method, groupPath, routerItem.Version),
+						Index:        len(r.List) - 1,
+						HandlerIndex: routerItem.HandlerIndex,
+					})
 				}
-			}
 
-			handlers := append(r.GlobalMiddlewares[:len(r.GlobalMiddlewares):len(r.GlobalMiddlewares)], routerItem.Handlers...)
-			r.push(method, groupPath, version, GROUP, handlers...)
+				handlers := append(r.GlobalMiddlewares[:len(r.GlobalMiddlewares):len(r.GlobalMiddlewares)], routerItem.Handlers...)
+				r.push(routerItem.Method, groupPath, routerItem.Version, GROUP, handlers...)
+			}
 		}
 
 		for route, injectableHandler := range subRouter.InjectableHandlers {
@@ -207,9 +244,10 @@ func (r *Router) Use(handlers ...ctx.Handler) *Router {
 	// this middlewares still need invoking
 	r.GlobalMiddlewares = append(r.GlobalMiddlewares, handlers...)
 
-	for route := range r.Hash {
-		method, path, version := PatternToMethodRouteVersion(route)
-		r.push(method, path, version, USE, handlers...)
+	for route, items := range r.Hash {
+		for _, routerItem := range items {
+			r.push(routerItem.Method, route, routerItem.Version, USE, handlers...)
+		}
 	}
 
 	return r
