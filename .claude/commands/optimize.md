@@ -15,7 +15,7 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 
 4. **Run benchmarks** (`go test -bench=. -benchmem`) to record baseline numbers.
 
-5. **Analyze** — look specifically for:
+5. **Analyze** — allocation reduction and raw performance (ns/op) are the top priority of this command; look for these first, then the remaining correctness/style/security items:
    - Repeated work inside loops (regex compile, object creation, repeated allocations)
    - O(n²) patterns that can be reduced (e.g. string `+=` → `strings.Builder`)
    - Unnecessary allocations on hot paths (`make` / `[]T{}` that could be `var`)
@@ -52,9 +52,9 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 8. **Apply** changes one at a time. After each change:
    - Run tests — if any fail, revert that specific change and note why.
    - For concurrency bugs, run with `-race` flag: `go test -race ./...`
-   - Prefer readable, maintainable code over micro-optimizations. If the performance gain is marginal, keep the simpler version.
+   - Allocation reduction and performance gains are the top priority — apply them whenever the benchmark shows a measurable improvement, even at a modest readability cost. Only keep the simpler version when the delta is within benchmark noise (no measurable gain).
    - Always use functions available in newer versions of the language/stdlib over manual equivalents.
-   - Security and race condition fixes are always applied regardless of readability trade-off.
+   - Security, race condition, and allocation/performance fixes are always applied regardless of readability trade-off.
 
 9. **Run benchmarks again** and compare to baseline.
 
@@ -100,6 +100,6 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
 - Do not add features, error handling, or abstractions beyond the task.
 - Do not add comments to the code.
 - If a change would affect callers outside the file, flag it before applying.
-- Readability wins over performance when the gain is small — do not make code harder to read for marginal improvements.
+- **Allocation and performance optimizations are the top priority of this command** — apply any change with a measurable allocs/op or ns/op improvement, even at a modest readability cost. Only keep the simpler version when the benchmark delta is within noise (no measurable gain).
 - **Prefer built-ins over manual equivalents**: if the standard library (or language built-in) already provides an equivalent function, use it instead of a manual implementation — unless the built-in form is demonstrably less readable with no meaningful correctness or performance gain.
 - **Each package owns its output**: a package must produce correct, clean output by itself — do not leave known artifacts (e.g. double slashes, trailing separators, off-by-one boundaries) for downstream callers to normalise. If the fix belongs in this file, apply it here.
