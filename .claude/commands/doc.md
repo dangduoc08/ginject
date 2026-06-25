@@ -1,4 +1,4 @@
-Generate (or refresh) `README.md` and its Vietnamese equivalent for the package at $ARGUMENTS. If no argument is given, use the package of the file currently open in the IDE or the package most recently discussed.
+Generate (or refresh) `README.md` for the package at $ARGUMENTS. If no argument is given, use the package of the file currently open in the IDE or the package most recently discussed.
 
 ## Steps
 
@@ -35,22 +35,20 @@ Generate (or refresh) `README.md` and its Vietnamese equivalent for the package 
    If a field's or parameter's purpose isn't stated in a doc comment, read where it's consumed in the implementation before writing its description. Don't guess or invent behavior that isn't there.
 
 8. **Audit an existing README before rewriting it.**
-   If `README.md` and/or `README.vi.md` already exist, check each section against the structure in step 2 (title + description, complete TOC, `Key Features` criteria, one compilable `Usage` example, `Type:`/`Default:`/`Required:` tags on every field, parameter/return/usage blocks per function) plus the `Rules` and `Benchmarks` sections from steps 5-6. Treat this as a refresh, not a rewrite: keep accurate existing prose untouched, fix only what's missing or now wrong relative to the guide or the current code, and add any section that's absent.
+   If `README.md` already exists, check each section against the structure in step 2 (title + description, complete TOC, `Key Features` criteria, one compilable `Usage` example, `Type:`/`Default:`/`Required:` tags on every field, parameter/return/usage blocks per function) plus the `Rules` and `Benchmarks` sections from steps 5-6. Treat this as a refresh, not a rewrite: keep accurate existing prose untouched, fix only what's missing or now wrong relative to the guide or the current code, and add any section that's absent.
 
-9. **Write `README.md`** in the target package directory, in English, following the structure from step 2 plus the per-function `Rules` (step 5) and the package-level `## Benchmarks` section (step 6, only if benchmarks exist), populated with the findings from steps 3-7, and incorporating the audit from step 8 if the file already existed.
+9. **Write `README.md`** in the target package directory, following the structure from step 2 plus the per-function `Rules` (step 5) and the package-level `## Benchmarks` section (step 6, only if benchmarks exist), populated with the findings from steps 3-7, and incorporating the audit from step 8 if the file already existed.
 
-10. **Write `README.vi.md`** in the same directory: a complete Vietnamese translation with the same structure, the same headings (translated), the same code blocks and raw benchmark output (code and numbers are never translated), and the same level of detail as the English version — a full equivalent, not a shortened summary.
-
-11. **Verify completeness.**
-   Confirm every exported type, field, function, and method found in step 3 is documented in both `README.md` and `README.vi.md`. Confirm every field listing states its Go type explicitly. Confirm every test-derived rule from step 5 appears in both files, and that the `## Benchmarks` section (if applicable) is present in both and shows the same numbers.
+10. **Verify completeness.**
+   Confirm every exported type, field, function, and method found in step 3 is documented in `README.md`. Confirm every field listing states its Go type explicitly. Confirm every test-derived rule from step 5 appears in the file, and that the `## Benchmarks` section (if applicable) is present and shows the captured numbers.
 
 ## Rules
 
-- Never modify, create, or delete any `.go` file — output is strictly `README.md` and `README.vi.md`.
+- Never modify, create, or delete any `.go` file — output is strictly `README.md`.
 - Every exported field's type must be shown explicitly, e.g. `` Type: `bool` ``, matching `modules/config/README.md`'s style.
 - Every code example must use real exported identifiers from the package and must be valid, compilable Go.
 - Do not document unexported identifiers.
-- Do not add any Claude-related signature, attribution, or generated-by note to either file.
+- Do not add any Claude-related signature, attribution, or generated-by note to the file.
 - If `README.md` already exists, this is a refresh, governed by step 8: keep accurate existing prose, correct anything now stale or non-compliant with the guide, and add missing sections — don't discard a well-written description just to rewrite it from scratch.
 - If the package has no exported identifiers at all, stop and tell the user instead of producing an empty README.
 - Per-function `Rules` bullets (step 5) must each trace back to a real assertion in a `_test.go` file — if a function has no test coverage, omit the `Rules` subsection for it rather than guessing.
