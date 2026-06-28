@@ -10,7 +10,7 @@ import (
 type Node map[string]*Trie
 
 type Trie struct {
-	Index    int
+	IsEnd    bool
 	Raw      string
 	Children Node
 }
@@ -20,7 +20,6 @@ const paramValsInitialCap = 4
 func NewTrie() *Trie {
 	return &Trie{
 		Children: make(Node),
-		Index:    -1,
 	}
 }
 
@@ -38,7 +37,7 @@ func (tr *Trie) Len() int {
 	return counter
 }
 
-func (tr *Trie) Insert(raw, insertedStr string, sep byte, index int) *Trie {
+func (tr *Trie) Insert(raw, insertedStr string, sep byte) *Trie {
 	node := tr
 	start := strings.IndexByte(insertedStr, sep)
 
@@ -48,7 +47,7 @@ func (tr *Trie) Insert(raw, insertedStr string, sep byte, index int) *Trie {
 		}
 
 		if next == len(insertedStr)-1 {
-			node.Children[seg].Index = index
+			node.Children[seg].IsEnd = true
 			node.Children[seg].Raw = raw
 		}
 		node = node.Children[seg]
@@ -57,7 +56,45 @@ func (tr *Trie) Insert(raw, insertedStr string, sep byte, index int) *Trie {
 	return tr
 }
 
-func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string) {
+func (tr *Trie) Remove(removedStr string, sep byte) bool {
+	type step struct {
+		parent *Trie
+		key    string
+	}
+
+	node := tr
+	start := strings.IndexByte(removedStr, sep)
+	var chain []step
+
+	for seg, next := str.Segment(removedStr, sep, start); next > -1; seg, next = str.Segment(removedStr, sep, next) {
+		child := node.Children[seg]
+		if child == nil {
+			return false
+		}
+		chain = append(chain, step{parent: node, key: seg})
+		node = child
+	}
+
+	if len(chain) == 0 || !node.IsEnd {
+		return false
+	}
+
+	node.IsEnd = false
+	node.Raw = ""
+
+	for i := len(chain) - 1; i >= 0; i-- {
+		s := chain[i]
+		child := s.parent.Children[s.key]
+		if child.IsEnd || len(child.Children) > 0 {
+			break
+		}
+		delete(s.parent.Children, s.key)
+	}
+
+	return true
+}
+
+func (tr *Trie) Find(path string, sep byte, supportParams bool) (string, string, []string) {
 	node := tr
 	var matchedNode *Trie
 	var wildcardNode *Trie
@@ -69,9 +106,9 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 		exactNode := node.Children[seg]
 		if exactNode == nil {
 
-			if node.Children["$"] != nil {
+			if supportParams && node.Children["$"] != nil {
 
-				if w := node.Children["*"]; w != nil && w.Index > -1 {
+				if w := node.Children["*"]; w != nil && w.IsEnd {
 					wildcardNode = w
 				}
 
@@ -81,7 +118,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 				}
 				paramVals = append(paramVals, seg)
 			} else if node.Children["*"] != nil {
-				if w := node.Children["*"]; w.Index > -1 {
+				if w := node.Children["*"]; w.IsEnd {
 					wildcardNode = w
 				}
 				node = node.Children["*"]
@@ -102,7 +139,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 			}
 		} else {
 
-			if w := node.Children["*"]; w != nil && w.Index > -1 {
+			if w := node.Children["*"]; w != nil && w.IsEnd {
 				wildcardNode = w
 			}
 			node = exactNode
@@ -111,7 +148,7 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 		if next == len(path)-1 {
 			matchedNode = node
 
-			if w := node.Children["*"]; w != nil && w.Index > -1 {
+			if w := node.Children["*"]; w != nil && w.IsEnd {
 				wildcardNode = w
 			}
 			break
@@ -120,20 +157,16 @@ func (tr *Trie) Find(path string, sep byte) (int, string, int, string, []string)
 		continue
 	}
 
-	matchedIndex := -1
 	matchedRaw := ""
 	if matchedNode != nil {
-		matchedIndex = matchedNode.Index
 		matchedRaw = matchedNode.Raw
 	}
-	wildcardIndex := -1
 	wildcardRaw := ""
 	if wildcardNode != nil {
-		wildcardIndex = wildcardNode.Index
 		wildcardRaw = wildcardNode.Raw
 	}
 
-	return matchedIndex, matchedRaw, wildcardIndex, wildcardRaw, paramVals
+	return matchedRaw, wildcardRaw, paramVals
 }
 
 func (tr *Trie) ToJSON() (string, error) {
@@ -157,7 +190,7 @@ func (tr *Trie) genTrieMap(path string) map[string]any {
 		if route != "" {
 			if node.Children != nil {
 				trieMap := node.genTrieMap(route)
-				trieMap["index"] = node.Index
+				trieMap["isEnd"] = node.IsEnd
 
 				nodeMap["children"] = append(nodeMap["children"].([]map[string]any), trieMap)
 			}
