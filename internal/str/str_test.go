@@ -60,6 +60,33 @@ func TestSegment(t *testing.T) {
 	}
 }
 
+func TestEnclose(t *testing.T) {
+	cases := []struct {
+		in   string
+		sep  byte
+		want string
+	}{
+		{"users", '/', "/users/"},
+		{"/users/", '/', "/users/"},
+		{"//users//", '/', "/users/"},
+		{" /users/ ", '/', "/users/"},
+		{"/a//b///c/", '/', "/a/b/c/"},
+		{"/a/**/b/", '/', "/a/*/b/"},
+		{"foo", '.', ".foo."},
+		{"foo.bar", '.', ".foo.bar."},
+		{".foo.bar.", '.', ".foo.bar."},
+		{"foo..bar", '.', ".foo.bar."},
+		{"", '.', ""},
+	}
+
+	for _, c := range cases {
+		got := Enclose(c.in, c.sep)
+		if got != c.want {
+			t.Error(test.DiffMessage(got, c.want, "Enclose("+c.in+")"))
+		}
+	}
+}
+
 func TestRemoveDup(t *testing.T) {
 	expect1 := "/*/school*/*/*/{subjectId}/*"
 	output1 := RemoveDup("/**/school**/***/***/{subjectId}/***", "*")

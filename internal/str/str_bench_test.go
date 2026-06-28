@@ -23,6 +23,13 @@ func BenchmarkRemoveSpace(b *testing.B) {
 	}
 }
 
+func BenchmarkEnclose(b *testing.B) {
+	input := "//users//profile//settings//"
+	for i := 0; i < b.N; i++ {
+		Enclose(input, '/')
+	}
+}
+
 func BenchmarkRemoveDup(b *testing.B) {
 	input := "/**/school**/***/***/{subjectId}/***"
 	for i := 0; i < b.N; i++ {
