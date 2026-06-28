@@ -100,6 +100,20 @@ func TestPublish_DeliversToSubscribedHandler(t *testing.T) {
 	}
 }
 
+func TestPublish_DeliversToMiddleWildcardSubscriber(t *testing.T) {
+	b := NewBroker()
+
+	var got *Message
+	_, _ = b.Subscribe("chat.*.who", func(m *Message) { got = m })
+
+	if err := b.Publish("chat.user_id_1.who", "hello to id 1"); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Publish should not error"))
+	}
+	if got == nil || got.Payload != "hello to id 1" || got.Topic != "chat.user_id_1.who" {
+		t.Error(test.DiffMessage(got, "&Message{Topic: \"chat.user_id_1.who\", Payload: \"hello to id 1\"}", "Publish should deliver to a subscriber registered with a non-trailing wildcard segment"))
+	}
+}
+
 func TestPublish_HandlerPanic_DoesNotCrashOrBlockSiblings(t *testing.T) {
 	b := NewBroker()
 
