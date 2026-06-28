@@ -81,8 +81,8 @@ func BenchmarkPublishManyTopics(b *testing.B) {
 	}
 }
 
-// BenchmarkSubscriptions measures the cost of snapshotting topic->ids across many topics.
-func BenchmarkSubscriptions(b *testing.B) {
+// BenchmarkGetSubscriptions measures the cost of snapshotting topic->ids across many topics.
+func BenchmarkGetSubscriptions(b *testing.B) {
 	br := NewBroker()
 
 	noop := func(_ *Message) {}
@@ -93,7 +93,7 @@ func BenchmarkSubscriptions(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = br.Subscriptions()
+		_ = br.GetSubscriptions()
 	}
 }
 

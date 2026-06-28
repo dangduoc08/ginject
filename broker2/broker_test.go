@@ -273,60 +273,60 @@ func TestUnsubscribe_AfterUnsubscribe_PublishSkipsHandler(t *testing.T) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Subscriptions
+// GetSubscriptions
 // ────────────────────────────────────────────────────────────────────────────
 
-func TestSubscriptions_EmptyBroker_ReturnsEmptyMap(t *testing.T) {
+func TestGetSubscriptions_EmptyBroker_ReturnsEmptyMap(t *testing.T) {
 	b := NewBroker()
 
-	if subs := b.Subscriptions(); len(subs) != 0 {
-		t.Error(test.DiffMessage(subs, map[string][]uint64{}, "Subscriptions on a fresh broker should be empty"))
+	if subs := b.GetSubscriptions(); len(subs) != 0 {
+		t.Error(test.DiffMessage(subs, map[string][]uint64{}, "GetSubscriptions on a fresh broker should be empty"))
 	}
 }
 
-func TestSubscriptions_ListsTopicsAndIDs(t *testing.T) {
+func TestGetSubscriptions_ListsTopicsAndIDs(t *testing.T) {
 	b := NewBroker()
 
 	idA, _ := b.Subscribe("foo.bar", func(*Message) {})
 	idB, _ := b.Subscribe("foo.bar", func(*Message) {})
 	idC, _ := b.Subscribe("baz", func(*Message) {})
 
-	subs := b.Subscriptions()
+	subs := b.GetSubscriptions()
 	if len(subs) != 2 {
-		t.Fatal(test.DiffMessage(len(subs), 2, "Subscriptions should report one entry per topic"))
+		t.Fatal(test.DiffMessage(len(subs), 2, "GetSubscriptions should report one entry per topic"))
 	}
 
 	fooIDs := subs["foo.bar"]
 	if len(fooIDs) != 2 || !slices.Contains(fooIDs, idA) || !slices.Contains(fooIDs, idB) {
-		t.Error(test.DiffMessage(fooIDs, []uint64{idA, idB}, "Subscriptions[\"foo.bar\"] should contain both ids"))
+		t.Error(test.DiffMessage(fooIDs, []uint64{idA, idB}, "GetSubscriptions[\"foo.bar\"] should contain both ids"))
 	}
 
 	bazIDs := subs["baz"]
 	if len(bazIDs) != 1 || bazIDs[0] != idC {
-		t.Error(test.DiffMessage(bazIDs, []uint64{idC}, "Subscriptions[\"baz\"] should contain its id"))
+		t.Error(test.DiffMessage(bazIDs, []uint64{idC}, "GetSubscriptions[\"baz\"] should contain its id"))
 	}
 }
 
-func TestSubscriptions_AfterUnsubscribe_RemovesEntry(t *testing.T) {
+func TestGetSubscriptions_AfterUnsubscribe_RemovesEntry(t *testing.T) {
 	b := NewBroker()
 
 	id, _ := b.Subscribe("foo", func(*Message) {})
 	_ = b.Unsubscribe("foo", id)
 
-	if subs := b.Subscriptions(); len(subs) != 0 {
-		t.Error(test.DiffMessage(subs, map[string][]uint64{}, "Subscriptions must not list a topic after its last handler is removed"))
+	if subs := b.GetSubscriptions(); len(subs) != 0 {
+		t.Error(test.DiffMessage(subs, map[string][]uint64{}, "GetSubscriptions must not list a topic after its last handler is removed"))
 	}
 }
 
-func TestSubscriptions_ReturnsIndependentCopy(t *testing.T) {
+func TestGetSubscriptions_ReturnsIndependentCopy(t *testing.T) {
 	b := NewBroker()
 	_, _ = b.Subscribe("foo", func(*Message) {})
 
-	subs := b.Subscriptions()
+	subs := b.GetSubscriptions()
 	_, _ = b.Subscribe("foo", func(*Message) {})
 
 	if len(subs["foo"]) != 1 {
-		t.Error(test.DiffMessage(len(subs["foo"]), 1, "snapshot returned by Subscriptions must not observe later inserts"))
+		t.Error(test.DiffMessage(len(subs["foo"]), 1, "snapshot returned by GetSubscriptions must not observe later inserts"))
 	}
 }
 
@@ -353,7 +353,7 @@ func TestConcurrentSubscribeUnsubscribePublish(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
-			_ = b.Subscriptions()
+			_ = b.GetSubscriptions()
 		}()
 	}
 	wg.Wait()
