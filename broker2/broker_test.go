@@ -15,7 +15,7 @@ import (
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestSubscribe_EmptyTopic_ReturnsError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	id, err := b.Subscribe("", func(*Message) {})
 	if err != ErrEmptyTopic {
@@ -27,7 +27,7 @@ func TestSubscribe_EmptyTopic_ReturnsError(t *testing.T) {
 }
 
 func TestSubscribe_NilHandler_ReturnsError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	id, err := b.Subscribe("foo", nil)
 	if err != ErrNilHandler {
@@ -39,7 +39,7 @@ func TestSubscribe_NilHandler_ReturnsError(t *testing.T) {
 }
 
 func TestSubscribe_Success_ReturnsNonZeroID(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	id, err := b.Subscribe("foo", func(*Message) {})
 	if err != nil {
@@ -51,7 +51,7 @@ func TestSubscribe_Success_ReturnsNonZeroID(t *testing.T) {
 }
 
 func TestSubscribe_TopicWithSpecialCharacters_NoPanic(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	topics := []string{
 		"../../etc/passwd",
@@ -71,7 +71,7 @@ func TestSubscribe_TopicWithSpecialCharacters_NoPanic(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestPublish_EmptyTopic_ReturnsError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.Publish("", "payload"); err != ErrEmptyTopic {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "Publish with empty topic"))
@@ -79,7 +79,7 @@ func TestPublish_EmptyTopic_ReturnsError(t *testing.T) {
 }
 
 func TestPublish_NoSubscribers_NoOp(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.Publish("nobody.listening", "payload"); err != nil {
 		t.Error(test.DiffMessage(err, nil, "Publish with zero subscribers should not error"))
@@ -87,7 +87,7 @@ func TestPublish_NoSubscribers_NoOp(t *testing.T) {
 }
 
 func TestPublish_DeliversToSubscribedHandler(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	var got *Message
 	_, _ = b.Subscribe("foo.bar", func(m *Message) { got = m })
@@ -101,7 +101,7 @@ func TestPublish_DeliversToSubscribedHandler(t *testing.T) {
 }
 
 func TestPublish_HandlerPanic_DoesNotCrashOrBlockSiblings(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	_, _ = b.Subscribe("foo.bar", func(*Message) { panic("boom") })
 	var calledAfterPanic bool
@@ -120,7 +120,7 @@ func TestPublish_HandlerPanic_DoesNotCrashOrBlockSiblings(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestPublishAsync_EmptyTopic_ReturnsError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.PublishAsync("", "payload"); err != ErrEmptyTopic {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "PublishAsync with empty topic"))
@@ -128,7 +128,7 @@ func TestPublishAsync_EmptyTopic_ReturnsError(t *testing.T) {
 }
 
 func TestPublishAsync_NoSubscribers_NoOp(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.PublishAsync("nobody.listening", "payload"); err != nil {
 		t.Error(test.DiffMessage(err, nil, "PublishAsync with zero subscribers should not error"))
@@ -136,7 +136,7 @@ func TestPublishAsync_NoSubscribers_NoOp(t *testing.T) {
 }
 
 func TestPublishAsync_DeliversToSubscribedHandler(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	done := make(chan *Message, 1)
 	_, _ = b.Subscribe("foo.bar", func(m *Message) { done <- m })
@@ -156,7 +156,7 @@ func TestPublishAsync_DeliversToSubscribedHandler(t *testing.T) {
 }
 
 func TestPublishAsync_HandlerPanic_DoesNotCrashOrBlockSiblings(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	done := make(chan struct{}, 1)
 	_, _ = b.Subscribe("foo.bar", func(*Message) { panic("boom") })
@@ -178,7 +178,7 @@ func TestPublishAsync_HandlerPanic_DoesNotCrashOrBlockSiblings(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestUnsubscribe_EmptyTopic_ReturnsError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.Unsubscribe("", 1); err != ErrEmptyTopic {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "Unsubscribe with empty topic"))
@@ -186,7 +186,7 @@ func TestUnsubscribe_EmptyTopic_ReturnsError(t *testing.T) {
 }
 
 func TestUnsubscribe_UnknownTopicOrID_NoError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if err := b.Unsubscribe("never.subscribed", 999); err != nil {
 		t.Error(test.DiffMessage(err, nil, "Unsubscribe of an unknown topic/id should not error"))
@@ -194,7 +194,7 @@ func TestUnsubscribe_UnknownTopicOrID_NoError(t *testing.T) {
 }
 
 func TestUnsubscribe_RemovesOnlyThatHandler(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	var calledA, calledB bool
 	idA, _ := b.Subscribe("foo.bar", func(*Message) { calledA = true })
@@ -216,7 +216,7 @@ func TestUnsubscribe_RemovesOnlyThatHandler(t *testing.T) {
 }
 
 func TestUnsubscribe_DoesNotAffectOtherTopics(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	var calledOther bool
 	idX, _ := b.Subscribe("topic.x", func(*Message) {})
@@ -231,7 +231,7 @@ func TestUnsubscribe_DoesNotAffectOtherTopics(t *testing.T) {
 }
 
 func TestUnsubscribe_DoubleUnsubscribe_NoError(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	id, _ := b.Subscribe("foo", func(*Message) {})
 
@@ -244,7 +244,7 @@ func TestUnsubscribe_DoubleUnsubscribe_NoError(t *testing.T) {
 }
 
 func TestUnsubscribe_AfterUnsubscribe_PublishSkipsHandler(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	calls := 0
 	id, _ := b.Subscribe("foo", func(*Message) { calls++ })
@@ -263,7 +263,7 @@ func TestUnsubscribe_AfterUnsubscribe_PublishSkipsHandler(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestSubscriptions_EmptyBroker_ReturnsEmptyMap(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	if subs := b.Subscriptions(); len(subs) != 0 {
 		t.Error(test.DiffMessage(subs, map[string][]uint64{}, "Subscriptions on a fresh broker should be empty"))
@@ -271,7 +271,7 @@ func TestSubscriptions_EmptyBroker_ReturnsEmptyMap(t *testing.T) {
 }
 
 func TestSubscriptions_ListsTopicsAndIDs(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	idA, _ := b.Subscribe("foo.bar", func(*Message) {})
 	idB, _ := b.Subscribe("foo.bar", func(*Message) {})
@@ -294,7 +294,7 @@ func TestSubscriptions_ListsTopicsAndIDs(t *testing.T) {
 }
 
 func TestSubscriptions_AfterUnsubscribe_RemovesEntry(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	id, _ := b.Subscribe("foo", func(*Message) {})
 	_ = b.Unsubscribe("foo", id)
@@ -305,7 +305,7 @@ func TestSubscriptions_AfterUnsubscribe_RemovesEntry(t *testing.T) {
 }
 
 func TestSubscriptions_ReturnsIndependentCopy(t *testing.T) {
-	b := New()
+	b := NewBroker()
 	_, _ = b.Subscribe("foo", func(*Message) {})
 
 	subs := b.Subscriptions()
@@ -321,7 +321,7 @@ func TestSubscriptions_ReturnsIndependentCopy(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestConcurrentSubscribeUnsubscribePublish(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	const goroutines = 50
 	var wg sync.WaitGroup
@@ -346,7 +346,7 @@ func TestConcurrentSubscribeUnsubscribePublish(t *testing.T) {
 }
 
 func TestConcurrentPublishAsync(t *testing.T) {
-	b := New()
+	b := NewBroker()
 
 	const n = 50
 	var wg sync.WaitGroup
