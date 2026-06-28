@@ -124,8 +124,12 @@ func (t *Subscription) find(topic string) []MessageHandler {
 		if t.wildcardCount == 0 {
 			return nil
 		}
-		_, wildcardRaw, _ := t.trie.Find(str.Enclose(topic, '.'), '.', false)
-		item, ok = t.hash[wildcardRaw]
+		matchedRaw, wildcardRaw, _ := t.trie.Find(str.Enclose(topic, '.'), '.', false)
+		raw := matchedRaw
+		if raw == "" {
+			raw = wildcardRaw
+		}
+		item, ok = t.hash[raw]
 		if !ok {
 			return nil
 		}

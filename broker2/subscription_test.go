@@ -94,6 +94,36 @@ func TestInsertAndFind_WildcardMatch(t *testing.T) {
 	}
 }
 
+func TestInsertAndFind_MiddleWildcardMatch(t *testing.T) {
+	s := NewSubscription()
+	s.insert("chat.*.who", func(*Message) {})
+
+	handlers := s.find("chat.user_id_1.who")
+	if len(handlers) != 1 {
+		t.Error(test.DiffMessage(len(handlers), 1, "wildcard in a non-trailing segment should match a concrete topic"))
+	}
+}
+
+func TestFind_TrailingWildcard_MatchesExtraSegmentsToo(t *testing.T) {
+	s := NewSubscription()
+	s.insert("chat.*", func(*Message) {})
+
+	handlers := s.find("chat.user_id_1.who")
+	if len(handlers) != 1 {
+		t.Error(test.DiffMessage(len(handlers), 1, "a trailing wildcard should also match topics with extra trailing segments"))
+	}
+}
+
+func TestFind_GlobalWildcard_MatchesMultiSegmentTopic(t *testing.T) {
+	s := NewSubscription()
+	s.insert("*", func(*Message) {})
+
+	handlers := s.find("any.topic")
+	if len(handlers) != 1 {
+		t.Error(test.DiffMessage(len(handlers), 1, "the global wildcard '*' should match a topic with any number of segments"))
+	}
+}
+
 func TestFind_ExactTakesPrecedenceOverWildcard(t *testing.T) {
 	s := NewSubscription()
 
