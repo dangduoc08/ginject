@@ -1,14 +1,15 @@
 package core
 
 import (
-	"fmt"
+	"io"
 	stdHTTP "net/http"
 	"reflect"
 	"sort"
 
 	"github.com/dangduoc08/ginject/common"
-	"github.com/dangduoc08/ginject/connmgr"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/internal/crypto"
+	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/matcher"
 	"golang.org/x/net/websocket"
 )
@@ -28,6 +29,20 @@ const (
 
 **/
 
+type WSPayloadType string
+
+const (
+	TypeConnected   WSPayloadType = "connected"
+	TypeSubscribe   WSPayloadType = "subscribe"
+	TypeUnsubscribe WSPayloadType = "unsubscribe"
+	TypePublish     WSPayloadType = "publish"
+	TypeEvent       WSPayloadType = "event"
+	TypeAck         WSPayloadType = "ack"
+	TypeError       WSPayloadType = "error"
+	TypePing        WSPayloadType = "ping"
+	TypePong        WSPayloadType = "pong"
+)
+
 type compiledWS struct {
 	pattern matcher.Pattern
 }
@@ -43,7 +58,13 @@ type WS struct {
 	corsAllowOrigin func(origin string) bool
 	invokeHandler   func(f any, c *ctx.Context) []reflect.Value
 
-	connectionManager *connmgr.ConnectionManager
+	connmgr *WSConnmgr
+}
+
+type WSPayload struct {
+	Type  WSPayloadType `json:"type"`
+	ID    string        `json:"id"`
+	Topic []string      `json:"topic,omitempty"`
 }
 
 func kindPriority(k matcher.Kind) int {
@@ -92,20 +113,12 @@ func newWS() *WS {
 	return &ws
 }
 
-func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, deferFunc func()) {
-	s := websocket.Server{
-		Handler: websocket.Handler(ws.handleRequest),
-		Handshake: func(cfg *websocket.Config, r *stdHTTP.Request) error {
-			defer deferFunc()
-
-			return ws.handshake(cfg, r)
-		},
-	}
+func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, s websocket.Server) {
 	s.ServeHTTP(w, r)
 }
 
+// TODO: handle handshake auth here
 func (ws *WS) handshake(cfg *websocket.Config, _ *stdHTTP.Request) error {
-	fmt.Println("handshakre")
 	if ws.corsAllowOrigin == nil || cfg.Origin == nil {
 		return nil
 	}
@@ -115,28 +128,41 @@ func (ws *WS) handshake(cfg *websocket.Config, _ *stdHTTP.Request) error {
 	return stdHTTP.ErrAbortHandler
 }
 
+// TODO: Layer 2, after handshakre, subscribe topics
 func (ws *WS) handleRequest(wsConn *websocket.Conn) {
-	fmt.Println("Zo")
-	var msg map[string]any
-
-	websocket.JSON.Receive(wsConn, &msg)
-
-	fmt.Println("ms", msg)
+	logger := log.NewLog(nil)
 
 	defer func() {
-		wsConn.Close()
+		err := wsConn.Close()
+		logger.Error(err.Error())
+
 	}()
 
-	// for {
-	// 	var msg map[string]any
-
-	// 	err := websocket.JSON.Receive(wsConn, &msg)
-
-	// 	fmt.Println(msg)
-
-	// 	err = websocket.Message.Send(wsConn, "hello client")
-	// 	if err != nil {
-	// 		return
-	// 	}
+	// codec := "json"
+	// if protocols := wsConn.Config().Protocol; len(protocols) > 0 {
+	// 	codec = protocols[0]
 	// }
+
+	id, _ := crypto.UUID()
+	err := websocket.JSON.Send(wsConn, WSPayload{
+		ID:   id,
+		Type: TypeConnected,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		var data WSPayload
+
+		if err := websocket.JSON.Receive(wsConn, &data); err != nil {
+			if err != io.EOF {
+				logger.Error(err.Error())
+			}
+			return
+		}
+
+		logger.Info("Message", "type", data.Type, "id", data.ID, "topic", data.Topic)
+	}
 }

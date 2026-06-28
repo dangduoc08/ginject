@@ -15,6 +15,7 @@ import (
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/versioning"
+	"golang.org/x/net/websocket"
 )
 
 type App struct {
@@ -112,9 +113,14 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
 		c.SetType(ctx.WSType)
-		app.ws.upgrade(w, r, func() {
-			app.releaseCtx(c)
+		app.ws.upgrade(w, r, websocket.Server{
+			Handshake: func(cfg *websocket.Config, r *http.Request) error {
+				defer app.releaseCtx(c)
+				return app.ws.handshake(cfg, r)
+			},
+			Handler: websocket.Handler(app.ws.handleRequest),
 		})
+
 		return
 	}
 
