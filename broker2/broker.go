@@ -17,17 +17,17 @@ type Broker interface {
 	Subscriptions() map[string][]uint64
 }
 
-type MemoryBroker struct {
+type builtInBroker struct {
 	subscription *Subscription
 }
 
-func New() Broker {
-	return &MemoryBroker{
+func NewBroker() Broker {
+	return &builtInBroker{
 		subscription: NewSubscription(),
 	}
 }
 
-func (b *MemoryBroker) Subscribe(topic string, handler MessageHandler) (uint64, error) {
+func (b *builtInBroker) Subscribe(topic string, handler MessageHandler) (uint64, error) {
 	if topic == "" {
 		return 0, ErrEmptyTopic
 	}
@@ -38,7 +38,7 @@ func (b *MemoryBroker) Subscribe(topic string, handler MessageHandler) (uint64, 
 	return b.subscription.insert(topic, handler), nil
 }
 
-func (b *MemoryBroker) Publish(topic string, payload any) error {
+func (b *builtInBroker) Publish(topic string, payload any) error {
 	if topic == "" {
 		return ErrEmptyTopic
 	}
@@ -60,7 +60,7 @@ func (b *MemoryBroker) Publish(topic string, payload any) error {
 	return nil
 }
 
-func (b *MemoryBroker) PublishAsync(topic string, payload any) error {
+func (b *builtInBroker) PublishAsync(topic string, payload any) error {
 	if topic == "" {
 		return ErrEmptyTopic
 	}
@@ -72,7 +72,7 @@ func (b *MemoryBroker) PublishAsync(topic string, payload any) error {
 	return nil
 }
 
-func (b *MemoryBroker) Unsubscribe(topic string, id uint64) error {
+func (b *builtInBroker) Unsubscribe(topic string, id uint64) error {
 	if topic == "" {
 		return ErrEmptyTopic
 	}
@@ -81,6 +81,6 @@ func (b *MemoryBroker) Unsubscribe(topic string, id uint64) error {
 	return nil
 }
 
-func (b *MemoryBroker) Subscriptions() map[string][]uint64 {
+func (b *builtInBroker) Subscriptions() map[string][]uint64 {
 	return b.subscription.list()
 }
