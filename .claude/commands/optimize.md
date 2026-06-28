@@ -10,6 +10,7 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - If no benchmark file exists, create `<filename>_bench_test.go` with realistic, large-enough inputs (e.g. 1000+ iterations, real-world-sized data) that can actually reveal performance differences.
    - If both files already exist, review them and **add missing test cases** for any untested functions or uncovered edge cases before proceeding.
    - When writing test assertions, use `t.Error(test.DiffMessage(actual, expected, "desc"))` (import `"github.com/dangduoc08/ginject/internal/test"`) instead of raw `t.Errorf` format strings.
+   - For any type whose methods read or write shared state (struct fields, maps, slices) across calls, add a concurrency test that spawns goroutines calling those methods together (`sync.WaitGroup` + `go func()`, see `internal/ds/trie_test.go`'s `TestTrieConcurrentInsertAndFind_RequiresExternalLock` for the pattern). It must pass under plain `go test`; run it once with `go test -race` to see whether it's flagged. If the type owns its own lock, the race report is a real bug — fix it. If the type is a bare data structure that documents "caller must synchronize externally," keep the test as-is (it stays green without `-race`) — it is a regression guard, not a bug report.
 
 3. **Run existing tests** to establish a baseline — all must pass before proceeding.
 
