@@ -9,6 +9,7 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/color"
 	"github.com/dangduoc08/ginject/internal/ds"
+	"github.com/dangduoc08/ginject/internal/str"
 )
 
 const SERVE = "SERVE" // Serving static files directive
@@ -70,16 +71,16 @@ func findRouterItem(items []RouterItem, method, version string) (RouterItem, boo
 }
 
 type Router struct {
-	*ds.Trie
+	trie               *ds.Trie
 	Hash               map[string][]RouterItem
-	List               []string
+	list               []string
 	GlobalMiddlewares  []ctx.Handler
 	InjectableHandlers map[string]any
 }
 
 func NewRouter() *Router {
 	return &Router{
-		Trie:               ds.NewTrie(),
+		trie:               ds.NewTrie(),
 		Hash:               make(map[string][]RouterItem),
 		GlobalMiddlewares:  []ctx.Handler{},
 		InjectableHandlers: make(map[string]any),
@@ -87,7 +88,7 @@ func NewRouter() *Router {
 }
 
 func (r *Router) push(method, route, version string, caller int, handlers ...ctx.Handler) *Router {
-	routePattern := ToEndpoint(route)
+	routePattern := str.Enclose(route, '/')
 
 	items := r.Hash[routePattern]
 	itemPos := -1
@@ -104,8 +105,8 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 		if len(items) > 0 {
 			routeIndex = items[0].Index
 		} else {
-			r.List = append(r.List, routePattern)
-			routeIndex = len(r.List) - 1
+			r.list = append(r.list, routePattern)
+			routeIndex = len(r.list) - 1
 		}
 		item = RouterItem{
 			Method:       method,
@@ -186,14 +187,14 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	}
 	r.Hash[routePattern] = items
 
-	r.Insert(routePattern, parsedRoute, '/', item.Index)
+	r.trie.Insert(routePattern, parsedRoute, '/', item.Index)
 
 	return r
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
-	searchPath := ToEndpoint(path.Clean(route))
-	_, matchedRaw, _, wildcardRaw, paramVals := r.Find(searchPath, '/')
+	searchPath := str.Enclose(path.Clean(route), '/')
+	_, matchedRaw, _, wildcardRaw, paramVals := r.trie.Find(searchPath, '/')
 
 	item, ok := findRouterItem(r.Hash[matchedRaw], method, version)
 	if !ok {
@@ -213,13 +214,13 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 
 			for _, routerItem := range items {
 				if routerItem.HandlerIndex > -1 {
-					groupPathPattern := ToEndpoint(groupPath)
-					r.List = append(r.List, groupPathPattern)
+					groupPathPattern := str.Enclose(groupPath, '/')
+					r.list = append(r.list, groupPathPattern)
 					r.Hash[groupPathPattern] = append(r.Hash[groupPathPattern], RouterItem{
 						Method:       routerItem.Method,
 						Version:      routerItem.Version,
 						Pattern:      MethodRouteVersionToPattern(routerItem.Method, groupPath, routerItem.Version),
-						Index:        len(r.List) - 1,
+						Index:        len(r.list) - 1,
 						HandlerIndex: routerItem.HandlerIndex,
 					})
 				}
@@ -230,7 +231,7 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 		}
 
 		for route, injectableHandler := range subRouter.InjectableHandlers {
-			r.InjectableHandlers[ToEndpoint(prefix+route)] = injectableHandler
+			r.InjectableHandlers[str.Enclose(prefix+route, '/')] = injectableHandler
 		}
 	}
 
