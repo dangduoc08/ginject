@@ -9,6 +9,7 @@ import (
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/internal/color"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
 )
 
@@ -107,7 +108,7 @@ func (m *Module) injectGlobalProviders() {
 }
 
 func (m *Module) Prefix(prefix string) *Module {
-	m.prefixes = append([]string{routing.ToEndpoint(prefix)}, m.prefixes...)
+	m.prefixes = append([]string{str.Enclose(prefix, '/')}, m.prefixes...)
 
 	return m
 }
@@ -559,7 +560,7 @@ func (m *Module) NewModule() *Module {
 						m.RESTMainHandlers = append(m.RESTMainHandlers, common.RESTLayer{
 							ControllerPath:  controllerPath,
 							Method:          method,
-							Route:           routing.ToEndpoint(route),
+							Route:           str.Enclose(route, '/'),
 							Version:         version,
 							Handler:         handler,
 							Name:            rest.PatternToFuncNameMap[pattern],

@@ -48,27 +48,6 @@ func TestPatternToMethodRouteVersion(t *testing.T) {
 	}
 }
 
-func TestToEndpoint(t *testing.T) {
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{"users", "/users/"},
-		{"/users/", "/users/"},
-		{"//users//", "/users/"},
-		{" /users/ ", "/users/"},
-		{"/a//b///c/", "/a/b/c/"},
-		{"/a/**/b/", "/a/*/b/"},
-	}
-
-	for _, c := range cases {
-		got := ToEndpoint(c.in)
-		if got != c.want {
-			t.Error(test.DiffMessage(got, c.want, "ToEndpoint"))
-		}
-	}
-}
-
 func TestParseToParamKey(t *testing.T) {
 	str, keys := ParseToParamKey("/users/{userId}/friends/{friendId}/")
 	wantStr := "/users/$/friends/$/"

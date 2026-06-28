@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/internal/slice"
+	"github.com/dangduoc08/ginject/internal/str"
 )
 
 var matchMethodReg = regexp.MustCompile(strings.Join(slice.Map(HTTPMethods, func(el string, i int) string {
@@ -39,50 +40,12 @@ func PatternToMethodRouteVersion(pattern string) (string, string, string) {
 	return method, route, version
 }
 
-func ToEndpoint(str string) string {
-	if str == "" {
-		return ""
-	}
-
-	var b strings.Builder
-	b.Grow(len(str) + 2)
-	b.WriteByte('/')
-	var prev byte = '/'
-	hadContent := false
-
-	for i := 0; i < len(str); i++ {
-		c := str[i]
-		if isASCIISpace(c) {
-			continue
-		}
-		hadContent = true
-		if (c == '/' && prev == '/') || (c == '*' && prev == '*') {
-			continue
-		}
-		b.WriteByte(c)
-		prev = c
-	}
-
-	if !hadContent {
-		return ""
-	}
-
-	if prev != '/' {
-		b.WriteByte('/')
-	}
-	return b.String()
-}
-
-func isASCIISpace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
-}
-
 func MethodRouteVersionToPattern(
 	method,
 	route,
 	version string,
 ) string {
-	routePattern := ToEndpoint(route)
+	routePattern := str.Enclose(route, '/')
 	versionPattern := toPattern(version, "|", "|")
 	methodPattern, ok := methodPatternCache[method]
 	if !ok {

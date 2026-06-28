@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
 )
 
@@ -83,7 +84,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 				guardItemArr = append(guardItemArr, GuardItem{
 					REST: RESTGuardItem{
 						Method:  httpMethod,
-						Route:   routing.ToEndpoint(route),
+						Route:   str.Enclose(route, '/'),
 						Version: version,
 						Pattern: pattern,
 						Common: CommonItem{

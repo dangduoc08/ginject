@@ -5,6 +5,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
 )
 
@@ -84,7 +85,7 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
 					REST: RESTExceptionFilterItem{
 						Method:  httpMethod,
-						Route:   routing.ToEndpoint(route),
+						Route:   str.Enclose(route, '/'),
 						Version: version,
 						Pattern: pattern,
 						Common: CommonItem{

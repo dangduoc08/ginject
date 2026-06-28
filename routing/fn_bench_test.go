@@ -19,12 +19,6 @@ func BenchmarkParseToParamKey(b *testing.B) {
 	}
 }
 
-func BenchmarkToEndpoint(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		ToEndpoint("//users//profile//settings//")
-	}
-}
-
 func BenchmarkMethodRouteVersionToPattern(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		MethodRouteVersionToPattern(http.MethodGet, "/users/{userId}/all", "v2")
