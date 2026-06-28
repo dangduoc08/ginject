@@ -5,6 +5,7 @@ import (
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
 )
 
@@ -85,7 +86,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
 					REST: RESTInterceptorItem{
 						Method:  httpMethod,
-						Route:   routing.ToEndpoint(route),
+						Route:   str.Enclose(route, '/'),
 						Version: version,
 						Pattern: pattern,
 						Common: CommonItem{

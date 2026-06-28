@@ -24,7 +24,7 @@ func TestRouteAdd(t *testing.T) {
 	}
 
 	expected1 := 11
-	actual1 := r.Len()
+	actual1 := r.trie.Len()
 	if actual1 != expected1 {
 		t.Error(test.DiffMessage(actual1, expected1, "trie length should be equal"))
 	}
@@ -401,7 +401,7 @@ func TestRouteToJSON(t *testing.T) {
 			r.Add("", path, "", func(c *ctx.Context) {})
 		}
 
-		json, err := r.ToJSON()
+		json, err := r.trie.ToJSON()
 		if err != nil {
 			fmt.Printf("Error: %s", err.Error())
 		} else {

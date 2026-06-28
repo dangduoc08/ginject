@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/internal/color"
+	"github.com/dangduoc08/ginject/internal/str"
 	"github.com/dangduoc08/ginject/routing"
 )
 
@@ -94,7 +95,7 @@ func (r *REST) GetPrefixes() []map[string]string {
 	prefixes := make([]map[string]string, 0, len(r.prefixes))
 
 	for _, prefixConf := range r.prefixes {
-		prefixValue := routing.ToEndpoint(prefixConf.Value)
+		prefixValue := str.Enclose(prefixConf.Value, '/')
 		prefixHandlers := prefixConf.Handlers
 
 		// if no handlers were binded
