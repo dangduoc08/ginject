@@ -8,7 +8,7 @@ import (
 // BenchmarkPublish measures synchronous publish to a single exact-match topic
 // with 1000 subscribers pre-registered.
 func BenchmarkPublish(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 1000; i++ {
@@ -24,7 +24,7 @@ func BenchmarkPublish(b *testing.B) {
 
 // BenchmarkPublishNoSubscribers measures publish to a topic with zero subscribers.
 func BenchmarkPublishNoSubscribers(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -35,7 +35,7 @@ func BenchmarkPublishNoSubscribers(b *testing.B) {
 
 // BenchmarkPublishAsync measures the synchronous cost of PublishAsync (validation + goroutine spawn).
 func BenchmarkPublishAsync(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 1000; i++ {
@@ -51,7 +51,7 @@ func BenchmarkPublishAsync(b *testing.B) {
 
 // BenchmarkPublishWildcard measures publish when 100 wildcard subscribers are registered.
 func BenchmarkPublishWildcard(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 100; i++ {
@@ -67,7 +67,7 @@ func BenchmarkPublishWildcard(b *testing.B) {
 
 // BenchmarkPublishManyTopics measures publish when subscriptions are spread across many topics.
 func BenchmarkPublishManyTopics(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 1000; i++ {
@@ -83,7 +83,7 @@ func BenchmarkPublishManyTopics(b *testing.B) {
 
 // BenchmarkSubscriptions measures the cost of snapshotting topic->ids across many topics.
 func BenchmarkSubscriptions(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 1000; i++ {
@@ -99,7 +99,7 @@ func BenchmarkSubscriptions(b *testing.B) {
 
 // BenchmarkSubscribeUnsubscribe measures the cost of subscribe followed by unsubscribe in a tight loop.
 func BenchmarkSubscribeUnsubscribe(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	b.ResetTimer()
@@ -112,7 +112,7 @@ func BenchmarkSubscribeUnsubscribe(b *testing.B) {
 
 // BenchmarkPublishParallel measures throughput under concurrent publish load.
 func BenchmarkPublishParallel(b *testing.B) {
-	br := New()
+	br := NewBroker()
 
 	noop := func(_ *Message) {}
 	for i := 0; i < 10; i++ {
