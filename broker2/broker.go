@@ -14,7 +14,7 @@ type Broker interface {
 	Publish(topic string, payload any) error
 	PublishAsync(topic string, payload any) error
 	Unsubscribe(topic string, id uint64) error
-	Subscriptions() map[string][]uint64
+	GetSubscriptions() map[string][]uint64
 }
 
 type builtInBroker struct {
@@ -81,6 +81,6 @@ func (b *builtInBroker) Unsubscribe(topic string, id uint64) error {
 	return nil
 }
 
-func (b *builtInBroker) Subscriptions() map[string][]uint64 {
+func (b *builtInBroker) GetSubscriptions() map[string][]uint64 {
 	return b.subscription.list()
 }
