@@ -18,7 +18,7 @@ tidy: ## Go mod tidy
 	
 .PHONY: test
 test: ## Run tests
-	go test ./... -cover
+	go test ./... -cover -race
 
 .PHONY: lint
 lint: ## Run linter
