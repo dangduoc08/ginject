@@ -187,14 +187,14 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	}
 	r.Hash[routePattern] = items
 
-	r.trie.Insert(routePattern, parsedRoute, '/', item.Index)
+	r.trie.Insert(routePattern, parsedRoute, '/')
 
 	return r
 }
 
 func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
 	searchPath := str.Enclose(path.Clean(route), '/')
-	_, matchedRaw, _, wildcardRaw, paramVals := r.trie.Find(searchPath, '/')
+	matchedRaw, wildcardRaw, paramVals := r.trie.Find(searchPath, '/', true)
 
 	item, ok := findRouterItem(r.Hash[matchedRaw], method, version)
 	if !ok {
