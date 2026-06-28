@@ -53,6 +53,44 @@ func Segment(str string, sep byte, start int) (string, int) {
 	return str[start+1 : next], next
 }
 
+func Enclose(str string, sep byte) string {
+	if str == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.Grow(len(str) + 2)
+	b.WriteByte(sep)
+	prev := sep
+	hadContent := false
+
+	for i := 0; i < len(str); i++ {
+		c := str[i]
+		if isASCIISpace(c) {
+			continue
+		}
+		hadContent = true
+		if (c == sep && prev == sep) || (c == '*' && prev == '*') {
+			continue
+		}
+		b.WriteByte(c)
+		prev = c
+	}
+
+	if !hadContent {
+		return ""
+	}
+
+	if prev != sep {
+		b.WriteByte(sep)
+	}
+	return b.String()
+}
+
+func isASCIISpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
+}
+
 func RemoveDup(str, pattern string) string {
 	patRune, patSize := utf8.DecodeRuneInString(pattern)
 	if patRune == utf8.RuneError || patSize != len(pattern) {
