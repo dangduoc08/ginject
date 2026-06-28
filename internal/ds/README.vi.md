@@ -7,7 +7,7 @@
   - [Cách Dùng](#cách-dùng)
   - [Kiểu `Node`](#kiểu-node)
   - [Struct `Trie`](#struct-trie)
-    - [Index](#index)
+    - [IsEnd](#isend)
     - [Raw](#raw)
     - [Children](#children)
   - [Hàm](#hàm)
@@ -15,6 +15,7 @@
   - [Phương Thức Của `*Trie`](#phương-thức-của-trie)
     - [Len](#len)
     - [Insert](#insert)
+    - [Remove](#remove)
     - [Find](#find)
     - [ToJSON](#tojson)
   - [Benchmark](#benchmark)
@@ -22,12 +23,14 @@
 ## Tính Năng Chính
 - Phân đoạn (segment) đường dẫn theo một byte phân tách (separator) do người gọi tự chỉ định, thay vì luôn giả định là `/`
 - Ba loại segment: văn bản literal, `$` cho segment tham số (param) được capture, và `*` cho segment wildcard
+- Khớp tham số `$` là tùy chọn (opt-in) theo từng lần gọi `Find`: truyền `false` sẽ bỏ qua hoàn toàn việc check node con `$` (trường hợp phổ biến của các package như `broker`/`broker1` chưa từng đăng ký segment `$`); truyền `true` mới bật check này
 - `Find` trả về kết quả khớp chính xác cùng với phương án dự phòng (fallback) wildcard tốt nhất trong một lần duyệt
+- `Remove` hủy đăng ký một đường dẫn đã chèn trước đó và dọn (prune) mọi node tổ tiên trở nên "chết" sau khi xóa
 - `ToJSON` xuất cấu trúc của trie ra để debug hoặc trực quan hóa
 
 ## Cách Dùng
 
-Một `Trie` lưu một đường dẫn dưới hai chuỗi: chuỗi `raw` (được trả về khi khớp) và chuỗi thực sự được duyệt để xây dựng trie, trong đó `$` đánh dấu segment động (dynamic) và `*` đánh dấu segment wildcard. Cả lúc chèn (insert) và tra cứu (lookup) đều phải dùng cùng một byte phân tách:
+Một `Trie` lưu một đường dẫn dưới hai chuỗi: chuỗi `raw` (được trả về khi khớp) và chuỗi thực sự được duyệt để xây dựng trie, trong đó `$` đánh dấu segment động (dynamic) và `*` đánh dấu segment wildcard. Cả lúc chèn (insert) và tra cứu (lookup) đều phải dùng cùng một byte phân tách. Để khớp segment `$` như tham số được capture, cần truyền `true` cho tham số thứ 3 của `Find` — truyền `false` sẽ coi `$` chỉ là một segment literal bình thường:
 
 ```go
 package main
@@ -41,14 +44,12 @@ import (
 func main() {
 	tr := ds.NewTrie()
 
-	tr.Insert("/users/:id/", "/users/$/", '/', 0)
-	tr.Insert("/users/:id/friends/", "/users/$/friends/", '/', 1)
+	tr.Insert("/users/:id/", "/users/$/", '/')
+	tr.Insert("/users/:id/friends/", "/users/$/friends/", '/')
 
-	index, raw, wildcardIndex, wildcardRaw, params := tr.Find("/users/123/", '/')
+	raw, wildcardRaw, params := tr.Find("/users/123/", '/', true)
 
-	fmt.Println("matched index:", index)
 	fmt.Println("matched raw:", raw)
-	fmt.Println("wildcard index:", wildcardIndex)
 	fmt.Println("wildcard raw:", wildcardRaw)
 	fmt.Println("params:", params)
 }
@@ -56,9 +57,7 @@ func main() {
 
 Console:
 ```console
-matched index: 0
 matched raw: /users/:id/
-wildcard index: -1
 wildcard raw:
 params: [123]
 ```
@@ -70,14 +69,14 @@ Type: `map[string]*Trie`
 
 ## Struct `Trie`
 
-### Index
-Type: `int`
+### IsEnd
+Type: `bool`
 
-Default: `-1`
+Default: `false`
 
 Required: `false`
 
-Định danh được lưu trên node kết thúc (terminate) một đường dẫn đã chèn. `NewTrie` khởi tạo giá trị này là `-1`, và `Find` coi đây là "chưa có route nào được đăng ký tại đây." `Insert` chỉ ghi đè giá trị này (bằng tham số `index` của nó) lên node tương ứng với segment cuối cùng của chuỗi được chèn.
+Đánh dấu node kết thúc (terminate) một đường dẫn đã chèn. `NewTrie` để giá trị này ở mặc định `false`, và `Find` coi đây là "chưa có route nào được đăng ký tại đây." `Insert` chỉ đặt giá trị này thành `true` trên node tương ứng với segment cuối cùng của chuỗi được chèn; `Remove` đặt lại nó về `false`.
 
 ### Raw
 Type: `string`
@@ -104,7 +103,7 @@ Các segment con của node, được đánh khóa (key) bằng văn bản liter
 Tạo một trie trống, sẵn sàng cho `Insert` và `Find`.
 
 #### Rules
-- Trả về một trie với `Index` được đặt là `-1` và `Children` là một map trống, không nil; gọi `Len()` ngay sau đó sẽ trả về `0` (`TestTrieLenEmpty`).
+- Trả về một trie với `IsEnd` được đặt là `false` và `Children` là một map trống, không nil; gọi `Len()` ngay sau đó sẽ trả về `0` (`TestTrieLenEmpty`).
 
 #### Parameters
 Không có.
@@ -112,7 +111,7 @@ Không có.
 #### Returns
 - Giá trị thứ 1: `*Trie`
 
-- Mô tả: Một trie mới với `Index` được đặt là `-1` và `Children` là một map trống.
+- Mô tả: Một trie mới với `IsEnd` được đặt là `false` và `Children` là một map trống.
 
 #### Cách Dùng
 
@@ -142,9 +141,9 @@ Không có.
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/{userId}/", "/users/{userId}/", '/', -1)
-tr.Insert("/feeds/all/", "/feeds/all/", '/', -1)
-tr.Insert("/users/{userId}/friends/all/", "/users/{userId}/friends/all/", '/', -1)
+tr.Insert("/users/{userId}/", "/users/{userId}/", '/')
+tr.Insert("/feeds/all/", "/feeds/all/", '/')
+tr.Insert("/users/{userId}/friends/all/", "/users/{userId}/friends/all/", '/')
 
 fmt.Println(tr.Len())
 ```
@@ -156,10 +155,10 @@ Console:
 
 ### Insert
 
-Tách (split) `insertedStr` theo `sep` và duyệt/tạo một node con cho mỗi segment, lưu `raw` và `index` trên node của segment cuối cùng. Dùng segment literal `$` để đánh dấu một segment động (tham số) và `*` để đánh dấu một segment wildcard. Trả về receiver, nên có thể gọi nối tiếp (chain) nhiều lệnh gọi.
+Tách (split) `insertedStr` theo `sep` và duyệt/tạo một node con cho mỗi segment, lưu `raw` và đánh dấu `IsEnd` trên node của segment cuối cùng. Dùng segment literal `$` để đánh dấu một segment động (tham số) và `*` để đánh dấu một segment wildcard. Trả về receiver, nên có thể gọi nối tiếp (chain) nhiều lệnh gọi.
 
 #### Rules
-- Chỉ node của segment cuối cùng trong `insertedStr` nhận `index` và `raw` được truyền vào; mọi node segment trung gian giữ giá trị `Index` mặc định là `-1`, trừ khi chính segment đó cũng là segment cuối cùng của một đường dẫn khác được chèn riêng (`TestTrieInsert`).
+- Chỉ node của segment cuối cùng trong `insertedStr` có `IsEnd` được đặt thành `true` và nhận `raw` được truyền vào; mọi node segment trung gian giữ giá trị `IsEnd` mặc định là `false`, trừ khi chính segment đó cũng là segment cuối cùng của một đường dẫn khác được chèn riêng (`TestTrieInsert`).
 - Chèn các đường dẫn có tiền tố chung sẽ dùng lại các node đã có cho tiền tố đó thay vì tạo node trùng lặp (`TestTrieInsert`, `TestTrieLen`).
 
 #### Parameters
@@ -175,10 +174,6 @@ Tách (split) `insertedStr` theo `sep` và duyệt/tạo một node con cho mỗ
 
 - Mô tả: Byte phân tách dùng để tách `insertedStr` thành các segment.
 
-- Tham số thứ 4: `int` (`index`)
-
-- Mô tả: Định danh cần lưu trên node của segment cuối cùng; được `Find` trả về sau này.
-
 #### Returns
 - Giá trị thứ 1: `*Trie`
 
@@ -189,18 +184,59 @@ Tách (split) `insertedStr` theo `sep` và duyệt/tạo một node con cho mỗ
 ```go
 tr := ds.NewTrie()
 tr.
-	Insert("/users/:id/", "/users/$/", '/', 0).
-	Insert("/feeds/all/", "/feeds/all/", '/', 1)
+	Insert("/users/:id/", "/users/$/", '/').
+	Insert("/feeds/all/", "/feeds/all/", '/')
+```
+
+### Remove
+
+Duyệt `removedStr` theo từng segment dựa trên `sep`, chỉ đi theo các node con đã tồn tại (không tạo node mới). Nếu đường đi không dẫn tới một node đã từng được `Insert` đánh dấu kết thúc (tức `IsEnd == true`), trie giữ nguyên không đổi và `Remove` trả về `false`. Ngược lại, hàm xóa `IsEnd`/`Raw` của node đó, rồi duyệt ngược lên theo đúng đường đi, xóa mọi node tổ tiên hiện đã vừa không còn con vừa không còn là node kết thúc, dừng lại ở tổ tiên đầu tiên còn giữ con hoặc chính nó là một node `IsEnd`.
+
+Giống `Insert` và `Find`, `Remove` không có lock nội bộ — nó thay đổi cùng các map `Children` mà `Insert` viết và `Find` đọc, nên nếu một goroutine gọi `Remove` đồng thời với `Insert`/`Find` trên cùng một `*Trie`, caller phải tự khóa (lock) bên ngoài cho cả ba hàm này (`TestTrieConcurrentRemoveAndFind_RequiresExternalLock` ghi nhận điều này bằng cách bị `go test -race` báo lỗi có chủ đích).
+
+#### Rules
+- Chỉ đường dẫn đã từng là đối tượng của một lệnh gọi `Insert` (node có `IsEnd == true`) mới có thể bị xóa; gọi `Remove` trên đường dẫn chưa từng được chèn, trên một đường dẫn trung gian chưa hoàn chỉnh, hoặc với input không hợp lệ (chuỗi rỗng, không có separator) sẽ giữ trie không đổi và trả về `false` (`TestTrieRemove_NoMatch_ReturnsFalse`).
+- Xóa một đường dẫn sẽ dọn (prune) mọi segment tổ tiên trở nên vừa không còn con vừa không còn là node kết thúc, lên tới (nhưng không bao gồm) root — xóa đường dẫn duy nhất trong trie sẽ đưa `Len()` về `0` (`TestTrieRemove_PrunesDeadBranch`).
+- Một segment tổ tiên vẫn còn là một phần của đường dẫn khác (tiền tố chung) sẽ không bao giờ bị dọn, dù đường dẫn đang xóa là một nhánh con của nó (`TestTrieRemove_KeepsSharedPrefix`).
+- Xóa cùng một đường dẫn hai lần sẽ trả về `true` ở lần đầu và `false` ở lần thứ hai (`TestTrieRemove_AlreadyRemoved_ReturnsFalse`).
+
+#### Parameters
+- Tham số thứ 1: `string` (`removedStr`)
+
+- Mô tả: Đường dẫn đã chèn trước đó cần xóa, được phân đoạn theo đúng cách `insertedStr` đã dùng lúc chèn.
+
+- Tham số thứ 2: `byte` (`sep`)
+
+- Mô tả: Byte phân tách dùng để tách `removedStr` thành các segment; phải khớp với separator đã dùng lúc chèn đường dẫn đó.
+
+#### Returns
+- Giá trị thứ 1: `bool`
+
+- Mô tả: `true` nếu tìm thấy và xóa được một đường dẫn đã đăng ký; `false` nếu đường dẫn đó không tồn tại.
+
+#### Cách Dùng
+
+```go
+tr := ds.NewTrie()
+tr.Insert("/users/:id/", "/users/$/", '/')
+
+ok := tr.Remove("/users/$/", '/')
+fmt.Println(ok, tr.Len())
+```
+
+Console:
+```console
+true 0
 ```
 
 ### Find
 
-Duyệt `path` theo từng segment dựa trên `sep`, ưu tiên khớp literal chính xác ở mỗi cấp, sau đó tới node con `$` (tham số), rồi tới node con `*` (wildcard), và cuối cùng dự phòng (fallback) bằng cách so khớp với bất kỳ segment anh em (sibling) nào chứa pattern `*` literal (ví dụ `*.html`). Trong khi duyệt, hàm cũng theo dõi node `*` cụ thể nhất đã đi qua, để vẫn có phương án wildcard dự phòng ngay cả khi không tìm được khớp chính xác.
+Duyệt `path` theo từng segment dựa trên `sep`, ưu tiên khớp literal chính xác ở mỗi cấp, sau đó — chỉ khi `supportParams` là `true` — tới node con `$` (tham số), rồi tới node con `*` (wildcard), và cuối cùng dự phòng (fallback) bằng cách so khớp với bất kỳ segment anh em (sibling) nào chứa pattern `*` literal (ví dụ `*.html`). Trong khi duyệt, hàm cũng theo dõi node `*` cụ thể nhất đã đi qua, để vẫn có phương án wildcard dự phòng ngay cả khi không tìm được khớp chính xác.
 
 #### Rules
 - Đường dẫn phải được duyệt hết đúng tới một node kết thúc mới được coi là khớp: một đường dẫn chỉ là tiền tố chưa đầy đủ của route đã đăng ký sẽ trả về `""` cho cả `matchedRaw` và `wildcardRaw` (`TestTrieFind`, case "incomplete path should not match").
-- Các segment `$` capture giá trị literal của đường dẫn vào `paramVals`, theo đúng thứ tự duyệt từ trái sang phải (`TestTrieFind`, case "deep param match").
-- Khi đường dẫn đã đi qua một node `*`, `Index`/`Raw` của node đó được trả về qua `wildcardIndex`/`wildcardRaw`, và kết quả khớp này vẫn giữ nguyên dù đường dẫn có thêm các segment dư ở cuối vượt quá độ dài của route wildcard (`TestTrieFind`, case "wildcard deep match, extra trailing segments").
+- Với `supportParams: true`, segment `$` capture giá trị literal của đường dẫn vào `paramVals`, theo đúng thứ tự duyệt từ trái sang phải (`TestTrieFind`, case "deep param match"); với `supportParams: false`, `Find` không bao giờ tìm node con `$`, nên một segment `$` đã chèn chỉ khớp khi segment truy vấn đúng là chuỗi literal `"$"` (`TestTrieFind_ParamSupportDisabled`, `TestTrieFind_ParamSupportEnabled`).
+- Khi đường dẫn đã đi qua một node `*`, `Raw` của node đó được trả về qua `wildcardRaw`, và kết quả khớp này vẫn giữ nguyên dù đường dẫn có thêm các segment dư ở cuối vượt quá độ dài của route wildcard (`TestTrieFind`, case "wildcard deep match, extra trailing segments").
 - Một khớp wildcard được dùng làm phương án dự phòng ngay cả khi có một route anh em (sibling) không liên quan, ở nhánh sâu hơn, không khớp với đường dẫn (`TestTrieFindWildcardFallbackThroughUnrelatedSibling`).
 
 #### Parameters
@@ -212,48 +248,44 @@ Duyệt `path` theo từng segment dựa trên `sep`, ưu tiên khớp literal c
 
 - Mô tả: Byte phân tách dùng để tách `path` thành các segment.
 
-#### Returns
-- Giá trị thứ 1: `int`
+- Tham số thứ 3: `bool` (`supportParams`)
 
-- Mô tả: `Index` của node khớp chính xác toàn bộ đường dẫn, hoặc `-1` nếu không có khớp chính xác.
+- Mô tả: Truyền `true` để check node con `$` ở mỗi segment và capture giá trị của nó; truyền `false` để bỏ qua hoàn toàn việc check đó và coi `$` chỉ là literal bình thường.
+
+#### Returns
+- Giá trị thứ 1: `string`
+
+- Mô tả: `Raw` của node khớp chính xác toàn bộ đường dẫn, hoặc `""` nếu không có khớp chính xác.
 
 - Giá trị thứ 2: `string`
 
-- Mô tả: `Raw` của node khớp chính xác đó, hoặc `""` nếu không có khớp chính xác.
+- Mô tả: `Raw` của node wildcard (`*`) cụ thể nhất đã gặp trong quá trình duyệt đường dẫn, hoặc `""` nếu không đi qua node wildcard nào.
 
-- Giá trị thứ 3: `int`
+- Giá trị thứ 3: `[]string`
 
-- Mô tả: `Index` của node wildcard (`*`) cụ thể nhất đã gặp trong quá trình duyệt đường dẫn, hoặc `-1` nếu không đi qua node wildcard nào.
-
-- Giá trị thứ 4: `string`
-
-- Mô tả: `Raw` của node wildcard đó, hoặc `""` nếu không đi qua node wildcard nào.
-
-- Giá trị thứ 5: `[]string`
-
-- Mô tả: Các giá trị được capture cho mỗi segment `$`, theo đúng thứ tự được khớp.
+- Mô tả: Các giá trị được capture cho mỗi segment `$`, theo đúng thứ tự được khớp. Luôn là `nil` khi `supportParams` là `false`.
 
 #### Cách Dùng
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/:id/", "/users/$/", '/', 0)
+tr.Insert("/users/:id/", "/users/$/", '/')
 
-index, raw, wildcardIndex, wildcardRaw, params := tr.Find("/users/123/", '/')
-fmt.Println(index, raw, wildcardIndex, wildcardRaw, params)
+raw, wildcardRaw, params := tr.Find("/users/123/", '/', true)
+fmt.Println(raw, wildcardRaw, params)
 ```
 
 Console:
 ```console
-0 /users/:id/ -1  [123]
+/users/:id/  [123]
 ```
 
 ### ToJSON
 
-Chuyển cấu trúc của trie — path, `Index` và children của từng segment — thành một chuỗi JSON. Vì `Children` là một map trong Go, thứ tự các phần tử anh em (sibling) trong kết quả không được đảm bảo ổn định giữa các lần gọi (các key trong mỗi object JSON luôn là `children`, `index`, `path`, được `encoding/json` sắp xếp theo thứ tự alphabet).
+Chuyển cấu trúc của trie — path, `IsEnd` và children của từng segment — thành một chuỗi JSON. Vì `Children` là một map trong Go, thứ tự các phần tử anh em (sibling) trong kết quả không được đảm bảo ổn định giữa các lần gọi (các key trong mỗi object JSON luôn là `children`, `isEnd`, `path`, được `encoding/json` sắp xếp theo thứ tự alphabet).
 
 #### Rules
-- Object JSON của node gốc (root) không có key `"path"`, chỉ có `"children"`; mọi node khác đều có `"path"` (chính là key segment của nó), `"index"`, và `"children"` (`TestTrieToJSON`).
+- Object JSON của node gốc (root) không có key `"path"`, chỉ có `"children"`; mọi node khác đều có `"path"` (chính là key segment của nó), `"isEnd"`, và `"children"` (`TestTrieToJSON`).
 
 #### Parameters
 Không có.
@@ -271,8 +303,8 @@ Không có.
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/$/", "/users/$/", '/', 0)
-tr.Insert("/feeds/all/", "/feeds/all/", '/', 1)
+tr.Insert("/users/$/", "/users/$/", '/')
+tr.Insert("/feeds/all/", "/feeds/all/", '/')
 
 js, err := tr.ToJSON()
 if err != nil {
@@ -283,7 +315,7 @@ fmt.Println(js)
 
 Console (một trong các thứ tự khả dĩ — thứ tự sibling có thể thay đổi):
 ```console
-{"children":[{"children":[{"children":[],"index":0,"path":"$"}],"index":-1,"path":"users"},{"children":[{"children":[],"index":1,"path":"all"}],"index":-1,"path":"feeds"}]}
+{"children":[{"children":[{"children":[],"isEnd":true,"path":"$"}],"isEnd":false,"path":"users"},{"children":[{"children":[],"isEnd":true,"path":"all"}],"isEnd":false,"path":"feeds"}]}
 ```
 
 ## Benchmark
@@ -295,11 +327,12 @@ goos: darwin
 goarch: amd64
 pkg: github.com/dangduoc08/ginject/internal/ds
 cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkMatchWildcard-12         	56382829	        22.31 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTrieFind_Static-12       	18563512	        64.83 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTrieFind_WithParam-12    	 7714236	       149.9 ns/op	      64 B/op	       1 allocs/op
-BenchmarkTrieFind_DeepParam-12    	 4847652	       256.6 ns/op	      64 B/op	       1 allocs/op
-BenchmarkTrieFind_NoMatch-12      	 6658142	       179.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMatchWildcard-12         	47284537	        25.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieFind_Static-12       	14455305	        81.98 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieFind_WithParam-12    	 6470072	       182.5 ns/op	      64 B/op	       1 allocs/op
+BenchmarkTrieFind_DeepParam-12    	 3634706	       318.3 ns/op	      64 B/op	       1 allocs/op
+BenchmarkTrieFind_NoMatch-12      	 6769974	       182.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieRemove-12            	 1916504	       567.6 ns/op	     144 B/op	       2 allocs/op
 PASS
-ok  	github.com/dangduoc08/ginject/internal/ds	7.329s
+ok  	github.com/dangduoc08/ginject/internal/ds	11.808s
 ```

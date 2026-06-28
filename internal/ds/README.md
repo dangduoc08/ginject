@@ -7,7 +7,7 @@
   - [Usage](#usage)
   - [`Node` Type](#node-type)
   - [`Trie` Struct](#trie-struct)
-    - [Index](#index)
+    - [IsEnd](#isend)
     - [Raw](#raw)
     - [Children](#children)
   - [Functions](#functions)
@@ -15,6 +15,7 @@
   - [`*Trie` Methods](#trie-methods)
     - [Len](#len)
     - [Insert](#insert)
+    - [Remove](#remove)
     - [Find](#find)
     - [ToJSON](#tojson)
   - [Benchmarks](#benchmarks)
@@ -22,12 +23,14 @@
 ## Key Features
 - Segments paths on a caller-supplied separator byte instead of assuming `/`
 - Three segment kinds: literal text, `$` for a captured parameter, `*` for a wildcard
+- `$`-param matching is opt-in per `Find` call: passing `false` skips the `$`-child lookup entirely (the common case for packages like `broker`/`broker1` that never register `$` segments); passing `true` enables it
 - `Find` reports an exact match and the best wildcard fallback in a single pass
+- `Remove` un-registers a previously inserted path and prunes every dead ancestor node it leaves behind
 - `ToJSON` dumps the trie shape for debugging or visualization
 
 ## Usage
 
-A `Trie` stores a path under two strings: the `raw` string (returned later on a match) and the string that is actually walked to build the trie, where `$` marks a dynamic segment and `*` marks a wildcard segment. Both inserts and lookups must use the same separator byte:
+A `Trie` stores a path under two strings: the `raw` string (returned later on a match) and the string that is actually walked to build the trie, where `$` marks a dynamic segment and `*` marks a wildcard segment. Both inserts and lookups must use the same separator byte. Matching `$` segments as captured parameters requires passing `true` as `Find`'s third argument — passing `false` treats `$` as an ordinary literal segment:
 
 ```go
 package main
@@ -41,14 +44,12 @@ import (
 func main() {
 	tr := ds.NewTrie()
 
-	tr.Insert("/users/:id/", "/users/$/", '/', 0)
-	tr.Insert("/users/:id/friends/", "/users/$/friends/", '/', 1)
+	tr.Insert("/users/:id/", "/users/$/", '/')
+	tr.Insert("/users/:id/friends/", "/users/$/friends/", '/')
 
-	index, raw, wildcardIndex, wildcardRaw, params := tr.Find("/users/123/", '/')
+	raw, wildcardRaw, params := tr.Find("/users/123/", '/', true)
 
-	fmt.Println("matched index:", index)
 	fmt.Println("matched raw:", raw)
-	fmt.Println("wildcard index:", wildcardIndex)
 	fmt.Println("wildcard raw:", wildcardRaw)
 	fmt.Println("params:", params)
 }
@@ -56,9 +57,7 @@ func main() {
 
 Console:
 ```console
-matched index: 0
 matched raw: /users/:id/
-wildcard index: -1
 wildcard raw:
 params: [123]
 ```
@@ -70,14 +69,14 @@ Type: `map[string]*Trie`
 
 ## `Trie` Struct
 
-### Index
-Type: `int`
+### IsEnd
+Type: `bool`
 
-Default: `-1`
+Default: `false`
 
 Required: `false`
 
-The identifier stored on the node that terminates an inserted path. `NewTrie` initializes it to `-1`, which `Find` treats as "no route registered here." `Insert` only overwrites it (with its `index` argument) on the node matching the last segment of the inserted string.
+Marks the node that terminates an inserted path. `NewTrie` leaves it at its zero value `false`, which `Find` treats as "no route registered here." `Insert` only sets it to `true` on the node matching the last segment of the inserted string; `Remove` resets it to `false`.
 
 ### Raw
 Type: `string`
@@ -104,7 +103,7 @@ The node's child segments, keyed by literal text or by the special `$`/`*` token
 Creates an empty trie ready for `Insert` and `Find`.
 
 #### Rules
-- Returns a trie with `Index` set to `-1` and an empty, non-nil `Children` map; calling `Len()` immediately after returns `0` (`TestTrieLenEmpty`).
+- Returns a trie with `IsEnd` set to `false` and an empty, non-nil `Children` map; calling `Len()` immediately after returns `0` (`TestTrieLenEmpty`).
 
 #### Parameters
 None.
@@ -112,7 +111,7 @@ None.
 #### Returns
 - 1st value: `*Trie`
 
-- Description: A new trie with `Index` set to `-1` and an empty `Children` map.
+- Description: A new trie with `IsEnd` set to `false` and an empty `Children` map.
 
 #### Usage
 
@@ -142,9 +141,9 @@ None.
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/{userId}/", "/users/{userId}/", '/', -1)
-tr.Insert("/feeds/all/", "/feeds/all/", '/', -1)
-tr.Insert("/users/{userId}/friends/all/", "/users/{userId}/friends/all/", '/', -1)
+tr.Insert("/users/{userId}/", "/users/{userId}/", '/')
+tr.Insert("/feeds/all/", "/feeds/all/", '/')
+tr.Insert("/users/{userId}/friends/all/", "/users/{userId}/friends/all/", '/')
 
 fmt.Println(tr.Len())
 ```
@@ -156,10 +155,10 @@ Console:
 
 ### Insert
 
-Splits `insertedStr` on `sep` and walks/creates a child node per segment, storing `raw` and `index` on the node for the final segment. Use the literal segment `$` to mark a dynamic (parameter) segment and `*` to mark a wildcard segment. Returns the receiver, so calls can be chained.
+Splits `insertedStr` on `sep` and walks/creates a child node per segment, storing `raw` and marking `IsEnd` on the node for the final segment. Use the literal segment `$` to mark a dynamic (parameter) segment and `*` to mark a wildcard segment. Returns the receiver, so calls can be chained.
 
 #### Rules
-- Only the node for the final segment of `insertedStr` receives the supplied `index` and `raw`; every intermediate segment node keeps its default `Index` of `-1` unless that same segment is also the terminal segment of a different inserted path (`TestTrieInsert`).
+- Only the node for the final segment of `insertedStr` has `IsEnd` set to `true` and receives `raw`; every intermediate segment node keeps its default `IsEnd` of `false` unless that same segment is also the terminal segment of a different inserted path (`TestTrieInsert`).
 - Inserting paths that share a prefix reuses the existing nodes for that prefix instead of creating duplicates (`TestTrieInsert`, `TestTrieLen`).
 
 #### Parameters
@@ -175,10 +174,6 @@ Splits `insertedStr` on `sep` and walks/creates a child node per segment, storin
 
 - Description: The separator byte used to split `insertedStr` into segments.
 
-- 4th parameter: `int` (`index`)
-
-- Description: An identifier to store on the node for the final segment; returned later by `Find`.
-
 #### Returns
 - 1st value: `*Trie`
 
@@ -189,18 +184,59 @@ Splits `insertedStr` on `sep` and walks/creates a child node per segment, storin
 ```go
 tr := ds.NewTrie()
 tr.
-	Insert("/users/:id/", "/users/$/", '/', 0).
-	Insert("/feeds/all/", "/feeds/all/", '/', 1)
+	Insert("/users/:id/", "/users/$/", '/').
+	Insert("/feeds/all/", "/feeds/all/", '/')
+```
+
+### Remove
+
+Walks `removedStr` segment by segment on `sep`, following only existing children (never creating nodes). If the path doesn't lead to a node previously terminated by `Insert` (i.e. one with `IsEnd == true`), the trie is left untouched and `Remove` returns `false`. Otherwise it clears that node's `IsEnd`/`Raw`, then walks back up the same path deleting every ancestor node that is now both childless and not itself an end node, stopping at the first ancestor that still holds a child or is itself a registered `IsEnd` node.
+
+Like `Insert` and `Find`, `Remove` has no internal lock — it mutates the same `Children` maps `Insert` writes and `Find` reads, so a caller running `Remove` concurrently with `Insert`/`Find` on the same `*Trie` must hold its own external lock around all three (`TestTrieConcurrentRemoveAndFind_RequiresExternalLock` documents this by being flagged under `go test -race`).
+
+#### Rules
+- Only a path that was previously the target of an `Insert` call (a node with `IsEnd == true`) can be removed; calling `Remove` on a path that was never inserted, on an incomplete/intermediate path, or with malformed input (empty string, no separator) leaves the trie unchanged and returns `false` (`TestTrieRemove_NoMatch_ReturnsFalse`).
+- Removing a path prunes every ancestor segment that becomes both childless and not itself an end node as a result, all the way up to (but not including) the root — removing the only path in the trie returns it to `Len() == 0` (`TestTrieRemove_PrunesDeadBranch`).
+- An ancestor segment that is still part of another inserted path (shared prefix) is never pruned, even if the path being removed is one of its descendants (`TestTrieRemove_KeepsSharedPrefix`).
+- Removing the same path twice returns `true` the first time and `false` the second (`TestTrieRemove_AlreadyRemoved_ReturnsFalse`).
+
+#### Parameters
+- 1st parameter: `string` (`removedStr`)
+
+- Description: The previously inserted path to remove, segmented the same way `insertedStr` was at insert time.
+
+- 2nd parameter: `byte` (`sep`)
+
+- Description: The separator byte used to split `removedStr` into segments; must match the separator used when the path was inserted.
+
+#### Returns
+- 1st value: `bool`
+
+- Description: `true` if a registered path was found and removed; `false` if no such path existed.
+
+#### Usage
+
+```go
+tr := ds.NewTrie()
+tr.Insert("/users/:id/", "/users/$/", '/')
+
+ok := tr.Remove("/users/$/", '/')
+fmt.Println(ok, tr.Len())
+```
+
+Console:
+```console
+true 0
 ```
 
 ### Find
 
-Walks `path` segment by segment on `sep`, preferring an exact literal match at each level, then a `$` (param) child, then a `*` (wildcard) child, falling back to comparing against any sibling segment containing a literal `*` pattern (e.g. `*.html`). While traversing, it also tracks the most specific `*` child passed through so a wildcard fallback is available even when no exact match is found.
+Walks `path` segment by segment on `sep`, preferring an exact literal match at each level, then — only when `supportParams` is `true` — a `$` (param) child, then a `*` (wildcard) child, falling back to comparing against any sibling segment containing a literal `*` pattern (e.g. `*.html`). While traversing, it also tracks the most specific `*` child passed through so a wildcard fallback is available even when no exact match is found.
 
 #### Rules
 - A path must be consumed exactly to a terminal node to count as a match: a path that is an incomplete prefix of a registered route returns `""` for both `matchedRaw` and `wildcardRaw` (`TestTrieFind`, "incomplete path should not match").
-- `$` segments capture their literal path value into `paramVals`, in left-to-right traversal order (`TestTrieFind`, "deep param match").
-- Once the path passes through a `*` node, that node's `Index`/`Raw` are reported via `wildcardIndex`/`wildcardRaw`, and the match still holds even when the path has extra trailing segments beyond the wildcard route's own length (`TestTrieFind`, "wildcard deep match, extra trailing segments").
+- With `supportParams: true`, `$` segments capture their literal path value into `paramVals`, in left-to-right traversal order (`TestTrieFind`, "deep param match"); with `supportParams: false`, `Find` never looks for a `$` child at all, so an inserted `$` segment only matches a query segment that is the literal string `"$"` (`TestTrieFind_ParamSupportDisabled`, `TestTrieFind_ParamSupportEnabled`).
+- Once the path passes through a `*` node, that node's `Raw` is reported via `wildcardRaw`, and the match still holds even when the path has extra trailing segments beyond the wildcard route's own length (`TestTrieFind`, "wildcard deep match, extra trailing segments").
 - A wildcard match is used as a fallback even when an unrelated, deeper sibling route exists on a different branch that doesn't match the path (`TestTrieFindWildcardFallbackThroughUnrelatedSibling`).
 
 #### Parameters
@@ -212,48 +248,44 @@ Walks `path` segment by segment on `sep`, preferring an exact literal match at e
 
 - Description: The separator byte used to split `path` into segments.
 
-#### Returns
-- 1st value: `int`
+- 3rd parameter: `bool` (`supportParams`)
 
-- Description: `Index` of the node that exactly matches the full path, or `-1` if there is no exact match.
+- Description: Pass `true` to check for a `$` child at each segment and capture its value; pass `false` to skip that check entirely and treat `$` as an ordinary literal.
+
+#### Returns
+- 1st value: `string`
+
+- Description: `Raw` of the node that exactly matches the full path, or `""` if there is no exact match.
 
 - 2nd value: `string`
 
-- Description: `Raw` of that exactly matched node, or `""` if there is no exact match.
+- Description: `Raw` of the most specific wildcard (`*`) node encountered while traversing the path, or `""` if none was passed through.
 
-- 3rd value: `int`
+- 3rd value: `[]string`
 
-- Description: `Index` of the most specific wildcard (`*`) node encountered while traversing the path, or `-1` if none was passed through.
-
-- 4th value: `string`
-
-- Description: `Raw` of that wildcard node, or `""` if none was passed through.
-
-- 5th value: `[]string`
-
-- Description: Values captured for each `$` segment, in the order they were matched.
+- Description: Values captured for each `$` segment, in the order they were matched. Always `nil` when `supportParams` is `false`.
 
 #### Usage
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/:id/", "/users/$/", '/', 0)
+tr.Insert("/users/:id/", "/users/$/", '/')
 
-index, raw, wildcardIndex, wildcardRaw, params := tr.Find("/users/123/", '/')
-fmt.Println(index, raw, wildcardIndex, wildcardRaw, params)
+raw, wildcardRaw, params := tr.Find("/users/123/", '/', true)
+fmt.Println(raw, wildcardRaw, params)
 ```
 
 Console:
 ```console
-0 /users/:id/ -1  [123]
+/users/:id/  [123]
 ```
 
 ### ToJSON
 
-Serializes the trie's shape — every segment's path, `Index`, and children — to a JSON string. Because `Children` is a Go map, the order of sibling entries in the output is not guaranteed to be stable between calls (the keys within each JSON object are always `children`, `index`, `path`, sorted alphabetically by `encoding/json`).
+Serializes the trie's shape — every segment's path, `IsEnd`, and children — to a JSON string. Because `Children` is a Go map, the order of sibling entries in the output is not guaranteed to be stable between calls (the keys within each JSON object are always `children`, `isEnd`, `path`, sorted alphabetically by `encoding/json`).
 
 #### Rules
-- The root node's JSON object has no `"path"` key, only `"children"`; every other node includes `"path"` (its segment key), `"index"`, and `"children"` (`TestTrieToJSON`).
+- The root node's JSON object has no `"path"` key, only `"children"`; every other node includes `"path"` (its segment key), `"isEnd"`, and `"children"` (`TestTrieToJSON`).
 
 #### Parameters
 None.
@@ -271,8 +303,8 @@ None.
 
 ```go
 tr := ds.NewTrie()
-tr.Insert("/users/$/", "/users/$/", '/', 0)
-tr.Insert("/feeds/all/", "/feeds/all/", '/', 1)
+tr.Insert("/users/$/", "/users/$/", '/')
+tr.Insert("/feeds/all/", "/feeds/all/", '/')
 
 js, err := tr.ToJSON()
 if err != nil {
@@ -283,7 +315,7 @@ fmt.Println(js)
 
 Console (one possible ordering — sibling order may vary):
 ```console
-{"children":[{"children":[{"children":[],"index":0,"path":"$"}],"index":-1,"path":"users"},{"children":[{"children":[],"index":1,"path":"all"}],"index":-1,"path":"feeds"}]}
+{"children":[{"children":[{"children":[],"isEnd":true,"path":"$"}],"isEnd":false,"path":"users"},{"children":[{"children":[],"isEnd":true,"path":"all"}],"isEnd":false,"path":"feeds"}]}
 ```
 
 ## Benchmarks
@@ -295,11 +327,12 @@ goos: darwin
 goarch: amd64
 pkg: github.com/dangduoc08/ginject/internal/ds
 cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkMatchWildcard-12         	56382829	        22.31 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTrieFind_Static-12       	18563512	        64.83 ns/op	       0 B/op	       0 allocs/op
-BenchmarkTrieFind_WithParam-12    	 7714236	       149.9 ns/op	      64 B/op	       1 allocs/op
-BenchmarkTrieFind_DeepParam-12    	 4847652	       256.6 ns/op	      64 B/op	       1 allocs/op
-BenchmarkTrieFind_NoMatch-12      	 6658142	       179.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMatchWildcard-12         	47284537	        25.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieFind_Static-12       	14455305	        81.98 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieFind_WithParam-12    	 6470072	       182.5 ns/op	      64 B/op	       1 allocs/op
+BenchmarkTrieFind_DeepParam-12    	 3634706	       318.3 ns/op	      64 B/op	       1 allocs/op
+BenchmarkTrieFind_NoMatch-12      	 6769974	       182.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTrieRemove-12            	 1916504	       567.6 ns/op	     144 B/op	       2 allocs/op
 PASS
-ok  	github.com/dangduoc08/ginject/internal/ds	7.329s
+ok  	github.com/dangduoc08/ginject/internal/ds	11.808s
 ```

@@ -32,7 +32,7 @@ func TestTrieLen(t *testing.T) {
 
 	tr := NewTrie()
 	for _, path := range tc.paths {
-		tr.Insert(path, path, '/', -1)
+		tr.Insert(path, path, '/')
 	}
 
 	actual := tr.Len()
@@ -49,23 +49,22 @@ func TestTrieInsert(t *testing.T) {
 	}
 	tr := NewTrie()
 
-	for i, path := range routes {
-		tr.Insert(path, path, '/', i)
+	for _, path := range routes {
+		tr.Insert(path, path, '/')
 	}
 
-	wantIndex2 := -1
-	wantIndex7 := 2
 	cases := []struct {
-		name      string
-		node      *Trie
-		wantIndex *int
+		name       string
+		node       *Trie
+		wantIsEnd  bool
+		checkIsEnd bool
 	}{
 		{name: "users", node: tr.Children["users"]},
 		{name: "users/{userId}", node: tr.Children["users"].Children["{userId}"]},
-		{name: "users/{userId}/friends", node: tr.Children["users"].Children["{userId}"].Children["friends"], wantIndex: &wantIndex2},
+		{name: "users/{userId}/friends", node: tr.Children["users"].Children["{userId}"].Children["friends"], wantIsEnd: false, checkIsEnd: true},
 		{name: "feeds", node: tr.Children["feeds"]},
 		{name: "feeds/all", node: tr.Children["feeds"].Children["all"]},
-		{name: "users/{userId}/friends/all", node: tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"], wantIndex: &wantIndex7},
+		{name: "users/{userId}/friends/all", node: tr.Children["users"].Children["{userId}"].Children["friends"].Children["all"], wantIsEnd: true, checkIsEnd: true},
 	}
 
 	for _, c := range cases {
@@ -73,8 +72,8 @@ func TestTrieInsert(t *testing.T) {
 			t.Error(test.DiffMessage(c.node, nil, c.name+": trie node should not be null"))
 			continue
 		}
-		if c.wantIndex != nil && c.node.Index != *c.wantIndex {
-			t.Error(test.DiffMessage(c.node.Index, *c.wantIndex, c.name+": trie node index should be equal"))
+		if c.checkIsEnd && c.node.IsEnd != c.wantIsEnd {
+			t.Error(test.DiffMessage(c.node.IsEnd, c.wantIsEnd, c.name+": trie node IsEnd should be equal"))
 		}
 	}
 }
@@ -88,8 +87,8 @@ func TestTrieFind(t *testing.T) {
 	}
 	tr := NewTrie()
 
-	for i, path := range routes {
-		tr.Insert(path, path, '/', i)
+	for _, path := range routes {
+		tr.Insert(path, path, '/')
 	}
 
 	userId1 := "633b0aa5d7fc3578b655b9bd"
@@ -129,7 +128,7 @@ func TestTrieFind(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		_, actualRaw, _, actualWildcard, actualParams := tr.Find(c.testPath, '/')
+		actualRaw, actualWildcard, actualParams := tr.Find(c.testPath, '/', true)
 
 		if c.wantNoMatch {
 			if actualRaw != "" || actualWildcard != "" {
@@ -151,6 +150,31 @@ func TestTrieFind(t *testing.T) {
 	}
 }
 
+func TestTrieFind_ParamSupportDisabled(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/users/$/", "/users/$/", '/')
+
+	matchedRaw, _, params := tr.Find("/users/123/", '/', false)
+	if matchedRaw != "" || params != nil {
+		t.Error(test.DiffMessage(matchedRaw, "", "Find(path, sep, false) must not treat $ as a param placeholder"))
+	}
+
+	matchedRaw, _, _ = tr.Find("/users/$/", '/', false)
+	if matchedRaw != "/users/$/" {
+		t.Error(test.DiffMessage(matchedRaw, "/users/$/", "$ should still match literally when param support is disabled"))
+	}
+}
+
+func TestTrieFind_ParamSupportEnabled(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/users/$/", "/users/$/", '/')
+
+	matchedRaw, _, params := tr.Find("/users/123/", '/', true)
+	if matchedRaw != "/users/$/" || len(params) != 1 || params[0] != "123" {
+		t.Error(test.DiffMessage(matchedRaw, "/users/$/", "Find(path, sep, true) must capture $ as a param placeholder"))
+	}
+}
+
 func TestTrieFindWildcardFallbackThroughUnrelatedSibling(t *testing.T) {
 	tc := struct {
 		routes   []string
@@ -166,19 +190,110 @@ func TestTrieFindWildcardFallbackThroughUnrelatedSibling(t *testing.T) {
 	}
 
 	tr := NewTrie()
-	for i, path := range tc.routes {
-		tr.Insert(path, path, '/', i)
+	for _, path := range tc.routes {
+		tr.Insert(path, path, '/')
 	}
 
-	_, actualRaw, _, actualWildcard, _ := tr.Find(tc.testPath, '/')
+	actualRaw, actualWildcard, _ := tr.Find(tc.testPath, '/', false)
 	if actualRaw != tc.wantRaw && actualWildcard != tc.wantRaw {
 		t.Error(test.DiffMessage(actualRaw, tc.wantRaw, "should fall back to /lv1/* despite unrelated deeper sibling"))
 	}
 }
 
+func TestTrieRemove_ExactMatch(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/users/$/", "/users/$/", '/')
+	tr.Insert("/feeds/all/", "/feeds/all/", '/')
+
+	ok := tr.Remove("/feeds/all/", '/')
+	if !ok {
+		t.Error(test.DiffMessage(ok, true, "Remove should report success for a previously inserted path"))
+	}
+
+	matchedRaw, _, _ := tr.Find("/feeds/all/", '/', false)
+	if matchedRaw != "" {
+		t.Error(test.DiffMessage(matchedRaw, "", "removed path should no longer be found"))
+	}
+
+	matchedRaw, _, _ = tr.Find("/users/123/", '/', true)
+	if matchedRaw != "/users/$/" {
+		t.Error(test.DiffMessage(matchedRaw, "/users/$/", "unrelated path should still match after removal"))
+	}
+}
+
+func TestTrieRemove_PrunesDeadBranch(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/a/b/c/", "/a/b/c/", '/')
+
+	ok := tr.Remove("/a/b/c/", '/')
+	if !ok {
+		t.Error(test.DiffMessage(ok, true, "Remove should report success"))
+	}
+
+	if got := tr.Len(); got != 0 {
+		t.Error(test.DiffMessage(got, 0, "removing the only path should prune every dead ancestor node"))
+	}
+}
+
+func TestTrieRemove_KeepsSharedPrefix(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/a/b/", "/a/b/", '/')
+	tr.Insert("/a/c/", "/a/c/", '/')
+
+	ok := tr.Remove("/a/b/", '/')
+	if !ok {
+		t.Error(test.DiffMessage(ok, true, "Remove should report success"))
+	}
+
+	matchedRaw, _, _ := tr.Find("/a/c/", '/', false)
+	if matchedRaw != "/a/c/" {
+		t.Error(test.DiffMessage(matchedRaw, "/a/c/", "sibling path sharing a prefix must survive removal"))
+	}
+
+	wantLen := 2 // "a" and "c" remain; "b" is pruned
+	if got := tr.Len(); got != wantLen {
+		t.Error(test.DiffMessage(got, wantLen, "shared prefix node must not be pruned while a sibling still uses it"))
+	}
+}
+
+func TestTrieRemove_NoMatch_ReturnsFalse(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/a/b/", "/a/b/", '/')
+
+	cases := []string{
+		"/x/y/",   // segment never inserted
+		"/a/",     // intermediate node, never a terminal node
+		"",        // empty input
+		"noslash", // no separator at all
+	}
+
+	for _, c := range cases {
+		if ok := tr.Remove(c, '/'); ok {
+			t.Error(test.DiffMessage(ok, false, "Remove("+c+") should report false"))
+		}
+	}
+
+	matchedRaw, _, _ := tr.Find("/a/b/", '/', false)
+	if matchedRaw != "/a/b/" {
+		t.Error(test.DiffMessage(matchedRaw, "/a/b/", "failed Remove calls must not mutate the trie"))
+	}
+}
+
+func TestTrieRemove_AlreadyRemoved_ReturnsFalse(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/a/b/", "/a/b/", '/')
+
+	if ok := tr.Remove("/a/b/", '/'); !ok {
+		t.Error(test.DiffMessage(ok, true, "first Remove should succeed"))
+	}
+	if ok := tr.Remove("/a/b/", '/'); ok {
+		t.Error(test.DiffMessage(ok, false, "second Remove of the same path should report false"))
+	}
+}
+
 type trieJSONNode struct {
 	Path     string         `json:"path"`
-	Index    int            `json:"index"`
+	IsEnd    bool           `json:"isEnd"`
 	Children []trieJSONNode `json:"children"`
 }
 
@@ -193,8 +308,8 @@ func findChildByPath(children []trieJSONNode, path string) *trieJSONNode {
 
 func TestTrieToJSON(t *testing.T) {
 	tr := NewTrie()
-	tr.Insert("/users/$/", "/users/$/", '/', 0)
-	tr.Insert("/feeds/all/", "/feeds/all/", '/', 1)
+	tr.Insert("/users/$/", "/users/$/", '/')
+	tr.Insert("/feeds/all/", "/feeds/all/", '/')
 
 	js, err := tr.ToJSON()
 	if err != nil {
@@ -215,15 +330,15 @@ func TestTrieToJSON(t *testing.T) {
 	if usersNode == nil {
 		t.Error(test.DiffMessage(usersNode, "users", "users node should exist"))
 	} else {
-		if usersNode.Index != -1 {
-			t.Error(test.DiffMessage(usersNode.Index, -1, "users node index should be equal"))
+		if usersNode.IsEnd {
+			t.Error(test.DiffMessage(usersNode.IsEnd, false, "users node IsEnd should be equal"))
 		}
 
 		paramNode := findChildByPath(usersNode.Children, "$")
 		if paramNode == nil {
 			t.Error(test.DiffMessage(paramNode, "$", "$ node should exist"))
-		} else if paramNode.Index != 0 {
-			t.Error(test.DiffMessage(paramNode.Index, 0, "$ node index should be equal"))
+		} else if !paramNode.IsEnd {
+			t.Error(test.DiffMessage(paramNode.IsEnd, true, "$ node IsEnd should be equal"))
 		}
 	}
 
@@ -234,8 +349,8 @@ func TestTrieToJSON(t *testing.T) {
 		allNode := findChildByPath(feedsNode.Children, "all")
 		if allNode == nil {
 			t.Error(test.DiffMessage(allNode, "all", "all node should exist"))
-		} else if allNode.Index != 1 {
-			t.Error(test.DiffMessage(allNode.Index, 1, "all node index should be equal"))
+		} else if !allNode.IsEnd {
+			t.Error(test.DiffMessage(allNode.IsEnd, true, "all node IsEnd should be equal"))
 		}
 	}
 }
