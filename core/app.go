@@ -15,12 +15,13 @@ import (
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/versioning"
+	"github.com/dangduoc08/ginject/ws"
 	"golang.org/x/net/websocket"
 )
 
 type App struct {
 	http    *HTTP
-	ws      *WS
+	ws      *ws.WS
 	ctxPool sync.Pool
 
 	isEnableDevtool bool
@@ -81,14 +82,15 @@ var dependencies = map[string]int{
 
 type WithValueKey string
 
-type corsOriginChecker interface {
-	AllowedOrigin(string) bool
-}
+// TODO: handle later
+// type corsOriginChecker interface {
+// 	AllowedOrigin(string) bool
+// }
 
 func New() *App {
 	app := &App{
 		http: newHTTP(),
-		ws:   newWS(),
+		ws:   ws.NewWS(),
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
@@ -113,12 +115,12 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
 		c.SetType(ctx.WSType)
-		app.ws.upgrade(w, r, websocket.Server{
+		app.ws.Upgrade(w, r, websocket.Server{
 			Handshake: func(cfg *websocket.Config, r *http.Request) error {
 				defer app.releaseCtx(c)
-				return app.ws.handshake(cfg, r)
+				return app.ws.Handshake(cfg, r)
 			},
-			Handler: websocket.Handler(app.ws.handleRequest),
+			Handler: websocket.Handler(app.ws.HandleRequest),
 		})
 
 		return
@@ -139,7 +141,7 @@ func (app *App) Create(m *Module) {
 	app.initGuards(injectedProviders)
 	app.initInterceptors(injectedProviders)
 	app.initMainHandlers()
-	app.ws.buildCompiledPatterns()
+
 	if app.isEnableDevtool {
 		app.createDevtool()
 	}
@@ -165,8 +167,10 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 		return invokeHandlerByProviders(f, injectedProviders, c)
 	}
 	app.http.invokeHandler = invokeHandler
-	app.ws.invokeHandler = invokeHandler
-	app.ws.globalMiddlewares = &app.globalMiddlewares
+
+	// TODO: handle later
+	// app.ws.invokeHandler = invokeHandler
+	// app.ws.globalMiddlewares = &app.globalMiddlewares
 
 	return injectedProviders
 }
@@ -179,13 +183,15 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 		app.http.catchFnsMap[endpoint] = append(app.http.catchFnsMap[endpoint], ef.Handler.(common.Catch))
 	}
 
-	for i := len(app.module.WSExceptionFilters) - 1; i >= 0; i-- {
-		ef := app.module.WSExceptionFilters[i]
-		app.ws.catchFnsMap[ef.EventName] = append(app.ws.catchFnsMap[ef.EventName], ef.Handler.(common.Catch))
-	}
+	// TODO: handle later
+	// for i := len(app.module.WSExceptionFilters) - 1; i >= 0; i-- {
+	// 	ef := app.module.WSExceptionFilters[i]
+	// 	app.ws.catchFnsMap[ef.EventName] = append(app.ws.catchFnsMap[ef.EventName], ef.Handler.(common.Catch))
+	// }
 
 	if len(app.globalExceptionFilters) > 0 {
-		wsEventNames := getWSEventKeys()
+		// wsEventNames := getWSEventKeys()
+
 		for i := len(app.globalExceptionFilters) - 1; i >= 0; i-- {
 			gef := app.globalExceptionFilters[i]
 			newGef, err := injectDependencies(gef, "exceptionFilter", injectedProviders)
@@ -199,9 +205,11 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 				endpoint := routing.MethodRouteVersionToPattern(httpMethod, h.Route, h.Version)
 				app.http.catchFnsMap[endpoint] = append(app.http.catchFnsMap[endpoint], gef.Catch)
 			}
-			for _, eventName := range wsEventNames {
-				app.ws.catchFnsMap[eventName] = append(app.ws.catchFnsMap[eventName], gef.Catch)
-			}
+
+			// TODO: handle later
+			// for _, eventName := range wsEventNames {
+			// 	app.ws.catchFnsMap[eventName] = append(app.ws.catchFnsMap[eventName], gef.Catch)
+			// }
 		}
 	}
 }
@@ -213,33 +221,38 @@ func (app *App) bindCatchMiddlewares() {
 		httpMethod := routing.OperationsMapHTTPMethods[method]
 		app.http.route.For([]string{httpMethod}, route, version)(mw)
 	}
-	for pattern, catchFns := range app.ws.catchFnsMap {
-		mw := buildCatchMiddleware(pattern, catchFns)
-		app.ws.eventMap[pattern] = append(app.ws.eventMap[pattern], mw)
-	}
+
+	// TODO: handle later
+	// for pattern, catchFns := range app.ws.catchFnsMap {
+	// 	mw := buildCatchMiddleware(pattern, catchFns)
+	// 	app.ws.eventMap[pattern] = append(app.ws.eventMap[pattern], mw)
+	// }
 }
 
 func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 	if len(app.globalMiddlewares) > 0 {
-		wsEventNames := getWSEventKeys()
+		// wsEventNames := getWSEventKeys()
+
 		for _, gm := range app.globalMiddlewares {
 			newGM, err := injectDependencies(gm, "middleware", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
-			if app.ws.corsAllowOrigin == nil {
-				if checker, ok := gm.(corsOriginChecker); ok {
-					app.ws.corsAllowOrigin = checker.AllowedOrigin
-				}
-			}
+			// if app.ws.corsAllowOrigin == nil {
+			// 	if checker, ok := gm.(corsOriginChecker); ok {
+			// 		app.ws.corsAllowOrigin = checker.AllowedOrigin
+			// 	}
+			// }
 			mw := func(middleware common.MiddlewareFn) ctx.Handler {
 				return func(c *ctx.Context) { middleware.Use(c, c.Next) }
 			}(gm)
 			app.http.route.Use(mw)
-			for _, eventName := range wsEventNames {
-				app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
-			}
+
+			// TODO: handle later
+			// for _, eventName := range wsEventNames {
+			// 	app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
+			// }
 		}
 	}
 
@@ -249,15 +262,16 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 		app.http.route.For([]string{httpMethod}, rm.Route, rm.Version)(mw)
 	}
 
-	for _, wm := range app.module.WSMiddlewares {
-		mw := buildUseMiddleware(wm.Handler.(common.Use))
-		app.ws.eventMap[wm.EventName] = append(app.ws.eventMap[wm.EventName], mw)
-	}
+	// TODO: handle later
+	// for _, wm := range app.module.WSMiddlewares {
+	// 	mw := buildUseMiddleware(wm.Handler.(common.Use))
+	// 	app.ws.eventMap[wm.EventName] = append(app.ws.eventMap[wm.EventName], mw)
+	// }
 }
 
 func (app *App) initGuards(injectedProviders map[string]Provider) {
 	if len(app.globalGuarders) > 0 {
-		wsEventNames := getWSEventKeys()
+		// wsEventNames := getWSEventKeys()
 		for _, gg := range app.globalGuarders {
 			newGG, err := injectDependencies(gg, "guard", injectedProviders)
 			if err != nil {
@@ -271,9 +285,11 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 				httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 				app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
 			}
-			for _, eventName := range wsEventNames {
-				app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
-			}
+
+			// TODO: handle later
+			// for _, eventName := range wsEventNames {
+			// 	app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
+			// }
 		}
 	}
 
@@ -283,15 +299,15 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 		app.http.route.For([]string{httpMethod}, mg.Route, mg.Version)(mw)
 	}
 
-	for _, mg := range app.module.WSGuards {
-		mw := buildGuardMiddleware(mg.Handler.(common.CanActivate))
-		app.ws.eventMap[mg.EventName] = append(app.ws.eventMap[mg.EventName], mw)
-	}
+	// for _, mg := range app.module.WSGuards {
+	// 	mw := buildGuardMiddleware(mg.Handler.(common.CanActivate))
+	// 	app.ws.eventMap[mg.EventName] = append(app.ws.eventMap[mg.EventName], mw)
+	// }
 }
 
 func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 	if len(app.globalInterceptors) > 0 {
-		wsEventNames := getWSEventKeys()
+		// wsEventNames := getWSEventKeys()
 		for _, gi := range app.globalInterceptors {
 			newGI, err := injectDependencies(gi, "interceptor", injectedProviders)
 			if err != nil {
@@ -305,10 +321,10 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 				mw := buildInterceptMiddleware(endpoint, gi.Intercept)
 				app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
 			}
-			for _, eventName := range wsEventNames {
-				mw := buildInterceptMiddleware(eventName, gi.Intercept)
-				app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
-			}
+			// for _, eventName := range wsEventNames {
+			// 	mw := buildInterceptMiddleware(eventName, gi.Intercept)
+			// 	app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
+			// }
 		}
 	}
 
@@ -319,19 +335,20 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 		app.http.route.For([]string{httpMethod}, mi.Route, mi.Version)(mw)
 	}
 
-	for _, mi := range app.module.WSInterceptors {
-		mw := buildInterceptMiddleware(mi.EventName, mi.Handler.(common.Intercept))
-		app.ws.eventMap[mi.EventName] = append(app.ws.eventMap[mi.EventName], mw)
-	}
+	// for _, mi := range app.module.WSInterceptors {
+	// 	mw := buildInterceptMiddleware(mi.EventName, mi.Handler.(common.Intercept))
+	// 	app.ws.eventMap[mi.EventName] = append(app.ws.eventMap[mi.EventName], mw)
+	// }
 }
 
 func (app *App) initMainHandlers() {
 	for _, h := range app.module.RESTMainHandlers {
 		app.http.addMainHandler(h)
 	}
-	for _, h := range app.module.WSMainHandlers {
-		app.ws.mainHandlerMap[h.EventName] = h.Handler
-	}
+
+	// for _, h := range app.module.WSMainHandlers {
+	// 	app.ws.mainHandlerMap[h.EventName] = h.Handler
+	// }
 }
 
 func (app *App) releaseCtx(c *ctx.Context) {
