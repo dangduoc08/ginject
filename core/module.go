@@ -20,19 +20,13 @@ var globalPrefixArr = []map[string][]string{}
 var globalProviders map[string]Provider = make(map[string]Provider)
 var globalInterfaces map[string]any = make(map[string]any)
 var providerInjectCheck map[string]Provider = make(map[string]Provider)
-var noInjectedFields = []string{
-	"REST",
-	"common.REST",
-	"Guard",
-	"common.Guard",
-	"Interceptor",
-	"common.Interceptor",
-	"ExceptionFilter",
-	"common.ExceptionFilter",
-	"WS",
-	"common.WS",
-	"Middleware",
-	"common.Middleware",
+var noInjectedFields = map[string]string{
+	"rest":            "REST",
+	"guard":           "Guard",
+	"interceptor":     "Interceptor",
+	"exceptionFilter": "ExceptionFilter",
+	"ws":              "WS",
+	"middleware":      "Middleware",
 }
 var injectableInterfaces = []string{
 	"github.com/dangduoc08/ginject/common/common.Logger",
@@ -267,8 +261,8 @@ func (m *Module) NewModule() *Module {
 				m.controllers[i] = newController.Interface().(Controller).NewController()
 
 				// Handle REST
-				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[0]); ok {
-					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[0]).Interface().(common.REST)
+				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["rest"]); ok {
+					rest := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["rest"]).Interface().(common.REST)
 					controllerPath := reflect.TypeOf(m.controllers[i]).PkgPath()
 					modulePrefixes := []string{}
 
@@ -289,8 +283,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound exception filers
-					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
-						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
+					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["exceptionFilter"]); loadedExceptionFilter {
+						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["exceptionFilter"]).Interface().(common.ExceptionFilter)
 
 						exceptionFilterItemArr := exceptionFilter.
 							InjectProvidersIntoRESTExceptionFilters(
@@ -361,8 +355,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound middleware
-					if _, loadedMiddleware := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[10]); loadedMiddleware {
-						middleware := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[10]).Interface().(common.Middleware)
+					if _, loadedMiddleware := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["middleware"]); loadedMiddleware {
+						middleware := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["middleware"]).Interface().(common.Middleware)
 						middlewareItemArr := middleware.InjectProvidersIntoRESTMiddlewares(&rest, func(i int, middlewareFnType reflect.Type, middlewareFnValue, newMiddleware reflect.Value) {
 
 							// callback use to inject providers
@@ -424,8 +418,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound guard
-					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
-						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
+					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["guard"]); loadedGuard {
+						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["guard"]).Interface().(common.Guard)
 						guardItemArr := guard.InjectProvidersIntoRESTGuards(&rest, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
 
 							// callback use to inject providers
@@ -487,8 +481,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound interceptor
-					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[4]); loadedInterceptor {
-						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[4]).Interface().(common.Interceptor)
+					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["interceptor"]); loadedInterceptor {
+						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["interceptor"]).Interface().(common.Interceptor)
 						interceptorItemArr := interceptor.InjectProvidersIntoRESTInterceptors(&rest, func(i int, interceptableType reflect.Type, interceptableValue, newInterceptor reflect.Value) {
 
 							// callback use to inject providers
@@ -571,8 +565,8 @@ func (m *Module) NewModule() *Module {
 				}
 
 				// Handle WS
-				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[8]); ok {
-					ws := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[8]).Interface().(common.WS)
+				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["ws"]); ok {
+					ws := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["ws"]).Interface().(common.WS)
 					// controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
@@ -586,8 +580,8 @@ func (m *Module) NewModule() *Module {
 					// TODO: handle later
 
 					// apply controller bound guard
-					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[2]); loadedGuard {
-						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[2]).Interface().(common.Guard)
+					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["guard"]); loadedGuard {
+						guard := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["guard"]).Interface().(common.Guard)
 						guardItemArr := guard.InjectProvidersIntoWSGuards(&ws, func(i int, guarderType reflect.Type, guarderValue, newGuard reflect.Value) {
 
 							// callback use to inject providers
@@ -646,8 +640,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound interceptor
-					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[4]); loadedInterceptor {
-						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[4]).Interface().(common.Interceptor)
+					if _, loadedInterceptor := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["interceptor"]); loadedInterceptor {
+						interceptor := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["interceptor"]).Interface().(common.Interceptor)
 						interceptorItemArr := interceptor.InjectProvidersIntoWSInterceptors(&ws, func(i int, interceptableType reflect.Type, interceptableValue, newInterceptor reflect.Value) {
 
 							// callback use to inject providers
@@ -706,8 +700,8 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply controller bound exception filer
-					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields[6]); loadedExceptionFilter {
-						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields[6]).Interface().(common.ExceptionFilter)
+					if _, loadedExceptionFilter := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["exceptionFilter"]); loadedExceptionFilter {
+						exceptionFilter := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["exceptionFilter"]).Interface().(common.ExceptionFilter)
 						exceptionFilterItemArr := exceptionFilter.InjectProvidersIntoWSExceptionFilters(&ws, func(i int, exceptionFilterableType reflect.Type, exceptionFilterableValue, newExceptionFilter reflect.Value) {
 
 							// callback use to inject providers
