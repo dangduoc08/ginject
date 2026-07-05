@@ -10,10 +10,10 @@ func TestParseWSFnNameToEvent_Exact(t *testing.T) {
 	cases := []struct {
 		fn, want string
 	}{
-		{"ON_message", "message"},
-		{"ON_chat_message", "chat.message"},
-		{"ON_room_events", "room.events"},
-		{"ON_a_b_c", "a.b.c"},
+		{"SUBSCRIBE_message", "message"},
+		{"SUBSCRIBE_chat_message", "chat.message"},
+		{"SUBSCRIBE_room_events", "room.events"},
+		{"SUBSCRIBE_a_b_c", "a.b.c"},
 	}
 	for _, c := range cases {
 		got, ok := ParseWSFuncNameToEvent(c.fn)
@@ -30,9 +30,9 @@ func TestParseWSFnNameToEvent_Wildcards(t *testing.T) {
 	cases := []struct {
 		fn, want string
 	}{
-		{"ON_chat_ANY", "chat.*"},
-		{"ON_chat_ANY_message", "chat.*.message"},
-		{"ON_ANY", "*"},
+		{"SUBSCRIBE_chat_ANY", "chat.*"},
+		{"SUBSCRIBE_chat_ANY_message", "chat.*.message"},
+		{"SUBSCRIBE_ANY", "*"},
 	}
 	for _, c := range cases {
 		got, ok := ParseWSFuncNameToEvent(c.fn)
@@ -50,8 +50,8 @@ func TestParseWSFnNameToEvent_Invalid(t *testing.T) {
 		"READ_users",
 		"CREATE_orders",
 		"",
-		"ON",
-		"ON_",
+		"SUBSCRIBE",
+		"SUBSCRIBE_",
 		"lowercase_message",
 	}
 	for _, fn := range cases {
@@ -63,9 +63,9 @@ func TestParseWSFnNameToEvent_Invalid(t *testing.T) {
 }
 
 func TestParseWSFnNameToEvent_CaseNormalization(t *testing.T) {
-	got, ok := ParseWSFuncNameToEvent("ON_Chat_Message")
+	got, ok := ParseWSFuncNameToEvent("SUBSCRIBE_Chat_Message")
 	if !ok {
-		t.Error(test.DiffMessage(ok, true, "ON_Chat_Message should parse"))
+		t.Error(test.DiffMessage(ok, true, "SUBSCRIBE_Chat_Message should parse"))
 	}
 	if got != "chat.message" {
 		t.Error(test.DiffMessage(got, "chat.message", "tokens lowercased"))
@@ -100,7 +100,7 @@ func TestAddHandlerToEventMap_Stores(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("ON_message", nil)
+	ws.AddHandlerToEventMap("SUBSCRIBE_message", nil)
 	if ws.EventMap == nil {
 		t.Error(test.DiffMessage(ws.EventMap, "non-nil", "EventMap created"))
 		return
@@ -109,8 +109,8 @@ func TestAddHandlerToEventMap_Stores(t *testing.T) {
 	if _, ok := ws.EventMap[eventName]; !ok {
 		t.Error(test.DiffMessage("missing", eventName, "event stored in EventMap"))
 	}
-	if InsertedEvents[eventName] != "ON_message" {
-		t.Error(test.DiffMessage(InsertedEvents[eventName], "ON_message", "InsertedEvents entry"))
+	if InsertedEvents[eventName] != "SUBSCRIBE_message" {
+		t.Error(test.DiffMessage(InsertedEvents[eventName], "SUBSCRIBE_message", "InsertedEvents entry"))
 	}
 }
 
@@ -120,12 +120,12 @@ func TestAddHandlerToEventMap_WildcardStores(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("ON_chat_ANY", nil)
+	ws.AddHandlerToEventMap("SUBSCRIBE_chat_ANY", nil)
 	if _, ok := ws.EventMap["chat.*"]; !ok {
 		t.Error(test.DiffMessage("missing", "chat.*", "wildcard event stored"))
 	}
-	if InsertedEvents["chat.*"] != "ON_chat_ANY" {
-		t.Error(test.DiffMessage(InsertedEvents["chat.*"], "ON_chat_ANY", "InsertedEvents wildcard"))
+	if InsertedEvents["chat.*"] != "SUBSCRIBE_chat_ANY" {
+		t.Error(test.DiffMessage(InsertedEvents["chat.*"], "SUBSCRIBE_chat_ANY", "InsertedEvents wildcard"))
 	}
 }
 
@@ -147,11 +147,11 @@ func TestAddHandlerToEventMap_Conflict(t *testing.T) {
 	defer func() { InsertedEvents = orig }()
 
 	ws := &WS{}
-	ws.AddHandlerToEventMap("ON_message", nil)
+	ws.AddHandlerToEventMap("SUBSCRIBE_message", nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error(test.DiffMessage(nil, "panic", "duplicate event should panic"))
 		}
 	}()
-	ws.AddHandlerToEventMap("ON_message", nil)
+	ws.AddHandlerToEventMap("SUBSCRIBE_message", nil)
 }
