@@ -567,7 +567,7 @@ func (m *Module) NewModule() *Module {
 				// Handle WS
 				if _, ok := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["ws"]); ok {
 					ws := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["ws"]).Interface().(common.WS)
-					// controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
+					controllerName := reflect.TypeOf(m.controllers[i]).PkgPath()
 
 					for j := 0; j < reflect.TypeOf(m.controllers[i]).NumMethod(); j++ {
 						methodName := reflect.TypeOf(m.controllers[i]).Method(j).Name
@@ -577,7 +577,66 @@ func (m *Module) NewModule() *Module {
 					}
 
 					// apply module bound middlewares
-					// TODO: handle later
+					if _, loadedMiddleware := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["middleware"]); loadedMiddleware {
+						middleware := reflect.ValueOf(m.controllers[i]).FieldByName(noInjectedFields["middleware"]).Interface().(common.Middleware)
+						middlewareItemArr := middleware.InjectProvidersIntoWSMiddlewares(&ws, func(i int, middlewareFnType reflect.Type, middlewareFnValue, newMiddleware reflect.Value) {
+
+							// callback use to inject providers
+							// into middleware
+							middlewareField := middlewareFnType.Field(i)
+							middlewareFieldType := middlewareField.Type
+							middlewareFieldNameKey := middlewareField.Name
+							injectProviderKey := middlewareFieldType.PkgPath() + "/" + middlewareFieldType.String()
+
+							if !token.IsExported(middlewareFieldNameKey) {
+								panic(errors.New(
+									color.FmtRed(
+										"can't set value to unexported '%v' field of the '%v' middleware function",
+										middlewareFieldNameKey,
+										middlewareFnType.Name(),
+									),
+								))
+							}
+
+							// Inject providers into middleware
+							// inject provider priorities
+							// local inject
+							// global inject
+							// inner packages
+							// resolve dependencies error
+							if injectedProviders[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+							} else if globalProviders[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+							} else if globalInterfaces[injectProviderKey] != nil {
+								newMiddleware.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
+							} else if !isInjectedProvider(middlewareFieldType) {
+								newMiddleware.Elem().Field(i).Set(middlewareFnValue.Field(i))
+							} else {
+								panic(errors.New(
+									color.FmtRed(
+										"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' middleware function",
+										middlewareFieldType.String(),
+										i,
+										middlewareFnType.Name(),
+									),
+								))
+							}
+						})
+
+						// apply controller bound middlewares
+						for _, middlewareItem := range middlewareItemArr {
+							m.WSMiddlewares = append(m.WSMiddlewares, struct {
+								controllerName string
+								EventName      string
+								Handler        any
+							}{
+								controllerName: controllerName,
+								EventName:      middlewareItem.WS.EventName,
+								Handler:        middlewareItem.WS.Common.Handler,
+							})
+						}
+					}
 
 					// apply controller bound guard
 					if _, loadedGuard := reflect.TypeOf(m.controllers[i]).FieldByName(noInjectedFields["guard"]); loadedGuard {
