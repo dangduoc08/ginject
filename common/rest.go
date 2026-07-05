@@ -27,7 +27,6 @@ const (
 	TokenAnd     = "AND"
 	TokenOf      = "OF"
 	TokenAny     = "ANY"
-	TokenAll     = "ALL"
 	TokenFile    = "FILE"
 	TokenVersion = "VERSION"
 )

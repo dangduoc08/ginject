@@ -170,8 +170,6 @@ func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 		case "":
 		case TokenAny:
 			segs = append(segs, "*")
-		case TokenAll:
-			segs = append(segs, ">")
 		default:
 			segs = append(segs, strings.ToLower(p))
 		}
