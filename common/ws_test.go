@@ -31,8 +31,7 @@ func TestParseWSFnNameToEvent_Wildcards(t *testing.T) {
 		fn, want string
 	}{
 		{"ON_chat_ANY", "chat.*"},
-		{"ON_chat_ALL", "chat.>"},
-		{"ON_ALL", ">"},
+		{"ON_chat_ANY_message", "chat.*.message"},
 		{"ON_ANY", "*"},
 	}
 	for _, c := range cases {
