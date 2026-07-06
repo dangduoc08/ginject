@@ -3,6 +3,7 @@ package requestlogger
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
+	"golang.org/x/net/websocket"
 )
 
 type mockLogger struct {
@@ -172,6 +174,39 @@ func TestRequestLogger_Use_NoLogWithoutEventEmit(t *testing.T) {
 	rl.Use(c, func() {})
 	if log.called {
 		t.Error(test.DiffMessage(log.called, false, "Info should not be called before RequestFinished"))
+	}
+}
+
+func TestRequestLogger_Use_WSLogsLocationPath(t *testing.T) {
+	log := &mockLogger{}
+	rl := RequestLogger{Logger: log}
+	c := newLoggerContext(http.MethodGet, "/ws", ctx.WSType)
+	c.SetWSConfig(&websocket.Config{Location: &url.URL{Path: "/chat"}})
+	rl.Use(c, func() {})
+	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	if !log.called {
+		t.Error(test.DiffMessage(log.called, true, "Info should be called for WS"))
+		return
+	}
+	if log.msg != "/chat" {
+		t.Error(test.DiffMessage(log.msg, "/chat", "WS log message should be Location.Path"))
+	}
+}
+
+func TestRequestLogger_Use_WSLogsMethodAndID(t *testing.T) {
+	log := &mockLogger{}
+	rl := RequestLogger{Logger: log}
+	c := newLoggerContextWithID(http.MethodGet, "/ws", "ws-req-1", ctx.WSType)
+	c.SetWSConfig(&websocket.Config{Location: &url.URL{Path: "/chat"}})
+	rl.Use(c, func() {})
+	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	v, ok := findArg(log.args, ctx.RequestID)
+	if !ok {
+		t.Error(test.DiffMessage(nil, ctx.RequestID+" key", "RequestID key missing from WS log args"))
+		return
+	}
+	if v != "ws-req-1" {
+		t.Error(test.DiffMessage(v, "ws-req-1", "WS RequestID value mismatch"))
 	}
 }
 
