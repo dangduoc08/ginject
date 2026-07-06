@@ -7,6 +7,7 @@ import (
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
+	"golang.org/x/net/websocket"
 )
 
 type (
@@ -47,7 +48,7 @@ type Context struct {
 	Code      int
 	Timestamp time.Time
 
-	WS *WS
+	wsCfg *websocket.Config
 }
 
 const (
@@ -133,7 +134,7 @@ func (c *Context) Reset() {
 	c.cleanRoute = ""
 	c.Type = ""
 	c.id = ""
-	c.WS = nil
+	c.wsCfg = nil
 	c.body = nil
 	c.form = nil
 	c.file = nil
@@ -176,4 +177,12 @@ func (c *Context) SetID() {
 
 func (c *Context) GetID() string {
 	return c.id
+}
+
+func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
+	c.wsCfg = wsCfg
+}
+
+func (c *Context) GetWSConfig() *websocket.Config {
+	return c.wsCfg
 }

@@ -15,17 +15,18 @@ import (
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/versioning"
-	"github.com/dangduoc08/ginject/ws"
 	"golang.org/x/net/websocket"
 )
 
 type App struct {
 	http    *HTTP
-	ws      *ws.WS
 	ctxPool sync.Pool
 
 	isEnableDevtool bool
 	devtool         *devtool.Devtool
+
+	ws         *WS
+	isEnableWS bool
 
 	module *Module
 
@@ -38,8 +39,6 @@ type App struct {
 	Logger common.Logger
 }
 
-// Reflect-type keys mirroring the public type aliases declared in aliases.go;
-// used to resolve handler parameters by their type during injection.
 const (
 	contextKey      = "/*ctx.Context"
 	wsConnectionKey = "/*websocket.Conn"
@@ -82,15 +81,10 @@ var dependencies = map[string]int{
 
 type WithValueKey string
 
-// TODO: handle later
-// type corsOriginChecker interface {
-// 	AllowedOrigin(string) bool
-// }
-
 func New() *App {
 	app := &App{
 		http: newHTTP(),
-		ws:   ws.NewWS(),
+		ws:   nil,
 		ctxPool: sync.Pool{
 			New: func() any {
 				c := ctx.NewContext()
@@ -113,14 +107,17 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c := app.ctxPool.Get().(*ctx.Context)
 	c.Init(w, r)
 
-	if r.URL.Path == "/ws" || r.URL.Path == "/ws/" {
+	if app.isEnableWS && app.ws.IsWSPath(r.URL.Path) {
 		c.SetType(ctx.WSType)
-		app.ws.Upgrade(w, r, websocket.Server{
-			Handshake: func(cfg *websocket.Config, r *http.Request) error {
+		app.ws.upgrade(w, r, websocket.Server{
+			Handshake: func(wsCfg *websocket.Config, r *http.Request) error {
 				defer app.releaseCtx(c)
-				return app.ws.Handshake(cfg, r)
+
+				c.Request = r
+				c.SetWSConfig(wsCfg)
+				return app.ws.handshake(c)
 			},
-			Handler: websocket.Handler(app.ws.HandleRequest),
+			Handler: websocket.Handler(app.ws.handleRequest),
 		})
 
 		return
@@ -144,6 +141,10 @@ func (app *App) Create(m *Module) {
 
 	if app.isEnableDevtool {
 		app.createDevtool()
+	}
+
+	if app.isEnableWS {
+		app.ws.injectedProviders = injectedProviders
 	}
 }
 
@@ -231,28 +232,16 @@ func (app *App) bindCatchMiddlewares() {
 
 func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 	if len(app.globalMiddlewares) > 0 {
-		// wsEventNames := getWSEventKeys()
-
 		for _, gm := range app.globalMiddlewares {
 			newGM, err := injectDependencies(gm, "middleware", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
-			// if app.ws.corsAllowOrigin == nil {
-			// 	if checker, ok := gm.(corsOriginChecker); ok {
-			// 		app.ws.corsAllowOrigin = checker.AllowedOrigin
-			// 	}
-			// }
 			mw := func(middleware common.MiddlewareFn) ctx.Handler {
 				return func(c *ctx.Context) { middleware.Use(c, c.Next) }
 			}(gm)
 			app.http.route.Use(mw)
-
-			// TODO: handle later
-			// for _, eventName := range wsEventNames {
-			// 	app.ws.eventMap[eventName] = append(app.ws.eventMap[eventName], mw)
-			// }
 		}
 	}
 
@@ -261,12 +250,6 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 		httpMethod := routing.OperationsMapHTTPMethods[rm.Method]
 		app.http.route.For([]string{httpMethod}, rm.Route, rm.Version)(mw)
 	}
-
-	// TODO: handle later
-	// for _, wm := range app.module.WSMiddlewares {
-	// 	mw := buildUseMiddleware(wm.Handler.(common.Use))
-	// 	app.ws.eventMap[wm.EventName] = append(app.ws.eventMap[wm.EventName], mw)
-	// }
 }
 
 func (app *App) initGuards(injectedProviders map[string]Provider) {
@@ -392,6 +375,14 @@ func (app *App) EnableDevtool() *App {
 	return app
 }
 
+func (app *App) EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App {
+	app.isEnableWS = true
+	cfg.globalMiddlewares = middlewares
+	app.ws = NewWS(cfg)
+
+	return app
+}
+
 func (app *App) UseLogger(logger common.Logger) *App {
 	app.Logger = logger
 	globalInterfaces[injectableInterfaces[0]] = app.Logger
@@ -431,15 +422,17 @@ func (app *App) Listen(port int) error {
 		)
 	}
 
-	// WS logs
-	eventArr := getWSEventKeys()
-	sort.Strings(eventArr)
+	if app.isEnableWS {
+		// WS logs
+		eventArr := getWSEventKeys()
+		sort.Strings(eventArr)
 
-	for _, eventName := range eventArr {
-		app.Logger.Info(
-			"WebSocketEvent",
-			"event", eventName,
-		)
+		for _, eventName := range eventArr {
+			app.Logger.Info(
+				"WebSocketEvent",
+				"event", eventName,
+			)
+		}
 	}
 
 	addr := fmt.Sprintf(":%v", port)

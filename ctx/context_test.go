@@ -209,7 +209,7 @@ func TestReset_ClearsAllFields(t *testing.T) {
 	if c.Next != nil {
 		t.Error(test.DiffMessage(c.Next, nil, "Reset Next"))
 	}
-	if c.WS != nil {
-		t.Error(test.DiffMessage(c.WS, nil, "Reset WS"))
+	if c.GetWSConfig() != nil {
+		t.Error(test.DiffMessage(c.GetWSConfig(), nil, "Reset wsCfg"))
 	}
 }
