@@ -20,11 +20,14 @@
   - [Benchmark](#benchmark)
 
 ## Tính Năng Chính
-- Khớp `AllowOrigin` theo wildcard `*`, danh sách origin chính xác, hoặc pattern `*regexp.Regexp`
-- Tự động thêm header `Vary: Origin` mỗi khi response phụ thuộc vào origin của request
+- Khớp `AllowOrigin` theo wildcard `*`, một origin đơn, danh sách origin chính xác, hoặc pattern `*regexp.Regexp` — tất cả dùng chung một logic so khớp cho cả request HTTP lẫn WebSocket
+- Tự động thêm header `Vary: Origin` mỗi khi response phụ thuộc vào origin của request, kể cả khi origin đó bị từ chối (để cache không bao giờ trả nhầm response CORS cho origin khác)
+- `Vary` được merge vào, chứ không ghi đè, giá trị mà middleware khác đã đặt trước đó, có loại trùng không phân biệt hoa thường
+- Dấu `/` ở cuối được loại bỏ nhất quán cho mọi kiểu `AllowOrigin` (`string`, `[]string`) trước khi so sánh
 - Xử lý credentials đúng chuẩn: echo lại origin của request thay vì `*` khi `IsAllowCredentials` được đặt
 - Chặn origin `null` khi credentials được bật
 - Short-circuit cho preflight: trả về status đã cấu hình mà không gọi `next`, trừ khi `IsPreflightContinue` được đặt
+- Toàn bộ việc parse/join/chuẩn hóa chỉ diễn ra một lần, trong `NewMiddleware`; xử lý mỗi request không cấp phát thêm cho phần cấu hình
 
 ## Cách Dùng
 
@@ -32,6 +35,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/dangduoc08/ginject/core"
 	"github.com/dangduoc08/ginject/middlewares/cors"
 )
@@ -43,7 +48,7 @@ func main() {
 		AllowOrigin:        []string{"https://app.example.com"},
 		AllowHeaders:       []string{"Content-Type", "Authorization"},
 		AllowMethods:       []string{"GET", "POST", "PUT", "DELETE"},
-		MaxAge:             86400000,
+		MaxAge:             24 * time.Hour,
 		IsAllowCredentials: true,
 	})
 
@@ -71,7 +76,7 @@ Default: `"*"` (được đặt bởi `NewMiddleware`/`Use` khi để `nil`)
 
 Required: `false`
 
-Kiểm soát origin nào được phép. Một `string` được so khớp nguyên văn (`"*"` cho phép mọi origin); một `[]string` được so khớp chính xác, với dấu `/` ở cuối mỗi origin đã cấu hình bị loại bỏ trước khi so sánh; một `*regexp.Regexp` được so khớp bằng `MatchString`.
+Kiểm soát origin nào được phép. Chuỗi `"*"` cho phép mọi origin. Bất kỳ `string` nào khác, hoặc một `[]string`, được so khớp chính xác với header `Origin` của request (dấu `/` ở cuối origin đã cấu hình bị loại bỏ trước khi so sánh, nên `"https://app.example.com/"` và `"https://app.example.com"` là tương đương); origin không khớp sẽ không nhận được header CORS nào cả. Một `*regexp.Regexp` được so khớp bằng `MatchString`. Request HTTP và WebSocket dùng chung một hàm so khớp duy nhất.
 
 ```go
 cors.CORS{AllowOrigin: []string{"https://app.example.com", "https://admin.example.com"}}
@@ -113,16 +118,16 @@ cors.CORS{AllowMethods: []string{"GET", "POST"}}
 ```
 
 ### MaxAge
-Type: `int` (milli giây)
+Type: `time.Duration`
 
-Default: `5000` (5 giây)
+Default: `5 * time.Second`
 
 Required: `false`
 
-Thời gian browser được phép cache một response preflight; được chuyển sang giây cho header `Access-Control-Max-Age`.
+Thời gian browser được phép cache một response preflight; bị làm tròn xuống theo giây cho header `Access-Control-Max-Age`. Giá trị bằng 0 hoặc âm sẽ dùng giá trị mặc định.
 
 ```go
-cors.CORS{MaxAge: 86400000} // đặt header thành "86400"
+cors.CORS{MaxAge: 24 * time.Hour} // đặt header thành "86400"
 ```
 
 ### IsAllowCredentials
@@ -192,9 +197,11 @@ app.BindGlobalMiddlewares(mw)
 #### Rules
 - Khi không có header `Origin` trong request, không có header CORS nào được đặt và `next` được gọi ngay lập tức (`TestCORS_Use_NoOriginHeaderSkipsCORS`).
 - `AllowOrigin` là `nil` sẽ mặc định là `"*"`, đặt `Access-Control-Allow-Origin: *` (`TestCORS_Use_SetsOriginStarByDefault`).
-- `AllowOrigin` dạng `[]string` echo lại origin của request và đặt `Vary: Origin` khi khớp (dấu `/` ở cuối origin đã cấu hình bị bỏ qua), và không đặt header nào khi không khớp; một danh sách trống sẽ chặn mọi origin (`TestCORS_Use_SpecificOriginMap`, `TestCORS_Use_OriginTrailingSlashMatchesRequest`, `TestCORS_Use_SpecificOriginMapBlocked`, `TestCORS_Use_EmptySliceBlocksAllOrigins`).
-- `AllowOrigin` dạng `*regexp.Regexp` echo lại origin của request và đặt `Vary: Origin` chỉ khi khớp pattern (`TestCORS_Use_RegexpOrigin`, `TestCORS_Use_RegexpOriginNoMatch`).
-- `Vary: Origin` được đặt mỗi khi một origin cụ thể được echo lại, nhưng không bao giờ được đặt cho wildcard `"*"` đơn thuần (`TestCORS_Use_VaryForSpecificStringOrigin`, `TestCORS_Use_NoVaryForWildcard`).
+- `AllowOrigin` dạng `string` đơn (khác `"*"`) được so khớp chính xác: chỉ echo lại origin của request khi trùng khớp, và không đặt header nào — kể cả không fallback về giá trị đã cấu hình — khi không khớp (`TestCORS_Use_SpecificStringOriginBlocked`).
+- `AllowOrigin` dạng `[]string` echo lại origin của request khi khớp (dấu `/` ở cuối origin đã cấu hình bị bỏ qua), và không đặt header nào khi không khớp; một danh sách trống sẽ chặn mọi origin (`TestCORS_Use_SpecificOriginMap`, `TestCORS_Use_OriginTrailingSlashMatchesRequest`, `TestCORS_Use_SpecificOriginMapBlocked`, `TestCORS_Use_EmptySliceBlocksAllOrigins`).
+- `AllowOrigin` dạng `*regexp.Regexp` echo lại origin của request chỉ khi khớp pattern (`TestCORS_Use_RegexpOrigin`, `TestCORS_Use_RegexpOriginNoMatch`).
+- `Vary: Origin` được đặt bất cứ khi nào `AllowOrigin` khác wildcard `"*"` đơn thuần không kèm credentials — kể cả khi origin của request này bị từ chối, vì response vẫn phụ thuộc vào origin đối với các caller khác (`TestCORS_Use_VaryForSpecificStringOrigin`, `TestCORS_Use_VaryOriginSetEvenWhenOriginIsBlocked`, `TestCORS_Use_NoVaryForWildcard`).
+- Các token của `Vary` được merge vào giá trị mà middleware khác đã đặt trước đó (không bao giờ ghi đè) và được loại trùng không phân biệt hoa thường (`TestCORS_Use_VaryMergesWithExistingHeader`, `TestCORS_Use_VaryNoDuplicateWhenAlreadyPresent`).
 - `IsAllowCredentials` đặt `Access-Control-Allow-Credentials: true` (`TestCORS_Use_Credentials`).
 - `AllowOrigin` wildcard kết hợp với `IsAllowCredentials` sẽ echo lại origin của request thay vì `*` và đặt `Vary: Origin`, ngoại trừ khi origin của request là `"null"`, trường hợp này không bao giờ được echo lại (`TestCORS_Use_CredentialsWithWildcardEchosOrigin`, `TestCORS_Use_NullOriginWithCredentialsBlocked`).
 - `AllowOrigin` wildcard không có `IsAllowCredentials` vẫn đặt `Access-Control-Allow-Origin: *` ngay cả khi origin của request là `"null"` (`TestCORS_Use_NullOriginWildcardNoCredentials`).
@@ -203,6 +210,7 @@ app.BindGlobalMiddlewares(mw)
 - Một `AllowHeaders`/`ExposeHeaders` dạng string được truyền qua nguyên văn thay vì được join (`TestCORS_Use_AllowHeadersString`, `TestCORS_Use_ExposeHeadersString`).
 - `next` luôn được gọi đối với request không phải `OPTIONS` (`TestCORS_Use_NextCalledForNonOptions`).
 - Đối với request `OPTIONS`, `next` chỉ được gọi khi `IsPreflightContinue` là `true`; ngược lại response được viết ra ngay với `OptionsSuccessStatus` (mặc định `204`, hoặc giá trị đã cấu hình) và `next` không được gọi (`TestCORS_Use_OptionsPreflightContinue`, `TestCORS_Use_OptionsPreflightStatus`, `TestCORS_Use_CustomOptionsSuccessStatus`).
+- Request WebSocket (`ctx.WSType`) dùng đúng các quy tắc so khớp origin giống HTTP, nhưng không bao giờ ghi header response — origin bị từ chối chỉ đơn giản là bỏ qua `next`.
 
 #### Parameters
 - Tham số thứ 1: `*ctx.Context` (`c`)
@@ -224,21 +232,21 @@ cors.CORS{AllowOrigin: "https://example.com"}.Use(c, next)
 
 ## Benchmark
 
-Được ghi lại bằng cách chạy `go test -run=^$ -bench=. -benchmem ./middlewares/cors/...`. Các số liệu phụ thuộc vào máy chạy và được ghi lại tại thời điểm tạo tài liệu — hãy tự chạy lại lệnh này để có baseline mới.
+Được ghi lại bằng cách chạy `go test -run=^$ -bench=. -benchmem ./middlewares/cors/...`. Các số liệu phụ thuộc vào máy chạy và được ghi lại tại thời điểm tạo tài liệu — hãy tự chạy lại lệnh này để có baseline mới. `BenchmarkCORS_Use_*` cấp cho mỗi lần lặp một response recorder riêng (giống một request thật), nên số liệu cấp phát phản ánh đúng chi phí thực tế mỗi request; `BenchmarkLoadCORSOptions` là bước biên dịch một-lần-cho-mỗi-lần-gọi-`NewMiddleware`, không phải chi phí trên mỗi request.
 
 ```console
 goos: darwin
 goarch: amd64
 pkg: github.com/dangduoc08/ginject/middlewares/cors
 cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkCORS_Use_StarOrigin-12          	 4616331	       250.1 ns/op	      16 B/op	       1 allocs/op
-BenchmarkCORS_Use_NilOriginDefault-12    	 4937156	       245.7 ns/op	      16 B/op	       1 allocs/op
-BenchmarkCORS_Use_OriginMap-12           	 3482049	       345.5 ns/op	      32 B/op	       2 allocs/op
-BenchmarkCORS_Use_Preflight-12           	  709976	      1646 ns/op	     256 B/op	       9 allocs/op
-BenchmarkAllowedOrigin_Wildcard-12       	422648827	         3.038 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllowedOrigin_Map-12            	100000000	        12.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAllowedOrigin_Regexp-12         	 2383460	       550.9 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoadCORSOptions-12              	 9613004	       148.2 ns/op	     144 B/op	       2 allocs/op
+BenchmarkCORS_Use_StarOrigin-12          	 2834415	       363.1 ns/op	     528 B/op	       5 allocs/op
+BenchmarkCORS_Use_NilOriginDefault-12    	 2751880	       451.0 ns/op	     528 B/op	       5 allocs/op
+BenchmarkCORS_Use_OriginMap-12           	 2331158	       534.0 ns/op	     544 B/op	       6 allocs/op
+BenchmarkCORS_Use_Preflight-12           	  447320	      3278 ns/op	    1216 B/op	      15 allocs/op
+BenchmarkMatchOrigin_Wildcard-12         	320508262	         4.273 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMatchOrigin_Map-12              	58212392	        26.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMatchOrigin_Regexp-12           	 1000000	      1123 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLoadCORSOptions-12              	 2898069	       443.4 ns/op	     400 B/op	       4 allocs/op
 PASS
-ok  	github.com/dangduoc08/ginject/middlewares/cors	12.736s
+ok  	github.com/dangduoc08/ginject/middlewares/cors	14.435s
 ```

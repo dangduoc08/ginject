@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
@@ -47,11 +48,33 @@ func TestLoadCORSOptions_SliceAllowOriginConvertsToMap(t *testing.T) {
 	}
 }
 
-func TestLoadCORSOptions_StringAllowOriginPassesThrough(t *testing.T) {
+func TestLoadCORSOptions_StringAllowOriginConvertsToMap(t *testing.T) {
 	cors := &CORS{AllowOrigin: "https://example.com"}
 	opts := loadCORSOptions(cors)
-	if opts.allowOrigin != "https://example.com" {
-		t.Error(test.DiffMessage(opts.allowOrigin, "https://example.com", "string AllowOrigin"))
+	m, ok := opts.allowOrigin.(map[string]bool)
+	if !ok {
+		t.Error(test.DiffMessage(opts.allowOrigin, "map[string]bool", "single-string AllowOrigin should normalize to map"))
+		return
+	}
+	if !m["https://example.com"] {
+		t.Error(test.DiffMessage(false, true, "https://example.com should be in map"))
+	}
+}
+
+func TestLoadCORSOptions_StringAllowOriginTrailingSlashTrimmed(t *testing.T) {
+	cors := &CORS{AllowOrigin: "https://example.com/"}
+	opts := loadCORSOptions(cors)
+	m := opts.allowOrigin.(map[string]bool)
+	if !m["https://example.com"] {
+		t.Error(test.DiffMessage(false, true, "trailing slash should be trimmed for single-string AllowOrigin too"))
+	}
+}
+
+func TestLoadCORSOptions_WildcardStringStaysString(t *testing.T) {
+	cors := &CORS{AllowOrigin: "*"}
+	opts := loadCORSOptions(cors)
+	if opts.allowOrigin != "*" {
+		t.Error(test.DiffMessage(opts.allowOrigin, "*", "wildcard AllowOrigin should remain the string *"))
 	}
 }
 
@@ -64,6 +87,28 @@ func TestLoadCORSOptions_RegexpPassesThrough(t *testing.T) {
 	}
 }
 
+func TestLoadCORSOptions_DoesNotMutateInput(t *testing.T) {
+	cors := &CORS{AllowOrigin: []string{"https://example.com/"}}
+	_ = loadCORSOptions(cors)
+	slice, ok := cors.AllowOrigin.([]string)
+	if !ok {
+		t.Error(test.DiffMessage(cors.AllowOrigin, "[]string", "loadCORSOptions must not replace the caller's AllowOrigin value"))
+		return
+	}
+	if slice[0] != "https://example.com/" {
+		t.Error(test.DiffMessage(slice[0], "https://example.com/", "loadCORSOptions must not normalize the caller's slice in place"))
+	}
+}
+
+func TestLoadCORSOptions_UnrecognizedAllowOriginTypeBlocksAll(t *testing.T) {
+	cors := &CORS{AllowOrigin: 42}
+	opts := loadCORSOptions(cors)
+	m, ok := opts.allowOrigin.(map[string]bool)
+	if !ok || len(m) != 0 {
+		t.Error(test.DiffMessage(opts.allowOrigin, "empty map[string]bool", "an unrecognized AllowOrigin type should normalize to a deny-all map"))
+	}
+}
+
 func TestLoadCORSOptions_DefaultMaxAge(t *testing.T) {
 	cors := &CORS{}
 	opts := loadCORSOptions(cors)
@@ -73,10 +118,26 @@ func TestLoadCORSOptions_DefaultMaxAge(t *testing.T) {
 }
 
 func TestLoadCORSOptions_CustomMaxAge(t *testing.T) {
-	cors := &CORS{MaxAge: 10000}
+	cors := &CORS{MaxAge: 10 * time.Second}
 	opts := loadCORSOptions(cors)
 	if opts.maxAge != "10" {
-		t.Error(test.DiffMessage(opts.maxAge, "10", "MaxAge=10000ms should give 10s"))
+		t.Error(test.DiffMessage(opts.maxAge, "10", "MaxAge=10s should give 10s"))
+	}
+}
+
+func TestLoadCORSOptions_MaxAgeTruncatesSubSecond(t *testing.T) {
+	cors := &CORS{MaxAge: 1500 * time.Millisecond}
+	opts := loadCORSOptions(cors)
+	if opts.maxAge != "1" {
+		t.Error(test.DiffMessage(opts.maxAge, "1", "MaxAge=1500ms should truncate to 1s"))
+	}
+}
+
+func TestLoadCORSOptions_NegativeMaxAgeUsesDefault(t *testing.T) {
+	cors := &CORS{MaxAge: -1 * time.Second}
+	opts := loadCORSOptions(cors)
+	if opts.maxAge != "5" {
+		t.Error(test.DiffMessage(opts.maxAge, "5", "negative MaxAge should fall back to the default"))
 	}
 }
 
@@ -143,6 +204,17 @@ func TestCORS_Use_SpecificOriginMapBlocked(t *testing.T) {
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "" {
 		t.Error(test.DiffMessage(got, "", "disallowed origin should not set header"))
+	}
+}
+
+func TestCORS_Use_SpecificStringOriginBlocked(t *testing.T) {
+	cors := CORS{AllowOrigin: "https://trusted.com"}
+	mw := cors.NewMiddleware()
+	c, rec := newTestContext(http.MethodGet, "https://evil.com")
+	mw.Use(c, noop)
+	got := rec.Header().Get("Access-Control-Allow-Origin")
+	if got != "" {
+		t.Error(test.DiffMessage(got, "", "a single fixed AllowOrigin must not be echoed back for a non-matching request origin"))
 	}
 }
 
@@ -257,6 +329,16 @@ func TestCORS_Use_VaryForSpecificStringOrigin(t *testing.T) {
 	}
 }
 
+func TestCORS_Use_VaryOriginSetEvenWhenOriginIsBlocked(t *testing.T) {
+	cors := CORS{AllowOrigin: []string{"https://trusted.com"}}
+	mw := cors.NewMiddleware()
+	c, rec := newTestContext(http.MethodGet, "https://evil.com")
+	mw.Use(c, noop)
+	if rec.Header().Get("Vary") != "Origin" {
+		t.Error(test.DiffMessage(rec.Header().Get("Vary"), "Origin", "a response that depends on Origin must vary by Origin even when this origin is rejected"))
+	}
+}
+
 func TestCORS_Use_NoVaryForWildcard(t *testing.T) {
 	cors := CORS{AllowOrigin: "*"}
 	mw := cors.NewMiddleware()
@@ -264,6 +346,30 @@ func TestCORS_Use_NoVaryForWildcard(t *testing.T) {
 	mw.Use(c, noop)
 	if rec.Header().Get("Vary") != "" {
 		t.Error(test.DiffMessage(rec.Header().Get("Vary"), "", "wildcard origin should not set Vary"))
+	}
+}
+
+func TestCORS_Use_VaryMergesWithExistingHeader(t *testing.T) {
+	cors := CORS{AllowOrigin: "https://example.com"}
+	mw := cors.NewMiddleware()
+	c, rec := newTestContext(http.MethodGet, "https://example.com")
+	rec.Header().Set("Vary", "Accept-Encoding")
+	mw.Use(c, noop)
+	got := rec.Header().Get("Vary")
+	if got != "Accept-Encoding, Origin" {
+		t.Error(test.DiffMessage(got, "Accept-Encoding, Origin", "CORS must merge into, not overwrite, an existing Vary header"))
+	}
+}
+
+func TestCORS_Use_VaryNoDuplicateWhenAlreadyPresent(t *testing.T) {
+	cors := CORS{AllowOrigin: "https://example.com"}
+	mw := cors.NewMiddleware()
+	c, rec := newTestContext(http.MethodGet, "https://example.com")
+	rec.Header().Set("Vary", "origin")
+	mw.Use(c, noop)
+	got := rec.Header().Get("Vary")
+	if got != "origin" {
+		t.Error(test.DiffMessage(got, "origin", "Vary merge must dedupe case-insensitively instead of appending a duplicate"))
 	}
 }
 
@@ -380,82 +486,95 @@ func TestCORS_Use_NullOriginWildcardNoCredentials(t *testing.T) {
 	}
 }
 
-func TestAllowedOrigin_WildcardNoCredentials(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "*"})}
+func TestMatchOrigin_WildcardNoCredentials(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "*"})
 	for _, origin := range []string{"https://example.com", "https://evil.com", "null"} {
-		if !m.AllowedOrigin(origin) {
+		if _, ok := matchOrigin(opts.allowOrigin, origin, opts.isAllowCredentials); !ok {
 			t.Error(test.DiffMessage(false, true, "wildcard without credentials should allow "+origin))
 		}
 	}
 }
 
-func TestAllowedOrigin_WildcardWithCredentials_NormalOrigin(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})}
-	if !m.AllowedOrigin("https://example.com") {
+func TestMatchOrigin_WildcardWithCredentials_NormalOrigin(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials); !ok {
 		t.Error(test.DiffMessage(false, true, "wildcard+credentials should allow normal origin"))
 	}
 }
 
-func TestAllowedOrigin_WildcardWithCredentials_NullRejected(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})}
-	if m.AllowedOrigin("null") {
+func TestMatchOrigin_WildcardWithCredentials_NullRejected(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
+	if _, ok := matchOrigin(opts.allowOrigin, "null", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "wildcard+credentials should reject null origin"))
 	}
 }
 
-func TestAllowedOrigin_WildcardWithCredentials_EmptyRejected(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})}
-	if m.AllowedOrigin("") {
+func TestMatchOrigin_WildcardWithCredentials_EmptyRejected(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
+	if _, ok := matchOrigin(opts.allowOrigin, "", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "wildcard+credentials should reject empty origin"))
 	}
 }
 
-func TestAllowedOrigin_SpecificString_Allowed(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})}
-	if !m.AllowedOrigin("https://trusted.com") {
+func TestMatchOrigin_SpecificString_Allowed(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com", opts.isAllowCredentials); !ok {
 		t.Error(test.DiffMessage(false, true, "exact string match should be allowed"))
 	}
 }
 
-func TestAllowedOrigin_SpecificString_Blocked(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})}
-	if m.AllowedOrigin("https://evil.com") {
+func TestMatchOrigin_SpecificString_Blocked(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "non-matching string should be blocked"))
 	}
 }
 
-func TestAllowedOrigin_Map_Allowed(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com", "https://b.com"}})}
-	if !m.AllowedOrigin("https://a.com") {
+func TestMatchOrigin_SpecificString_TrailingSlashIgnored(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com/"})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com", opts.isAllowCredentials); !ok {
+		t.Error(test.DiffMessage(false, true, "configured trailing slash should not prevent a bare-origin match"))
+	}
+}
+
+func TestMatchOrigin_Map_Allowed(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com", "https://b.com"}})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://a.com", opts.isAllowCredentials); !ok {
 		t.Error(test.DiffMessage(false, true, "origin in list should be allowed"))
 	}
 }
 
-func TestAllowedOrigin_Map_Blocked(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com"}})}
-	if m.AllowedOrigin("https://evil.com") {
+func TestMatchOrigin_Map_Blocked(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com"}})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "origin not in list should be blocked"))
 	}
 }
 
-func TestAllowedOrigin_Map_EmptyListBlocksAll(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: []string{}})}
-	if m.AllowedOrigin("https://example.com") {
+func TestMatchOrigin_Map_EmptyListBlocksAll(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: []string{}})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "empty list should block all origins"))
 	}
 }
 
-func TestAllowedOrigin_Regexp_Allowed(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.trusted\.com$`)})}
-	if !m.AllowedOrigin("https://app.trusted.com") {
+func TestMatchOrigin_Regexp_Allowed(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.trusted\.com$`)})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://app.trusted.com", opts.isAllowCredentials); !ok {
 		t.Error(test.DiffMessage(false, true, "regexp-matching origin should be allowed"))
 	}
 }
 
-func TestAllowedOrigin_Regexp_Blocked(t *testing.T) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://trusted\.com$`)})}
-	if m.AllowedOrigin("https://evil.com") {
+func TestMatchOrigin_Regexp_Blocked(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://trusted\.com$`)})
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
 		t.Error(test.DiffMessage(true, false, "non-matching regexp origin should be blocked"))
+	}
+}
+
+func TestMatchOrigin_UnrecognizedTypeBlocksAll(t *testing.T) {
+	if _, ok := matchOrigin(42, "https://example.com", false); ok {
+		t.Error(test.DiffMessage(true, false, "an unrecognized AllowOrigin type should block all origins"))
 	}
 }
 
