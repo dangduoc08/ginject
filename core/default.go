@@ -50,7 +50,7 @@ func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
 	switch c.GetType() {
 	case ctx.HTTPType:
 		c.Status(httpCode).JSON(data)
-	case ctx.WSType:
-		_ = c.WS.SendSelf(c, data)
+		// case ctx.WSType:
+		// 	_ = c.WS.SendSelf(c, data)
 	}
 }
