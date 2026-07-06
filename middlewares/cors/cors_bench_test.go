@@ -23,68 +23,60 @@ func newBenchContext(method, origin string) *ctx.Context {
 	return c
 }
 
-func BenchmarkCORS_Use_StarOrigin(b *testing.B) {
-	cors := CORS{AllowOrigin: "*"}
+// benchUseCORS measures Use() in isolation: the request and broker are built
+// once and reused (CORS never mutates either), but the response recorder -
+// the only state CORS actually writes to - is fresh every iteration, exactly
+// like every real request gets its own response header map.
+func benchUseCORS(b *testing.B, cors CORS, method string) {
 	mw := cors.NewMiddleware()
-	c := newBenchContext(http.MethodGet, "https://example.com")
+	c := newBenchContext(method, "https://example.com")
+	if method == http.MethodOptions {
+		c.Next = noop
+	}
 	b.ResetTimer()
 	for range b.N {
+		c.ResponseWriter = httptest.NewRecorder()
 		mw.Use(c, noop)
 	}
+}
+
+func BenchmarkCORS_Use_StarOrigin(b *testing.B) {
+	benchUseCORS(b, CORS{AllowOrigin: "*"}, http.MethodGet)
 }
 
 func BenchmarkCORS_Use_NilOriginDefault(b *testing.B) {
-	cors := CORS{}
-	mw := cors.NewMiddleware()
-	c := newBenchContext(http.MethodGet, "https://example.com")
-	b.ResetTimer()
-	for range b.N {
-		mw.Use(c, noop)
-	}
+	benchUseCORS(b, CORS{}, http.MethodGet)
 }
 
 func BenchmarkCORS_Use_OriginMap(b *testing.B) {
-	cors := CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}}
-	mw := cors.NewMiddleware()
-	c := newBenchContext(http.MethodGet, "https://example.com")
-	b.ResetTimer()
-	for range b.N {
-		mw.Use(c, noop)
-	}
+	benchUseCORS(b, CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}}, http.MethodGet)
 }
 
 func BenchmarkCORS_Use_Preflight(b *testing.B) {
-	cors := CORS{}
-	mw := cors.NewMiddleware()
-	c := newBenchContext(http.MethodOptions, "https://example.com")
-	c.Next = noop
+	benchUseCORS(b, CORS{}, http.MethodOptions)
+}
+
+func BenchmarkMatchOrigin_Wildcard(b *testing.B) {
+	opts := loadCORSOptions(&CORS{})
 	b.ResetTimer()
 	for range b.N {
-		mw.Use(c, noop)
+		_, _ = matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials)
 	}
 }
 
-func BenchmarkAllowedOrigin_Wildcard(b *testing.B) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{})}
+func BenchmarkMatchOrigin_Map(b *testing.B) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}})
 	b.ResetTimer()
 	for range b.N {
-		_ = m.AllowedOrigin("https://example.com")
+		_, _ = matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials)
 	}
 }
 
-func BenchmarkAllowedOrigin_Map(b *testing.B) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}})}
+func BenchmarkMatchOrigin_Regexp(b *testing.B) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.example\.com$`)})
 	b.ResetTimer()
 	for range b.N {
-		_ = m.AllowedOrigin("https://example.com")
-	}
-}
-
-func BenchmarkAllowedOrigin_Regexp(b *testing.B) {
-	m := compiledCORS{opts: loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.example\.com$`)})}
-	b.ResetTimer()
-	for range b.N {
-		_ = m.AllowedOrigin("https://sub.example.com")
+		_, _ = matchOrigin(opts.allowOrigin, "https://sub.example.com", opts.isAllowCredentials)
 	}
 }
 

@@ -5,15 +5,25 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-type corsHeader map[string]string
+const defaultMaxAge = 5 * time.Second
+
+var defaultAllowMethods = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodPost,
+	http.MethodDelete,
+}
 
 type CORS struct {
-	AllowOrigin any // string | []string | regexp
+	AllowOrigin any // string | []string | *regexp.Regexp
 
 	AllowHeaders any // string | []string
 
@@ -21,18 +31,21 @@ type CORS struct {
 
 	AllowMethods []string
 
-	MaxAge int
+	MaxAge time.Duration
 
 	IsAllowCredentials   bool
 	IsPreflightContinue  bool
 	OptionsSuccessStatus int
 }
 
+// allowOrigin is always one of: "*" | map[string]bool | *regexp.Regexp,
+// regardless of what shape the user configured it in.
 type corsOptions struct {
 	optionsSuccessStatus int
 	isAllowCredentials   bool
 	isPreflightContinue  bool
-	allowOrigin          any // string | map[string]bool | *regexp.Regexp
+	varyOrigin           bool
+	allowOrigin          any
 	allowHeaders         string
 	exposeHeaders        string
 	allowMethods         string
@@ -47,138 +60,152 @@ func (instance CORS) NewMiddleware() common.MiddlewareFn {
 	return compiledCORS{opts: loadCORSOptions(&instance)}
 }
 
-func (h corsHeader) vary(k string) {
-	if k == "" {
-		return
-	}
-
-	if h["Vary"] == "" {
-		h["Vary"] = k
-		return
-	}
-
-	h["Vary"] = h["Vary"] + ", " + k
+func normalizeOrigin(origin string) string {
+	return strings.TrimSuffix(origin, "/")
 }
 
-func (h corsHeader) configureMaxAge(opts *corsOptions) corsHeader {
-	h["Access-Control-Max-Age"] = opts.maxAge
-	return h
-}
-
-func (h corsHeader) configureAllowMethods(opts *corsOptions) corsHeader {
-	h["Access-Control-Allow-Methods"] = opts.allowMethods
-	return h
-}
-
-func (h corsHeader) configureAllowOrigin(headers ctx.Header, opts *corsOptions) corsHeader {
-	requestOrigin := headers.Get("Origin")
-	switch allowOrigin := opts.allowOrigin.(type) {
+func normalizeAllowOrigin(allowOrigin any) any {
+	switch v := allowOrigin.(type) {
+	case nil:
+		return "*"
 	case string:
-		if allowOrigin == "*" && opts.isAllowCredentials {
-			if requestOrigin != "null" {
-				h["Access-Control-Allow-Origin"] = requestOrigin
-				h.vary("Origin")
-			}
-		} else {
-			h["Access-Control-Allow-Origin"] = allowOrigin
-			if allowOrigin != "*" {
-				h.vary("Origin")
-			}
+		if v == "*" {
+			return "*"
 		}
-		return h
-
-	case map[string]bool:
-		if _, ok := allowOrigin[requestOrigin]; ok {
-			h["Access-Control-Allow-Origin"] = requestOrigin
-			h.vary("Origin")
+		return map[string]bool{normalizeOrigin(v): true}
+	case []string:
+		m := make(map[string]bool, len(v))
+		for _, origin := range v {
+			m[normalizeOrigin(origin)] = true
 		}
-		return h
-
+		return m
 	case *regexp.Regexp:
-		if allowOrigin.MatchString(requestOrigin) {
-			h["Access-Control-Allow-Origin"] = requestOrigin
-			h.vary("Origin")
-		}
-		return h
-
+		return v
 	default:
-		return h
+		return map[string]bool{}
 	}
 }
 
-func (h corsHeader) configureAllowHeaders(headers ctx.Header, opts *corsOptions) corsHeader {
-	if opts.allowHeaders != "" {
-		h["Access-Control-Allow-Headers"] = opts.allowHeaders
-	} else {
-		allowedHeaders := headers.Get("access-control-request-headers")
-		h.vary("Access-Control-Request-Headers")
-		h["Access-Control-Allow-Headers"] = allowedHeaders
-	}
-
-	return h
+func shouldVaryOrigin(allowOrigin any, allowCredentials bool) bool {
+	_, isWildcard := allowOrigin.(string)
+	return !isWildcard || allowCredentials
 }
 
-func (h corsHeader) configureExposeHeaders(opts *corsOptions) corsHeader {
-	if opts.exposeHeaders != "" {
-		h["Access-Control-Expose-Headers"] = opts.exposeHeaders
+func matchOrigin(allowOrigin any, requestOrigin string, allowCredentials bool) (string, bool) {
+	switch ao := allowOrigin.(type) {
+	case string: // always "*" after normalization
+		if allowCredentials {
+			if requestOrigin == "" || requestOrigin == "null" {
+				return "", false
+			}
+			return requestOrigin, true
+		}
+		return "*", true
+	case map[string]bool:
+		if ao[normalizeOrigin(requestOrigin)] {
+			return requestOrigin, true
+		}
+		return "", false
+	case *regexp.Regexp:
+		if ao.MatchString(normalizeOrigin(requestOrigin)) {
+			return requestOrigin, true
+		}
+		return "", false
+	default:
+		return "", false
 	}
-
-	return h
 }
 
-func (h corsHeader) configureAllowCredentials(opts *corsOptions) corsHeader {
-	if opts.isAllowCredentials {
-		h["Access-Control-Allow-Credentials"] = "true"
+func appendVary(vary, token string) string {
+	if token == "" {
+		return vary
 	}
-
-	return h
+	if vary == "" {
+		return token
+	}
+	return vary + ", " + token
 }
 
-func (h corsHeader) applyHeaders(c *ctx.Context) {
-	for headerKey, headerValue := range h {
-		c.ResponseWriter.Header().Set(headerKey, headerValue)
+// mergeVary adds addition's tokens into any Vary header already present,
+// case-insensitively deduped, instead of overwriting it.
+func mergeVary(header http.Header, addition string) {
+	if addition == "" {
+		return
 	}
+
+	existing := header.Values("Vary")
+	if len(existing) == 0 {
+		header.Set("Vary", addition)
+		return
+	}
+
+	seen := make(map[string]struct{}, len(existing)+2)
+	merged := make([]string, 0, len(existing)+2)
+	collect := func(list string) {
+		for _, tok := range strings.Split(list, ",") {
+			tok = strings.TrimSpace(tok)
+			if tok == "" {
+				continue
+			}
+			key := strings.ToLower(tok)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			merged = append(merged, tok)
+		}
+	}
+
+	for _, v := range existing {
+		collect(v)
+	}
+	collect(addition)
+
+	header.Set("Vary", strings.Join(merged, ", "))
+}
+
+func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin any, allowCredentials, varyOrigin bool) bool {
+	if value, matched := matchOrigin(allowOrigin, requestOrigin, allowCredentials); matched {
+		header.Set("Access-Control-Allow-Origin", value)
+	}
+	return varyOrigin
+}
+
+func configureAllowHeaders(header http.Header, requestHeaders ctx.Header, allowHeaders string) bool {
+	if allowHeaders != "" {
+		header.Set("Access-Control-Allow-Headers", allowHeaders)
+		return false
+	}
+
+	header.Set("Access-Control-Allow-Headers", requestHeaders.Get("Access-Control-Request-Headers"))
+	return true
 }
 
 func loadCORSOptions(cors *CORS) *corsOptions {
-	opts := new(corsOptions)
-
-	opts.isAllowCredentials = cors.IsAllowCredentials
-	opts.isPreflightContinue = cors.IsPreflightContinue
-
-	if cors.OptionsSuccessStatus == 0 {
-		opts.optionsSuccessStatus = 204
-	} else {
-		opts.optionsSuccessStatus = cors.OptionsSuccessStatus
+	opts := &corsOptions{
+		isAllowCredentials:   cors.IsAllowCredentials,
+		isPreflightContinue:  cors.IsPreflightContinue,
+		optionsSuccessStatus: cors.OptionsSuccessStatus,
 	}
 
-	if cors.MaxAge == 0 {
-		cors.MaxAge = 5000
+	if opts.optionsSuccessStatus == 0 {
+		opts.optionsSuccessStatus = http.StatusNoContent
 	}
-	opts.maxAge = strconv.Itoa(cors.MaxAge / 1000)
 
-	if len(cors.AllowMethods) == 0 {
-		cors.AllowMethods = []string{
-			http.MethodGet,
-			http.MethodHead,
-			http.MethodPut,
-			http.MethodPatch,
-			http.MethodPost,
-			http.MethodDelete,
-		}
+	maxAge := cors.MaxAge
+	if maxAge <= 0 {
+		maxAge = defaultMaxAge
 	}
-	opts.allowMethods = strings.Join(cors.AllowMethods, ", ")
+	opts.maxAge = strconv.Itoa(int(maxAge / time.Second))
 
-	if cors.AllowOrigin == nil {
-		cors.AllowOrigin = "*"
-	} else if allowOrigins, ok := cors.AllowOrigin.([]string); ok {
-		m := make(map[string]bool, len(allowOrigins))
-		for _, allowOrigin := range allowOrigins {
-			m[strings.TrimSuffix(allowOrigin, "/")] = true
-		}
-		cors.AllowOrigin = m
+	allowMethods := cors.AllowMethods
+	if len(allowMethods) == 0 {
+		allowMethods = defaultAllowMethods
 	}
-	opts.allowOrigin = cors.AllowOrigin
+	opts.allowMethods = strings.Join(allowMethods, ", ")
+
+	opts.allowOrigin = normalizeAllowOrigin(cors.AllowOrigin)
+	opts.varyOrigin = shouldVaryOrigin(opts.allowOrigin, opts.isAllowCredentials)
 
 	switch v := cors.AllowHeaders.(type) {
 	case string:
@@ -197,56 +224,54 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	return opts
 }
 
-func (m compiledCORS) AllowedOrigin(origin string) bool {
-	opts := m.opts
-	switch allowOrigin := opts.allowOrigin.(type) {
-	case string:
-		if allowOrigin == "*" {
-			if opts.isAllowCredentials {
-				return origin != "null" && origin != ""
-			}
-			return true
-		}
-		return origin == allowOrigin
-	case map[string]bool:
-		_, ok := allowOrigin[origin]
-		return ok
-	case *regexp.Regexp:
-		return allowOrigin.MatchString(origin)
-	default:
-		return false
-	}
-}
-
 func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
 	opts := m.opts
 
 	requestHeaders := c.Header()
-	if requestHeaders.Get("Origin") == "" {
+	requestOrigin := requestHeaders.Get("Origin")
+	if requestOrigin == "" {
 		next()
 		return
 	}
 
-	h := corsHeader{}
-	h.configureAllowOrigin(requestHeaders, opts)
-	h.configureExposeHeaders(opts)
-	h.configureAllowCredentials(opts)
-
-	if c.Method == http.MethodOptions {
-		h.configureMaxAge(opts)
-		h.configureAllowMethods(opts)
-		h.configureAllowHeaders(requestHeaders, opts)
+	if c.GetType() == ctx.WSType {
+		if _, matched := matchOrigin(opts.allowOrigin, requestOrigin, opts.isAllowCredentials); matched {
+			next()
+		}
+		return
 	}
 
-	h.applyHeaders(c)
+	header := c.ResponseWriter.Header()
 
-	if c.Method == http.MethodOptions {
+	var vary string
+	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.isAllowCredentials, opts.varyOrigin) {
+		vary = appendVary(vary, "Origin")
+	}
+	if opts.exposeHeaders != "" {
+		header.Set("Access-Control-Expose-Headers", opts.exposeHeaders)
+	}
+	if opts.isAllowCredentials {
+		header.Set("Access-Control-Allow-Credentials", "true")
+	}
+
+	isPreflight := c.Method == http.MethodOptions
+	if isPreflight {
+		header.Set("Access-Control-Max-Age", opts.maxAge)
+		header.Set("Access-Control-Allow-Methods", opts.allowMethods)
+		if configureAllowHeaders(header, requestHeaders, opts.allowHeaders) {
+			vary = appendVary(vary, "Access-Control-Request-Headers")
+		}
+	}
+
+	mergeVary(header, vary)
+
+	if isPreflight {
 		if opts.isPreflightContinue {
 			c.Next()
 		} else {
 			c.Status(opts.optionsSuccessStatus)
+			header.Set("Content-Length", "0")
 			c.WriteHeader(opts.optionsSuccessStatus)
-			c.ResponseWriter.Header().Set("Content-Length", "0")
 			_ = c.Broker.Publish(ctx.RequestFinished, c)
 		}
 
