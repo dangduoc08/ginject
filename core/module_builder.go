@@ -100,27 +100,10 @@ func (m *moduleBuilder) Build() *Module {
 		RESTInterceptors:     []common.RESTLayer{},
 		RESTMainHandlers:     []common.RESTLayer{},
 
-		WSMiddlewares: []struct {
-			controllerName string
-			EventName      string
-			Handler        any
-		}{},
-		WSGuards: []struct {
-			EventName string
-			Handler   any
-		}{},
-		WSInterceptors: []struct {
-			EventName string
-			Handler   any
-		}{},
-		WSExceptionFilters: []struct {
-			EventName string
-			Handler   any
-		}{},
-		WSMainHandlers: []struct {
-			EventName string
-			Handler   any
-		}{},
+		WSGuards:           []common.WSLayer{},
+		WSInterceptors:     []common.WSLayer{},
+		WSExceptionFilters: []common.WSLayer{},
+		WSMainHandlers:     []common.WSLayer{},
 	}
 
 	module.id = strconv.FormatUint(uint64(reflect.ValueOf(module).Pointer()), 10)
