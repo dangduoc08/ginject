@@ -228,6 +228,53 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 	return newComponent, nil
 }
 
+// buildFieldInjectionCallback returns the per-field callback passed to
+// common.InjectProvidersInto{REST,WS}{ExceptionFilters,Middlewares,Guards,Interceptors}.
+// Each bound guard/middleware/interceptor/exceptionFilter field is resolved
+// by the same provider priority as injectDependencies: local module
+// providers, then globalProviders, then globalInterfaces, then passthrough
+// for non-Provider fields, panicking if nothing resolves. kind only affects
+// panic wording (e.g. "guarder", "middleware function").
+func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provider) func(int, reflect.Type, reflect.Value, reflect.Value) {
+	return func(i int, ownerType reflect.Type, ownerValue, newInstance reflect.Value) {
+		field := ownerType.Field(i)
+		fieldType := field.Type
+		fieldName := field.Name
+		injectProviderKey := genFieldKey(fieldType)
+
+		if !token.IsExported(fieldName) {
+			panic(errors.New(
+				color.FmtRed(
+					"can't set value to unexported '%v' field of the '%v' %v",
+					fieldName,
+					ownerType.Name(),
+					kind,
+				),
+			))
+		}
+
+		if injectedProviders[injectProviderKey] != nil {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
+		} else if globalProviders[injectProviderKey] != nil {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
+		} else if globalInterfaces[injectProviderKey] != nil {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
+		} else if !isInjectedProvider(fieldType) {
+			newInstance.Elem().Field(i).Set(ownerValue.Field(i))
+		} else {
+			panic(errors.New(
+				color.FmtRed(
+					"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
+					fieldType.String(),
+					i,
+					ownerType.Name(),
+					kind,
+				),
+			))
+		}
+	}
+}
+
 func getLocalIP() string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

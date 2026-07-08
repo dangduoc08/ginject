@@ -12,6 +12,11 @@ var WSOperations = map[string]string{
 
 var InsertedEvents = make(map[string]string)
 
+type WSLayer struct {
+	Handler   any
+	EventName string
+}
+
 type WS struct {
 	patternToFuncNameMap map[string]string
 	EventMap             map[string]any
