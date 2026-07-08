@@ -51,7 +51,7 @@ type RESTLayer struct {
 	MainHandlerName string
 }
 
-type RESTConfiguration struct {
+type RESTConfig struct {
 	Method  string
 	Route   string
 	Version string
@@ -161,12 +161,12 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 	}
 }
 
-func (r *REST) GetConfigurations() []RESTConfiguration {
-	routes := make([]RESTConfiguration, 0, len(InsertedRoutes))
+func (r *REST) GetConfigurations() []RESTConfig {
+	routes := make([]RESTConfig, 0, len(InsertedRoutes))
 
 	for routeMethod, fn := range InsertedRoutes {
 		method, route, version := routing.PatternToMethodRouteVersion(routeMethod)
-		routes = append(routes, RESTConfiguration{
+		routes = append(routes, RESTConfig{
 			Method:  method,
 			Route:   route,
 			Version: version,
