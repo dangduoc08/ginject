@@ -73,7 +73,7 @@ func findRouterItem(items []RouterItem, method, version string) (RouterItem, boo
 type Router struct {
 	trie               *ds.Trie
 	Hash               map[string][]RouterItem
-	list               []string
+	routePatterns      []string
 	GlobalMiddlewares  []ctx.Handler
 	InjectableHandlers map[string]any
 }
@@ -105,8 +105,8 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 		if len(items) > 0 {
 			routeIndex = items[0].Index
 		} else {
-			r.list = append(r.list, routePattern)
-			routeIndex = len(r.list) - 1
+			r.routePatterns = append(r.routePatterns, routePattern)
+			routeIndex = len(r.routePatterns) - 1
 		}
 		item = RouterItem{
 			Method:       method,
@@ -215,12 +215,12 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 			for _, routerItem := range items {
 				if routerItem.HandlerIndex > -1 {
 					groupPathPattern := str.Enclose(groupPath, '/')
-					r.list = append(r.list, groupPathPattern)
+					r.routePatterns = append(r.routePatterns, groupPathPattern)
 					r.Hash[groupPathPattern] = append(r.Hash[groupPathPattern], RouterItem{
 						Method:       routerItem.Method,
 						Version:      routerItem.Version,
 						Pattern:      MethodRouteVersionToPattern(routerItem.Method, groupPath, routerItem.Version),
-						Index:        len(r.list) - 1,
+						Index:        len(r.routePatterns) - 1,
 						HandlerIndex: routerItem.HandlerIndex,
 					})
 				}

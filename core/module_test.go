@@ -13,18 +13,18 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-// NewModule leans on package-level state (mainModulePtr, globalProviders,
-// providerInjectCheck, injectedDynamicModules, globalPrefixArr) that persists
+// NewModule leans on package-level state (mainModulePtr, globalProviderByKey,
+// providerSingletonByKey, staticModuleByDynamicPtr, globalPrefixesByController) that persists
 // across the whole test binary, plus common.InsertedRoutes/InsertedEvents.
 // Every test below must start from a clean slate or it will observe leftover
 // state from whichever test happened to run first in the package.
 func resetModuleGlobals() {
 	mainModulePtr = 0
 	modulesInjectedFromMain = nil
-	injectedDynamicModules = make(map[uintptr]*Module)
-	globalPrefixArr = make(map[string][]string)
-	globalProviders = make(map[string]Provider)
-	providerInjectCheck = make(map[string]Provider)
+	staticModuleByDynamicPtr = make(map[uintptr]*Module)
+	globalPrefixesByController = make(map[string][]string)
+	globalProviderByKey = make(map[string]Provider)
+	providerSingletonByKey = make(map[string]Provider)
 	common.InsertedRoutes = make(map[string]string)
 	common.InsertedEvents = make(map[string]string)
 }
@@ -106,8 +106,8 @@ func TestNewModule_StaticSubmoduleGlobalProvider_PromotedToGlobal(t *testing.T) 
 	root.NewModule()
 
 	key := genFieldKey(reflect.TypeOf(mtGlobalSubProvider{}))
-	if globalProviders[key] == nil {
-		t.Error(test.DiffMessage(nil, "non-nil provider", "a provider from an IsGlobal static submodule imported by the main module must be promoted to globalProviders"))
+	if globalProviderByKey[key] == nil {
+		t.Error(test.DiffMessage(nil, "non-nil provider", "a provider from an IsGlobal static submodule imported by the main module must be promoted to globalProviderByKey"))
 	}
 }
 
@@ -226,9 +226,9 @@ func (e mtExFilterOneField) Catch(_ *ctx.Context, _ *exception.Exception) {
 func seedPriorityChainGlobals() {
 	// a stale/other-module global registration for the SAME type the module
 	// also declares locally - local must still win.
-	globalProviders[genFieldKey(reflect.TypeOf(mtLocalProvider{}))] = mtLocalProvider{Source: "stale-global"}
-	globalProviders[genFieldKey(reflect.TypeOf(mtGlobalOnlyProvider{}))] = mtGlobalOnlyProvider{Source: "global"}
-	globalInterfaces[genFieldKey(reflect.TypeOf(mtInterfaceOnlyProvider{}))] = mtInterfaceOnlyProvider{Source: "interface"}
+	globalProviderByKey[genFieldKey(reflect.TypeOf(mtLocalProvider{}))] = mtLocalProvider{Source: "stale-global"}
+	globalProviderByKey[genFieldKey(reflect.TypeOf(mtGlobalOnlyProvider{}))] = mtGlobalOnlyProvider{Source: "global"}
+	globalInterfaceByKey[genFieldKey(reflect.TypeOf(mtInterfaceOnlyProvider{}))] = mtInterfaceOnlyProvider{Source: "interface"}
 }
 
 func assertPriorityChainSeen(t *testing.T, label string) {
@@ -237,10 +237,10 @@ func assertPriorityChainSeen(t *testing.T, label string) {
 		t.Error(test.DiffMessage(mtPriorityGuardSeen.Local.Source, "local", label+": local module provider must win over a global provider of the same type"))
 	}
 	if mtPriorityGuardSeen.GlobalOnly.Source != "global" {
-		t.Error(test.DiffMessage(mtPriorityGuardSeen.GlobalOnly.Source, "global", label+": field with no local provider must fall back to globalProviders"))
+		t.Error(test.DiffMessage(mtPriorityGuardSeen.GlobalOnly.Source, "global", label+": field with no local provider must fall back to globalProviderByKey"))
 	}
 	if mtPriorityGuardSeen.IfaceOnly.Source != "interface" {
-		t.Error(test.DiffMessage(mtPriorityGuardSeen.IfaceOnly.Source, "interface", label+": field with no local/global provider must fall back to globalInterfaces"))
+		t.Error(test.DiffMessage(mtPriorityGuardSeen.IfaceOnly.Source, "interface", label+": field with no local/global provider must fall back to globalInterfaceByKey"))
 	}
 	if mtPriorityGuardSeen.Passthrough.Tag != "original" {
 		t.Error(test.DiffMessage(mtPriorityGuardSeen.Passthrough.Tag, "original", label+": non-Provider field must pass through the bound instance's original value"))
@@ -726,8 +726,8 @@ func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing
 
 // ---------------------------------------------------------------------------
 // concurrency: NewModule mutates package-level state (mainModulePtr,
-// globalProviders, providerInjectCheck, injectedDynamicModules,
-// globalPrefixArr) on top of the per-Module mutex, so two independent module
+// globalProviderByKey, providerSingletonByKey, staticModuleByDynamicPtr,
+// globalPrefixesByController) on top of the per-Module mutex, so two independent module
 // trees built and initialized concurrently (e.g. two apps in the same test
 // binary) must not corrupt that shared state.
 // ---------------------------------------------------------------------------

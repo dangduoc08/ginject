@@ -55,7 +55,7 @@ func (g Throttler) CanActivate(c *ctx.Context) bool {
 	h.Set("X-RateLimit-Remaining", strconv.FormatInt(res.remaining, 10))
 	h.Set("X-RateLimit-Reset", strconv.FormatInt(res.resetAt, 10))
 
-	if !res.allowed {
+	if !res.isAllowed {
 		retryAfter := max(res.resetAt-time.Now().Unix(), 0)
 		h.Set("Retry-After", strconv.FormatInt(retryAfter, 10))
 		panic(exception.TooManyRequestsException("Too Many Requests"))
@@ -64,7 +64,7 @@ func (g Throttler) CanActivate(c *ctx.Context) bool {
 }
 
 type rateLimitResult struct {
-	allowed   bool
+	isAllowed   bool
 	limit     int64
 	remaining int64
 	resetAt   int64
@@ -101,7 +101,7 @@ func (g Throttler) fixedWindow(bgCtx context.Context, key string) rateLimitResul
 
 	remaining := max(g.Limit-count, 0)
 	return rateLimitResult{
-		allowed:   count <= g.Limit,
+		isAllowed:   count <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
@@ -139,7 +139,7 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 
 	remaining := max(g.Limit-weighted, 0)
 	return rateLimitResult{
-		allowed:   weighted <= g.Limit,
+		isAllowed:   weighted <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
@@ -163,8 +163,8 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 		tokens = float64(g.Limit)
 	}
 
-	allowed := tokens >= 1.0
-	if allowed {
+	isAllowed := tokens >= 1.0
+	if isAllowed {
 		tokens--
 	}
 
@@ -174,7 +174,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	_ = g.Backend.Set(bgCtx, cacheKey, buf[:], g.TTL*2)
 
 	var resetAt int64
-	if !allowed && refillRate > 0 {
+	if !isAllowed && refillRate > 0 {
 		nsUntilNext := (1.0 - tokens) / refillRate
 		resetAt = time.Unix(0, now+int64(nsUntilNext)).Unix()
 	} else {
@@ -182,7 +182,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	}
 
 	return rateLimitResult{
-		allowed:   allowed,
+		isAllowed:   isAllowed,
 		limit:     g.Limit,
 		remaining: int64(math.Floor(tokens)),
 		resetAt:   resetAt,

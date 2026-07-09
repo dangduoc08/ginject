@@ -312,7 +312,7 @@ func (rb *requestBuilder) Send() (*Response, error) {
 	copy(beforeHooks, rb.client.beforeRequest)
 	middlewares := make([]Middleware, len(rb.client.middlewares))
 	copy(middlewares, rb.client.middlewares)
-	debug := rb.client.debugMode
+	debug := rb.client.isDebugMode
 	afterHooks := make([]func(*Response) error, len(rb.client.afterResponse))
 	copy(afterHooks, rb.client.afterResponse)
 	errHooks := make([]func(error), len(rb.client.onError))

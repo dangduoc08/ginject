@@ -83,7 +83,7 @@ type subscription struct {
 	topic      string
 	pattern    matcher.Pattern
 	handler    MessageHandler
-	once       bool
+	isOnce     bool
 	fired      atomic.Bool
 	queueGroup string
 	broker     *MemoryBroker
@@ -94,40 +94,40 @@ func (s *subscription) Topic() string      { return s.topic }
 func (s *subscription) Unsubscribe() error { return s.broker.Unsubscribe(s) }
 
 type complexGroup struct {
-	pattern matcher.Pattern
-	subs    map[string]*subscription
+	pattern  matcher.Pattern
+	subsByID map[string]*subscription
 }
 
 type queueGroup struct {
-	subs    []*subscription
-	index   map[string]int
-	counter atomic.Uint64
+	subs      []*subscription
+	indexByID map[string]int
+	counter   atomic.Uint64
 }
 
 func newQueueGroup() *queueGroup {
-	g := &queueGroup{index: make(map[string]int)}
+	g := &queueGroup{indexByID: make(map[string]int)}
 	g.counter.Store(^uint64(0))
 	return g
 }
 
 func (g *queueGroup) add(sub *subscription) {
-	g.index[sub.id] = len(g.subs)
+	g.indexByID[sub.id] = len(g.subs)
 	g.subs = append(g.subs, sub)
 }
 
 func (g *queueGroup) remove(id string) {
-	idx, ok := g.index[id]
+	idx, ok := g.indexByID[id]
 	if !ok {
 		return
 	}
 	last := len(g.subs) - 1
 	if idx != last {
 		g.subs[idx] = g.subs[last]
-		g.index[g.subs[idx].id] = idx
+		g.indexByID[g.subs[idx].id] = idx
 	}
 	g.subs[last] = nil
 	g.subs = g.subs[:last]
-	delete(g.index, id)
+	delete(g.indexByID, id)
 }
 
 func (g *queueGroup) pick() *subscription {
@@ -143,18 +143,21 @@ type asyncJob struct {
 }
 
 type MemoryBroker struct {
-	mu          sync.RWMutex
-	closeMu     sync.RWMutex
-	exact       map[string]map[string]*subscription
-	prefix      map[string]map[string]*subscription
-	global      map[string]*subscription
-	complex     map[string]*complexGroup
-	queueGroups map[string]map[string]*queueGroup
-	closed      atomic.Bool
-	cfg         Config
-	stats       brokerStats
-	asyncCh     chan asyncJob
-	wg          sync.WaitGroup
+	mu      sync.RWMutex
+	closeMu sync.RWMutex
+	// exactByTopic holds exact-match subscriptions, keyed by topic; each inner map is keyed by subscription ID.
+	exactByTopic map[string]map[string]*subscription
+	// prefixByPrefix holds single-suffix-wildcard subscriptions, keyed by topic prefix; each inner map is keyed by subscription ID.
+	prefixByPrefix map[string]map[string]*subscription
+	globalByID     map[string]*subscription
+	complexByTopic map[string]*complexGroup
+	// queueGroupsByTopic holds queue groups keyed by topic; each inner map is keyed by group name.
+	queueGroupsByTopic map[string]map[string]*queueGroup
+	closed             atomic.Bool
+	cfg                Config
+	stats              brokerStats
+	asyncCh            chan asyncJob
+	wg                 sync.WaitGroup
 }
 
 func New() Broker {
@@ -168,12 +171,12 @@ func New() Broker {
 
 func NewWithConfig(cfg Config) Broker {
 	b := &MemoryBroker{
-		exact:       make(map[string]map[string]*subscription),
-		prefix:      make(map[string]map[string]*subscription),
-		global:      make(map[string]*subscription),
-		complex:     make(map[string]*complexGroup),
-		queueGroups: make(map[string]map[string]*queueGroup),
-		cfg:         cfg,
+		exactByTopic:       make(map[string]map[string]*subscription),
+		prefixByPrefix:     make(map[string]map[string]*subscription),
+		globalByID:         make(map[string]*subscription),
+		complexByTopic:     make(map[string]*complexGroup),
+		queueGroupsByTopic: make(map[string]map[string]*queueGroup),
+		cfg:                cfg,
 	}
 	if cfg.AsyncWorkers > 0 {
 		qSize := cfg.AsyncQueueSize
@@ -212,23 +215,23 @@ func lastDot(s string) int {
 func (b *MemoryBroker) removeFromBucket(sub *subscription) {
 	switch sub.pattern.Kind() {
 	case matcher.KindGlobal:
-		delete(b.global, sub.id)
+		delete(b.globalByID, sub.id)
 	case matcher.KindSingleSuffix:
 		pfx := sub.pattern.SimplePrefix()
-		delete(b.prefix[pfx], sub.id)
-		if len(b.prefix[pfx]) == 0 {
-			delete(b.prefix, pfx)
+		delete(b.prefixByPrefix[pfx], sub.id)
+		if len(b.prefixByPrefix[pfx]) == 0 {
+			delete(b.prefixByPrefix, pfx)
 		}
 	case matcher.KindExact:
-		delete(b.exact[sub.topic], sub.id)
-		if len(b.exact[sub.topic]) == 0 {
-			delete(b.exact, sub.topic)
+		delete(b.exactByTopic[sub.topic], sub.id)
+		if len(b.exactByTopic[sub.topic]) == 0 {
+			delete(b.exactByTopic, sub.topic)
 		}
 	case matcher.KindComplex:
-		if cg := b.complex[sub.topic]; cg != nil {
-			delete(cg.subs, sub.id)
-			if len(cg.subs) == 0 {
-				delete(b.complex, sub.topic)
+		if cg := b.complexByTopic[sub.topic]; cg != nil {
+			delete(cg.subsByID, sub.id)
+			if len(cg.subsByID) == 0 {
+				delete(b.complexByTopic, sub.topic)
 			}
 		}
 	}
@@ -304,7 +307,7 @@ func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 	var onceSubs []*subscription
 
 	addSub := func(sub *subscription) {
-		if !sub.once {
+		if !sub.isOnce {
 			handlers = append(handlers, sub.handler)
 			return
 		}
@@ -314,25 +317,25 @@ func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 		}
 	}
 
-	for _, sub := range b.exact[topic] {
+	for _, sub := range b.exactByTopic[topic] {
 		addSub(sub)
 	}
 	if dot := lastDot(topic); dot >= 0 {
-		for _, sub := range b.prefix[topic[:dot]] {
+		for _, sub := range b.prefixByPrefix[topic[:dot]] {
 			addSub(sub)
 		}
 	}
-	for _, sub := range b.global {
+	for _, sub := range b.globalByID {
 		addSub(sub)
 	}
-	for _, cg := range b.complex {
+	for _, cg := range b.complexByTopic {
 		if matcher.Match(cg.pattern, topic) {
-			for _, sub := range cg.subs {
+			for _, sub := range cg.subsByID {
 				addSub(sub)
 			}
 		}
 	}
-	for _, groups := range b.queueGroups[topic] {
+	for _, groups := range b.queueGroupsByTopic[topic] {
 		if sub := groups.pick(); sub != nil {
 			handlers = append(handlers, sub.handler)
 		}
@@ -406,30 +409,30 @@ func (b *MemoryBroker) subscribe(topic string, handler MessageHandler, once bool
 		topic:   topic,
 		pattern: pat,
 		handler: handler,
-		once:    once,
+		isOnce:  once,
 		broker:  b,
 	}
 
 	b.mu.Lock()
 	switch pat.Kind() {
 	case matcher.KindGlobal:
-		b.global[sub.id] = sub
+		b.globalByID[sub.id] = sub
 	case matcher.KindSingleSuffix:
 		pfx := pat.SimplePrefix()
-		if b.prefix[pfx] == nil {
-			b.prefix[pfx] = make(map[string]*subscription)
+		if b.prefixByPrefix[pfx] == nil {
+			b.prefixByPrefix[pfx] = make(map[string]*subscription)
 		}
-		b.prefix[pfx][sub.id] = sub
+		b.prefixByPrefix[pfx][sub.id] = sub
 	case matcher.KindExact:
-		if b.exact[topic] == nil {
-			b.exact[topic] = make(map[string]*subscription)
+		if b.exactByTopic[topic] == nil {
+			b.exactByTopic[topic] = make(map[string]*subscription)
 		}
-		b.exact[topic][sub.id] = sub
+		b.exactByTopic[topic][sub.id] = sub
 	case matcher.KindComplex:
-		if b.complex[topic] == nil {
-			b.complex[topic] = &complexGroup{pattern: pat, subs: make(map[string]*subscription)}
+		if b.complexByTopic[topic] == nil {
+			b.complexByTopic[topic] = &complexGroup{pattern: pat, subsByID: make(map[string]*subscription)}
 		}
-		b.complex[topic].subs[sub.id] = sub
+		b.complexByTopic[topic].subsByID[sub.id] = sub
 	}
 	b.mu.Unlock()
 
@@ -464,13 +467,13 @@ func (b *MemoryBroker) SubscribeQueue(topic, group string, handler MessageHandle
 	}
 
 	b.mu.Lock()
-	if b.queueGroups[topic] == nil {
-		b.queueGroups[topic] = make(map[string]*queueGroup)
+	if b.queueGroupsByTopic[topic] == nil {
+		b.queueGroupsByTopic[topic] = make(map[string]*queueGroup)
 	}
-	if b.queueGroups[topic][group] == nil {
-		b.queueGroups[topic][group] = newQueueGroup()
+	if b.queueGroupsByTopic[topic][group] == nil {
+		b.queueGroupsByTopic[topic][group] = newQueueGroup()
 	}
-	b.queueGroups[topic][group].add(sub)
+	b.queueGroupsByTopic[topic][group].add(sub)
 	b.mu.Unlock()
 
 	return sub, nil
@@ -498,13 +501,13 @@ func (b *MemoryBroker) Unsubscribe(sub Subscription) error {
 
 	b.mu.Lock()
 	if s.queueGroup != "" {
-		if groups, ok := b.queueGroups[s.topic]; ok {
+		if groups, ok := b.queueGroupsByTopic[s.topic]; ok {
 			if g := groups[s.queueGroup]; g != nil {
 				g.remove(s.id)
 				if len(g.subs) == 0 {
 					delete(groups, s.queueGroup)
 					if len(groups) == 0 {
-						delete(b.queueGroups, s.topic)
+						delete(b.queueGroupsByTopic, s.topic)
 					}
 				}
 			}
@@ -525,14 +528,14 @@ func (b *MemoryBroker) Off(topic string) error {
 	b.mu.Lock()
 	switch pat.Kind() {
 	case matcher.KindGlobal:
-		b.global = make(map[string]*subscription)
+		b.globalByID = make(map[string]*subscription)
 	case matcher.KindSingleSuffix:
-		delete(b.prefix, pat.SimplePrefix())
+		delete(b.prefixByPrefix, pat.SimplePrefix())
 	case matcher.KindExact:
-		delete(b.exact, topic)
-		delete(b.queueGroups, topic)
+		delete(b.exactByTopic, topic)
+		delete(b.queueGroupsByTopic, topic)
 	case matcher.KindComplex:
-		delete(b.complex, topic)
+		delete(b.complexByTopic, topic)
 	}
 	b.mu.Unlock()
 	return nil
@@ -544,18 +547,18 @@ func (b *MemoryBroker) ListenerCount(topic string) int {
 	pat := matcher.Parse(topic)
 	switch pat.Kind() {
 	case matcher.KindGlobal:
-		return len(b.global)
+		return len(b.globalByID)
 	case matcher.KindSingleSuffix:
-		return len(b.prefix[pat.SimplePrefix()])
+		return len(b.prefixByPrefix[pat.SimplePrefix()])
 	case matcher.KindExact:
-		n := len(b.exact[topic])
-		for _, g := range b.queueGroups[topic] {
+		n := len(b.exactByTopic[topic])
+		for _, g := range b.queueGroupsByTopic[topic] {
 			n += len(g.subs)
 		}
 		return n
 	case matcher.KindComplex:
-		if cg := b.complex[topic]; cg != nil {
-			return len(cg.subs)
+		if cg := b.complexByTopic[topic]; cg != nil {
+			return len(cg.subsByID)
 		}
 		return 0
 	}
@@ -576,12 +579,12 @@ func (b *MemoryBroker) Topics() []string {
 		}
 	}
 
-	for t, m := range b.exact {
+	for t, m := range b.exactByTopic {
 		if len(m) > 0 {
 			add(t)
 		}
 	}
-	for t, groups := range b.queueGroups {
+	for t, groups := range b.queueGroupsByTopic {
 		for _, g := range groups {
 			if len(g.subs) > 0 {
 				add(t)
@@ -589,16 +592,16 @@ func (b *MemoryBroker) Topics() []string {
 			}
 		}
 	}
-	for pfx, m := range b.prefix {
+	for pfx, m := range b.prefixByPrefix {
 		if len(m) > 0 {
 			add(pfx + ".*")
 		}
 	}
-	if len(b.global) > 0 {
+	if len(b.globalByID) > 0 {
 		add("*")
 	}
-	for rawPat, cg := range b.complex {
-		if len(cg.subs) > 0 {
+	for rawPat, cg := range b.complexByTopic {
+		if len(cg.subsByID) > 0 {
 			add(rawPat)
 		}
 	}
@@ -610,11 +613,11 @@ func (b *MemoryBroker) Clear() error {
 		return ErrClosed
 	}
 	b.mu.Lock()
-	b.exact = make(map[string]map[string]*subscription)
-	b.prefix = make(map[string]map[string]*subscription)
-	b.global = make(map[string]*subscription)
-	b.complex = make(map[string]*complexGroup)
-	b.queueGroups = make(map[string]map[string]*queueGroup)
+	b.exactByTopic = make(map[string]map[string]*subscription)
+	b.prefixByPrefix = make(map[string]map[string]*subscription)
+	b.globalByID = make(map[string]*subscription)
+	b.complexByTopic = make(map[string]*complexGroup)
+	b.queueGroupsByTopic = make(map[string]map[string]*queueGroup)
 	b.mu.Unlock()
 	return nil
 }
@@ -630,11 +633,11 @@ func (b *MemoryBroker) Close() error {
 		b.wg.Wait()
 	}
 	b.mu.Lock()
-	b.exact = make(map[string]map[string]*subscription)
-	b.prefix = make(map[string]map[string]*subscription)
-	b.global = make(map[string]*subscription)
-	b.complex = make(map[string]*complexGroup)
-	b.queueGroups = make(map[string]map[string]*queueGroup)
+	b.exactByTopic = make(map[string]map[string]*subscription)
+	b.prefixByPrefix = make(map[string]map[string]*subscription)
+	b.globalByID = make(map[string]*subscription)
+	b.complexByTopic = make(map[string]*complexGroup)
+	b.queueGroupsByTopic = make(map[string]map[string]*queueGroup)
 	b.mu.Unlock()
 	return nil
 }
@@ -644,13 +647,13 @@ func (b *MemoryBroker) Stats() Stats {
 	seenTopics := make(map[string]struct{})
 	subs := 0
 
-	for t, m := range b.exact {
+	for t, m := range b.exactByTopic {
 		if len(m) > 0 {
 			seenTopics[t] = struct{}{}
 			subs += len(m)
 		}
 	}
-	for t, groups := range b.queueGroups {
+	for t, groups := range b.queueGroupsByTopic {
 		for _, g := range groups {
 			if len(g.subs) > 0 {
 				seenTopics[t] = struct{}{}
@@ -658,20 +661,20 @@ func (b *MemoryBroker) Stats() Stats {
 			}
 		}
 	}
-	for pfx, m := range b.prefix {
+	for pfx, m := range b.prefixByPrefix {
 		if len(m) > 0 {
 			seenTopics[pfx+".*"] = struct{}{}
 			subs += len(m)
 		}
 	}
-	if len(b.global) > 0 {
+	if len(b.globalByID) > 0 {
 		seenTopics["*"] = struct{}{}
-		subs += len(b.global)
+		subs += len(b.globalByID)
 	}
-	for rawPat, cg := range b.complex {
-		if len(cg.subs) > 0 {
+	for rawPat, cg := range b.complexByTopic {
+		if len(cg.subsByID) > 0 {
 			seenTopics[rawPat] = struct{}{}
-			subs += len(cg.subs)
+			subs += len(cg.subsByID)
 		}
 	}
 	b.mu.RUnlock()

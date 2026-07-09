@@ -13,8 +13,8 @@ var (
 )
 
 type DotENV struct {
-	data   []byte
-	envMap map[string]any
+	data           []byte
+	valuesByEnvKey map[string]any
 }
 
 func (e *DotENV) Unmarshal() map[string]any {
@@ -32,9 +32,9 @@ func (e *DotENV) Unmarshal() map[string]any {
 			if isValidKey(envKey) {
 				envValue := string(bytes.TrimSpace(v))
 				var err error
-				e.envMap[envKey], err = strconv.Unquote(`"` + envValue + `"`)
+				e.valuesByEnvKey[envKey], err = strconv.Unquote(`"` + envValue + `"`)
 				if err != nil {
-					e.envMap[envKey] = envValue
+					e.valuesByEnvKey[envKey] = envValue
 				}
 			}
 
@@ -86,5 +86,5 @@ func (e *DotENV) Unmarshal() map[string]any {
 		}
 	}
 
-	return e.envMap
+	return e.valuesByEnvKey
 }

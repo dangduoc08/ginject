@@ -26,9 +26,9 @@ type httpClient struct {
 	validateStatus  func(int) bool
 	validateHost    func(string) bool
 	tlsConfig       *tls.Config
-	requireHTTPS    bool
+	isHTTPSRequired    bool
 	maxResponseSize int64
-	debugMode       bool
+	isDebugMode       bool
 	hasCookieJar    bool
 	underlying      *http.Client
 }
@@ -62,7 +62,7 @@ func newHTTPClient(opts *HTTPClientModuleOptions) *httpClient {
 }
 
 func (c *httpClient) rebuildTransport() {
-	c.underlying.Transport = buildTransport(c.tlsConfig, c.requireHTTPS, c.validateHost)
+	c.underlying.Transport = buildTransport(c.tlsConfig, c.isHTTPSRequired, c.validateHost)
 }
 
 func (c *httpClient) newRequest(method, path string) *requestBuilder {
@@ -133,7 +133,7 @@ func (c *httpClient) SetRetryBackoff(initial, max time.Duration) {
 
 func (c *httpClient) EnableDebug() {
 	c.mu.Lock()
-	c.debugMode = true
+	c.isDebugMode = true
 	c.mu.Unlock()
 }
 
@@ -150,7 +150,7 @@ func (c *httpClient) EnableCookies() {
 
 func (c *httpClient) RequireHTTPS(v bool) {
 	c.mu.Lock()
-	c.requireHTTPS = v
+	c.isHTTPSRequired = v
 	c.rebuildTransport()
 	c.mu.Unlock()
 }

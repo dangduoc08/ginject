@@ -19,17 +19,17 @@ type txOp struct {
 // Tx is an in-progress transaction. Obtain one via DB.Tx().
 // All operations are buffered in memory and written atomically to disk on commit.
 type Tx struct {
-	db   *DB
-	id   uint64
-	ops  []txOp
-	docs map[string]map[string]Document // table → id → doc (for within-tx reads)
+	db          *DB
+	id          uint64
+	ops         []txOp
+	docsByTable map[string]map[string]Document // table → id → doc (for within-tx reads)
 }
 
 func newTx(db *DB) *Tx {
 	return &Tx{
-		db:   db,
-		id:   nextTxID(),
-		docs: make(map[string]map[string]Document),
+		db:          db,
+		id:          nextTxID(),
+		docsByTable: make(map[string]map[string]Document),
 	}
 }
 
@@ -64,10 +64,10 @@ func (tm *TxModel) Create(data map[string]any) (Document, error) {
 		timestamp: now.UnixNano(),
 		payload:   payload,
 	}})
-	if tm.tx.docs[tm.table] == nil {
-		tm.tx.docs[tm.table] = make(map[string]Document)
+	if tm.tx.docsByTable[tm.table] == nil {
+		tm.tx.docsByTable[tm.table] = make(map[string]Document)
 	}
-	tm.tx.docs[tm.table][id] = doc
+	tm.tx.docsByTable[tm.table][id] = doc
 	return doc, nil
 }
 
@@ -79,7 +79,7 @@ func (tm *TxModel) UpdateByID(id string, data map[string]any) error {
 	now := time.Now()
 	// try to find createdAt from buffered ops, else use now
 	createdAt := now
-	if docs, ok := tm.tx.docs[tm.table]; ok {
+	if docs, ok := tm.tx.docsByTable[tm.table]; ok {
 		if d, ok := docs[id]; ok {
 			createdAt = d.CreatedAt
 		}

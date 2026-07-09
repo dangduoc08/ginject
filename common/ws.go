@@ -18,7 +18,7 @@ type WSLayer struct {
 }
 
 type WS struct {
-	patternToFuncNameMap map[string]string
+	funcNameByEvent map[string]string
 	EventMap             map[string]any
 }
 
@@ -26,10 +26,10 @@ func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
 	if ws.EventMap == nil {
 		ws.EventMap = make(map[string]any)
 	}
-	if ws.patternToFuncNameMap == nil {
-		ws.patternToFuncNameMap = map[string]string{}
+	if ws.funcNameByEvent == nil {
+		ws.funcNameByEvent = map[string]string{}
 	}
-	ws.patternToFuncNameMap[event] = fnName
+	ws.funcNameByEvent[event] = fnName
 	ws.EventMap[event] = injectableHandler
 }
 
