@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	stdHTTP "net/http"
+	"reflect"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -19,12 +20,12 @@ type WSConfig struct {
 }
 
 type WS struct {
-	// eventMap          map[string][]ctx.Handler
-	// mainHandlerMap    map[string]any
+	middlewaresByEvent map[string][]ctx.Handler
+	handlerByEvent     map[string]any
 	// eventToID         map[string][]string
 	catchFnsByEvent map[string][]common.Catch
 
-	// invokeHandler   func(f any, c *ctx.Context) []reflect.Value
+	resolveAndCallHandler func(f any, c *ctx.Context) []reflect.Value
 
 	// connmgr     *WSConnmgr
 
@@ -40,20 +41,34 @@ func NewWS(cfg *WSConfig) *WS {
 	}
 
 	ws := WS{
-		// catchFnsByEvent:    make(map[string][]common.Catch),
-		// eventMap:       make(map[string][]func(*ctx.Context)),
-		// mainHandlerMap: make(map[string]any),
+		catchFnsByEvent:    make(map[string][]common.Catch),
+		middlewaresByEvent: make(map[string][]func(*ctx.Context)),
+		handlerByEvent:     make(map[string]any),
 		// eventToID:      make(map[string][]string),
 		// connmgr:        NewWSConnmgr(),
 
 		path:              path,
-		globalMiddlewares: cfg.globalMiddlewares,
+		globalMiddlewares: resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders),
+		injectedProviders: cfg.injectedProviders,
 	}
 
 	return &ws
 }
 
-func (ws *WS) IsWSPath(p string) bool {
+func resolveGlobalMiddlewares(middlewares []common.MiddlewareFn, injectedProviders map[string]Provider) []common.MiddlewareFn {
+	resolved := make([]common.MiddlewareFn, len(middlewares))
+	for i, gm := range middlewares {
+		newGM, err := injectDependencies(gm, "middleware", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+		resolved[i] = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
+	}
+
+	return resolved
+}
+
+func (ws *WS) isWSPath(p string) bool {
 	return str.Enclose(p, '/') == ws.path
 }
 
@@ -62,27 +77,23 @@ func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, s websocket.
 }
 
 func (ws *WS) handshake(c *ctx.Context) error {
-	if len(ws.globalMiddlewares) > 0 {
-		isNext := true
-		for _, gm := range ws.globalMiddlewares {
-			newGM, err := injectDependencies(gm, "middleware", ws.injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
+	isNext := true
+	c.Next = func() {
+		isNext = true
+	}
 
-			c.Next = func() {
-				isNext = true
-			}
-			if isNext {
-				isNext = false
-				gm.Use(c, c.Next)
-			}
-		}
+	for _, gm := range ws.globalMiddlewares {
 		if isNext {
-			c.Broker.Publish(ctx.RequestFinished, c)
-			return nil
+			isNext = false
+			gm.Use(c, c.Next)
 		}
+	}
+
+	if isNext {
+		if err := c.Broker.Publish(ctx.RequestFinished, c); err != nil {
+			fmt.Println(err.Error())
+		}
+		return nil
 	}
 
 	return stdHTTP.ErrAbortHandler

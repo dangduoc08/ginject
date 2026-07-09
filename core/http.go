@@ -19,18 +19,18 @@ import (
 type HTTP struct {
 	route *routing.Router
 
-	versioning                             *versioning.Versioning
-	isVersioningEnabled                     bool
-	catchFnsByRoute                        map[string][]common.Catch
+	versioning                    *versioning.Versioning
+	isVersioningEnabled           bool
+	catchFnsByRoute               map[string][]common.Catch
 	lastWildcardSlashIndexByRoute map[string]int
 
-	invokeHandler func(f any, c *ctx.Context) []reflect.Value
+	resolveAndCallHandler func(f any, c *ctx.Context) []reflect.Value
 }
 
 func newHTTP() *HTTP {
 	return &HTTP{
-		route:                                  routing.NewRouter(),
-		catchFnsByRoute:                        make(map[string][]common.Catch),
+		route:                         routing.NewRouter(),
+		catchFnsByRoute:               make(map[string][]common.Catch),
 		lastWildcardSlashIndexByRoute: make(map[string]int),
 	}
 }
@@ -145,7 +145,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 					injectableHandler := http.route.InjectableHandlers[matchedRoute]
 
 					// data return from main handler
-					data := http.invokeHandler(injectableHandler, c)
+					data := http.resolveAndCallHandler(injectableHandler, c)
 
 					if aggregations, ok := c.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
 						var aggregatedData any
