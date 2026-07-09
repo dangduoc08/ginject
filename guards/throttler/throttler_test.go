@@ -114,8 +114,8 @@ func TestFixedWindow_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(3, time.Minute, FixedWindow)
 	for i := 0; i < 3; i++ {
 		res := g.fixedWindow(context.Background(), "ip")
-		if !res.allowed {
-			t.Error(test.DiffMessage(res.allowed, true, "all requests within limit must be allowed"))
+		if !res.isAllowed {
+			t.Error(test.DiffMessage(res.isAllowed, true, "all requests within limit must be allowed"))
 		}
 	}
 }
@@ -126,8 +126,8 @@ func TestFixedWindow_BlocksOverLimit(t *testing.T) {
 		g.fixedWindow(context.Background(), "ip")
 	}
 	res := g.fixedWindow(context.Background(), "ip")
-	if res.allowed {
-		t.Error(test.DiffMessage(res.allowed, false, "4th request must be blocked"))
+	if res.isAllowed {
+		t.Error(test.DiffMessage(res.isAllowed, false, "4th request must be blocked"))
 	}
 }
 
@@ -164,8 +164,8 @@ func TestFixedWindow_DifferentKeysAreIndependent(t *testing.T) {
 	g := newGuard(1, time.Minute, FixedWindow)
 	g.fixedWindow(context.Background(), "ip1")
 	res := g.fixedWindow(context.Background(), "ip2")
-	if !res.allowed {
-		t.Error(test.DiffMessage(res.allowed, true, "different keys must be independent"))
+	if !res.isAllowed {
+		t.Error(test.DiffMessage(res.isAllowed, true, "different keys must be independent"))
 	}
 }
 
@@ -175,8 +175,8 @@ func TestSlidingWindow_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(3, time.Minute, SlidingWindow)
 	for i := 0; i < 3; i++ {
 		res := g.slidingWindow(context.Background(), "ip")
-		if !res.allowed {
-			t.Error(test.DiffMessage(res.allowed, true, "all requests within limit must be allowed"))
+		if !res.isAllowed {
+			t.Error(test.DiffMessage(res.isAllowed, true, "all requests within limit must be allowed"))
 		}
 	}
 }
@@ -187,8 +187,8 @@ func TestSlidingWindow_BlocksOverLimit(t *testing.T) {
 		g.slidingWindow(context.Background(), "ip")
 	}
 	res := g.slidingWindow(context.Background(), "ip")
-	if res.allowed {
-		t.Error(test.DiffMessage(res.allowed, false, "4th request must be blocked"))
+	if res.isAllowed {
+		t.Error(test.DiffMessage(res.isAllowed, false, "4th request must be blocked"))
 	}
 }
 
@@ -206,8 +206,8 @@ func TestTokenBucket_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(5, time.Minute, TokenBucket)
 	for i := 0; i < 5; i++ {
 		res := g.tokenBucket(context.Background(), "ip")
-		if !res.allowed {
-			t.Error(test.DiffMessage(res.allowed, true, "all requests within limit must be allowed"))
+		if !res.isAllowed {
+			t.Error(test.DiffMessage(res.isAllowed, true, "all requests within limit must be allowed"))
 		}
 	}
 }
@@ -218,8 +218,8 @@ func TestTokenBucket_BlocksWhenExhausted(t *testing.T) {
 		g.tokenBucket(context.Background(), "ip")
 	}
 	res := g.tokenBucket(context.Background(), "ip")
-	if res.allowed {
-		t.Error(test.DiffMessage(res.allowed, false, "bucket must be exhausted after limit requests"))
+	if res.isAllowed {
+		t.Error(test.DiffMessage(res.isAllowed, false, "bucket must be exhausted after limit requests"))
 	}
 }
 
@@ -392,12 +392,12 @@ func TestThrottler_WorksWithRealMemoryCache(t *testing.T) {
 	}
 	for i := 0; i < 3; i++ {
 		res := g.fixedWindow(context.Background(), "ip")
-		if !res.allowed {
-			t.Error(test.DiffMessage(res.allowed, true, "real cache must allow within limit"))
+		if !res.isAllowed {
+			t.Error(test.DiffMessage(res.isAllowed, true, "real cache must allow within limit"))
 		}
 	}
 	res := g.fixedWindow(context.Background(), "ip")
-	if res.allowed {
-		t.Error(test.DiffMessage(res.allowed, false, "real cache must block over limit"))
+	if res.isAllowed {
+		t.Error(test.DiffMessage(res.isAllowed, false, "real cache must block over limit"))
 	}
 }

@@ -10,16 +10,16 @@ import (
 // The primary index is always populated. Secondary and text indexes
 // are populated only after Schema() is called on the corresponding Model.
 type tableIndex struct {
-	// primary: id → disk location
-	primary map[string]location
+	// locationByID: id → disk location
+	locationByID map[string]location
 
-	// secondary: field → fieldValue → set of ids
-	secondary  map[string]map[string]map[string]bool
-	secReverse map[string]map[string]string // id → field → value (for removal)
+	// secondaryByField: field → fieldValue → set of ids
+	secondaryByField map[string]map[string]map[string]bool
+	fieldValuesByID  map[string]map[string]string // id → field → value (for removal)
 
-	// text: term → set of ids
-	text       map[string]map[string]bool
-	txtReverse map[string][]string // id → terms (for removal)
+	// idsByTerm: term → set of ids
+	idsByTerm  map[string]map[string]bool
+	termsByID  map[string][]string // id → terms (for removal)
 
 	// schema hints
 	indexedFields map[string]bool
@@ -28,35 +28,35 @@ type tableIndex struct {
 
 func newTableIndex() *tableIndex {
 	return &tableIndex{
-		primary:       make(map[string]location),
-		secondary:     make(map[string]map[string]map[string]bool),
-		secReverse:    make(map[string]map[string]string),
-		text:          make(map[string]map[string]bool),
-		txtReverse:    make(map[string][]string),
-		indexedFields: make(map[string]bool),
-		searchFields:  make(map[string]bool),
+		locationByID:     make(map[string]location),
+		secondaryByField: make(map[string]map[string]map[string]bool),
+		fieldValuesByID:  make(map[string]map[string]string),
+		idsByTerm:        make(map[string]map[string]bool),
+		termsByID:        make(map[string][]string),
+		indexedFields:    make(map[string]bool),
+		searchFields:     make(map[string]bool),
 	}
 }
 
 // ---- primary index ----
 
 func (idx *tableIndex) setPrimary(id string, loc location) {
-	idx.primary[id] = loc
+	idx.locationByID[id] = loc
 }
 
 func (idx *tableIndex) getPrimary(id string) (location, bool) {
-	loc, ok := idx.primary[id]
+	loc, ok := idx.locationByID[id]
 	return loc, ok
 }
 
 func (idx *tableIndex) deletePrimary(id string) {
-	delete(idx.primary, id)
+	delete(idx.locationByID, id)
 }
 
 // allPrimaryIDs returns a snapshot of all live IDs.
 func (idx *tableIndex) allPrimaryIDs() []string {
-	ids := make([]string, 0, len(idx.primary))
-	for id := range idx.primary {
+	ids := make([]string, 0, len(idx.locationByID))
+	for id := range idx.locationByID {
 		ids = append(ids, id)
 	}
 	return ids
@@ -71,9 +71,9 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 		return
 	}
 	// remove old
-	if oldPrev, ok := idx.secReverse[id]; ok {
+	if oldPrev, ok := idx.fieldValuesByID[id]; ok {
 		for field, val := range oldPrev {
-			if vals, ok := idx.secondary[field]; ok {
+			if vals, ok := idx.secondaryByField[field]; ok {
 				if set, ok := vals[val]; ok {
 					delete(set, id)
 					if len(set) == 0 {
@@ -82,7 +82,7 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 				}
 			}
 		}
-		delete(idx.secReverse, id)
+		delete(idx.fieldValuesByID, id)
 	}
 	// add new
 	if len(newData) == 0 {
@@ -95,17 +95,17 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 			continue
 		}
 		val := anyToString(v)
-		if _, ok := idx.secondary[field]; !ok {
-			idx.secondary[field] = make(map[string]map[string]bool)
+		if _, ok := idx.secondaryByField[field]; !ok {
+			idx.secondaryByField[field] = make(map[string]map[string]bool)
 		}
-		if _, ok := idx.secondary[field][val]; !ok {
-			idx.secondary[field][val] = make(map[string]bool)
+		if _, ok := idx.secondaryByField[field][val]; !ok {
+			idx.secondaryByField[field][val] = make(map[string]bool)
 		}
-		idx.secondary[field][val][id] = true
+		idx.secondaryByField[field][val][id] = true
 		rev[field] = val
 	}
 	if len(rev) > 0 {
-		idx.secReverse[id] = rev
+		idx.fieldValuesByID[id] = rev
 	}
 }
 
@@ -115,7 +115,7 @@ func (idx *tableIndex) removeSecondary(id string) {
 
 // lookupSecondary returns IDs matching field == value.
 func (idx *tableIndex) lookupSecondary(field, value string) []string {
-	vals, ok := idx.secondary[field]
+	vals, ok := idx.secondaryByField[field]
 	if !ok {
 		return nil
 	}
@@ -141,16 +141,16 @@ func (idx *tableIndex) updateText(id string, oldData, newData map[string]any) {
 		return
 	}
 	// remove old terms
-	if terms, ok := idx.txtReverse[id]; ok {
+	if terms, ok := idx.termsByID[id]; ok {
 		for _, term := range terms {
-			if set, ok := idx.text[term]; ok {
+			if set, ok := idx.idsByTerm[term]; ok {
 				delete(set, id)
 				if len(set) == 0 {
-					delete(idx.text, term)
+					delete(idx.idsByTerm, term)
 				}
 			}
 		}
-		delete(idx.txtReverse, id)
+		delete(idx.termsByID, id)
 	}
 	if len(newData) == 0 {
 		return
@@ -163,14 +163,14 @@ func (idx *tableIndex) updateText(id string, oldData, newData map[string]any) {
 		}
 		for _, term := range tokenize(anyToString(v)) {
 			terms = append(terms, term)
-			if _, ok := idx.text[term]; !ok {
-				idx.text[term] = make(map[string]bool)
+			if _, ok := idx.idsByTerm[term]; !ok {
+				idx.idsByTerm[term] = make(map[string]bool)
 			}
-			idx.text[term][id] = true
+			idx.idsByTerm[term][id] = true
 		}
 	}
 	if len(terms) > 0 {
-		idx.txtReverse[id] = terms
+		idx.termsByID[id] = terms
 	}
 }
 
@@ -185,7 +185,7 @@ func (idx *tableIndex) searchText(query string) []string {
 		return nil
 	}
 	// start with the set for the first term
-	first := idx.text[terms[0]]
+	first := idx.idsByTerm[terms[0]]
 	if len(first) == 0 {
 		return nil
 	}
@@ -195,7 +195,7 @@ func (idx *tableIndex) searchText(query string) []string {
 	}
 	// intersect with remaining terms
 	for _, term := range terms[1:] {
-		set := idx.text[term]
+		set := idx.idsByTerm[term]
 		for id := range result {
 			if !set[id] {
 				delete(result, id)

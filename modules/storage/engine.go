@@ -117,7 +117,7 @@ func (e *engine) rebuildIndex() error {
 		loc location
 	}
 	type txBuf struct {
-		latest map[string]txEntry // id → latest op entry within this tx
+		latestByID map[string]txEntry // id → latest op entry within this tx
 	}
 
 	primary := make(map[string]location) // live id → latest location
@@ -137,10 +137,10 @@ func (e *engine) rebuildIndex() error {
 			loc := location{segID: seg.id, offset: off, size: size}
 			switch r.rtype {
 			case recTxBegin:
-				txs[r.txID] = &txBuf{latest: make(map[string]txEntry)}
+				txs[r.txID] = &txBuf{latestByID: make(map[string]txEntry)}
 			case recTxCommit:
 				if buf, ok := txs[r.txID]; ok {
-					for _, entry := range buf.latest {
+					for _, entry := range buf.latestByID {
 						apply(entry.r, entry.loc)
 					}
 					delete(txs, r.txID)
@@ -150,7 +150,7 @@ func (e *engine) rebuildIndex() error {
 			default:
 				if r.txID != 0 {
 					if buf, ok := txs[r.txID]; ok {
-						buf.latest[r.id] = txEntry{r: r, loc: loc}
+						buf.latestByID[r.id] = txEntry{r: r, loc: loc}
 					}
 				} else {
 					apply(r, loc)

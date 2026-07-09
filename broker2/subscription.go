@@ -28,15 +28,15 @@ type SubscriptionItem struct {
 type Subscription struct {
 	rwMu          sync.RWMutex
 	trie          *ds.Trie
-	hash          map[string]*SubscriptionItem
+	itemsByTopic  map[string]*SubscriptionItem
 	nextID        atomic.Uint64
 	wildcardCount int
 }
 
 func NewSubscription() *Subscription {
 	return &Subscription{
-		trie: ds.NewTrie(),
-		hash: make(map[string]*SubscriptionItem),
+		trie:         ds.NewTrie(),
+		itemsByTopic: make(map[string]*SubscriptionItem),
 	}
 }
 
@@ -46,14 +46,14 @@ func (t *Subscription) insert(topic string, handler MessageHandler) uint64 {
 
 	id := t.nextID.Add(1)
 
-	if item, ok := t.hash[topic]; ok {
+	if item, ok := t.itemsByTopic[topic]; ok {
 		item.entries = append(item.entries, subEntry{id: id, handler: handler})
 	} else {
 		t.trie.Insert(topic, str.Enclose(topic, '.'), '.')
 		if strings.ContainsRune(topic, '*') {
 			t.wildcardCount++
 		}
-		t.hash[topic] = &SubscriptionItem{
+		t.itemsByTopic[topic] = &SubscriptionItem{
 			entries: []subEntry{{id: id, handler: handler}},
 		}
 	}
@@ -65,7 +65,7 @@ func (t *Subscription) remove(topic string, id uint64) bool {
 	t.rwMu.Lock()
 	defer t.rwMu.Unlock()
 
-	item, ok := t.hash[topic]
+	item, ok := t.itemsByTopic[topic]
 	if !ok {
 		return false
 	}
@@ -86,7 +86,7 @@ func (t *Subscription) remove(topic string, id uint64) bool {
 	item.entries = item.entries[:last]
 
 	if len(item.entries) == 0 {
-		delete(t.hash, topic)
+		delete(t.itemsByTopic, topic)
 		t.trie.Remove(str.Enclose(topic, '.'), '.')
 		if strings.ContainsRune(topic, '*') {
 			t.wildcardCount--
@@ -100,12 +100,12 @@ func (t *Subscription) list() map[string][]uint64 {
 	t.rwMu.RLock()
 	defer t.rwMu.RUnlock()
 
-	if len(t.hash) == 0 {
+	if len(t.itemsByTopic) == 0 {
 		return nil
 	}
 
-	result := make(map[string][]uint64, len(t.hash))
-	for topic, item := range t.hash {
+	result := make(map[string][]uint64, len(t.itemsByTopic))
+	for topic, item := range t.itemsByTopic {
 		ids := make([]uint64, len(item.entries))
 		for i := range item.entries {
 			ids[i] = item.entries[i].id
@@ -119,7 +119,7 @@ func (t *Subscription) find(topic string) []MessageHandler {
 	t.rwMu.RLock()
 	defer t.rwMu.RUnlock()
 
-	item, ok := t.hash[topic]
+	item, ok := t.itemsByTopic[topic]
 	if !ok {
 		if t.wildcardCount == 0 {
 			return nil
@@ -129,7 +129,7 @@ func (t *Subscription) find(topic string) []MessageHandler {
 		if raw == "" {
 			raw = wildcardRaw
 		}
-		item, ok = t.hash[raw]
+		item, ok = t.itemsByTopic[raw]
 		if !ok {
 			return nil
 		}

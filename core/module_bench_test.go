@@ -13,14 +13,15 @@ type benchPrefixTargetController struct{ common.REST }
 func (c benchPrefixTargetController) NewController() Controller      { return c }
 func (c benchPrefixTargetController) READ_benchprefixtarget() string { return "ok" }
 
-// seedGlobalPrefixArrNoise populates globalPrefixArr with n entries that never
-// match benchPrefixTargetController, simulating a large real-world app where
-// most registered controllers are unrelated to the one being looked up.
-func seedGlobalPrefixArrNoise(n int) {
+// seedGlobalPrefixesByControllerNoise populates globalPrefixesByController
+// with n entries that never match benchPrefixTargetController, simulating a
+// large real-world app where most registered controllers are unrelated to
+// the one being looked up.
+func seedGlobalPrefixesByControllerNoise(n int) {
 	noiseKey := genFieldKey(reflect.TypeOf(struct{ x int }{}))
 	for i := 0; i < n; i++ {
 		key := "[" + strconv.Itoa(i) + "]" + noiseKey
-		globalPrefixArr[key] = []string{"/noise"}
+		globalPrefixesByController[key] = []string{"/noise"}
 	}
 }
 
@@ -29,8 +30,8 @@ func BenchmarkControllerModulePrefixes(b *testing.B) {
 	defer resetModuleGlobals()
 
 	targetType := reflect.TypeOf(benchPrefixTargetController{})
-	seedGlobalPrefixArrNoise(2000)
-	globalPrefixArr[genFieldKey(targetType)] = []string{"/v1"}
+	seedGlobalPrefixesByControllerNoise(2000)
+	globalPrefixesByController[genFieldKey(targetType)] = []string{"/v1"}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -69,17 +69,17 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 		newInterceptable = Construct(newInterceptable, "NewInterceptor")
 		interceptorHandler.interceptable = newInterceptable.(Interceptable)
 
-		shouldAddInterceptors := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range interceptorHandler.handlers {
 			fnName := GetFuncName(handler)
 			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				shouldAddInterceptors[pattern] = true
+				targetedPatterns[pattern] = true
 			}
 		}
-		applyAll := len(shouldAddInterceptors) == 0
+		applyAll := len(targetedPatterns) == 0
 
 		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || shouldAddInterceptors[pattern] {
+			if applyAll || targetedPatterns[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -104,7 +104,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 }
 
 func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
-	interceptorItemArr := make([]InterceptorItem, 0, len(ws.patternToFuncNameMap)*len(i.InterceptorHandlers))
+	interceptorItemArr := make([]InterceptorItem, 0, len(ws.funcNameByEvent)*len(i.InterceptorHandlers))
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
 		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
@@ -119,17 +119,17 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 		newInterceptable = Construct(newInterceptable, "NewInterceptor")
 		interceptorHandler.interceptable = newInterceptable.(Interceptable)
 
-		shouldAddInterceptors := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range interceptorHandler.handlers {
 			fnName := GetFuncName(handler)
 			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				shouldAddInterceptors[event] = true
+				targetedPatterns[event] = true
 			}
 		}
-		applyAll := len(shouldAddInterceptors) == 0
+		applyAll := len(targetedPatterns) == 0
 
-		for pattern := range ws.patternToFuncNameMap {
-			if applyAll || shouldAddInterceptors[pattern] {
+		for pattern := range ws.funcNameByEvent {
+			if applyAll || targetedPatterns[pattern] {
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
 					WS: WSInterceptorItem{
 						EventName: pattern,

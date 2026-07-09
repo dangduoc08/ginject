@@ -42,8 +42,8 @@ KEY_8=88888888
 	b.ResetTimer()
 	for range b.N {
 		dotENV := &DotENV{
-			data:   data,
-			envMap: make(map[string]any, 8),
+			data:           data,
+			valuesByEnvKey: make(map[string]any, 8),
 		}
 		dotENV.Unmarshal()
 	}
