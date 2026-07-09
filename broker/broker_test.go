@@ -827,7 +827,7 @@ func TestEmptyBucketCleanup_Exact(t *testing.T) {
 
 	// Verify the map entry itself is gone (no empty bucket).
 	b.mu.RLock()
-	_, hasBucket := b.exact["ephemeral.topic"]
+	_, hasBucket := b.exactByTopic["ephemeral.topic"]
 	b.mu.RUnlock()
 	if hasBucket {
 		t.Error("empty exact bucket should have been deleted after once-sub cleanup")
@@ -842,7 +842,7 @@ func TestEmptyBucketCleanup_Prefix(t *testing.T) {
 	_ = b.Publish("order.created", nil)
 
 	b.mu.RLock()
-	_, hasBucket := b.prefix["order"]
+	_, hasBucket := b.prefixByPrefix["order"]
 	b.mu.RUnlock()
 	if hasBucket {
 		t.Error("empty prefix bucket should have been deleted after once-sub cleanup")
@@ -857,7 +857,7 @@ func TestEmptyBucketCleanup_Unsubscribe(t *testing.T) {
 	_ = b.Unsubscribe(sub)
 
 	b.mu.RLock()
-	_, hasBucket := b.exact["only.sub"]
+	_, hasBucket := b.exactByTopic["only.sub"]
 	b.mu.RUnlock()
 	if hasBucket {
 		t.Error("empty exact bucket should have been deleted after unsubscribe")
@@ -872,7 +872,7 @@ func TestEmptyBucketCleanup_QueueGroup(t *testing.T) {
 	_ = b.Unsubscribe(sub)
 
 	b.mu.RLock()
-	_, hasTopic := b.queueGroups["q.topic"]
+	_, hasTopic := b.queueGroupsByTopic["q.topic"]
 	b.mu.RUnlock()
 	if hasTopic {
 		t.Error("empty queueGroups topic entry should have been deleted after unsubscribe")

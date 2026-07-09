@@ -25,12 +25,12 @@ func buildBenchREST(n int) *REST {
 
 func buildBenchWS(n int) *WS {
 	ws := &WS{
-		patternToFuncNameMap: make(map[string]string, n),
+		funcNameByEvent: make(map[string]string, n),
 	}
 	for i := range n {
 		event := fmt.Sprintf("event%d", i)
 		fn := fmt.Sprintf("ON_event%d", i)
-		ws.patternToFuncNameMap[event] = fn
+		ws.funcNameByEvent[event] = fn
 	}
 	return ws
 }

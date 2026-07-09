@@ -28,7 +28,7 @@ func TestNew(t *testing.T) {
 	if app.http.route == nil {
 		t.Error(test.DiffMessage(nil, "router", "route not initialized"))
 	}
-	if app.http.catchFnsMap == nil {
+	if app.http.catchFnsByRoute == nil {
 		t.Error(test.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
 	}
 	if app.Logger != nil {
@@ -109,8 +109,8 @@ func TestEnableDevtoolChaining(t *testing.T) {
 	if result != app {
 		t.Error(test.DiffMessage(result, app, "EnableDevtool should return *App"))
 	}
-	if !app.isEnableDevtool {
-		t.Error(test.DiffMessage(app.isEnableDevtool, true, "isEnableDevtool should be true after EnableDevtool"))
+	if !app.isDevtoolEnabled {
+		t.Error(test.DiffMessage(app.isDevtoolEnabled, true, "isDevtoolEnabled should be true after EnableDevtool"))
 	}
 }
 
@@ -183,7 +183,7 @@ func TestEnableVersioning_Chaining(t *testing.T) {
 	if result != app {
 		t.Error(test.DiffMessage(result, app, "EnableVersioning should return *App"))
 	}
-	if !app.http.isEnableVersioning {
-		t.Error(test.DiffMessage(app.http.isEnableVersioning, true, "EnableVersioning should set isEnableVersioning"))
+	if !app.http.isVersioningEnabled {
+		t.Error(test.DiffMessage(app.http.isVersioningEnabled, true, "EnableVersioning should set isVersioningEnabled"))
 	}
 }

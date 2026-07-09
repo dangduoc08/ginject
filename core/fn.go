@@ -106,7 +106,7 @@ func isInjectableHandler(handler any, injectedProviders map[string]Provider) err
 	var e error
 
 	getFnArgs(handler, injectedProviders, func(arg string, i int, pipeValue reflect.Value) {
-		if _, ok := dependencies[arg]; !ok {
+		if _, ok := knownDependencyKeys[arg]; !ok {
 			e = fmt.Errorf(
 				"can't resolve dependencies of the '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
 				reflect.TypeOf(handler).String(),
@@ -155,11 +155,11 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 		)
 	}
 
-	getFnArgs(dynamicModule, globalProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if globalProviders[dynamicArgKey] != nil {
-			args = append(args, reflect.ValueOf(globalProviders[dynamicArgKey]))
-		} else if globalInterfaces[dynamicArgKey] != nil {
-			args = append(args, reflect.ValueOf(globalInterfaces[dynamicArgKey]))
+	getFnArgs(dynamicModule, globalProviderByKey, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
+		if globalProviderByKey[dynamicArgKey] != nil {
+			args = append(args, reflect.ValueOf(globalProviderByKey[dynamicArgKey]))
+		} else if globalInterfaceByKey[dynamicArgKey] != nil {
+			args = append(args, reflect.ValueOf(globalInterfaceByKey[dynamicArgKey]))
 		} else {
 			panic(genError(dynamicModuleType, dynamicArgKey, i))
 		}
@@ -168,7 +168,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	return reflect.ValueOf(dynamicModule).Call(args)[0].Interface().(*Module)
 }
 
-func injectDependencies(component any, kind string, dependencies map[string]Provider) (reflect.Value, error) {
+func injectDependencies(component any, kind string, injectedProviders map[string]Provider) (reflect.Value, error) {
 	componentType := reflect.TypeOf(component)
 	componentValue := reflect.ValueOf(component)
 	newComponent := reflect.New(componentType)
@@ -199,12 +199,12 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 		// global inject
 		// inner packages
 		// resolve dependencies error
-		if componentFieldKey != "" && dependencies[componentFieldKey] != nil {
-			newComponent.Elem().Field(j).Set(reflect.ValueOf(dependencies[componentFieldKey]))
-		} else if componentFieldKey != "" && globalProviders[componentFieldKey] != nil {
-			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviders[componentFieldKey]))
-		} else if componentFieldKey != "" && globalInterfaces[componentFieldKey] != nil {
-			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalInterfaces[componentFieldKey]))
+		if componentFieldKey != "" && injectedProviders[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[componentFieldKey]))
+		} else if componentFieldKey != "" && globalProviderByKey[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviderByKey[componentFieldKey]))
+		} else if componentFieldKey != "" && globalInterfaceByKey[componentFieldKey] != nil {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalInterfaceByKey[componentFieldKey]))
 		} else if !isInjectedProvider(componentFieldType) {
 
 			// if module set state to provider
@@ -232,7 +232,7 @@ func injectDependencies(component any, kind string, dependencies map[string]Prov
 // common.InjectProvidersInto{REST,WS}{ExceptionFilters,Middlewares,Guards,Interceptors}.
 // Each bound guard/middleware/interceptor/exceptionFilter field is resolved
 // by the same provider priority as injectDependencies: local module
-// providers, then globalProviders, then globalInterfaces, then passthrough
+// providers, then globalProviderByKey, then globalInterfaceByKey, then passthrough
 // for non-Provider fields, panicking if nothing resolves. kind only affects
 // panic wording (e.g. "guarder", "middleware function").
 func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provider) func(int, reflect.Type, reflect.Value, reflect.Value) {
@@ -255,10 +255,10 @@ func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provi
 
 		if injectedProviders[injectProviderKey] != nil {
 			newInstance.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
-		} else if globalProviders[injectProviderKey] != nil {
-			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalProviders[injectProviderKey]))
-		} else if globalInterfaces[injectProviderKey] != nil {
-			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalInterfaces[injectProviderKey]))
+		} else if globalProviderByKey[injectProviderKey] != nil {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalProviderByKey[injectProviderKey]))
+		} else if globalInterfaceByKey[injectProviderKey] != nil {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalInterfaceByKey[injectProviderKey]))
 		} else if !isInjectedProvider(fieldType) {
 			newInstance.Elem().Field(i).Set(ownerValue.Field(i))
 		} else {
@@ -386,7 +386,7 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 		// 		})
 	}
 
-	return dependencies
+	return knownDependencyKeys
 }
 
 func returnREST(c *ctx.Context, data reflect.Value) {
@@ -501,7 +501,7 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if _, ok := dependencies[dynamicArgKey]; ok {
+		if _, ok := knownDependencyKeys[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
@@ -605,12 +605,4 @@ func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregati
 		merged = append(merged, op.Aggregation)
 	}
 	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ErrorAggregationCtxValueKey), merged))
-}
-
-func getWSEventKeys() []string {
-	keys := make([]string, 0, len(common.InsertedEvents))
-	for k := range common.InsertedEvents {
-		keys = append(keys, k)
-	}
-	return keys
 }

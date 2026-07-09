@@ -9,21 +9,21 @@ import (
 // DB is the top-level handle for the embedded database.
 // Create one with Open; close with Close.
 type DB struct {
-	mu      sync.RWMutex
-	path    string
-	engines map[string]*engine
-	models  map[string]*Model
-	hooks   *hookSet
-	closed  bool
+	mu             sync.RWMutex
+	path           string
+	enginesByTable map[string]*engine
+	modelsByTable  map[string]*Model
+	hooks          *hookSet
+	isClosed         bool
 }
 
 // Open opens (or creates) the database rooted at path.
 func Open(path string) (*DB, error) {
 	db := &DB{
-		path:    path,
-		engines: make(map[string]*engine),
-		models:  make(map[string]*Model),
-		hooks:   newHookSet(),
+		path:           path,
+		enginesByTable: make(map[string]*engine),
+		modelsByTable:  make(map[string]*Model),
+		hooks:          newHookSet(),
 	}
 	return db, nil
 }
@@ -32,11 +32,11 @@ func Open(path string) (*DB, error) {
 func (db *DB) Close() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	if db.closed {
+	if db.isClosed {
 		return ErrClosed
 	}
-	db.closed = true
-	for _, eng := range db.engines {
+	db.isClosed = true
+	for _, eng := range db.enginesByTable {
 		eng.close()
 	}
 	return nil
@@ -45,8 +45,8 @@ func (db *DB) Close() error {
 // Flush syncs the current segment file of every table to disk.
 func (db *DB) Flush() error {
 	db.mu.RLock()
-	engs := make([]*engine, 0, len(db.engines))
-	for _, eng := range db.engines {
+	engs := make([]*engine, 0, len(db.enginesByTable))
+	for _, eng := range db.enginesByTable {
 		engs = append(engs, eng)
 	}
 	db.mu.RUnlock()
@@ -61,8 +61,8 @@ func (db *DB) Flush() error {
 // Compact rewrites each table's segment files, removing deleted records.
 func (db *DB) Compact() error {
 	db.mu.RLock()
-	engs := make([]*engine, 0, len(db.engines))
-	for _, eng := range db.engines {
+	engs := make([]*engine, 0, len(db.enginesByTable))
+	for _, eng := range db.enginesByTable {
 		engs = append(engs, eng)
 	}
 	db.mu.RUnlock()
@@ -80,10 +80,10 @@ func (db *DB) Model(table string) *Model {
 		panic(err)
 	}
 	db.mu.Lock()
-	m, ok := db.models[table]
+	m, ok := db.modelsByTable[table]
 	if !ok {
 		m = newModel(db, table)
-		db.models[table] = m
+		db.modelsByTable[table] = m
 	}
 	db.mu.Unlock()
 	return m
@@ -105,7 +105,7 @@ func (db *DB) Use(fn func(*HookCtx, func())) *DB {
 	// middlewares wrap the pre/post pipeline — store as global interceptor
 	// For simplicity, Use() registers a raw global hook that runs before all pre hooks.
 	db.hooks.mu.Lock()
-	db.hooks.pre["*"] = append(db.hooks.pre["*"], func(hc *HookCtx) {
+	db.hooks.preByEvent["*"] = append(db.hooks.preByEvent["*"], func(hc *HookCtx) {
 		fn(hc, func() {})
 	})
 	db.hooks.mu.Unlock()
@@ -115,7 +115,7 @@ func (db *DB) Use(fn func(*HookCtx, func())) *DB {
 // Pre registers a hook to run before the given event ("create", "update", "delete", "find").
 func (db *DB) Pre(event string, fn func(*HookCtx)) *DB {
 	db.hooks.mu.Lock()
-	db.hooks.pre[event] = append(db.hooks.pre[event], fn)
+	db.hooks.preByEvent[event] = append(db.hooks.preByEvent[event], fn)
 	db.hooks.mu.Unlock()
 	return db
 }
@@ -123,7 +123,7 @@ func (db *DB) Pre(event string, fn func(*HookCtx)) *DB {
 // Post registers a hook to run after the given event.
 func (db *DB) Post(event string, fn func(*HookCtx)) *DB {
 	db.hooks.mu.Lock()
-	db.hooks.post[event] = append(db.hooks.post[event], fn)
+	db.hooks.postByEvent[event] = append(db.hooks.postByEvent[event], fn)
 	db.hooks.mu.Unlock()
 	return db
 }
@@ -131,11 +131,11 @@ func (db *DB) Post(event string, fn func(*HookCtx)) *DB {
 // getEngine returns the engine for a table, opening it if needed.
 func (db *DB) getEngine(table string) (*engine, error) {
 	db.mu.RLock()
-	if db.closed {
+	if db.isClosed {
 		db.mu.RUnlock()
 		return nil, ErrClosed
 	}
-	eng, ok := db.engines[table]
+	eng, ok := db.enginesByTable[table]
 	db.mu.RUnlock()
 	if ok {
 		return eng, nil
@@ -144,7 +144,7 @@ func (db *DB) getEngine(table string) (*engine, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	// double-check after upgrade
-	if eng, ok = db.engines[table]; ok {
+	if eng, ok = db.enginesByTable[table]; ok {
 		return eng, nil
 	}
 	dir := filepath.Join(db.path, table)
@@ -153,7 +153,7 @@ func (db *DB) getEngine(table string) (*engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.engines[table] = eng
+	db.enginesByTable[table] = eng
 	return eng, nil
 }
 
@@ -161,10 +161,10 @@ func (db *DB) runHook(hs *hookSet, phase, event, table, id string, data map[stri
 	hs.mu.RLock()
 	var fns []hookFn
 	if phase == "pre" {
-		fns = append(fns, hs.pre["*"]...)
-		fns = append(fns, hs.pre[event]...)
+		fns = append(fns, hs.preByEvent["*"]...)
+		fns = append(fns, hs.preByEvent[event]...)
 	} else {
-		fns = append(fns, hs.post[event]...)
+		fns = append(fns, hs.postByEvent[event]...)
 	}
 	hs.mu.RUnlock()
 	if len(fns) == 0 {

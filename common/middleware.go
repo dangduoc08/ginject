@@ -67,17 +67,17 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 		newMiddlewareFn = Construct(newMiddlewareFn, "NewMiddleware")
 		middlewareHandler.middlewareFn = newMiddlewareFn.(MiddlewareFn)
 
-		shouldAddMiddleware := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range middlewareHandler.handlers {
 			fnName := GetFuncName(handler)
 			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				shouldAddMiddleware[pattern] = true
+				targetedPatterns[pattern] = true
 			}
 		}
-		applyAll := len(shouldAddMiddleware) == 0
+		applyAll := len(targetedPatterns) == 0
 
 		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || shouldAddMiddleware[pattern] {
+			if applyAll || targetedPatterns[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -102,7 +102,7 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 }
 
 func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
-	middlewareItemArr := make([]MiddlewareItem, 0, len(ws.patternToFuncNameMap)*len(g.MiddlewareHandlers))
+	middlewareItemArr := make([]MiddlewareItem, 0, len(ws.funcNameByEvent)*len(g.MiddlewareHandlers))
 
 	for _, middlewareHandler := range g.MiddlewareHandlers {
 		middlewarerType := reflect.TypeOf(middlewareHandler.middlewareFn)
@@ -117,17 +117,17 @@ func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, refle
 		newMiddlewarer = Construct(newMiddlewarer, "NewMiddleware")
 		middlewareHandler.middlewareFn = newMiddlewarer.(MiddlewareFn)
 
-		shouldAddMiddleware := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range middlewareHandler.handlers {
 			fnName := GetFuncName(handler)
 			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				shouldAddMiddleware[event] = true
+				targetedPatterns[event] = true
 			}
 		}
-		applyAll := len(shouldAddMiddleware) == 0
+		applyAll := len(targetedPatterns) == 0
 
-		for pattern := range ws.patternToFuncNameMap {
-			if applyAll || shouldAddMiddleware[pattern] {
+		for pattern := range ws.funcNameByEvent {
+			if applyAll || targetedPatterns[pattern] {
 				middlewareItemArr = append(middlewareItemArr, MiddlewareItem{
 					WS: WSMiddlewareItem{
 						EventName: pattern,

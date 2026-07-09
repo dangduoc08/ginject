@@ -8,12 +8,12 @@ import (
 
 type secureRoundTripper struct {
 	base         http.RoundTripper
-	requireHTTPS bool
+	isHTTPSRequired bool
 	validateHost func(string) bool
 }
 
 func (t *secureRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.requireHTTPS && req.URL.Scheme != "https" {
+	if t.isHTTPSRequired && req.URL.Scheme != "https" {
 		return nil, errors.New("httpclient: HTTPS required but scheme is " + req.URL.Scheme)
 	}
 	if t.validateHost != nil && !t.validateHost(req.URL.Hostname()) {
@@ -22,7 +22,7 @@ func (t *secureRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	return t.base.RoundTrip(req)
 }
 
-func buildTransport(tlsCfg *tls.Config, requireHTTPS bool, validateHost func(string) bool) http.RoundTripper {
+func buildTransport(tlsCfg *tls.Config, isHTTPSRequired bool, validateHost func(string) bool) http.RoundTripper {
 	var base http.RoundTripper
 	if t, ok := http.DefaultTransport.(*http.Transport); ok {
 		base = t.Clone()
@@ -34,10 +34,10 @@ func buildTransport(tlsCfg *tls.Config, requireHTTPS bool, validateHost func(str
 			t.TLSClientConfig = tlsCfg
 		}
 	}
-	if requireHTTPS || validateHost != nil {
+	if isHTTPSRequired || validateHost != nil {
 		return &secureRoundTripper{
 			base:         base,
-			requireHTTPS: requireHTTPS,
+			isHTTPSRequired: isHTTPSRequired,
 			validateHost: validateHost,
 		}
 	}

@@ -34,16 +34,16 @@ func deadline(now int64, ttl time.Duration) int64 {
 }
 
 type shard struct {
-	mu     sync.RWMutex
-	items  map[string]entry
-	writes int
+	mu           sync.RWMutex
+	entriesByKey map[string]entry
+	writes       int
 }
 
 func (s *shard) evictLocked(now int64, limit int) {
 	n := 0
-	for k, e := range s.items {
+	for k, e := range s.entriesByKey {
 		if e.expired(now) {
-			delete(s.items, k)
+			delete(s.entriesByKey, k)
 		}
 		if n++; n >= limit {
 			return
@@ -60,7 +60,7 @@ type MemoryCache struct {
 func NewMemoryCache() *MemoryCache {
 	mc := &MemoryCache{done: make(chan struct{})}
 	for i := range mc.shards {
-		mc.shards[i] = &shard{items: make(map[string]entry)}
+		mc.shards[i] = &shard{entriesByKey: make(map[string]entry)}
 	}
 	mc.wg.Add(1)
 	go mc.sweep()
@@ -96,9 +96,9 @@ func (mc *MemoryCache) sweepShard(idx int) {
 	s := mc.shards[idx]
 	now := time.Now().UnixNano()
 	s.mu.Lock()
-	for k, e := range s.items {
+	for k, e := range s.entriesByKey {
 		if e.expired(now) {
-			delete(s.items, k)
+			delete(s.entriesByKey, k)
 		}
 	}
 	s.mu.Unlock()
@@ -115,7 +115,7 @@ func (mc *MemoryCache) Get(_ context.Context, key string) ([]byte, bool) {
 	now := time.Now().UnixNano()
 	s := mc.shardOf(key)
 	s.mu.RLock()
-	e, ok := s.items[key]
+	e, ok := s.entriesByKey[key]
 	s.mu.RUnlock()
 	if !ok || e.expired(now) {
 		return nil, false
@@ -135,7 +135,7 @@ func (mc *MemoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 
 	s := mc.shardOf(key)
 	s.mu.Lock()
-	s.items[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
+	s.entriesByKey[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
 	s.writes++
 	if s.writes >= cleanupEvery {
 		s.writes = 0
@@ -153,13 +153,13 @@ func (mc *MemoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 
 	s := mc.shardOf(key)
 	s.mu.Lock()
-	if existing, exists := s.items[key]; exists && !existing.expired(now) {
+	if existing, exists := s.entriesByKey[key]; exists && !existing.expired(now) {
 		s.mu.Unlock()
 		return false, nil
 	}
 	stored := make([]byte, len(val))
 	copy(stored, val)
-	s.items[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
+	s.entriesByKey[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
 	s.mu.Unlock()
 	return true, nil
 }
@@ -170,7 +170,7 @@ func (mc *MemoryCache) Delete(_ context.Context, key string) error {
 	}
 	s := mc.shardOf(key)
 	s.mu.Lock()
-	delete(s.items, key)
+	delete(s.entriesByKey, key)
 	s.mu.Unlock()
 	return nil
 }
@@ -180,7 +180,7 @@ func (mc *MemoryCache) Keys(_ context.Context) []string {
 	keys := make([]string, 0, 64)
 	for _, s := range mc.shards {
 		s.mu.RLock()
-		for k, e := range s.items {
+		for k, e := range s.entriesByKey {
 			if !e.expired(now) {
 				keys = append(keys, k)
 			}
@@ -197,7 +197,7 @@ func (mc *MemoryCache) TTL(_ context.Context, key string) (time.Duration, bool) 
 	now := time.Now().UnixNano()
 	s := mc.shardOf(key)
 	s.mu.RLock()
-	e, ok := s.items[key]
+	e, ok := s.entriesByKey[key]
 	s.mu.RUnlock()
 	switch {
 	case !ok || e.expired(now):

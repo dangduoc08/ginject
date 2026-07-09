@@ -78,8 +78,8 @@ func TestAddToEventMap_InitMaps(t *testing.T) {
 	if ws.EventMap == nil {
 		t.Error(test.DiffMessage(ws.EventMap, "non-nil", "EventMap initialized"))
 	}
-	if ws.patternToFuncNameMap == nil {
-		t.Error(test.DiffMessage(ws.patternToFuncNameMap, "non-nil", "patternToFuncNameMap initialized"))
+	if ws.funcNameByEvent == nil {
+		t.Error(test.DiffMessage(ws.funcNameByEvent, "non-nil", "funcNameByEvent initialized"))
 	}
 }
 
@@ -89,8 +89,8 @@ func TestAddToEventMap_StoresEntries(t *testing.T) {
 	if ws.EventMap["message"] != "handler" {
 		t.Error(test.DiffMessage(ws.EventMap["message"], "handler", "EventMap entry"))
 	}
-	if ws.patternToFuncNameMap["message"] != "ON_message" {
-		t.Error(test.DiffMessage(ws.patternToFuncNameMap["message"], "ON_message", "patternToFuncNameMap entry"))
+	if ws.funcNameByEvent["message"] != "ON_message" {
+		t.Error(test.DiffMessage(ws.funcNameByEvent["message"], "ON_message", "funcNameByEvent entry"))
 	}
 }
 

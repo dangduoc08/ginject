@@ -31,10 +31,10 @@ func buildREST(fnToRoute map[string]string) *REST {
 
 func buildWS(patternToFn map[string]string) *WS {
 	ws := &WS{
-		patternToFuncNameMap: make(map[string]string, len(patternToFn)),
+		funcNameByEvent: make(map[string]string, len(patternToFn)),
 	}
 	for p, fn := range patternToFn {
-		ws.patternToFuncNameMap[p] = fn
+		ws.funcNameByEvent[p] = fn
 	}
 	return ws
 }

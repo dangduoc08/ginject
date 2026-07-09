@@ -20,9 +20,9 @@ type HTTP struct {
 	route *routing.Router
 
 	versioning                             *versioning.Versioning
-	isEnableVersioning                     bool
-	catchFnsMap                            map[string][]common.Catch
-	serveStaticMapToLastWildcardSlashIndex map[string]int
+	isVersioningEnabled                     bool
+	catchFnsByRoute                        map[string][]common.Catch
+	lastWildcardSlashIndexByRoute map[string]int
 
 	invokeHandler func(f any, c *ctx.Context) []reflect.Value
 }
@@ -30,8 +30,8 @@ type HTTP struct {
 func newHTTP() *HTTP {
 	return &HTTP{
 		route:                                  routing.NewRouter(),
-		catchFnsMap:                            make(map[string][]common.Catch),
-		serveStaticMapToLastWildcardSlashIndex: make(map[string]int),
+		catchFnsByRoute:                        make(map[string][]common.Catch),
+		lastWildcardSlashIndexByRoute: make(map[string]int),
 	}
 }
 
@@ -40,7 +40,7 @@ func (http *HTTP) enableVersioning(v versioning.Versioning) {
 		v.Key = "v"
 	}
 	http.versioning = &v
-	http.isEnableVersioning = true
+	http.isVersioningEnabled = true
 }
 
 func (http *HTTP) addMainHandler(moduleHandler common.RESTLayer) {
@@ -53,7 +53,7 @@ func (http *HTTP) addMainHandler(moduleHandler common.RESTLayer) {
 			lastWildcardSlashIndex = strings.Count(r, "/") - 1
 		}
 
-		http.serveStaticMapToLastWildcardSlashIndex[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
+		http.lastWildcardSlashIndexByRoute[routing.MethodRouteVersionToPattern(httpMethod, moduleHandler.Route, moduleHandler.Version)] = lastWildcardSlashIndex
 	}
 	http.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
 }
@@ -85,7 +85,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 			// Execute exception filters if any
 			// normally this one always ok
 			// since we always set global exception filter as default
-			if _, ok := http.catchFnsMap[catchEvent]; ok && rec != nil {
+			if _, ok := http.catchFnsByRoute[catchEvent]; ok && rec != nil {
 
 				_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
@@ -98,7 +98,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 	}
 
 	version := ""
-	if http.isEnableVersioning {
+	if http.isVersioningEnabled {
 		version = http.versioning.GetVersion(c)
 	}
 
@@ -107,7 +107,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 		isMatched, matchedRoute, paramKeys, paramValues, handlers = http.route.Match(c.Method, c.URL.Path, versioning.NeutralVersion)
 	}
 
-	if http.isEnableVersioning {
+	if http.isVersioningEnabled {
 		if version == "" && isMatched {
 			// Invoke middlewares
 			for _, middleware := range http.route.GlobalMiddlewares {
@@ -173,7 +173,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 								aggregatedData = aggregation.Aggregate(c)
 							} else {
 								isMainHandlerCalled = false
-								if lastWildcardSlashIndex, ok := http.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+								if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
 									var dir any
 
 									if len(data) == 1 {
@@ -191,7 +191,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 						}
 
 						if isMainHandlerCalled {
-							if lastWildcardSlashIndex, ok := http.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+							if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
 								var dir any
 
 								if len(data) == 1 {
@@ -207,7 +207,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 						}
 					} else {
 						if len(data) == 1 {
-							if lastWildcardSlashIndex, ok := http.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+							if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
 								dir := data[0].Interface()
 								http.serveContent(c, lastWildcardSlashIndex, dir)
 							} else {
@@ -215,7 +215,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 							}
 						} else if len(data) > 1 {
 							setStatusCode(c, data[0])
-							if lastWildcardSlashIndex, ok := http.serveStaticMapToLastWildcardSlashIndex[matchedRoute]; ok {
+							if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
 								dir := data[1].Interface()
 								http.serveContent(c, lastWildcardSlashIndex, dir)
 							} else {

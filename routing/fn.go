@@ -14,7 +14,7 @@ var matchMethodReg = regexp.MustCompile(strings.Join(slice.Map(HTTPMethods, func
 
 var matchParamReg = regexp.MustCompile(`\{(.*?)\}`)
 
-var methodPatternCache = func() map[string]string {
+var patternByMethod = func() map[string]string {
 	m := make(map[string]string, len(HTTPMethods))
 	for _, method := range HTTPMethods {
 		m[method] = toPattern(method, "[", "]")
@@ -47,7 +47,7 @@ func MethodRouteVersionToPattern(
 ) string {
 	routePattern := str.Enclose(route, '/')
 	versionPattern := toPattern(version, "|", "|")
-	methodPattern, ok := methodPatternCache[method]
+	methodPattern, ok := patternByMethod[method]
 	if !ok {
 		methodPattern = toPattern(method, "[", "]")
 	}

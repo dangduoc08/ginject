@@ -44,7 +44,7 @@ type corsOptions struct {
 	optionsSuccessStatus int
 	isAllowCredentials   bool
 	isPreflightContinue  bool
-	varyOrigin           bool
+	shouldVaryOrigin     bool
 	allowOrigin          any
 	allowHeaders         string
 	exposeHeaders        string
@@ -164,11 +164,11 @@ func mergeVary(header http.Header, addition string) {
 	header.Set("Vary", strings.Join(merged, ", "))
 }
 
-func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin any, allowCredentials, varyOrigin bool) bool {
+func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin any, allowCredentials, shouldVaryOrigin bool) bool {
 	if value, matched := matchOrigin(allowOrigin, requestOrigin, allowCredentials); matched {
 		header.Set("Access-Control-Allow-Origin", value)
 	}
-	return varyOrigin
+	return shouldVaryOrigin
 }
 
 func configureAllowHeaders(header http.Header, requestHeaders ctx.Header, allowHeaders string) bool {
@@ -205,7 +205,7 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	opts.allowMethods = strings.Join(allowMethods, ", ")
 
 	opts.allowOrigin = normalizeAllowOrigin(cors.AllowOrigin)
-	opts.varyOrigin = shouldVaryOrigin(opts.allowOrigin, opts.isAllowCredentials)
+	opts.shouldVaryOrigin = shouldVaryOrigin(opts.allowOrigin, opts.isAllowCredentials)
 
 	switch v := cors.AllowHeaders.(type) {
 	case string:
@@ -244,7 +244,7 @@ func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
 	header := c.ResponseWriter.Header()
 
 	var vary string
-	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.isAllowCredentials, opts.varyOrigin) {
+	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.isAllowCredentials, opts.shouldVaryOrigin) {
 		vary = appendVary(vary, "Origin")
 	}
 	if opts.exposeHeaders != "" {

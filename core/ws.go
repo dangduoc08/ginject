@@ -15,13 +15,14 @@ import (
 type WSConfig struct {
 	Path              string
 	globalMiddlewares []common.MiddlewareFn
+	injectedProviders map[string]Provider
 }
 
 type WS struct {
 	// eventMap          map[string][]ctx.Handler
 	// mainHandlerMap    map[string]any
 	// eventToID         map[string][]string
-	// catchFnsMap       map[string][]common.Catch
+	catchFnsByEvent map[string][]common.Catch
 
 	// invokeHandler   func(f any, c *ctx.Context) []reflect.Value
 
@@ -39,7 +40,7 @@ func NewWS(cfg *WSConfig) *WS {
 	}
 
 	ws := WS{
-		// catchFnsMap:    make(map[string][]common.Catch),
+		// catchFnsByEvent:    make(map[string][]common.Catch),
 		// eventMap:       make(map[string][]func(*ctx.Context)),
 		// mainHandlerMap: make(map[string]any),
 		// eventToID:      make(map[string][]string),

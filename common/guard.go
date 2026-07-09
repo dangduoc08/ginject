@@ -67,17 +67,17 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		newGuarder = Construct(newGuarder, "NewGuard")
 		guardHandler.guarder = newGuarder.(Guarder)
 
-		shouldAddGuard := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range guardHandler.handlers {
 			fnName := GetFuncName(handler)
 			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				shouldAddGuard[pattern] = true
+				targetedPatterns[pattern] = true
 			}
 		}
-		applyAll := len(shouldAddGuard) == 0
+		applyAll := len(targetedPatterns) == 0
 
 		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || shouldAddGuard[pattern] {
+			if applyAll || targetedPatterns[pattern] {
 				method, route, version := routing.PatternToMethodRouteVersion(pattern)
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
@@ -102,7 +102,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 }
 
 func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := make([]GuardItem, 0, len(ws.patternToFuncNameMap)*len(g.GuardHandlers))
+	guardItemArr := make([]GuardItem, 0, len(ws.funcNameByEvent)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
 		guarderType := reflect.TypeOf(guardHandler.guarder)
@@ -117,17 +117,17 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 		newGuarder = Construct(newGuarder, "NewGuard")
 		guardHandler.guarder = newGuarder.(Guarder)
 
-		shouldAddGuard := map[string]bool{}
+		targetedPatterns := map[string]bool{}
 		for _, handler := range guardHandler.handlers {
 			fnName := GetFuncName(handler)
 			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				shouldAddGuard[event] = true
+				targetedPatterns[event] = true
 			}
 		}
-		applyAll := len(shouldAddGuard) == 0
+		applyAll := len(targetedPatterns) == 0
 
-		for pattern := range ws.patternToFuncNameMap {
-			if applyAll || shouldAddGuard[pattern] {
+		for pattern := range ws.funcNameByEvent {
+			if applyAll || targetedPatterns[pattern] {
 				guardItemArr = append(guardItemArr, GuardItem{
 					WS: WSGuardItem{
 						EventName: pattern,

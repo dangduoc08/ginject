@@ -61,8 +61,8 @@ func loadDotENV(path string, isExpandVariables bool) map[string]any {
 	// prevent last index won't be appended into value
 	data = append(data, newline)
 	dotENV := &DotENV{
-		data:   data,
-		envMap: dotENVMap,
+		data:           data,
+		valuesByEnvKey: dotENVMap,
 	}
 	dotENV.Unmarshal()
 

@@ -14,12 +14,12 @@ import (
 var moduleGlobalMu sync.Mutex
 var mainModulePtr uintptr
 var modulesInjectedFromMain []uintptr
-var injectedDynamicModules = make(map[uintptr]*Module)
-var globalPrefixArr = make(map[string][]string)
-var globalProviders map[string]Provider = make(map[string]Provider)
-var globalInterfaces map[string]any = make(map[string]any)
-var providerInjectCheck map[string]Provider = make(map[string]Provider)
-var noInjectedFields = map[string]string{
+var staticModuleByDynamicPtr = make(map[uintptr]*Module)
+var globalPrefixesByController = make(map[string][]string)
+var globalProviderByKey map[string]Provider = make(map[string]Provider)
+var globalInterfaceByKey map[string]any = make(map[string]any)
+var providerSingletonByKey map[string]Provider = make(map[string]Provider)
+var fieldNameByRole = map[string]string{
 	"rest":            "REST",
 	"guard":           "Guard",
 	"interceptor":     "Interceptor",
@@ -77,7 +77,7 @@ func (m *Module) injectGlobalProviders() {
 	for _, provider := range m.providers {
 
 		// generate a unique key for the provider
-		globalProviders[genProviderKey(provider)] = provider
+		globalProviderByKey[genProviderKey(provider)] = provider
 	}
 }
 
@@ -148,7 +148,7 @@ func (m *Module) bootstrapMainModule() {
 	// dynamic modules which inject in main.go
 	for _, dynamicModule := range m.dynamicModules {
 		staticModule := createStaticModuleFromDynamicModule(dynamicModule)
-		injectedDynamicModules[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
+		staticModuleByDynamicPtr[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
 
 		m.controllers = append(m.controllers, staticModule.controllers...)
 		m.providers = append(m.providers, staticModule.providers...)
@@ -185,11 +185,11 @@ func (m *Module) injectDynamicModules() {
 		dynamicModulePtr := reflect.ValueOf(dynamicModule).Pointer()
 
 		moduleGlobalMu.Lock()
-		if storedInjectModule, ok := injectedDynamicModules[dynamicModulePtr]; ok {
+		if storedInjectModule, ok := staticModuleByDynamicPtr[dynamicModulePtr]; ok {
 			staticModule = storedInjectModule
 		} else {
 			staticModule = createStaticModuleFromDynamicModule(dynamicModule)
-			injectedDynamicModules[dynamicModulePtr] = staticModule
+			staticModuleByDynamicPtr[dynamicModulePtr] = staticModule
 		}
 		moduleGlobalMu.Unlock()
 
@@ -210,7 +210,7 @@ func (m *Module) registerControllerPrefixes() {
 
 	for _, controller := range m.controllers {
 		key := genFieldKey(reflect.TypeOf(controller))
-		globalPrefixArr[key] = append(globalPrefixArr[key], m.prefixes...)
+		globalPrefixesByController[key] = append(globalPrefixesByController[key], m.prefixes...)
 	}
 }
 
@@ -245,12 +245,12 @@ func (m *Module) injectProviders() map[string]Provider {
 
 		providerKey := genProviderKey(provider)
 
-		if providerInjectCheck[providerKey] == nil {
-			providerInjectCheck[providerKey] = newProvider.Interface().(Provider).NewProvider()
+		if providerSingletonByKey[providerKey] == nil {
+			providerSingletonByKey[providerKey] = newProvider.Interface().(Provider).NewProvider()
 		}
 
-		m.providers[i] = providerInjectCheck[providerKey]
-		injectedProviders[providerKey] = providerInjectCheck[providerKey]
+		m.providers[i] = providerSingletonByKey[providerKey]
+		injectedProviders[providerKey] = providerSingletonByKey[providerKey]
 	}
 	moduleGlobalMu.Unlock()
 
@@ -275,16 +275,16 @@ func (m *Module) injectControllers(injectedProviders map[string]Provider) {
 }
 
 func controllerModulePrefixes(controllerType reflect.Type) []string {
-	return globalPrefixArr[genFieldKey(controllerType)]
+	return globalPrefixesByController[genFieldKey(controllerType)]
 }
 
 func (m *Module) bindRESTController(controller Controller, injectedProviders map[string]Provider) {
 	controllerType := reflect.TypeOf(controller)
-	if _, ok := controllerType.FieldByName(noInjectedFields["rest"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["rest"]); !ok {
 		return
 	}
 
-	rest := reflect.ValueOf(controller).FieldByName(noInjectedFields["rest"]).Interface().(common.REST)
+	rest := reflect.ValueOf(controller).FieldByName(fieldNameByRole["rest"]).Interface().(common.REST)
 	controllerPath := controllerType.PkgPath()
 	modulePrefixes := controllerModulePrefixes(controllerType)
 
@@ -323,11 +323,11 @@ func (m *Module) bindRESTController(controller Controller, injectedProviders map
 }
 
 func (m *Module) bindRESTExceptionFilters(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["exceptionFilter"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["exceptionFilter"]); !ok {
 		return
 	}
 
-	exceptionFilter := reflect.ValueOf(controller).FieldByName(noInjectedFields["exceptionFilter"]).Interface().(common.ExceptionFilter)
+	exceptionFilter := reflect.ValueOf(controller).FieldByName(fieldNameByRole["exceptionFilter"]).Interface().(common.ExceptionFilter)
 	items := exceptionFilter.InjectProvidersIntoRESTExceptionFilters(rest, buildFieldInjectionCallback("exceptionFilter", injectedProviders))
 
 	for _, item := range items {
@@ -345,11 +345,11 @@ func (m *Module) bindRESTExceptionFilters(controller Controller, controllerType 
 }
 
 func (m *Module) bindRESTMiddlewares(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["middleware"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["middleware"]); !ok {
 		return
 	}
 
-	middleware := reflect.ValueOf(controller).FieldByName(noInjectedFields["middleware"]).Interface().(common.Middleware)
+	middleware := reflect.ValueOf(controller).FieldByName(fieldNameByRole["middleware"]).Interface().(common.Middleware)
 	items := middleware.InjectProvidersIntoRESTMiddlewares(rest, buildFieldInjectionCallback("middleware function", injectedProviders))
 
 	for _, item := range items {
@@ -367,11 +367,11 @@ func (m *Module) bindRESTMiddlewares(controller Controller, controllerType refle
 }
 
 func (m *Module) bindRESTGuards(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["guard"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["guard"]); !ok {
 		return
 	}
 
-	guard := reflect.ValueOf(controller).FieldByName(noInjectedFields["guard"]).Interface().(common.Guard)
+	guard := reflect.ValueOf(controller).FieldByName(fieldNameByRole["guard"]).Interface().(common.Guard)
 	items := guard.InjectProvidersIntoRESTGuards(rest, buildFieldInjectionCallback("guarder", injectedProviders))
 
 	for _, item := range items {
@@ -389,11 +389,11 @@ func (m *Module) bindRESTGuards(controller Controller, controllerType reflect.Ty
 }
 
 func (m *Module) bindRESTInterceptors(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["interceptor"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["interceptor"]); !ok {
 		return
 	}
 
-	interceptor := reflect.ValueOf(controller).FieldByName(noInjectedFields["interceptor"]).Interface().(common.Interceptor)
+	interceptor := reflect.ValueOf(controller).FieldByName(fieldNameByRole["interceptor"]).Interface().(common.Interceptor)
 	items := interceptor.InjectProvidersIntoRESTInterceptors(rest, buildFieldInjectionCallback("interceptor", injectedProviders))
 
 	for _, item := range items {
@@ -412,11 +412,11 @@ func (m *Module) bindRESTInterceptors(controller Controller, controllerType refl
 
 func (m *Module) bindWSController(controller Controller, injectedProviders map[string]Provider) {
 	controllerType := reflect.TypeOf(controller)
-	if _, ok := controllerType.FieldByName(noInjectedFields["ws"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["ws"]); !ok {
 		return
 	}
 
-	ws := reflect.ValueOf(controller).FieldByName(noInjectedFields["ws"]).Interface().(common.WS)
+	ws := reflect.ValueOf(controller).FieldByName(fieldNameByRole["ws"]).Interface().(common.WS)
 
 	for j := 0; j < controllerType.NumMethod(); j++ {
 		methodName := controllerType.Method(j).Name
@@ -444,11 +444,11 @@ func (m *Module) bindWSController(controller Controller, injectedProviders map[s
 }
 
 func (m *Module) bindWSGuards(controller Controller, controllerType reflect.Type, ws *common.WS, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["guard"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["guard"]); !ok {
 		return
 	}
 
-	guard := reflect.ValueOf(controller).FieldByName(noInjectedFields["guard"]).Interface().(common.Guard)
+	guard := reflect.ValueOf(controller).FieldByName(fieldNameByRole["guard"]).Interface().(common.Guard)
 	items := guard.InjectProvidersIntoWSGuards(ws, buildFieldInjectionCallback("guarder", injectedProviders))
 
 	for _, item := range items {
@@ -460,11 +460,11 @@ func (m *Module) bindWSGuards(controller Controller, controllerType reflect.Type
 }
 
 func (m *Module) bindWSInterceptors(controller Controller, controllerType reflect.Type, ws *common.WS, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["interceptor"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["interceptor"]); !ok {
 		return
 	}
 
-	interceptor := reflect.ValueOf(controller).FieldByName(noInjectedFields["interceptor"]).Interface().(common.Interceptor)
+	interceptor := reflect.ValueOf(controller).FieldByName(fieldNameByRole["interceptor"]).Interface().(common.Interceptor)
 	items := interceptor.InjectProvidersIntoWSInterceptors(ws, buildFieldInjectionCallback("interceptor", injectedProviders))
 
 	for _, item := range items {
@@ -476,11 +476,11 @@ func (m *Module) bindWSInterceptors(controller Controller, controllerType reflec
 }
 
 func (m *Module) bindWSExceptionFilters(controller Controller, controllerType reflect.Type, ws *common.WS, injectedProviders map[string]Provider) {
-	if _, ok := controllerType.FieldByName(noInjectedFields["exceptionFilter"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["exceptionFilter"]); !ok {
 		return
 	}
 
-	exceptionFilter := reflect.ValueOf(controller).FieldByName(noInjectedFields["exceptionFilter"]).Interface().(common.ExceptionFilter)
+	exceptionFilter := reflect.ValueOf(controller).FieldByName(fieldNameByRole["exceptionFilter"]).Interface().(common.ExceptionFilter)
 	items := exceptionFilter.InjectProvidersIntoWSExceptionFilters(ws, buildFieldInjectionCallback("exceptionFilter", injectedProviders))
 
 	for _, item := range items {

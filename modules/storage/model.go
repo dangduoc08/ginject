@@ -44,15 +44,15 @@ type HookCtx struct {
 type hookFn func(*HookCtx)
 
 type hookSet struct {
-	mu   sync.RWMutex
-	pre  map[string][]hookFn
-	post map[string][]hookFn
+	mu          sync.RWMutex
+	preByEvent  map[string][]hookFn
+	postByEvent map[string][]hookFn
 }
 
 func newHookSet() *hookSet {
 	return &hookSet{
-		pre:  make(map[string][]hookFn),
-		post: make(map[string][]hookFn),
+		preByEvent:  make(map[string][]hookFn),
+		postByEvent: make(map[string][]hookFn),
 	}
 }
 
@@ -95,7 +95,7 @@ func (m *Model) Schema(s ModelSchema) *Model {
 	eng.mu.Lock()
 	eng.idx.setSchema(indexed, search)
 	// rebuild secondary + text from primary index
-	for id, loc := range eng.idx.primary {
+	for id, loc := range eng.idx.locationByID {
 		seg := eng.segByID(loc.segID)
 		if seg == nil {
 			continue
