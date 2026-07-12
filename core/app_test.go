@@ -3,6 +3,7 @@ package core
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/dangduoc08/ginject/broker"
@@ -175,6 +176,33 @@ func TestUseLogger_SetsLogger(t *testing.T) {
 	if result != app {
 		t.Error(test.DiffMessage(result, app, "UseLogger should return *App"))
 	}
+}
+
+func TestServeHTTPConcurrent_NoDataRace(t *testing.T) {
+	app := New()
+	app.Create(ModuleBuilder().Build())
+
+	const goroutines = 32
+	const requestsPerGoroutine = 50
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+
+			for j := 0; j < requestsPerGoroutine; j++ {
+				r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
+				w := httptest.NewRecorder()
+				app.ServeHTTP(w, r)
+
+				if w.Code != http.StatusNotFound {
+					t.Error(test.DiffMessage(w.Code, http.StatusNotFound, "unmatched route should return 404 under concurrent load"))
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestEnableVersioning_Chaining(t *testing.T) {
