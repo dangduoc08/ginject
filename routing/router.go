@@ -279,7 +279,7 @@ func (r *Router) AddInjectableHandler(method, route, version string, handler any
 	if handler == nil || handlerKind != reflect.Func {
 		panic(errors.New(
 			color.FmtRed(
-				"%v is not a handler",
+				"invalid handler: %v is not a handler",
 				handlerKind,
 			),
 		))

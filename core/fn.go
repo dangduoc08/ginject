@@ -108,7 +108,7 @@ func isInjectableHandler(handler any, injectedProviders map[string]Provider) err
 	getFnArgs(handler, injectedProviders, func(arg string, i int, pipeValue reflect.Value) {
 		if _, ok := knownDependencyKeys[arg]; !ok {
 			e = fmt.Errorf(
-				"can't resolve dependencies of the '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
+				"dependency injection: can't resolve dependencies of the '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
 				reflect.TypeOf(handler).String(),
 				i,
 			)
@@ -147,7 +147,7 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	genError := func(dynamicModuleType reflect.Type, dynamicArgKey string, index int) error {
 		return errors.New(
 			color.FmtRed(
-				"can't resolve argument of '%v'. Please make sure that the argument '%v' at index [%v] is available in the injected providers",
+				"dependency injection: can't resolve argument of '%v'. Please make sure that the argument '%v' at index [%v] is available in the injected providers",
 				strings.Replace(dynamicModuleType.String(), ") *core.Module", ")", 1),
 				dynamicArgKey,
 				index,
@@ -186,7 +186,7 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 		if !token.IsExported(componentFieldName) {
 			panic(errors.New(
 				color.FmtRed(
-					"can't set value to unexported '%v' field of the %v %v",
+					"dependency injection: can't set value to unexported '%v' field of the %v %v",
 					componentFieldName,
 					componentName,
 					kind,
@@ -214,7 +214,7 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 		} else {
 			return reflect.ValueOf(nil), errors.New(
 				color.FmtRed(
-					"can't resolve dependency '%v' of the %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
+					"dependency injection: can't resolve dependency '%v' of the %v. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					componentFieldType.String(),
 					kind,
 					j,
@@ -245,7 +245,7 @@ func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provi
 		if !token.IsExported(fieldName) {
 			panic(errors.New(
 				color.FmtRed(
-					"can't set value to unexported '%v' field of the '%v' %v",
+					"dependency injection: can't set value to unexported '%v' field of the '%v' %v",
 					fieldName,
 					ownerType.Name(),
 					kind,
@@ -264,7 +264,7 @@ func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provi
 		} else {
 			panic(errors.New(
 				color.FmtRed(
-					"can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
+					"dependency injection: can't resolve dependencies of the '%v' provider. Please make sure that the argument dependency at index [%v] is available in the '%v' %v",
 					fieldType.String(),
 					i,
 					ownerType.Name(),
@@ -505,7 +505,7 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
-				"can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				"dependency injection: can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
 				fType.String(),
 				i,
 			))
