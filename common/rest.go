@@ -150,7 +150,7 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 		} else {
 			panic(errors.New(
 				color.FmtRed(
-					"%v method is conflicted with %v method",
+					"route conflict: %v method is conflicted with %v method",
 					fnName,
 					InsertedRoutes[pattern],
 				),

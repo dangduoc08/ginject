@@ -68,7 +68,7 @@ func (m *moduleBuilder) getModuleType() ([]*Module, []any) {
 	}
 
 	if len(errors) > 0 {
-		panic(color.FmtRed("%s", strings.Join(errors, "\n       ")))
+		panic(color.FmtRed("invalid module: %s", strings.Join(errors, "\n       ")))
 	}
 
 	return staticModules, dynamicModules
