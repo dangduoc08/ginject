@@ -91,8 +91,8 @@ func TestTrieFind(t *testing.T) {
 		tr.Insert(path, path, '/')
 	}
 
-	userId1 := "633b0aa5d7fc3578b655b9bd"
-	friendId1 := "633b0af45f4fe7d45b00fba5"
+	userID1 := "633b0aa5d7fc3578b655b9bd"
+	friendID1 := "633b0af45f4fe7d45b00fba5"
 
 	cases := []struct {
 		name              string
@@ -104,13 +104,13 @@ func TestTrieFind(t *testing.T) {
 	}{
 		{
 			name:       "deep param match",
-			testPath:   "/users/" + userId1 + "/friends/" + friendId1 + "/",
+			testPath:   "/users/" + userID1 + "/friends/" + friendID1 + "/",
 			wantRaw:    routes[2],
-			wantParams: []string{userId1, friendId1},
+			wantParams: []string{userID1, friendID1},
 		},
 		{
 			name:        "incomplete path should not match",
-			testPath:    "/users/" + userId1 + "/friends/",
+			testPath:    "/users/" + userID1 + "/friends/",
 			wantNoMatch: true,
 		},
 		{
