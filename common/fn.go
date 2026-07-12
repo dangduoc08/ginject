@@ -184,8 +184,7 @@ func HandleGuard(c *ctx.Context, canActive bool) {
 	if canActive {
 		c.Next()
 	} else {
-		forbiddenException := exception.ForbiddenException("Access denied")
-		panic(forbiddenException)
+		panic(exception.ForbiddenException("Access denied"))
 	}
 }
 
