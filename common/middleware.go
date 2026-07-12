@@ -101,10 +101,10 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 	return middlewareItemArr
 }
 
-func (g *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
-	middlewareItemArr := make([]MiddlewareItem, 0, len(ws.funcNameByEvent)*len(g.MiddlewareHandlers))
+func (m *Middleware) InjectProvidersIntoWSMiddlewares(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
+	middlewareItemArr := make([]MiddlewareItem, 0, len(ws.funcNameByEvent)*len(m.MiddlewareHandlers))
 
-	for _, middlewareHandler := range g.MiddlewareHandlers {
+	for _, middlewareHandler := range m.MiddlewareHandlers {
 		middlewarerType := reflect.TypeOf(middlewareHandler.middlewareFn)
 		middlewarerValue := reflect.ValueOf(middlewareHandler.middlewareFn)
 		newMiddleware := reflect.New(middlewarerType)
