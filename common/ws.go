@@ -19,7 +19,7 @@ type WSLayer struct {
 
 type WS struct {
 	funcNameByEvent map[string]string
-	EventMap             map[string]any
+	EventMap        map[string]any
 }
 
 func (ws *WS) addToEventMap(fnName, event string, injectableHandler any) {
@@ -44,7 +44,7 @@ func (ws *WS) AddHandlerToEventMap(fnName string, handler any) {
 	} else {
 		panic(errors.New(
 			color.FmtRed(
-				"%v method is conflicted with %v method",
+				"event conflict: %v event is conflicted with %v event",
 				fnName,
 				InsertedEvents[event],
 			),

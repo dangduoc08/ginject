@@ -70,3 +70,16 @@ All types are re-exported from the root `ginject` package (`aliases.go`).
 ### WebSocket
 
 Controllers embed `common.WS` instead of `common.REST`. Method names map to event names. The framework handles the `websocket.Conn` lifecycle; handlers receive `ctx.WSPayload` for incoming events.
+
+### Bootstrap-time Error Convention
+
+Build/config failures (route conflicts, unresolved dependencies, invalid handlers) in `core/`, `common/`, `routing/` are reported via `panic()`, not returned as `error` — there is no error-return API (`Build()`/`Create()` return nothing). This only fires during `app.Create()`'s module/controller wiring, never on the request path, so an uncaught panic there is fail-fast by design.
+
+Message format is `"<category>: <detail>"`:
+- `"route conflict: ..."` (`common/rest.go`)
+- `"event conflict: ..."` (`common/ws.go`)
+- `"invalid handler: ..."` (`routing/router.go`)
+- `"invalid module: ..."` (`core/module_builder.go`)
+- `"dependency injection: ..."` (`core/fn.go`)
+
+These are wrapped in `color.FmtRed(...)` since they only ever surface on a developer's terminal at startup. If an `err` you're panicking already came from a function that applies `color.FmtRed`, just `panic(err)` — don't re-wrap, or the ANSI codes nest and garble the output. The one exception is `invokeHandlerByProviders` in `core/fn.go`, which panics during per-request handling and is caught by `core/http.go`'s `recover()` — it stays a plain, uncolored `fmt.Errorf`.
