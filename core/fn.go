@@ -304,8 +304,8 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 	switch k {
 	case contextKey:
 		return c
-	// case wsConnectionKey:
-	// 	return c.WS.Connection
+	case wsConnectionKey:
+		return c.WSConn()
 	case requestKey:
 		return c.Request
 	case responseKey:
@@ -322,8 +322,8 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 		return c.Param()
 	case fileKey:
 		return c.File()
-	// case wsPayloadKey:
-	// 	return c.WS.Message.Payload
+	case wsPayloadKey:
+		return c.WSPayload()
 	case nextKey:
 		return c.Next
 	case redirectKey:
@@ -377,13 +377,13 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 				ParamType:   common.FilePipeableKey,
 				ContextType: c.GetType(),
 			})
-		// case common.WSPayloadPipeableKey:
-		// 	return pipeValue.
-		// 		Interface().(common.WSPayloadPipeable).
-		// 		Transform(c.WS.Message.Payload, common.ArgumentMetadata{
-		// 			ParamType:   common.WSPayloadPipeableKey,
-		// 			ContextType: c.GetType(),
-		// 		})
+	case common.WSPayloadPipeableKey:
+		return pipeValue.
+			Interface().(common.WSPayloadPipeable).
+			Transform(c.WSPayload(), common.ArgumentMetadata{
+				ParamType:   common.WSPayloadPipeableKey,
+				ContextType: c.GetType(),
+			})
 	}
 
 	return knownDependencyKeys

@@ -137,12 +137,11 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 //  1. initProviders must run first — it builds injectedProviders and
 //     app.module (parsed from m), which everything below reads from.
-//  2. app.ws must be constructed (when WS is enabled) right after that,
-//     and BEFORE initExceptionFilters/bindCatchMiddlewares/initGuards/
-//     initInterceptors/initMainHandlers — those functions write straight
-//     into app.ws.catchFnsByEvent / middlewaresByEvent / handlerByEvent
-//     whenever app.module has WS handlers, so app.ws must already exist
-//     or it's a nil pointer dereference.
+//  2. initWS must run right after that, and BEFORE initExceptionFilters/
+//     bindCatchMiddlewares/initGuards/initInterceptors/initMainHandlers —
+//     those functions write straight into app.ws.catchFnsByEvent /
+//     app.ws.eventMatcher whenever app.module has WS handlers, so app.ws
+//     must already exist or it's a nil pointer dereference.
 //  3. isDevtoolEnabled must run last — it reads the fully-populated
 //     module/route state to build the devtool snapshot.
 //
@@ -152,12 +151,7 @@ func (app *App) Create(m *Module) {
 	app.initLogger()
 	injectedProviders := app.initProviders(m)
 
-	if app.isWSEnabled {
-		app.wsConfig.injectedProviders = injectedProviders
-		app.ws = NewWS(app.wsConfig)
-		app.ws.resolveAndCallHandler = app.http.resolveAndCallHandler
-	}
-
+	app.initWS(injectedProviders)
 	app.initExceptionFilters(injectedProviders)
 	app.bindCatchMiddlewares()
 	app.initMiddlewares(injectedProviders)
@@ -168,6 +162,19 @@ func (app *App) Create(m *Module) {
 	if app.isDevtoolEnabled {
 		app.createDevtool()
 	}
+}
+
+func (app *App) initWS(injectedProviders map[string]Provider) {
+	if !app.isWSEnabled {
+		return
+	}
+
+	app.wsConfig.injectedProviders = injectedProviders
+	app.wsConfig.logger = app.Logger
+	app.wsConfig.resolveAndCallHandler = app.http.resolveAndCallHandler
+	app.wsConfig.newCtx = func() *ctx.Context { return app.ctxPool.Get().(*ctx.Context) }
+	app.wsConfig.releaseCtx = app.releaseCtx
+	app.ws = NewWS(app.wsConfig)
 }
 
 func (app *App) initLogger() {
@@ -240,7 +247,7 @@ func (app *App) bindCatchMiddlewares() {
 	if app.ws != nil {
 		for pattern, catchFns := range app.ws.catchFnsByEvent {
 			mw := buildCatchMiddleware(pattern, catchFns)
-			app.ws.middlewaresByEvent[pattern] = append(app.ws.middlewaresByEvent[pattern], mw)
+			app.ws.eventMatcher.AddMiddlewares(pattern, mw)
 		}
 	}
 }
@@ -284,7 +291,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 
 			for _, h := range app.module.WSMainHandlers {
-				app.ws.middlewaresByEvent[h.EventName] = append(app.ws.middlewaresByEvent[h.EventName], mw)
+				app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
 			}
 		}
 	}
@@ -297,7 +304,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 
 	for _, mg := range app.module.WSGuards {
 		mw := buildGuardMiddleware(mg.Handler.(common.CanActivate))
-		app.ws.middlewaresByEvent[mg.EventName] = append(app.ws.middlewaresByEvent[mg.EventName], mw)
+		app.ws.eventMatcher.AddMiddlewares(mg.EventName, mw)
 	}
 }
 
@@ -319,7 +326,7 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 
 			for _, h := range app.module.WSMainHandlers {
 				mw := buildInterceptMiddleware(h.EventName, gi.Intercept)
-				app.ws.middlewaresByEvent[h.EventName] = append(app.ws.middlewaresByEvent[h.EventName], mw)
+				app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
 			}
 		}
 	}
@@ -333,7 +340,7 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 
 	for _, mi := range app.module.WSInterceptors {
 		mw := buildInterceptMiddleware(mi.EventName, mi.Handler.(common.Intercept))
-		app.ws.middlewaresByEvent[mi.EventName] = append(app.ws.middlewaresByEvent[mi.EventName], mw)
+		app.ws.eventMatcher.AddMiddlewares(mi.EventName, mw)
 	}
 }
 
@@ -343,7 +350,7 @@ func (app *App) initMainHandlers() {
 	}
 
 	for _, h := range app.module.WSMainHandlers {
-		app.ws.handlerByEvent[h.EventName] = h.Handler
+		app.ws.eventMatcher.AddInjectableHandler(h.EventName, h.Handler)
 	}
 }
 
@@ -411,12 +418,8 @@ func (app *App) Listen(port int) error {
 
 	// REST logs
 	var routeArr []string
-	for _, items := range app.http.route.Hash {
-		for _, item := range items {
-			if item.HandlerIndex > -1 {
-				routeArr = append(routeArr, item.Pattern)
-			}
-		}
+	for _, h := range app.module.RESTMainHandlers {
+		routeArr = append(routeArr, h.Pattern)
 	}
 	sort.Strings(routeArr)
 
