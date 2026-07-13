@@ -7,6 +7,7 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/test"
+	"golang.org/x/net/websocket"
 )
 
 func newTestContext() *Context {
@@ -211,5 +212,41 @@ func TestReset_ClearsAllFields(t *testing.T) {
 	}
 	if c.GetWSConfig() != nil {
 		t.Error(test.DiffMessage(c.GetWSConfig(), nil, "Reset wsCfg"))
+	}
+	if c.WSConn() != nil {
+		t.Error(test.DiffMessage(c.WSConn(), nil, "Reset wsConn"))
+	}
+	if c.WSPayload() != nil {
+		t.Error(test.DiffMessage(c.WSPayload(), nil, "Reset wsPayload"))
+	}
+}
+
+func TestSetWSConnGetWSConn(t *testing.T) {
+	c := newTestContext()
+	if c.WSConn() != nil {
+		t.Error(test.DiffMessage(c.WSConn(), nil, "WSConn should be nil before SetWSConn"))
+	}
+
+	ret := c.SetWSConn(&websocket.Conn{})
+	if ret != c {
+		t.Error(test.DiffMessage(ret, c, "SetWSConn returns self"))
+	}
+	if c.WSConn() == nil {
+		t.Error(test.DiffMessage(c.WSConn(), "non-nil *websocket.Conn", "WSConn after SetWSConn"))
+	}
+}
+
+func TestSetWSPayloadGetWSPayload(t *testing.T) {
+	c := newTestContext()
+	if c.WSPayload() != nil {
+		t.Error(test.DiffMessage(c.WSPayload(), nil, "WSPayload should be nil before SetWSPayload"))
+	}
+
+	ret := c.SetWSPayload(WSPayload{"foo": "bar"})
+	if ret != c {
+		t.Error(test.DiffMessage(ret, c, "SetWSPayload returns self"))
+	}
+	if c.WSPayload()["foo"] != "bar" {
+		t.Error(test.DiffMessage(c.WSPayload(), WSPayload{"foo": "bar"}, "WSPayload after SetWSPayload"))
 	}
 }

@@ -1,8 +1,7 @@
 package core
 
 import (
-	"fmt"
-	"io"
+	"errors"
 	stdHTTP "net/http"
 	"reflect"
 
@@ -10,28 +9,34 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
+	"github.com/dangduoc08/ginject/wsevent"
 	"golang.org/x/net/websocket"
 )
+
+var errWSHandshakeRejected = errors.New("ws handshake rejected: middleware chain did not call next()")
 
 type WSConfig struct {
 	Path              string
 	globalMiddlewares []common.MiddlewareFn
 	injectedProviders map[string]Provider
+	logger            common.Logger
+
+	resolveAndCallHandler func(f any, c *ctx.Context) []reflect.Value
+	newCtx                func() *ctx.Context
+	releaseCtx            func(c *ctx.Context)
 }
 
 type WS struct {
-	middlewaresByEvent map[string][]ctx.Handler
-	handlerByEvent     map[string]any
-	// eventToID         map[string][]string
-	catchFnsByEvent map[string][]common.Catch
-
+	catchFnsByEvent       map[string][]common.Catch
 	resolveAndCallHandler func(f any, c *ctx.Context) []reflect.Value
-
-	// connmgr     *WSConnmgr
-
-	path              string
-	globalMiddlewares []common.MiddlewareFn
-	injectedProviders map[string]Provider
+	connmgr               *WSConnmgr
+	path                  string
+	globalMiddlewares     []common.MiddlewareFn
+	injectedProviders     map[string]Provider
+	logger                common.Logger
+	eventMatcher          *wsevent.WSEvent
+	newCtx                func() *ctx.Context
+	releaseCtx            func(c *ctx.Context)
 }
 
 func NewWS(cfg *WSConfig) *WS {
@@ -41,15 +46,16 @@ func NewWS(cfg *WSConfig) *WS {
 	}
 
 	ws := WS{
-		catchFnsByEvent:    make(map[string][]common.Catch),
-		middlewaresByEvent: make(map[string][]func(*ctx.Context)),
-		handlerByEvent:     make(map[string]any),
-		// eventToID:      make(map[string][]string),
-		// connmgr:        NewWSConnmgr(),
-
-		path:              path,
-		globalMiddlewares: resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders),
-		injectedProviders: cfg.injectedProviders,
+		catchFnsByEvent:       make(map[string][]common.Catch),
+		resolveAndCallHandler: cfg.resolveAndCallHandler,
+		eventMatcher:          wsevent.NewWSEvent(),
+		connmgr:               NewWSConnmgr(cfg.logger),
+		path:                  path,
+		globalMiddlewares:     resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders),
+		injectedProviders:     cfg.injectedProviders,
+		logger:                cfg.logger,
+		newCtx:                cfg.newCtx,
+		releaseCtx:            cfg.releaseCtx,
 	}
 
 	return &ws
@@ -91,59 +97,37 @@ func (ws *WS) handshake(c *ctx.Context) error {
 
 	if isNext {
 		if err := c.Broker.Publish(ctx.RequestFinished, c); err != nil {
-			fmt.Println(err.Error())
+			ws.logger.Error("WSRequestFinishedPublishFailed", "error", err)
 		}
 		return nil
 	}
 
-	return stdHTTP.ErrAbortHandler
+	return errWSHandshakeRejected
 }
 
 func (ws *WS) handleRequest(wsConn *websocket.Conn) {
-	defer wsConn.Close()
+	defer func() {
+		if err := wsConn.Close(); err != nil {
+			ws.logger.Error("WSConnCloseFailed", "error", err)
+		}
+	}()
 
-	id, _ := crypto.UUID()
-	err := websocket.JSON.Send(wsConn, WSPayload{
-		ID:   id,
-		Type: TypeConnected,
-	})
-
+	connID, err := crypto.UUID()
 	if err != nil {
-		fmt.Println(err.Error())
+		ws.logger.Error("WSConnIDGenerationFailed", "error", err)
+		return
 	}
 
-	for {
-		go read(wsConn)
-
-		go write(wsConn)
-
-		var data WSPayload
-
-		if err := websocket.JSON.Receive(wsConn, &data); err != nil {
-			if err != io.EOF {
-				fmt.Println(err.Error())
-			}
-			return
-		}
-
-		if data.Type == TypeSubscribe {
-			// for _, topic := range data.Topic {
-			// 	fmt.Println(topic)
-			// GlobalBroker.Subscribe(topic, func(m *broker2.Message) {
-			// 	fmt.Println("vao day")
-
-			// 	err := websocket.JSON.Send(wsConn, WSPayload{
-			// 		ID:      id,
-			// 		Type:    TypePublish,
-			// 		Topic:   []string{m.Topic},
-			// 		Message: m.Payload,
-			// 	})
-
-			// 	if err != nil {
-			// 		panic(err)
-			// 	}
-			// })
-			// }
-		}
+	if err := websocket.JSON.Send(wsConn, WSPayload{
+		ID:   connID,
+		Type: TypeConnected,
+	}); err != nil {
+		ws.logger.Error("WSHandshakeSendFailed", "error", err)
+		return
 	}
+
+	conn := ws.connmgr.Register(connID, wsConn)
+	defer ws.connmgr.Unregister(connID)
+
+	readLoop(conn, ws)
 }
