@@ -48,7 +48,9 @@ type Context struct {
 	Code      int
 	Timestamp time.Time
 
-	wsCfg *websocket.Config
+	wsCfg     *websocket.Config
+	wsConn    *websocket.Conn
+	wsPayload WSPayload
 }
 
 const (
@@ -135,6 +137,8 @@ func (c *Context) Reset() {
 	c.Type = ""
 	c.id = ""
 	c.wsCfg = nil
+	c.wsConn = nil
+	c.wsPayload = nil
 	c.body = nil
 	c.form = nil
 	c.file = nil
@@ -185,4 +189,22 @@ func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
 
 func (c *Context) GetWSConfig() *websocket.Config {
 	return c.wsCfg
+}
+
+func (c *Context) SetWSConn(conn *websocket.Conn) *Context {
+	c.wsConn = conn
+	return c
+}
+
+func (c *Context) WSConn() *websocket.Conn {
+	return c.wsConn
+}
+
+func (c *Context) SetWSPayload(p WSPayload) *Context {
+	c.wsPayload = p
+	return c
+}
+
+func (c *Context) WSPayload() WSPayload {
+	return c.wsPayload
 }
