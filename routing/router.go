@@ -71,26 +71,26 @@ func findRouterItem(items []RouterItem, method, version string) (RouterItem, boo
 }
 
 type Router struct {
-	trie               *ds.Trie
-	Hash               map[string][]RouterItem
-	routePatterns      []string
-	GlobalMiddlewares  []ctx.Handler
-	InjectableHandlers map[string]any
+	trie                *ds.Trie
+	routerItemByPattern map[string][]RouterItem
+	routePatterns       []string
+	GlobalMiddlewares   []ctx.Handler
+	InjectableHandlers  map[string]any
 }
 
 func NewRouter() *Router {
 	return &Router{
-		trie:               ds.NewTrie(),
-		Hash:               make(map[string][]RouterItem),
-		GlobalMiddlewares:  []ctx.Handler{},
-		InjectableHandlers: make(map[string]any),
+		trie:                ds.NewTrie(),
+		routerItemByPattern: make(map[string][]RouterItem),
+		GlobalMiddlewares:   []ctx.Handler{},
+		InjectableHandlers:  make(map[string]any),
 	}
 }
 
 func (r *Router) push(method, route, version string, caller int, handlers ...ctx.Handler) *Router {
 	routePattern := str.Enclose(route, '/')
 
-	items := r.Hash[routePattern]
+	items := r.routerItemByPattern[routePattern]
 	itemPos := -1
 	for i := range items {
 		if items[i].Method == method && items[i].Version == version {
@@ -185,7 +185,7 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	} else {
 		items[itemPos] = item
 	}
-	r.Hash[routePattern] = items
+	r.routerItemByPattern[routePattern] = items
 
 	r.trie.Insert(routePattern, parsedRoute, '/')
 
@@ -196,9 +196,9 @@ func (r *Router) Match(method, route, version string) (bool, string, map[string]
 	searchPath := str.Enclose(path.Clean(route), '/')
 	matchedRaw, wildcardRaw, paramVals := r.trie.Find(searchPath, '/', true)
 
-	item, ok := findRouterItem(r.Hash[matchedRaw], method, version)
+	item, ok := findRouterItem(r.routerItemByPattern[matchedRaw], method, version)
 	if !ok {
-		item, ok = findRouterItem(r.Hash[wildcardRaw], method, version)
+		item, ok = findRouterItem(r.routerItemByPattern[wildcardRaw], method, version)
 	}
 	if !ok {
 		return false, "", nil, nil, nil
@@ -209,14 +209,14 @@ func (r *Router) Match(method, route, version string) (bool, string, map[string]
 
 func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 	for _, subRouter := range subRouters {
-		for route, items := range subRouter.Hash {
+		for route, items := range subRouter.routerItemByPattern {
 			groupPath := prefix + route
 
 			for _, routerItem := range items {
 				if routerItem.HandlerIndex > -1 {
 					groupPathPattern := str.Enclose(groupPath, '/')
 					r.routePatterns = append(r.routePatterns, groupPathPattern)
-					r.Hash[groupPathPattern] = append(r.Hash[groupPathPattern], RouterItem{
+					r.routerItemByPattern[groupPathPattern] = append(r.routerItemByPattern[groupPathPattern], RouterItem{
 						Method:       routerItem.Method,
 						Version:      routerItem.Version,
 						Pattern:      MethodRouteVersionToPattern(routerItem.Method, groupPath, routerItem.Version),
@@ -245,7 +245,7 @@ func (r *Router) Use(handlers ...ctx.Handler) *Router {
 	// this middlewares still need invoking
 	r.GlobalMiddlewares = append(r.GlobalMiddlewares, handlers...)
 
-	for route, items := range r.Hash {
+	for route, items := range r.routerItemByPattern {
 		for _, routerItem := range items {
 			r.push(routerItem.Method, route, routerItem.Version, USE, handlers...)
 		}
