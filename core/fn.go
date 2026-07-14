@@ -523,7 +523,7 @@ type catchEventPayload struct {
 
 func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
 	return func(c *ctx.Context) {
-		_, _ = c.Broker.Once(catchEvent, func(m *broker.Message) {
+		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
 			p := m.Payload.(catchEventPayload)
 			catchFnIndex := p.index
 

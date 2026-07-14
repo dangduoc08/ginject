@@ -67,7 +67,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 			// Execute exception filters if any
 			// normally this one always ok
 			// since we always set global exception filter as default
-			if _, ok := http.catchFnsByRoute[catchEvent]; ok && rec != nil {
+			if _, ok := http.catchFnsByRoute[catchEvent]; ok {
 
 				_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
 			}
