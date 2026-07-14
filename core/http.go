@@ -64,24 +64,6 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 	defer func() {
 		if rec := recover(); rec != nil {
 
-			// Pipe errors run first
-			// then exception filter
-			if errorAggregationOperators, ok := c.Context().Value(WithValueKey(aggregation.ErrorAggregationCtxValueKey)).([]aggregation.AggregationOperator); ok {
-				totalErrorAggregations := len(errorAggregationOperators)
-
-				// Handle case if pipe error panic
-				defer func() {
-					if rec := recover(); rec != nil {
-						_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
-					}
-				}()
-
-				for i := totalErrorAggregations - 1; i >= 0; i-- {
-					aggregation := errorAggregationOperators[i]
-					rec = aggregation(c, rec)
-				}
-			}
-
 			// Execute exception filters if any
 			// normally this one always ok
 			// since we always set global exception filter as default

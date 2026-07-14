@@ -1,10 +1,8 @@
 package aggregation
 
 const (
-	OperatorTransform              = "Transform"
-	OperatorTap                    = "Tap"
-	OperatorError                  = "Error"
-	ErrorAggregationCtxValueKey = "ErrorAggregationOperators"
+	OperatorTransform = "Transform"
+	OperatorTap       = "Tap"
 )
 
 func (aggregation *Aggregation) Transform(opr AggregationOperator) AggregationOperator {
@@ -14,10 +12,5 @@ func (aggregation *Aggregation) Transform(opr AggregationOperator) AggregationOp
 
 func (aggregation *Aggregation) Tap(opr AggregationOperator) AggregationOperator {
 	aggregation.setOperators(OperatorTap, opr)
-	return opr
-}
-
-func (aggregation *Aggregation) Error(opr AggregationOperator) AggregationOperator {
-	aggregation.setOperators(OperatorError, opr)
 	return opr
 }

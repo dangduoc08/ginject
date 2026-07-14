@@ -38,7 +38,6 @@ func BenchmarkAggregate_AllOperators(b *testing.B) {
 	a.SetMainData("data")
 	a.Transform(benchNoop)
 	a.Tap(benchNoop)
-	a.Error(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		a.Aggregate(nil)
@@ -48,10 +47,10 @@ func BenchmarkAggregate_AllOperators(b *testing.B) {
 func BenchmarkGetAggregationOperators_Hit(b *testing.B) {
 	a := NewAggregation()
 	a.Transform(benchNoop)
-	a.Error(benchNoop)
+	a.Tap(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = a.GetAggregationOperators(OperatorError)
+		_ = a.GetAggregationOperators(OperatorTap)
 	}
 }
 
@@ -60,16 +59,15 @@ func BenchmarkGetAggregationOperators_Miss(b *testing.B) {
 	a.Transform(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = a.GetAggregationOperators(OperatorError)
+		_ = a.GetAggregationOperators(OperatorTap)
 	}
 }
 
-func BenchmarkSetOperators_Three(b *testing.B) {
+func BenchmarkSetOperators_Two(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		a := NewAggregation()
 		a.Transform(benchNoop)
 		a.Tap(benchNoop)
-		a.Error(benchNoop)
 	}
 }

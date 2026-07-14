@@ -576,7 +576,6 @@ func buildInterceptMiddleware(key string, interceptFn func(*ctx.Context, *aggreg
 		aggregationInstance.SetMainData(nil)
 
 		aggregationInstance.InterceptorData = interceptFn(c, aggregationInstance)
-		setErrorAggregationOperators(c, aggregationInstance)
 
 		c.Next()
 	}
@@ -588,21 +587,4 @@ func buildUseMiddleware(useFn common.Use) ctx.Handler {
 
 func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
 	return func(c *ctx.Context) { common.HandleGuard(c, canActiveFn(c)) }
-}
-
-func setErrorAggregationOperators(c *ctx.Context, aggregationInstance *aggregation.Aggregation) {
-	errorOps := aggregationInstance.GetAggregationOperators(aggregation.OperatorError)
-	if len(errorOps) == 0 {
-		return
-	}
-	var existing []aggregation.AggregationOperator
-	if v := c.Context().Value(WithValueKey(aggregation.ErrorAggregationCtxValueKey)); v != nil {
-		existing = v.([]aggregation.AggregationOperator)
-	}
-	merged := make([]aggregation.AggregationOperator, len(existing), len(existing)+len(errorOps))
-	copy(merged, existing)
-	for _, op := range errorOps {
-		merged = append(merged, op.Aggregation)
-	}
-	c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(aggregation.ErrorAggregationCtxValueKey), merged))
 }
