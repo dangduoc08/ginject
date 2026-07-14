@@ -19,9 +19,7 @@ type Aggregation struct {
 }
 
 func NewAggregation() *Aggregation {
-	aggregation := new(Aggregation)
-	aggregation.operators = []Operator{}
-	return aggregation
+	return &Aggregation{}
 }
 
 func (aggregation *Aggregation) Pipe(operators ...AggregationOperator) any {
