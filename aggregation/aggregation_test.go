@@ -106,40 +106,23 @@ func TestTap_CalledButDoesNotTransform(t *testing.T) {
 	}
 }
 
-func TestError_StoredButNotAppliedInAggregate(t *testing.T) {
-	a := NewAggregation()
-	a.SetMainData("data")
-	called := false
-	a.Error(func(c *ctx.Context, data any) any {
-		called = true
-		return data
-	})
-	result := a.Aggregate(nil)
-	if called {
-		t.Error(test.DiffMessage(called, false, "Error operator must not be called in Aggregate"))
-	}
-	if result != "data" {
-		t.Error(test.DiffMessage(result, "data", "mainData must be unchanged when only Error is registered"))
-	}
-}
-
 func TestGetAggregationOperators_Match(t *testing.T) {
 	a := NewAggregation()
 	a.Transform(func(c *ctx.Context, data any) any { return data })
-	a.Error(func(c *ctx.Context, data any) any { return data })
-	ops := a.GetAggregationOperators(OperatorError)
+	a.Tap(func(c *ctx.Context, data any) any { return data })
+	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 1 {
-		t.Error(test.DiffMessage(len(ops), 1, "must return exactly 1 Error operator"))
+		t.Error(test.DiffMessage(len(ops), 1, "must return exactly 1 Tap operator"))
 	}
-	if ops[0].Name != OperatorError {
-		t.Error(test.DiffMessage(ops[0].Name, OperatorError, "returned operator must have correct name"))
+	if ops[0].Name != OperatorTap {
+		t.Error(test.DiffMessage(ops[0].Name, OperatorTap, "returned operator must have correct name"))
 	}
 }
 
 func TestGetAggregationOperators_NoMatch(t *testing.T) {
 	a := NewAggregation()
 	a.Transform(func(c *ctx.Context, data any) any { return data })
-	ops := a.GetAggregationOperators(OperatorError)
+	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 0 {
 		t.Error(test.DiffMessage(len(ops), 0, "must return empty slice when no match"))
 	}
@@ -147,9 +130,9 @@ func TestGetAggregationOperators_NoMatch(t *testing.T) {
 
 func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
 	a := NewAggregation()
-	a.Error(func(c *ctx.Context, data any) any { return "e1" })
-	a.Error(func(c *ctx.Context, data any) any { return "e2" })
-	ops := a.GetAggregationOperators(OperatorError)
+	a.Tap(func(c *ctx.Context, data any) any { return "e1" })
+	a.Tap(func(c *ctx.Context, data any) any { return "e2" })
+	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 2 {
 		t.Error(test.DiffMessage(len(ops), 2, "must return all matching operators"))
 	}
