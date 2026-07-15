@@ -20,7 +20,7 @@ func BenchmarkGlobalExceptionFilterFull(b *testing.B) {
 		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
-		c.Type = ctx.HTTPType
+		c.SetType(ctx.HTTPType)
 		filter.Catch(c, &ex)
 	}
 }
@@ -35,7 +35,7 @@ func BenchmarkGlobalExceptionFilterFallback(b *testing.B) {
 		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
-		c.Type = ctx.HTTPType
+		c.SetType(ctx.HTTPType)
 		filter.Catch(c, &ex)
 	}
 }

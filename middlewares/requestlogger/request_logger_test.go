@@ -213,8 +213,7 @@ func TestRequestLogger_Use_WSLogsMethodAndID(t *testing.T) {
 func TestRequestLogger_Use_UnknownTypeNoLog(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
-	c.Type = ""
+	c := newLoggerContext(http.MethodGet, "/", "")
 	rl.Use(c, func() {})
 	_ = c.Broker.Publish(ctx.RequestFinished, c)
 	if log.called {
