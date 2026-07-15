@@ -16,7 +16,7 @@ func newHTTPContext() *ctx.Context {
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.ResponseWriter = httptest.NewRecorder()
-	c.Type = ctx.HTTPType
+	c.SetType(ctx.HTTPType)
 	return c
 }
 
