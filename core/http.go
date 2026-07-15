@@ -110,7 +110,6 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 	catchEvent = matchedRoute
 
 	if isMatched {
-		c.SetRoute(matchedRoute)
 		c.ParamKeys = paramKeys
 		c.ParamValues = paramValues
 		if c.Method == stdHTTP.MethodPost {

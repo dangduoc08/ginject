@@ -34,64 +34,6 @@ func TestStatus_SetsCodeAndReturnsSelf(t *testing.T) {
 	}
 }
 
-func TestSetRouteGetRoute_NoVersion(t *testing.T) {
-	cases := []struct {
-		method string
-		route  string
-		want   string
-	}{
-		{"GET", "/users/{id}/||/[GET]/", "/users/{id}/||"},
-		{"POST", "/items/||/[POST]/", "/items/||"},
-		{"DELETE", "/users/{id}/||/[DELETE]/", "/users/{id}/||"},
-		{"PUT", "/orders/{id}/||/[PUT]/", "/orders/{id}/||"},
-		{"PATCH", "/products/{id}/||/[PATCH]/", "/products/{id}/||"},
-	}
-	for _, tc := range cases {
-		c := newTestContext()
-		r := httptest.NewRequest(tc.method, "/", nil)
-		c.Init(httptest.NewRecorder(), r)
-		c.SetRoute(tc.route)
-		got := c.GetRoute()
-		if got != tc.want {
-			t.Error(test.DiffMessage(got, tc.want, "GetRoute method="+tc.method))
-		}
-	}
-}
-
-func TestSetRouteGetRoute_WithVersion(t *testing.T) {
-	c := newTestContext()
-	r := httptest.NewRequest("GET", "/", nil)
-	c.Init(httptest.NewRecorder(), r)
-	c.SetRoute("/users/{id}/|v1|/[GET]/")
-	got := c.GetRoute()
-	want := "/users/{id}/|v1|"
-	if got != want {
-		t.Error(test.DiffMessage(got, want, "GetRoute with version"))
-	}
-}
-
-func TestSetRouteGetRoute_Root(t *testing.T) {
-	c := newTestContext()
-	r := httptest.NewRequest("GET", "/", nil)
-	c.Init(httptest.NewRecorder(), r)
-	c.SetRoute("/||/[GET]/")
-	got := c.GetRoute()
-	want := "/||"
-	if got != want {
-		t.Error(test.DiffMessage(got, want, "GetRoute root path"))
-	}
-}
-
-func TestSetRouteGetRoute_ReturnsSetterSelf(t *testing.T) {
-	c := newTestContext()
-	r := httptest.NewRequest("GET", "/", nil)
-	c.Init(httptest.NewRecorder(), r)
-	ret := c.SetRoute("/test/||/[GET]/")
-	if ret != c {
-		t.Error(test.DiffMessage(ret, c, "SetRoute returns self"))
-	}
-}
-
 func TestSetType_ValidTypes(t *testing.T) {
 	types := []string{HTTPType, WSType, RPCType, GQLType}
 	for _, typ := range types {
@@ -174,7 +116,6 @@ func TestReset_ClearsAllFields(t *testing.T) {
 	r.Header.Set(RequestID, "some-id")
 	w := httptest.NewRecorder()
 	c.Init(w, r)
-	c.SetRoute("/test/||/[GET]/")
 	c.SetType(HTTPType)
 	c.Status(http.StatusNotFound)
 
@@ -183,11 +124,8 @@ func TestReset_ClearsAllFields(t *testing.T) {
 	if c.Code != http.StatusOK {
 		t.Error(test.DiffMessage(c.Code, http.StatusOK, "Reset Code"))
 	}
-	if c.route != "" {
-		t.Error(test.DiffMessage(c.route, "", "Reset route"))
-	}
-	if c.Type != "" {
-		t.Error(test.DiffMessage(c.Type, "", "Reset Type"))
+	if c.typ != "" {
+		t.Error(test.DiffMessage(c.typ, "", "Reset Type"))
 	}
 	if c.id != "" {
 		t.Error(test.DiffMessage(c.id, "", "Reset ID"))

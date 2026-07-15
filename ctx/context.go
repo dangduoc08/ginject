@@ -38,10 +38,8 @@ type Context struct {
 	ParamKeys   map[string][]int
 	ParamValues []string
 
-	route      string
-	cleanRoute string
-	id         string
-	Type       string
+	id  string
+	typ string
 
 	Next      Next
 	Broker    broker.Broker
@@ -73,6 +71,85 @@ func (c *Context) Init(w http.ResponseWriter, r *http.Request) {
 	c.SetID()
 }
 
+func (c *Context) Reset() {
+	c.Code = http.StatusOK
+	c.typ = ""
+	c.id = ""
+	c.wsCfg = nil
+	c.wsConn = nil
+	c.wsPayload = nil
+	c.body = nil
+	c.form = nil
+	c.file = nil
+	c.query = nil
+	c.header = nil
+	c.param = nil
+	c.ParamKeys = nil
+	c.ParamValues = nil
+	c.Next = nil
+	c.ResponseWriter = nil
+	c.Request = nil
+	_ = c.Broker.Clear()
+}
+
+func (c *Context) SetType(t string) *Context {
+	if c.typ == "" &&
+		(t == HTTPType ||
+			t == WSType ||
+			t == RPCType ||
+			t == GQLType) {
+		c.typ = t
+	}
+	return c
+}
+
+func (c *Context) GetType() string {
+	return c.typ
+}
+
+func (c *Context) SetID() {
+	reqID := c.Header().Get(RequestID)
+	if reqID == "" {
+		reqID, _ = crypto.UUID()
+	}
+
+	if c.id == "" {
+		c.id = reqID
+	}
+}
+
+func (c *Context) GetID() string {
+	return c.id
+}
+
+// WS
+func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
+	c.wsCfg = wsCfg
+}
+
+func (c *Context) GetWSConfig() *websocket.Config {
+	return c.wsCfg
+}
+
+func (c *Context) SetWSConn(conn *websocket.Conn) *Context {
+	c.wsConn = conn
+	return c
+}
+
+func (c *Context) WSConn() *websocket.Conn {
+	return c.wsConn
+}
+
+func (c *Context) SetWSPayload(p WSPayload) *Context {
+	c.wsPayload = p
+	return c
+}
+
+func (c *Context) WSPayload() WSPayload {
+	return c.wsPayload
+}
+
+// HTTP
 func (c *Context) Status(code int) *Context {
 	c.Code = code
 	return c
@@ -113,98 +190,8 @@ func (c *Context) JSONP(data ...any) {
 	_ = c.Broker.Publish(RequestFinished, c)
 }
 
-func (c *Context) GetRoute() string {
-	return c.cleanRoute
-}
-
-func (c *Context) SetRoute(route string) *Context {
-	c.route = route
-	suffix := "/[" + c.Method + "]/"
-	c.cleanRoute = route[:len(route)-len(suffix)]
-	return c
-}
-
 func (c *Context) Redirect(url string) {
 	c.Status(http.StatusMovedPermanently)
 	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
 	_ = c.Broker.Publish(RequestFinished, c)
-}
-
-func (c *Context) Reset() {
-	c.Code = http.StatusOK
-	c.route = ""
-	c.cleanRoute = ""
-	c.Type = ""
-	c.id = ""
-	c.wsCfg = nil
-	c.wsConn = nil
-	c.wsPayload = nil
-	c.body = nil
-	c.form = nil
-	c.file = nil
-	c.query = nil
-	c.header = nil
-	c.param = nil
-	c.ParamKeys = nil
-	c.ParamValues = nil
-	c.Next = nil
-	c.ResponseWriter = nil
-	c.Request = nil
-	_ = c.Broker.Clear()
-}
-
-func (c *Context) SetType(t string) *Context {
-	if c.Type == "" &&
-		(t == HTTPType ||
-			t == WSType ||
-			t == RPCType ||
-			t == GQLType) {
-		c.Type = t
-	}
-	return c
-}
-
-func (c *Context) GetType() string {
-	return c.Type
-}
-
-func (c *Context) SetID() {
-	reqID := c.Header().Get(RequestID)
-	if reqID == "" {
-		reqID, _ = crypto.UUID()
-	}
-
-	if c.id == "" {
-		c.id = reqID
-	}
-}
-
-func (c *Context) GetID() string {
-	return c.id
-}
-
-func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
-	c.wsCfg = wsCfg
-}
-
-func (c *Context) GetWSConfig() *websocket.Config {
-	return c.wsCfg
-}
-
-func (c *Context) SetWSConn(conn *websocket.Conn) *Context {
-	c.wsConn = conn
-	return c
-}
-
-func (c *Context) WSConn() *websocket.Conn {
-	return c.wsConn
-}
-
-func (c *Context) SetWSPayload(p WSPayload) *Context {
-	c.wsPayload = p
-	return c
-}
-
-func (c *Context) WSPayload() WSPayload {
-	return c.wsPayload
 }

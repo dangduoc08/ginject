@@ -99,16 +99,6 @@ func BenchmarkBodyGet_Deep(b *testing.B) {
 	}
 }
 
-func BenchmarkGetRoute(b *testing.B) {
-	c := &Context{Broker: broker.New()}
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Init(httptest.NewRecorder(), r)
-	c.SetRoute("/users/{id}/||/[GET]/")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = c.GetRoute()
-	}
-}
 
 func BenchmarkSetID_FromHeader(b *testing.B) {
 	c := &Context{Broker: broker.New()}
