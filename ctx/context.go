@@ -6,7 +6,6 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/crypto"
-	"github.com/dangduoc08/ginject/internal/str"
 	"golang.org/x/net/websocket"
 )
 
@@ -120,78 +119,4 @@ func (c *Context) SetID() {
 
 func (c *Context) GetID() string {
 	return c.id
-}
-
-// WS
-func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
-	c.wsCfg = wsCfg
-}
-
-func (c *Context) GetWSConfig() *websocket.Config {
-	return c.wsCfg
-}
-
-func (c *Context) SetWSConn(conn *websocket.Conn) *Context {
-	c.wsConn = conn
-	return c
-}
-
-func (c *Context) WSConn() *websocket.Conn {
-	return c.wsConn
-}
-
-func (c *Context) SetWSPayload(p WSPayload) *Context {
-	c.wsPayload = p
-	return c
-}
-
-func (c *Context) WSPayload() WSPayload {
-	return c.wsPayload
-}
-
-// HTTP
-func (c *Context) Status(code int) *Context {
-	c.Code = code
-	return c
-}
-
-func (c *Context) Text(data string, args ...any) {
-	c.dataWriter = &Text{
-		data:           data,
-		args:           args,
-		responseWriter: c.ResponseWriter,
-	}
-	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(RequestFinished, c)
-}
-
-func (c *Context) JSON(data ...any) {
-	c.dataWriter = &JSON{
-		data:           data,
-		responseWriter: c.ResponseWriter,
-	}
-	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(RequestFinished, c)
-}
-
-func (c *Context) JSONP(data ...any) {
-	callback := str.RemoveSpace(c.URL.Query().Get("callback"))
-	if callback == "" {
-		c.JSON(data...)
-		return
-	}
-
-	c.dataWriter = &JSONP{
-		data:           data,
-		responseWriter: c.ResponseWriter,
-		callback:       callback,
-	}
-	c.dataWriter.WriteData(c.Code)
-	_ = c.Broker.Publish(RequestFinished, c)
-}
-
-func (c *Context) Redirect(url string) {
-	c.Status(http.StatusMovedPermanently)
-	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
-	_ = c.Broker.Publish(RequestFinished, c)
 }
