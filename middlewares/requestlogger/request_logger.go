@@ -13,7 +13,7 @@ type RequestLogger struct {
 }
 
 func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
-	_, _ = c.Broker.Subscribe(ctx.RequestFinished, func(m *broker.Message) {
+	_, _ = c.Broker.Once(ctx.RequestFinished, func(m *broker.Message) {
 		newC := m.Payload.(*ctx.Context)
 
 		var msg string
