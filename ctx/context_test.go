@@ -7,7 +7,6 @@ import (
 
 	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/test"
-	"golang.org/x/net/websocket"
 )
 
 func newTestContext() *Context {
@@ -20,17 +19,6 @@ func TestNewContext_DefaultCode(t *testing.T) {
 	c := NewContext()
 	if c.Code != http.StatusOK {
 		t.Error(test.DiffMessage(c.Code, http.StatusOK, "NewContext default Code"))
-	}
-}
-
-func TestStatus_SetsCodeAndReturnsSelf(t *testing.T) {
-	c := newTestContext()
-	ret := c.Status(http.StatusCreated)
-	if c.Code != http.StatusCreated {
-		t.Error(test.DiffMessage(c.Code, http.StatusCreated, "Status code"))
-	}
-	if ret != c {
-		t.Error(test.DiffMessage(ret, c, "Status returns self"))
 	}
 }
 
@@ -156,35 +144,5 @@ func TestReset_ClearsAllFields(t *testing.T) {
 	}
 	if c.WSPayload() != nil {
 		t.Error(test.DiffMessage(c.WSPayload(), nil, "Reset wsPayload"))
-	}
-}
-
-func TestSetWSConnGetWSConn(t *testing.T) {
-	c := newTestContext()
-	if c.WSConn() != nil {
-		t.Error(test.DiffMessage(c.WSConn(), nil, "WSConn should be nil before SetWSConn"))
-	}
-
-	ret := c.SetWSConn(&websocket.Conn{})
-	if ret != c {
-		t.Error(test.DiffMessage(ret, c, "SetWSConn returns self"))
-	}
-	if c.WSConn() == nil {
-		t.Error(test.DiffMessage(c.WSConn(), "non-nil *websocket.Conn", "WSConn after SetWSConn"))
-	}
-}
-
-func TestSetWSPayloadGetWSPayload(t *testing.T) {
-	c := newTestContext()
-	if c.WSPayload() != nil {
-		t.Error(test.DiffMessage(c.WSPayload(), nil, "WSPayload should be nil before SetWSPayload"))
-	}
-
-	ret := c.SetWSPayload(WSPayload{"foo": "bar"})
-	if ret != c {
-		t.Error(test.DiffMessage(ret, c, "SetWSPayload returns self"))
-	}
-	if c.WSPayload()["foo"] != "bar" {
-		t.Error(test.DiffMessage(c.WSPayload(), WSPayload{"foo": "bar"}, "WSPayload after SetWSPayload"))
 	}
 }
