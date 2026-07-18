@@ -57,7 +57,7 @@ type RouterItem struct {
 	Pattern      string
 	Index        int
 	HandlerIndex int
-	Handlers     []ctx.Handler
+	Handlers     []ctx.HTTPHandler
 	ParamKeys    map[string][]int
 }
 
@@ -74,7 +74,7 @@ type Router struct {
 	trie                *ds.Trie
 	routerItemByPattern map[string][]RouterItem
 	routePatterns       []string
-	GlobalMiddlewares   []ctx.Handler
+	GlobalMiddlewares   []ctx.HTTPHandler
 	InjectableHandlers  map[string]any
 }
 
@@ -82,12 +82,12 @@ func NewRouter() *Router {
 	return &Router{
 		trie:                ds.NewTrie(),
 		routerItemByPattern: make(map[string][]RouterItem),
-		GlobalMiddlewares:   []ctx.Handler{},
+		GlobalMiddlewares:   []ctx.HTTPHandler{},
 		InjectableHandlers:  make(map[string]any),
 	}
 }
 
-func (r *Router) push(method, route, version string, caller int, handlers ...ctx.Handler) *Router {
+func (r *Router) push(method, route, version string, caller int, handlers ...ctx.HTTPHandler) *Router {
 	routePattern := str.Enclose(route, '/')
 
 	items := r.routerItemByPattern[routePattern]
@@ -192,7 +192,7 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 	return r
 }
 
-func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.Handler) {
+func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.HTTPHandler) {
 	searchPath := str.Enclose(path.Clean(route), '/')
 	matchedRaw, wildcardRaw, paramVals := r.trie.Find(searchPath, '/', true)
 
@@ -238,7 +238,7 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 	return r
 }
 
-func (r *Router) Use(handlers ...ctx.Handler) *Router {
+func (r *Router) Use(handlers ...ctx.HTTPHandler) *Router {
 
 	// use for global middlewares
 	// once no route matched
@@ -254,8 +254,8 @@ func (r *Router) Use(handlers ...ctx.Handler) *Router {
 	return r
 }
 
-func (r *Router) For(methodInclusions []string, route string, version string) func(handlers ...ctx.Handler) *Router {
-	return func(handlers ...ctx.Handler) *Router {
+func (r *Router) For(methodInclusions []string, route string, version string) func(handlers ...ctx.HTTPHandler) *Router {
+	return func(handlers ...ctx.HTTPHandler) *Router {
 		for _, method := range methodInclusions {
 			r.push(method, route, version, FOR, handlers...)
 		}
@@ -265,7 +265,7 @@ func (r *Router) For(methodInclusions []string, route string, version string) fu
 }
 
 // alway use latest add
-func (r *Router) Add(method, route, version string, handler ctx.Handler) *Router {
+func (r *Router) Add(method, route, version string, handler ctx.HTTPHandler) *Router {
 	r.push(method, route, version, ADD, handler)
 
 	return r

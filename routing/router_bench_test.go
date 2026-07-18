@@ -22,7 +22,7 @@ func randomSegment(n int) string {
 func buildBenchRouter(n int) (*Router, []string) {
 	r := NewRouter()
 	routes := make([]string, n)
-	noop := ctx.Handler(func(c *ctx.HTTPContext) {})
+	noop := ctx.HTTPHandler(func(c *ctx.HTTPContext) {})
 	for i := 0; i < n; i++ {
 		route := fmt.Sprintf("/%s/%s/{id}/%s", randomSegment(8), randomSegment(8), randomSegment(8))
 		routes[i] = route
@@ -74,7 +74,7 @@ func BenchmarkRouterMatch_NoMatch(b *testing.B) {
 }
 
 func BenchmarkRouterUse(b *testing.B) {
-	noop := ctx.Handler(func(c *ctx.HTTPContext) {})
+	noop := ctx.HTTPHandler(func(c *ctx.HTTPContext) {})
 
 	b.StopTimer()
 	for i := 0; i < b.N; i++ {
