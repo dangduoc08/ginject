@@ -1,6 +1,7 @@
 package common
 
 import (
+	"net/http"
 	"reflect"
 
 	"github.com/dangduoc08/ginject/ctx"
@@ -8,10 +9,10 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type Use = func(*ctx.HTTPContext, ctx.Next)
+type Use = func(*http.Request, http.ResponseWriter, ctx.Next)
 
 type MiddlewareFn interface {
-	Use(*ctx.HTTPContext, ctx.Next)
+	Use(*http.Request, http.ResponseWriter, ctx.Next)
 }
 
 type RESTMiddlewareItem struct {

@@ -218,7 +218,7 @@ Phát ra hoặc tái sử dụng cookie CSRF, expose token qua request context, 
 - Request `GET`, `HEAD`, và `OPTIONS` luôn gọi `next` mà không xác minh token nào (`TestCSRF_SafeMethod_GET`, `TestCSRF_SafeMethod_HEAD`, `TestCSRF_SafeMethod_OPTIONS`).
 - Nếu cookie đã cấu hình bị thiếu, một token mới được sinh ra và đặt vào cookie có tên đó (`TestCSRF_SetsCookieWhenMissing`).
 - Nếu cookie đã cấu hình đã có giá trị, không có cookie mới nào được đặt — token hiện có được tái sử dụng (`TestCSRF_ReusesExistingCookie`).
-- Token đã xác định được lưu vào request context dưới key `ContextKey`, có thể đọc qua `c.Request.Context().Value(ContextKey)` (`TestCSRF_StoresTokenInContext`).
+- Token đã xác định được lưu vào request context dưới key `ContextKey`, có thể đọc qua `r.Context().Value(ContextKey)` (`TestCSRF_StoresTokenInContext`).
 - Với request `POST`, `PUT`, `PATCH`, và `DELETE`, một token được submit qua `HeaderName` khớp với token trong cookie sẽ cho phép request đi qua (`TestCSRF_POST_ValidHeader`, `TestCSRF_PUT_ValidHeader`, `TestCSRF_PATCH_ValidHeader`, `TestCSRF_DELETE_ValidHeader`).
 - Một token được submit qua header `X-XSRF-TOKEN` cũng được chấp nhận, ngay cả khi `HeaderName` chưa được đặt và dùng giá trị mặc định (`TestCSRF_POST_ValidAltHeader`).
 - Một token được submit qua form field `_csrf` được chấp nhận khi không có token nào trong header (`TestCSRF_POST_ValidFormField`).
@@ -226,11 +226,15 @@ Phát ra hoặc tái sử dụng cookie CSRF, expose token qua request context, 
 - An toàn khi gọi đồng thời từ nhiều goroutine, cho cả request an toàn và request làm thay đổi trạng thái (`TestCSRF_ConcurrentSafeRequests`, `TestCSRF_ConcurrentStateChanging`).
 
 #### Parameters
-- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
+- Tham số thứ 1: `*http.Request` (`r`)
 
-- Mô tả: HTTPContext của request hiện tại; cookie, header response, và request context của nó bị thay đổi/đọc.
+- Mô tả: Request hiện tại; cookie và method của nó được đọc, và context của nó được thay thế tại chỗ (qua `*r = *r.WithContext(...)`, nên `*ctx.HTTPContext` của caller cũng thấy được thay đổi này) để mang token đã xác định xuống các handler phía sau.
 
-- Tham số thứ 2: `ctx.Next` (`next`)
+- Tham số thứ 2: `http.ResponseWriter` (`w`)
+
+- Mô tả: Cookie CSRF được đặt vào đây khi một token mới được sinh ra.
+
+- Tham số thứ 3: `ctx.Next` (`next`)
 
 - Mô tả: Được gọi để chuyển quyền xử lý cho handler kế tiếp trong chuỗi.
 
@@ -240,7 +244,7 @@ Không có.
 #### Cách Dùng
 
 ```go
-csrf.CSRF{}.Use(c, next)
+csrf.CSRF{}.Use(r, w, next)
 ```
 
 ## Benchmark

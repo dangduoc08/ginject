@@ -46,7 +46,7 @@ GlobalMiddlewares → ModuleMiddlewares → Guards → Interceptors → MainHand
 Each layer is bound with `BindMiddleware(fn, handlers...)`, `BindGuard(fn, handlers...)`, etc. on the `common.Middleware`, `common.Guard`, `common.Interceptor`, `common.ExceptionFilter` embedded fields of a controller.
 
 Interfaces to implement:
-- `MiddlewareFn`: `Use(*ctx.HTTPContext, ctx.Next)`
+- `MiddlewareFn`: `Use(*http.Request, http.ResponseWriter, ctx.Next)`
 - `Guarder`: `CanActivate(*ctx.HTTPContext) bool`
 - `Interceptable`: `Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any`
 - `ExceptionFilterable`: `Catch(*exception.Exception, *ctx.HTTPContext)`

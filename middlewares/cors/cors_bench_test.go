@@ -30,13 +30,10 @@ func newBenchContext(method, origin string) *ctx.HTTPContext {
 func benchUseCORS(b *testing.B, cors CORS, method string) {
 	mw := cors.NewMiddleware()
 	c := newBenchContext(method, "https://example.com")
-	if method == http.MethodOptions {
-		c.Next = noop
-	}
 	b.ResetTimer()
 	for range b.N {
 		c.ResponseWriter = httptest.NewRecorder()
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 

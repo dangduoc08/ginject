@@ -34,7 +34,7 @@ func BenchmarkCSRF_SafeMethod_NoCookie(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		c, _ := newCSRFContext(http.MethodGet, "", "")
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 
@@ -43,7 +43,7 @@ func BenchmarkCSRF_SafeMethod_WithCookie(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		c, _ := newCSRFContext(http.MethodGet, "", "existingtoken123456")
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 
@@ -52,7 +52,7 @@ func BenchmarkCSRF_POST_ValidHeader(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "tok", "tok")
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 

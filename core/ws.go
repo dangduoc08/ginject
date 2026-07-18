@@ -91,7 +91,7 @@ func (ws *WS) handshake(c *ctx.HTTPContext) error {
 	for _, gm := range ws.globalMiddlewares {
 		if isNext {
 			isNext = false
-			gm.Use(c, c.Next)
+			gm.Use(c.Request, c.ResponseWriter, c.Next)
 		}
 	}
 

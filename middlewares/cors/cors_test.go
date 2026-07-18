@@ -178,7 +178,7 @@ func TestCORS_Use_SetsOriginStarByDefault(t *testing.T) {
 	cors := CORS{}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "*" {
 		t.Error(test.DiffMessage(got, "*", "default AllowOrigin should set * header"))
@@ -189,7 +189,7 @@ func TestCORS_Use_SpecificOriginMap(t *testing.T) {
 	cors := CORS{AllowOrigin: []string{"https://example.com"}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "https://example.com" {
 		t.Error(test.DiffMessage(got, "https://example.com", "allowed origin should echo"))
@@ -200,7 +200,7 @@ func TestCORS_Use_SpecificOriginMapBlocked(t *testing.T) {
 	cors := CORS{AllowOrigin: []string{"https://example.com"}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://evil.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "" {
 		t.Error(test.DiffMessage(got, "", "disallowed origin should not set header"))
@@ -211,7 +211,7 @@ func TestCORS_Use_SpecificStringOriginBlocked(t *testing.T) {
 	cors := CORS{AllowOrigin: "https://trusted.com"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://evil.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "" {
 		t.Error(test.DiffMessage(got, "", "a single fixed AllowOrigin must not be echoed back for a non-matching request origin"))
@@ -222,7 +222,7 @@ func TestCORS_Use_RegexpOrigin(t *testing.T) {
 	cors := CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.example\.com$`)}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://sub.example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "https://sub.example.com" {
 		t.Error(test.DiffMessage(got, "https://sub.example.com", "regex-matched origin should echo"))
@@ -233,7 +233,7 @@ func TestCORS_Use_Credentials(t *testing.T) {
 	cors := CORS{IsAllowCredentials: true}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Credentials")
 	if got != "true" {
 		t.Error(test.DiffMessage(got, "true", "credentials header"))
@@ -245,10 +245,9 @@ func TestCORS_Use_OptionsPreflightContinue(t *testing.T) {
 	cors := CORS{IsPreflightContinue: true}
 	mw := cors.NewMiddleware()
 	c, _ := newTestContext(http.MethodOptions, "https://example.com")
-	c.Next = func() { called = true }
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
-		t.Error(test.DiffMessage(called, true, "IsPreflightContinue should call Next"))
+		t.Error(test.DiffMessage(called, true, "IsPreflightContinue should call next"))
 	}
 }
 
@@ -256,7 +255,7 @@ func TestCORS_Use_OptionsPreflightStatus(t *testing.T) {
 	cors := CORS{IsPreflightContinue: false}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodOptions, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	if rec.Code != 204 {
 		t.Error(test.DiffMessage(rec.Code, 204, "preflight status should be 204"))
 	}
@@ -266,7 +265,7 @@ func TestCORS_Use_CustomOptionsSuccessStatus(t *testing.T) {
 	cors := CORS{OptionsSuccessStatus: 200}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodOptions, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	if rec.Code != 200 {
 		t.Error(test.DiffMessage(rec.Code, 200, "custom options success status"))
 	}
@@ -277,7 +276,7 @@ func TestCORS_Use_NextCalledForNonOptions(t *testing.T) {
 	cors := CORS{}
 	mw := cors.NewMiddleware()
 	c, _ := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "next should be called for non-OPTIONS requests"))
 	}
@@ -287,7 +286,7 @@ func TestCORS_Use_AllowHeadersString(t *testing.T) {
 	cors := CORS{AllowHeaders: "Content-Type, Authorization"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodOptions, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Headers")
 	if got != "Content-Type, Authorization" {
 		t.Error(test.DiffMessage(got, "Content-Type, Authorization", "string AllowHeaders"))
@@ -298,7 +297,7 @@ func TestCORS_Use_ExposeHeadersString(t *testing.T) {
 	cors := CORS{ExposeHeaders: "X-Custom-Header"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Expose-Headers")
 	if got != "X-Custom-Header" {
 		t.Error(test.DiffMessage(got, "X-Custom-Header", "string ExposeHeaders"))
@@ -309,7 +308,7 @@ func TestCORS_Use_CredentialsWithWildcardEchosOrigin(t *testing.T) {
 	cors := CORS{AllowOrigin: "*", IsAllowCredentials: true}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "https://example.com" {
 		t.Error(test.DiffMessage(got, "https://example.com", "credentials+wildcard should echo request origin"))
@@ -323,7 +322,7 @@ func TestCORS_Use_VaryForSpecificStringOrigin(t *testing.T) {
 	cors := CORS{AllowOrigin: "https://example.com"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	if rec.Header().Get("Vary") == "" {
 		t.Error(test.DiffMessage("", "Origin", "specific string origin should set Vary: Origin"))
 	}
@@ -333,7 +332,7 @@ func TestCORS_Use_VaryOriginSetEvenWhenOriginIsBlocked(t *testing.T) {
 	cors := CORS{AllowOrigin: []string{"https://trusted.com"}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://evil.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	if rec.Header().Get("Vary") != "Origin" {
 		t.Error(test.DiffMessage(rec.Header().Get("Vary"), "Origin", "a response that depends on Origin must vary by Origin even when this origin is rejected"))
 	}
@@ -343,7 +342,7 @@ func TestCORS_Use_NoVaryForWildcard(t *testing.T) {
 	cors := CORS{AllowOrigin: "*"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	if rec.Header().Get("Vary") != "" {
 		t.Error(test.DiffMessage(rec.Header().Get("Vary"), "", "wildcard origin should not set Vary"))
 	}
@@ -354,7 +353,7 @@ func TestCORS_Use_VaryMergesWithExistingHeader(t *testing.T) {
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
 	rec.Header().Set("Vary", "Accept-Encoding")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Vary")
 	if got != "Accept-Encoding, Origin" {
 		t.Error(test.DiffMessage(got, "Accept-Encoding, Origin", "CORS must merge into, not overwrite, an existing Vary header"))
@@ -366,7 +365,7 @@ func TestCORS_Use_VaryNoDuplicateWhenAlreadyPresent(t *testing.T) {
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
 	rec.Header().Set("Vary", "origin")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Vary")
 	if got != "origin" {
 		t.Error(test.DiffMessage(got, "origin", "Vary merge must dedupe case-insensitively instead of appending a duplicate"))
@@ -378,7 +377,7 @@ func TestCORS_Use_NoOriginHeaderSkipsCORS(t *testing.T) {
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "next should be called when no Origin"))
 	}
@@ -424,7 +423,7 @@ func TestCORS_Use_EmptySliceBlocksAllOrigins(t *testing.T) {
 	cors := CORS{AllowOrigin: []string{}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "" {
 		t.Error(test.DiffMessage(got, "", "empty AllowOrigin list should block all origins"))
@@ -435,7 +434,7 @@ func TestCORS_Use_CustomAllowMethodsOnPreflight(t *testing.T) {
 	cors := CORS{AllowMethods: []string{"GET", "POST"}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodOptions, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Methods")
 	if got != "GET, POST" {
 		t.Error(test.DiffMessage(got, "GET, POST", "custom AllowMethods should appear on preflight"))
@@ -446,7 +445,7 @@ func TestCORS_Use_OriginTrailingSlashMatchesRequest(t *testing.T) {
 	cors := CORS{AllowOrigin: []string{"https://example.com/"}}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "https://example.com" {
 		t.Error(test.DiffMessage(got, "https://example.com", "configured origin with trailing slash should match bare request origin"))
@@ -457,7 +456,7 @@ func TestCORS_Use_RegexpOriginNoMatch(t *testing.T) {
 	cors := CORS{AllowOrigin: regexp.MustCompile(`^https://trusted\.com$`)}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://evil.com")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "" {
 		t.Error(test.DiffMessage(got, "", "non-matching regexp origin should not set ACAO header"))
@@ -468,7 +467,7 @@ func TestCORS_Use_NullOriginWithCredentialsBlocked(t *testing.T) {
 	cors := CORS{AllowOrigin: "*", IsAllowCredentials: true}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "null")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got == "null" {
 		t.Error(test.DiffMessage(got, "", "null origin must not be reflected when credentials enabled"))
@@ -479,7 +478,7 @@ func TestCORS_Use_NullOriginWildcardNoCredentials(t *testing.T) {
 	cors := CORS{AllowOrigin: "*"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "null")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
 	if got != "*" {
 		t.Error(test.DiffMessage(got, "*", "null origin without credentials: wildcard * should still be set"))
@@ -583,7 +582,7 @@ func TestCORS_Use_PreflightOnlyHeaders(t *testing.T) {
 	mw := cors.NewMiddleware()
 
 	cGet, recGet := newTestContext(http.MethodGet, "https://example.com")
-	mw.Use(cGet, noop)
+	mw.Use(cGet.Request, cGet.ResponseWriter, noop)
 	if recGet.Header().Get("Access-Control-Allow-Methods") != "" {
 		t.Error(test.DiffMessage(recGet.Header().Get("Access-Control-Allow-Methods"), "", "Allow-Methods should not be set on non-preflight"))
 	}
@@ -592,7 +591,7 @@ func TestCORS_Use_PreflightOnlyHeaders(t *testing.T) {
 	}
 
 	cOpt, recOpt := newTestContext(http.MethodOptions, "https://example.com")
-	mw.Use(cOpt, noop)
+	mw.Use(cOpt.Request, cOpt.ResponseWriter, noop)
 	if recOpt.Header().Get("Access-Control-Allow-Methods") == "" {
 		t.Error(test.DiffMessage("", "non-empty", "Allow-Methods should be set on preflight"))
 	}

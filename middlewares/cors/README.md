@@ -210,14 +210,18 @@ Applies CORS headers to the current request and either calls `next` or short-cir
 - A string `AllowHeaders`/`ExposeHeaders` is passed through verbatim instead of being joined (`TestCORS_Use_AllowHeadersString`, `TestCORS_Use_ExposeHeadersString`).
 - `next` is always called for non-`OPTIONS` requests (`TestCORS_Use_NextCalledForNonOptions`).
 - For `OPTIONS` requests, `next` is called only when `IsPreflightContinue` is `true`; otherwise the response is written immediately with `OptionsSuccessStatus` (default `204`, or a configured value) and `next` is not called (`TestCORS_Use_OptionsPreflightContinue`, `TestCORS_Use_OptionsPreflightStatus`, `TestCORS_Use_CustomOptionsSuccessStatus`).
-- WebSocket requests (`ctx.WSType`) use the exact same origin-matching rules as HTTP, but never write response headers — a rejected origin simply skips `next`.
+- A WebSocket handshake request (detected via an `Upgrade: websocket` request header) uses the exact same origin-matching rules as HTTP, but never writes response headers — a rejected origin simply skips `next`.
 
 #### Parameters
-- 1st parameter: `*ctx.HTTPContext` (`c`)
+- 1st parameter: `*http.Request` (`r`)
 
-- Description: The current request context; its response headers are mutated in place.
+- Description: The current request; its headers (`Origin`, `Upgrade`) are read to decide CORS behavior.
 
-- 2nd parameter: `ctx.Next` (`next`)
+- 2nd parameter: `http.ResponseWriter` (`w`)
+
+- Description: The response writer CORS headers are set on, and — for a short-circuited preflight — the status is written to directly.
+
+- 3rd parameter: `ctx.Next` (`next`)
 
 - Description: Called to pass control to the next handler in the chain.
 
@@ -227,7 +231,7 @@ None.
 #### Usage
 
 ```go
-cors.CORS{AllowOrigin: "https://example.com"}.Use(c, next)
+cors.CORS{AllowOrigin: "https://example.com"}.Use(r, w, next)
 ```
 
 ## Benchmarks

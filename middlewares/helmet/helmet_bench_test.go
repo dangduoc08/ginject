@@ -27,7 +27,7 @@ func BenchmarkHelmet_Use_Defaults(b *testing.B) {
 	c := newBenchContext(http.MethodGet, "")
 	b.ResetTimer()
 	for range b.N {
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 
@@ -36,7 +36,7 @@ func BenchmarkHelmet_Use_CustomCSP(b *testing.B) {
 	c := newBenchContext(http.MethodGet, "")
 	b.ResetTimer()
 	for range b.N {
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 
@@ -45,7 +45,7 @@ func BenchmarkHelmet_Use_DisableHSTS(b *testing.B) {
 	c := newBenchContext(http.MethodGet, "")
 	b.ResetTimer()
 	for range b.N {
-		mw.Use(c, noop)
+		mw.Use(c.Request, c.ResponseWriter, noop)
 	}
 }
 
