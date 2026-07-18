@@ -283,7 +283,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 			gg = common.Construct(newGG.Interface(), "NewGuard").(common.Guarder)
 			mw := func(guard common.Guarder) ctx.Handler {
-				return func(c *ctx.Context) { common.HandleGuard(c, guard.CanActivate(c)) }
+				return func(c *ctx.Context) { handleGuard(c, guard.CanActivate(c)) }
 			}(gg)
 			for _, h := range app.module.RESTMainHandlers {
 				httpMethod := routing.OperationsMapHTTPMethods[h.Method]

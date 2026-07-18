@@ -3,7 +3,6 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
@@ -142,22 +141,3 @@ func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
 	}
 }
 
-// TestHandleGuard_PanicOnDenied verifies HandleGuard panics when canActive is false.
-func TestHandleGuard_PanicOnDenied(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error(test.DiffMessage(r, "non-nil panic", "HandleGuard(nil, false) should panic"))
-		}
-	}()
-	HandleGuard(nil, false)
-}
-
-func TestHandleGuard_CallsNext(t *testing.T) {
-	called := false
-	c := &ctx.Context{}
-	c.Next = func() { called = true }
-	HandleGuard(c, true)
-	if !called {
-		t.Error(test.DiffMessage(called, true, "HandleGuard should call Next when access is allowed"))
-	}
-}

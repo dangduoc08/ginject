@@ -300,3 +300,23 @@ func TestLogBoostrapNoPanic(t *testing.T) {
 	}()
 	logBoostrap(8080)
 }
+
+// TestHandleGuard_PanicOnDenied verifies handleGuard panics when canActive is false.
+func TestHandleGuard_PanicOnDenied(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error(test.DiffMessage(r, "non-nil panic", "handleGuard(nil, false) should panic"))
+		}
+	}()
+	handleGuard(nil, false)
+}
+
+func TestHandleGuard_CallsNext(t *testing.T) {
+	called := false
+	c := &ctx.Context{}
+	c.Next = func() { called = true }
+	handleGuard(c, true)
+	if !called {
+		t.Error(test.DiffMessage(called, true, "handleGuard should call Next when access is allowed"))
+	}
+}
