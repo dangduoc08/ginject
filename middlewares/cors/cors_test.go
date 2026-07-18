@@ -12,13 +12,13 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func newTestContext(method, origin string) (*ctx.Context, *httptest.ResponseRecorder) {
+func newTestContext(method, origin string) (*ctx.HTTPContext, *httptest.ResponseRecorder) {
 	req := httptest.NewRequest(method, "/", nil)
 	if origin != "" {
 		req.Header.Set("Origin", origin)
 	}
 	rec := httptest.NewRecorder()
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})

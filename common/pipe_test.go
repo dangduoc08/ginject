@@ -9,7 +9,7 @@ import (
 
 type mockContextPipeable struct{}
 
-func (mockContextPipeable) Transform(_ *ctx.Context, m ArgumentMetadata) any { return m }
+func (mockContextPipeable) Transform(_ *ctx.HTTPContext, m ArgumentMetadata) any { return m }
 
 type mockBodyPipeable struct{}
 

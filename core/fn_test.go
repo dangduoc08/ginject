@@ -276,7 +276,7 @@ func TestGetDependencyUnknownReturnsDependencies(t *testing.T) {
 }
 
 func TestIsInjectableHandlerValid(t *testing.T) {
-	handler := func(c *ctx.Context) {}
+	handler := func(c *ctx.HTTPContext) {}
 	err := isInjectableHandler(handler, nil)
 	if err != nil {
 		t.Error(test.DiffMessage(err, nil, "isInjectableHandler valid handler"))
@@ -313,7 +313,7 @@ func TestHandleGuard_PanicOnDenied(t *testing.T) {
 
 func TestHandleGuard_CallsNext(t *testing.T) {
 	called := false
-	c := &ctx.Context{}
+	c := &ctx.HTTPContext{}
 	c.Next = func() { called = true }
 	handleGuard(c, true)
 	if !called {

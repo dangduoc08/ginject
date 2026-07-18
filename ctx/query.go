@@ -2,7 +2,7 @@ package ctx
 
 type Query map[string][]string
 
-func (c *Context) Query() Query {
+func (c *HTTPContext) Query() Query {
 	if c.query != nil {
 		return c.query
 	}

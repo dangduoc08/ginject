@@ -244,7 +244,7 @@ Declare parameters by type — the framework resolves them from the request cont
 
 ```go
 func (c UserController) READ_BY_ID(
-    ctx    ginject.Context,  // *ctx.Context
+    ctx    ginject.HTTPContext,  // *ctx.HTTPContext
     req    ginject.Request,  // *http.Request
     param  ginject.Param,    // path parameters
     query  ginject.Query,    // query string
@@ -283,14 +283,14 @@ Each layer runs per-request. Exception filters catch panics from any layer.
 
 ### Middleware
 
-Implement `Use(*ctx.Context, ctx.Next)`:
+Implement `Use(*ctx.HTTPContext, ctx.Next)`:
 
 ```go
 type LogMiddleware struct {
     common.Logger
 }
 
-func (m LogMiddleware) Use(c *ctx.Context, next ctx.Next) {
+func (m LogMiddleware) Use(c *ctx.HTTPContext, next ctx.Next) {
     m.Info("request", "path", c.URL.Path)
     next()
 }
@@ -311,7 +311,7 @@ c.BindMiddleware(LogMiddleware{}, c.CREATE_VERSION_1)  // specific handler only
 
 ### Guard
 
-Implement `CanActivate(*ctx.Context) bool`. Returning `false` responds with 403 Forbidden:
+Implement `CanActivate(*ctx.HTTPContext) bool`. Returning `false` responds with 403 Forbidden:
 
 ```go
 type AuthGuard struct {
@@ -325,7 +325,7 @@ func (g AuthGuard) NewGuard() AuthGuard {
     return g
 }
 
-func (g AuthGuard) CanActivate(c *ctx.Context) bool {
+func (g AuthGuard) CanActivate(c *ctx.HTTPContext) bool {
     return c.Header().Get("Authorization") == g.Secret
 }
 ```
@@ -344,14 +344,14 @@ c.BindGuard(AuthGuard{}, c.CREATE_VERSION_1, c.DELETE_VERSION_1)
 
 ### Interceptor
 
-Implement `Intercept(*ctx.Context, *aggregation.Aggregation) any`. Runs before and after the handler via `Pipe`:
+Implement `Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any`. Runs before and after the handler via `Pipe`:
 
 ```go
 type ResponseInterceptor struct{}
 
-func (i ResponseInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i ResponseInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
-        agg.Consume(func(c ginject.Context, data any) any {
+        agg.Consume(func(c ginject.HTTPContext, data any) any {
             return ginject.Map{"data": data}
         }),
     )
@@ -372,12 +372,12 @@ c.BindInterceptor(ResponseInterceptor{})
 
 ### Exception Filter
 
-Implement `Catch(*ctx.Context, *exception.Exception)`. Catches panics and unhandled exceptions:
+Implement `Catch(*ctx.HTTPContext, *exception.Exception)`. Catches panics and unhandled exceptions:
 
 ```go
 type AppExceptionFilter struct{}
 
-func (f AppExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
+func (f AppExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception) {
     httpCode, _ := ex.GetHTTPStatus()
     c.Status(httpCode).JSON(ctx.Map{
         "code":    ex.GetCode(),
@@ -480,7 +480,7 @@ app.EnableVersioning(versioning.Versioning{
 | `QUERY`      | Read version from query parameter    | `GET /users?v=1`                         |
 | `HEADER`     | Read version from request header     | `X-Api-Version: 1`                       |
 | `MEDIA_TYPE` | Read version from `Accept` header    | `Accept: application/json; version=1`    |
-| `CUSTOM`     | Custom extractor function            | `Extractor: func(c *ctx.Context) string` |
+| `CUSTOM`     | Custom extractor function            | `Extractor: func(c *ctx.HTTPContext) string` |
 
 Add `_VERSION_N` suffix to controller methods:
 

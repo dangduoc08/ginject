@@ -9,10 +9,10 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type Intercept = func(*ctx.Context, *aggregation.Aggregation) any
+type Intercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any
 
 type Interceptable interface {
-	Intercept(*ctx.Context, *aggregation.Aggregation) any
+	Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any
 }
 
 type RESTInterceptorItem struct {

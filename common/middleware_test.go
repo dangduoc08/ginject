@@ -9,7 +9,7 @@ import (
 
 type mockMiddlewareFn struct{}
 
-func (mockMiddlewareFn) Use(_ *ctx.Context, _ ctx.Next) {}
+func (mockMiddlewareFn) Use(_ *ctx.HTTPContext, _ ctx.Next) {}
 
 func TestBindMiddleware_Chaining(t *testing.T) {
 	m := &Middleware{}

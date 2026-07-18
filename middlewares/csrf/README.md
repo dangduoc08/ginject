@@ -226,7 +226,7 @@ Issues or reuses the CSRF cookie, exposes the token via the request context, and
 - Safe to call concurrently from multiple goroutines, for both safe and state-changing requests (`TestCSRF_ConcurrentSafeRequests`, `TestCSRF_ConcurrentStateChanging`).
 
 #### Parameters
-- 1st parameter: `*ctx.Context` (`c`)
+- 1st parameter: `*ctx.HTTPContext` (`c`)
 
 - Description: The current request context; its cookies, response headers, and request context are mutated/read.
 

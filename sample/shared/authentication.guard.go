@@ -24,7 +24,7 @@ func (instance AuthenticationGuard) NewGuard() AuthenticationGuard {
 	return instance
 }
 
-func (instance AuthenticationGuard) CanActivate(ctx *ctx.Context) bool {
+func (instance AuthenticationGuard) CanActivate(ctx *ctx.HTTPContext) bool {
 	fmt.Println("[Module] Authentication guard")
 
 	reqSecret := ctx.Header().Get(instance.AuthKey)

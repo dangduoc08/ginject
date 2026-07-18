@@ -11,7 +11,7 @@ const (
 
 type Header map[string][]string
 
-func (c *Context) Header() Header {
+func (c *HTTPContext) Header() Header {
 	if c.header != nil {
 		return c.header
 	}

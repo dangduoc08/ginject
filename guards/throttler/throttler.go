@@ -27,7 +27,7 @@ type Throttler struct {
 	Limit    int64
 	TTL      time.Duration
 	Strategy Strategy
-	KeyFunc  func(*ctx.Context) string
+	KeyFunc  func(*ctx.HTTPContext) string
 	Backend  cache.Cache
 }
 
@@ -47,7 +47,7 @@ func (g Throttler) NewGuard() Throttler {
 	return g
 }
 
-func (g Throttler) CanActivate(c *ctx.Context) bool {
+func (g Throttler) CanActivate(c *ctx.HTTPContext) bool {
 	res := g.check(c)
 
 	h := c.ResponseWriter.Header()
@@ -70,7 +70,7 @@ type rateLimitResult struct {
 	resetAt   int64
 }
 
-func (g Throttler) check(c *ctx.Context) rateLimitResult {
+func (g Throttler) check(c *ctx.HTTPContext) rateLimitResult {
 	key := g.KeyFunc(c)
 	switch g.Strategy {
 	case SlidingWindow:
@@ -189,7 +189,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	}
 }
 
-func defaultThrottlerKeyFunc(c *ctx.Context) string {
+func defaultThrottlerKeyFunc(c *ctx.HTTPContext) string {
 	if xrip := c.Request.Header.Get("X-Real-IP"); xrip != "" {
 		return strings.TrimSpace(xrip)
 	}

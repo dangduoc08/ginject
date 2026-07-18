@@ -52,7 +52,7 @@ func (c APIController) NewController() core.Controller {
 
 `RequestLogger` embeds `common.Logger` rather than wrapping it in a private field, so the struct itself exposes `Debug`/`Info`/`Warn`/`Error`/`Fatal`. When bound via `BindGlobalMiddlewares` or `BindMiddleware`, Ginject's DI container injects the app's configured `common.Logger` (the `log` package's logger by default, or whatever was passed to `app.UseLogger`) into that embedded field automatically — you don't set it yourself in application code. When constructing a `RequestLogger` directly, as the package's own tests do, you must supply a `Logger` explicitly, since the embedded interface is otherwise `nil`.
 
-`Use` doesn't log synchronously: it subscribes a handler to the `ctx.RequestFinished` broker event, then immediately calls `next`. The subscribed handler fires once the broker publishes `ctx.RequestFinished` for that context (after the response is actually sent), and logs an HTTP or WebSocket line depending on `ctx.Context.GetType()`.
+`Use` doesn't log synchronously: it subscribes a handler to the `ctx.RequestFinished` broker event, then immediately calls `next`. The subscribed handler fires once the broker publishes `ctx.RequestFinished` for that context (after the response is actually sent), and logs an HTTP or WebSocket line depending on `ctx.HTTPContext.GetType()`.
 
 ## `RequestLogger` Struct
 
@@ -81,7 +81,7 @@ Subscribes a one-shot logging handler to the `ctx.RequestFinished` event for the
 - A context whose type is neither the HTTP nor the WebSocket type (e.g. an empty `Type`) logs nothing when `ctx.RequestFinished` is published (`TestRequestLogger_Use_UnknownTypeNoLog`).
 
 #### Parameters
-- 1st parameter: `*ctx.Context` (`c`)
+- 1st parameter: `*ctx.HTTPContext` (`c`)
 
 - Description: The current request context; its `Broker` is subscribed to for the finished-request event.
 

@@ -8,10 +8,10 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type Use = func(*ctx.Context, ctx.Next)
+type Use = func(*ctx.HTTPContext, ctx.Next)
 
 type MiddlewareFn interface {
-	Use(*ctx.Context, ctx.Next)
+	Use(*ctx.HTTPContext, ctx.Next)
 }
 
 type RESTMiddlewareItem struct {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSetWSConnGetWSConn(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	if c.WSConn() != nil {
 		t.Error(test.DiffMessage(c.WSConn(), nil, "WSConn should be nil before SetWSConn"))
 	}
@@ -23,7 +23,7 @@ func TestSetWSConnGetWSConn(t *testing.T) {
 }
 
 func TestSetWSPayloadGetWSPayload(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	if c.WSPayload() != nil {
 		t.Error(test.DiffMessage(c.WSPayload(), nil, "WSPayload should be nil before SetWSPayload"))
 	}

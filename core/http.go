@@ -24,7 +24,7 @@ type HTTP struct {
 	catchFnsByRoute               map[string][]common.Catch
 	lastWildcardSlashIndexByRoute map[string]int
 
-	resolveAndCallHandler func(f any, c *ctx.Context) []reflect.Value
+	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
 }
 
 func newHTTP() *HTTP {
@@ -58,7 +58,7 @@ func (http *HTTP) addMainHandler(moduleHandler common.RESTLayer) {
 	http.route.AddInjectableHandler(httpMethod, moduleHandler.Route, moduleHandler.Version, moduleHandler.Handler)
 }
 
-func (http *HTTP) handleRequest(c *ctx.Context) {
+func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 	var catchEvent string
 
 	defer func() {
@@ -224,7 +224,7 @@ func (http *HTTP) handleRequest(c *ctx.Context) {
 	}
 }
 
-func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir any) {
+func (http *HTTP) serveContent(c *ctx.HTTPContext, lastWildcardSlashIndex int, dir any) {
 	if dir, ok := dir.(string); ok {
 		if lastWildcardSlashIndex != 0 {
 			urlPath := str.RemoveDup(c.URL.Path, "/")
@@ -250,7 +250,7 @@ func (http *HTTP) serveContent(c *ctx.Context, lastWildcardSlashIndex int, dir a
 	}
 }
 
-func (http *HTTP) returnNotFound(c *ctx.Context) {
+func (http *HTTP) returnNotFound(c *ctx.HTTPContext) {
 	notFoundException := exception.NotFoundException("Cannot " + c.Method + " " + c.URL.Path)
 	httpCode, _ := notFoundException.GetHTTPStatus()
 	c.Status(httpCode)
@@ -261,7 +261,7 @@ func (http *HTTP) returnNotFound(c *ctx.Context) {
 	})
 }
 
-func (http *HTTP) returnInvalidURL(c *ctx.Context) {
+func (http *HTTP) returnInvalidURL(c *ctx.HTTPContext) {
 	badRequestException := exception.BadRequestException("Invalid URL path")
 	httpCode, _ := badRequestException.GetHTTPStatus()
 	c.Status(httpCode)
@@ -272,7 +272,7 @@ func (http *HTTP) returnInvalidURL(c *ctx.Context) {
 	})
 }
 
-func (http *HTTP) returnDeprecatedURL(c *ctx.Context) {
+func (http *HTTP) returnDeprecatedURL(c *ctx.HTTPContext) {
 	goneException := exception.GoneException("Deprecated URL usage")
 	httpCode, _ := goneException.GetHTTPStatus()
 	c.Status(httpCode)

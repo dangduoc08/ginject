@@ -12,9 +12,9 @@ type RequestLogger struct {
 	common.Logger
 }
 
-func (instance RequestLogger) Use(c *ctx.Context, next ctx.Next) {
+func (instance RequestLogger) Use(c *ctx.HTTPContext, next ctx.Next) {
 	_, _ = c.Broker.Once(ctx.RequestFinished, func(m *broker.Message) {
-		newC := m.Payload.(*ctx.Context)
+		newC := m.Payload.(*ctx.HTTPContext)
 
 		var msg string
 		switch newC.GetType() {

@@ -213,9 +213,9 @@ app.BindGlobalMiddlewares(mw)
 - Request WebSocket (`ctx.WSType`) dùng đúng các quy tắc so khớp origin giống HTTP, nhưng không bao giờ ghi header response — origin bị từ chối chỉ đơn giản là bỏ qua `next`.
 
 #### Parameters
-- Tham số thứ 1: `*ctx.Context` (`c`)
+- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
 
-- Mô tả: Context của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
+- Mô tả: HTTPContext của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
 
 - Tham số thứ 2: `ctx.Next` (`next`)
 

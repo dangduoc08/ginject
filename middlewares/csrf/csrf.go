@@ -94,7 +94,7 @@ func CompareTokensSecurely(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-func (m compiledCSRF) Use(c *ctx.Context, next ctx.Next) {
+func (m compiledCSRF) Use(c *ctx.HTTPContext, next ctx.Next) {
 	opts := m.opts
 
 	// Retrieve or generate the token from the cookie.
@@ -144,6 +144,6 @@ func (m compiledCSRF) Use(c *ctx.Context, next ctx.Next) {
 	next()
 }
 
-func (instance CSRF) Use(c *ctx.Context, next ctx.Next) {
+func (instance CSRF) Use(c *ctx.HTTPContext, next ctx.Next) {
 	compiledCSRF{opts: loadCSRFOptions(&instance)}.Use(c, next)
 }

@@ -41,7 +41,7 @@ type App struct {
 }
 
 const (
-	contextKey      = "/*ctx.Context"
+	contextKey      = "/*ctx.HTTPContext"
 	wsConnectionKey = "/*websocket.Conn"
 	requestKey      = "/*http.Request"
 	responseKey     = "net/http/http.ResponseWriter"
@@ -91,7 +91,7 @@ func New() *App {
 		ws:   nil,
 		ctxPool: sync.Pool{
 			New: func() any {
-				c := ctx.NewContext()
+				c := ctx.NewHTTPContext()
 				c.Broker = broker.NewWithConfig(
 					broker.Config{
 						RecoverPanics: true,
@@ -108,7 +108,7 @@ func New() *App {
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c := app.ctxPool.Get().(*ctx.Context)
+	c := app.ctxPool.Get().(*ctx.HTTPContext)
 	c.Init(w, r)
 
 	if app.isWSEnabled && app.ws.isWSPath(r.URL.Path) {
@@ -172,7 +172,7 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.injectedProviders = injectedProviders
 	app.wsConfig.logger = app.Logger
 	app.wsConfig.resolveAndCallHandler = app.http.resolveAndCallHandler
-	app.wsConfig.newCtx = func() *ctx.Context { return app.ctxPool.Get().(*ctx.Context) }
+	app.wsConfig.newCtx = func() *ctx.HTTPContext { return app.ctxPool.Get().(*ctx.HTTPContext) }
 	app.wsConfig.releaseCtx = app.releaseCtx
 	app.ws = NewWS(app.wsConfig)
 }
@@ -193,7 +193,7 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 	}
 	app.injectedProviders = injectedProviders
 
-	resolveAndCallHandler := func(f any, c *ctx.Context) []reflect.Value {
+	resolveAndCallHandler := func(f any, c *ctx.HTTPContext) []reflect.Value {
 		return invokeHandlerByProviders(f, injectedProviders, c)
 	}
 	app.http.resolveAndCallHandler = resolveAndCallHandler
@@ -261,7 +261,7 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
 			mw := func(middleware common.MiddlewareFn) ctx.Handler {
-				return func(c *ctx.Context) { middleware.Use(c, c.Next) }
+				return func(c *ctx.HTTPContext) { middleware.Use(c, c.Next) }
 			}(gm)
 			app.http.route.Use(mw)
 		}
@@ -283,7 +283,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 			gg = common.Construct(newGG.Interface(), "NewGuard").(common.Guarder)
 			mw := func(guard common.Guarder) ctx.Handler {
-				return func(c *ctx.Context) { handleGuard(c, guard.CanActivate(c)) }
+				return func(c *ctx.HTTPContext) { handleGuard(c, guard.CanActivate(c)) }
 			}(gg)
 			for _, h := range app.module.RESTMainHandlers {
 				httpMethod := routing.OperationsMapHTTPMethods[h.Method]
@@ -354,7 +354,7 @@ func (app *App) initMainHandlers() {
 	}
 }
 
-func (app *App) releaseCtx(c *ctx.Context) {
+func (app *App) releaseCtx(c *ctx.HTTPContext) {
 	c.Reset()
 	app.ctxPool.Put(c)
 }

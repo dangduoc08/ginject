@@ -12,7 +12,7 @@ import (
 type (
 	Map      map[string]any
 	ErrFunc  func(error)
-	Handler  = func(*Context)
+	Handler  = func(*HTTPContext)
 	Next     = func()
 	Redirect = func(string)
 )
@@ -22,7 +22,7 @@ const (
 	CatchException  = "CatchException"
 )
 
-type Context struct {
+type HTTPContext struct {
 	*http.Request
 	http.ResponseWriter
 
@@ -57,20 +57,20 @@ const (
 	GQLType  = "gql"
 )
 
-func NewContext() *Context {
-	return &Context{
+func NewHTTPContext() *HTTPContext {
+	return &HTTPContext{
 		Code: http.StatusOK,
 	}
 }
 
-func (c *Context) Init(w http.ResponseWriter, r *http.Request) {
+func (c *HTTPContext) Init(w http.ResponseWriter, r *http.Request) {
 	c.Timestamp = time.Now()
 	c.ResponseWriter = w
 	c.Request = r
 	c.SetID()
 }
 
-func (c *Context) Reset() {
+func (c *HTTPContext) Reset() {
 	c.Code = http.StatusOK
 	c.typ = ""
 	c.id = ""
@@ -91,7 +91,7 @@ func (c *Context) Reset() {
 	_ = c.Broker.Clear()
 }
 
-func (c *Context) SetType(t string) *Context {
+func (c *HTTPContext) SetType(t string) *HTTPContext {
 	if c.typ == "" &&
 		(t == HTTPType ||
 			t == WSType ||
@@ -102,11 +102,11 @@ func (c *Context) SetType(t string) *Context {
 	return c
 }
 
-func (c *Context) GetType() string {
+func (c *HTTPContext) GetType() string {
 	return c.typ
 }
 
-func (c *Context) SetID() {
+func (c *HTTPContext) SetID() {
 	reqID := c.Header().Get(RequestID)
 	if reqID == "" {
 		reqID, _ = crypto.UUID()
@@ -117,6 +117,6 @@ func (c *Context) SetID() {
 	}
 }
 
-func (c *Context) GetID() string {
+func (c *HTTPContext) GetID() string {
 	return c.id
 }

@@ -9,23 +9,23 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func newTestContext() *Context {
-	c := NewContext()
+func newTestHTTPContext() *HTTPContext {
+	c := NewHTTPContext()
 	c.Broker = broker.New()
 	return c
 }
 
-func TestNewContext_DefaultCode(t *testing.T) {
-	c := NewContext()
+func TestNewHTTPContext_DefaultCode(t *testing.T) {
+	c := NewHTTPContext()
 	if c.Code != http.StatusOK {
-		t.Error(test.DiffMessage(c.Code, http.StatusOK, "NewContext default Code"))
+		t.Error(test.DiffMessage(c.Code, http.StatusOK, "NewHTTPContext default Code"))
 	}
 }
 
 func TestSetType_ValidTypes(t *testing.T) {
 	types := []string{HTTPType, WSType, RPCType, GQLType}
 	for _, typ := range types {
-		c := newTestContext()
+		c := newTestHTTPContext()
 		c.SetType(typ)
 		if c.GetType() != typ {
 			t.Error(test.DiffMessage(c.GetType(), typ, "SetType "+typ))
@@ -34,7 +34,7 @@ func TestSetType_ValidTypes(t *testing.T) {
 }
 
 func TestSetType_InvalidIgnored(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	c.SetType("invalid")
 	if c.GetType() != "" {
 		t.Error(test.DiffMessage(c.GetType(), "", "SetType invalid stays empty"))
@@ -42,7 +42,7 @@ func TestSetType_InvalidIgnored(t *testing.T) {
 }
 
 func TestSetType_Idempotent(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	c.SetType(HTTPType)
 	c.SetType(WSType)
 	if c.GetType() != HTTPType {
@@ -51,7 +51,7 @@ func TestSetType_Idempotent(t *testing.T) {
 }
 
 func TestSetType_ReturnsSelf(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	ret := c.SetType(HTTPType)
 	if ret != c {
 		t.Error(test.DiffMessage(ret, c, "SetType returns self"))
@@ -59,7 +59,7 @@ func TestSetType_ReturnsSelf(t *testing.T) {
 }
 
 func TestSetID_FromHeader(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(RequestID, "test-request-id")
 	c.Init(httptest.NewRecorder(), r)
@@ -69,7 +69,7 @@ func TestSetID_FromHeader(t *testing.T) {
 }
 
 func TestSetID_GeneratedWhenNoHeader(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
 	c.Init(httptest.NewRecorder(), r)
 	if c.id == "" {
@@ -78,7 +78,7 @@ func TestSetID_GeneratedWhenNoHeader(t *testing.T) {
 }
 
 func TestSetID_Idempotent(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
 	c.Init(httptest.NewRecorder(), r)
 	first := c.id
@@ -89,7 +89,7 @@ func TestSetID_Idempotent(t *testing.T) {
 }
 
 func TestGetID(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(RequestID, "abc-123")
 	c.Init(httptest.NewRecorder(), r)
@@ -99,7 +99,7 @@ func TestGetID(t *testing.T) {
 }
 
 func TestReset_ClearsAllFields(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/test", nil)
 	r.Header.Set(RequestID, "some-id")
 	w := httptest.NewRecorder()

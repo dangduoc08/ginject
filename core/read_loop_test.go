@@ -23,15 +23,15 @@ func newTestWSBare(t *testing.T) *WS {
 	t.Helper()
 
 	ws := NewWS(&WSConfig{logger: log.NewLog(nil)})
-	ws.newCtx = func() *ctx.Context {
-		c := ctx.NewContext()
+	ws.newCtx = func() *ctx.HTTPContext {
+		c := ctx.NewHTTPContext()
 		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		return c
 	}
-	ws.releaseCtx = func(c *ctx.Context) {
+	ws.releaseCtx = func(c *ctx.HTTPContext) {
 		c.Reset()
 	}
-	ws.resolveAndCallHandler = func(f any, c *ctx.Context) []reflect.Value {
+	ws.resolveAndCallHandler = func(f any, c *ctx.HTTPContext) []reflect.Value {
 		return invokeHandlerByProviders(f, nil, c)
 	}
 
@@ -242,7 +242,7 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 // way to reach publish's must-already-be-subscribed check at all.
 func TestHandleSubscribe_GuardDenialBlocksSubscribeAndRepliesError(t *testing.T) {
 	ws := newTestWSBare(t)
-	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.Context) {
+	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.HTTPContext) {
 		handleGuard(c, false)
 	})
 	ws.eventMatcher.AddInjectableHandler("chat.to.*", func() {})
@@ -291,7 +291,7 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 
 	// Registered only now, after subscribe succeeded, so this Guard denies
 	// publish specifically without blocking the subscribe step above.
-	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.Context) {
+	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.HTTPContext) {
 		handleGuard(c, false)
 	})
 

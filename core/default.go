@@ -15,7 +15,7 @@ var defaultException = exception.InternalServerErrorException("Unhandled excepti
 
 type globalExceptionFilter struct{}
 
-func (g globalExceptionFilter) Catch(c *ctx.Context, ex *exception.Exception) {
+func (g globalExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception) {
 	code := ex.GetCode()
 	if code == "" {
 		code = defaultException.GetCode()

@@ -27,7 +27,7 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 	app := New()
 	app.Create(ModuleBuilder().Build())
 
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	handler := func() reflect.Value { return reflect.ValueOf("bench") }

@@ -232,7 +232,7 @@ Sets every Helmet response header on the current request and always calls `next`
 - With no fields set, `X-Permitted-Cross-Domain-Policies` is `"none"` (`TestHelmet_Use_SetsDefaultPermittedCrossDomainPolicies`).
 
 #### Parameters
-- 1st parameter: `*ctx.Context` (`c`)
+- 1st parameter: `*ctx.HTTPContext` (`c`)
 
 - Description: The current request context; its response headers are mutated in place.
 

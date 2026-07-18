@@ -46,14 +46,14 @@ GlobalMiddlewares → ModuleMiddlewares → Guards → Interceptors → MainHand
 Each layer is bound with `BindMiddleware(fn, handlers...)`, `BindGuard(fn, handlers...)`, etc. on the `common.Middleware`, `common.Guard`, `common.Interceptor`, `common.ExceptionFilter` embedded fields of a controller.
 
 Interfaces to implement:
-- `MiddlewareFn`: `Use(*ctx.Context, ctx.Next)`
-- `Guarder`: `CanActivate(*ctx.Context) bool`
-- `Interceptable`: `Intercept(*ctx.Context, *aggregation.Aggregation) any`
-- `ExceptionFilterable`: `Catch(*exception.Exception, *ctx.Context)`
+- `MiddlewareFn`: `Use(*ctx.HTTPContext, ctx.Next)`
+- `Guarder`: `CanActivate(*ctx.HTTPContext) bool`
+- `Interceptable`: `Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any`
+- `ExceptionFilterable`: `Catch(*exception.Exception, *ctx.HTTPContext)`
 
 ### Handler Injection
 
-Handler method parameters are injected by type — declare them in the handler signature and the framework resolves them from the request context. Types available: `*ctx.Context`, `*http.Request`, `http.ResponseWriter`, `ctx.Body`, `ctx.Query`, `ctx.Param`, `ctx.Header`, `ctx.Form`, `ctx.File`, `ctx.Next`, `ctx.Redirect`, `ctx.WSPayload`.
+Handler method parameters are injected by type — declare them in the handler signature and the framework resolves them from the request context. Types available: `*ctx.HTTPContext`, `*http.Request`, `http.ResponseWriter`, `ctx.Body`, `ctx.Query`, `ctx.Param`, `ctx.Header`, `ctx.Form`, `ctx.File`, `ctx.Next`, `ctx.Redirect`, `ctx.WSPayload`.
 
 All types are re-exported from the root `ginject` package (`aliases.go`).
 

@@ -14,7 +14,7 @@ const (
 	applicationJSON = "application/json"
 )
 
-func (c *Context) Body() Body {
+func (c *HTTPContext) Body() Body {
 	if c.body != nil {
 		return c.body
 	}

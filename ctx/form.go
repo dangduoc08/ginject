@@ -12,7 +12,7 @@ const (
 	defaultMaxMemory              = 32 << 20
 )
 
-func (c *Context) Form() Form {
+func (c *HTTPContext) Form() Form {
 	if c.form != nil {
 		return c.form
 	}

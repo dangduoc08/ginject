@@ -6,12 +6,12 @@ import (
 	"github.com/dangduoc08/ginject/internal/str"
 )
 
-func (c *Context) Status(code int) *Context {
+func (c *HTTPContext) Status(code int) *HTTPContext {
 	c.Code = code
 	return c
 }
 
-func (c *Context) Text(data string, args ...any) {
+func (c *HTTPContext) Text(data string, args ...any) {
 	c.dataWriter = &Text{
 		data:           data,
 		args:           args,
@@ -21,7 +21,7 @@ func (c *Context) Text(data string, args ...any) {
 	_ = c.Broker.Publish(RequestFinished, c)
 }
 
-func (c *Context) JSON(data ...any) {
+func (c *HTTPContext) JSON(data ...any) {
 	c.dataWriter = &JSON{
 		data:           data,
 		responseWriter: c.ResponseWriter,
@@ -30,7 +30,7 @@ func (c *Context) JSON(data ...any) {
 	_ = c.Broker.Publish(RequestFinished, c)
 }
 
-func (c *Context) JSONP(data ...any) {
+func (c *HTTPContext) JSONP(data ...any) {
 	callback := str.RemoveSpace(c.URL.Query().Get("callback"))
 	if callback == "" {
 		c.JSON(data...)
@@ -46,7 +46,7 @@ func (c *Context) JSONP(data ...any) {
 	_ = c.Broker.Publish(RequestFinished, c)
 }
 
-func (c *Context) Redirect(url string) {
+func (c *HTTPContext) Redirect(url string) {
 	c.Status(http.StatusMovedPermanently)
 	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
 	_ = c.Broker.Publish(RequestFinished, c)

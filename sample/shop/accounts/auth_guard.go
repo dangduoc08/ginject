@@ -26,7 +26,7 @@ func (instance AuthGuard) NewGuard() AuthGuard {
 	return instance
 }
 
-func (instance AuthGuard) CanActivate(c *ctx.Context) bool {
+func (instance AuthGuard) CanActivate(c *ctx.HTTPContext) bool {
 	token := strings.TrimPrefix(c.Header().Get("Authorization"), "Bearer ")
 	if token == "" {
 		return false
@@ -44,7 +44,7 @@ func (instance AuthGuard) CanActivate(c *ctx.Context) bool {
 
 // CurrentUser returns the User attached to c by AuthGuard. It must only be
 // called from handlers placed behind AuthGuard.
-func CurrentUser(c *ctx.Context) User {
+func CurrentUser(c *ctx.HTTPContext) User {
 	user, _ := c.Context().Value(currentUserKey).(User)
 
 	return user

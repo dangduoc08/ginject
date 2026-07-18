@@ -226,9 +226,9 @@ Phát ra hoặc tái sử dụng cookie CSRF, expose token qua request context, 
 - An toàn khi gọi đồng thời từ nhiều goroutine, cho cả request an toàn và request làm thay đổi trạng thái (`TestCSRF_ConcurrentSafeRequests`, `TestCSRF_ConcurrentStateChanging`).
 
 #### Parameters
-- Tham số thứ 1: `*ctx.Context` (`c`)
+- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
 
-- Mô tả: Context của request hiện tại; cookie, header response, và request context của nó bị thay đổi/đọc.
+- Mô tả: HTTPContext của request hiện tại; cookie, header response, và request context của nó bị thay đổi/đọc.
 
 - Tham số thứ 2: `ctx.Next` (`next`)
 

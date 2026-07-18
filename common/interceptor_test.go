@@ -10,7 +10,7 @@ import (
 
 type mockInterceptable struct{}
 
-func (mockInterceptable) Intercept(_ *ctx.Context, _ *aggregation.Aggregation) any { return nil }
+func (mockInterceptable) Intercept(_ *ctx.HTTPContext, _ *aggregation.Aggregation) any { return nil }
 
 func TestBindInterceptor_Chaining(t *testing.T) {
 	i := &Interceptor{}

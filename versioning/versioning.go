@@ -15,7 +15,7 @@ const (
 
 const NeutralVersion = "NEUTRAL"
 
-type ExtractorHandler = func(*ctx.Context) string
+type ExtractorHandler = func(*ctx.HTTPContext) string
 
 type Versioning struct {
 	Type           int
@@ -39,7 +39,7 @@ func (versioning *Versioning) GetTypeString() string {
 	}
 }
 
-func (versioning *Versioning) GetVersion(c *ctx.Context) string {
+func (versioning *Versioning) GetVersion(c *ctx.HTTPContext) string {
 	switch versioning.Type {
 	case QueryVersion:
 		if v := c.Query().Get(versioning.Key); v != "" {

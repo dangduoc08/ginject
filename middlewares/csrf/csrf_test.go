@@ -15,7 +15,7 @@ import (
 
 func noop() {}
 
-func newCSRFContext(method, token, cookieToken string) (*ctx.Context, *httptest.ResponseRecorder) {
+func newCSRFContext(method, token, cookieToken string) (*ctx.HTTPContext, *httptest.ResponseRecorder) {
 	body := ""
 	contentType := ""
 	if token != "" && method != http.MethodGet {
@@ -38,14 +38,14 @@ func newCSRFContext(method, token, cookieToken string) (*ctx.Context, *httptest.
 	}
 
 	rec := httptest.NewRecorder()
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c, rec
 }
 
-func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken string) (*ctx.Context, *httptest.ResponseRecorder) {
+func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken string) (*ctx.HTTPContext, *httptest.ResponseRecorder) {
 	req := httptest.NewRequest(method, "/", nil)
 	if headerToken != "" {
 		req.Header.Set(headerName, headerToken)
@@ -54,7 +54,7 @@ func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken strin
 		req.AddCookie(&http.Cookie{Name: "_csrf", Value: cookieToken})
 	}
 	rec := httptest.NewRecorder()
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})

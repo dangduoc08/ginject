@@ -68,15 +68,15 @@ func newGuard(limit int64, ttl time.Duration, strategy Strategy) Throttler {
 		Limit:    limit,
 		TTL:      ttl,
 		Strategy: strategy,
-		KeyFunc:  func(*ctx.Context) string { return "testkey" },
+		KeyFunc:  func(*ctx.HTTPContext) string { return "testkey" },
 		Backend:  &testCache{items: make(map[string][]byte)},
 	}
 }
 
-func newCtx(remoteAddr string) *ctx.Context {
+func newCtx(remoteAddr string) *ctx.HTTPContext {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = remoteAddr
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = httptest.NewRecorder()
 	return c
@@ -387,7 +387,7 @@ func TestThrottler_WorksWithRealMemoryCache(t *testing.T) {
 		Limit:    3,
 		TTL:      time.Minute,
 		Strategy: FixedWindow,
-		KeyFunc:  func(*ctx.Context) string { return "ip" },
+		KeyFunc:  func(*ctx.HTTPContext) string { return "ip" },
 		Backend:  memcache.NewMemoryCache(),
 	}
 	for i := 0; i < 3; i++ {

@@ -232,9 +232,9 @@ app.BindGlobalMiddlewares(mw)
 - Khi không đặt field nào, `X-Permitted-Cross-Domain-Policies` là `"none"` (`TestHelmet_Use_SetsDefaultPermittedCrossDomainPolicies`).
 
 #### Parameters
-- Tham số thứ 1: `*ctx.Context` (`c`)
+- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
 
-- Mô tả: Context của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
+- Mô tả: HTTPContext của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
 
 - Tham số thứ 2: `ctx.Next` (`next`)
 
