@@ -521,6 +521,25 @@ type catchEventPayload struct {
 	index     int
 }
 
+func normalizeRecovered(rec any) *exception.Exception {
+	if ex, ok := rec.(exception.Exception); ok {
+		return &ex
+	}
+
+	response := http.StatusText(http.StatusInternalServerError)
+	switch arg := rec.(type) {
+	case error:
+		response = arg.Error()
+	case string:
+		response = arg
+	}
+
+	ex := exception.InternalServerErrorException(response, map[string]any{
+		"description": "Unknown exception",
+	})
+	return &ex
+}
+
 func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
 	return func(c *ctx.HTTPContext) {
 		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
@@ -533,28 +552,7 @@ func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handle
 				}
 			}()
 
-			newC := p.reqCtx
-			catchFn := catchFns[catchFnIndex]
-
-			response := http.StatusText(http.StatusInternalServerError)
-
-			switch arg := p.recovered.(type) {
-			case exception.Exception:
-				catchFn(newC, &arg)
-				return
-			case error:
-				response = arg.Error()
-			case string:
-				response = arg
-			case int, int8, int16, int32, int64,
-				uint, uint8, uint16, uint32, uint64,
-				float32, float64, complex64, complex128, uintptr:
-				_ = arg
-			}
-			ex := exception.InternalServerErrorException(response, map[string]any{
-				"description": "Unknown exception",
-			})
-			catchFn(newC, &ex)
+			catchFns[catchFnIndex](p.reqCtx, normalizeRecovered(p.recovered))
 		})
 
 		c.Next()
@@ -583,6 +581,12 @@ func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *ag
 
 func buildUseMiddleware(useFn common.Use) ctx.Handler {
 	return func(c *ctx.HTTPContext) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				globalExceptionFilter{}.Catch(c, normalizeRecovered(rec))
+			}
+		}()
+
 		called := false
 		next := func() {
 			called = true

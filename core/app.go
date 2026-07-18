@@ -150,11 +150,10 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (app *App) Create(m *Module) {
 	app.initLogger()
 	injectedProviders := app.initProviders(m)
-
 	app.initWS(injectedProviders)
+	app.initMiddlewares(injectedProviders)
 	app.initExceptionFilters(injectedProviders)
 	app.bindCatchMiddlewares()
-	app.initMiddlewares(injectedProviders)
 	app.initGuards(injectedProviders)
 	app.initInterceptors(injectedProviders)
 	app.initMainHandlers()

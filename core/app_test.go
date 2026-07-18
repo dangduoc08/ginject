@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/versioning"
 )
@@ -213,5 +215,34 @@ func TestEnableVersioning_Chaining(t *testing.T) {
 	}
 	if !app.http.isVersioningEnabled {
 		t.Error(test.DiffMessage(app.http.isVersioningEnabled, true, "EnableVersioning should set isVersioningEnabled"))
+	}
+}
+
+type panicMiddleware struct{}
+
+func (panicMiddleware) Use(_ *http.Request, _ http.ResponseWriter, _ ctx.Next) {
+	panic(exception.ForbiddenException("nope"))
+}
+
+type panicMiddlewareController struct {
+	common.REST
+}
+
+func (c panicMiddlewareController) NewController() Controller { return c }
+func (c panicMiddlewareController) READ_panicmiddleware() string {
+	return "ok"
+}
+
+func TestGlobalMiddlewarePanic_CaughtByExceptionFilter(t *testing.T) {
+	app := New()
+	app.BindGlobalMiddlewares(panicMiddleware{})
+	app.Create(ModuleBuilder().Controllers(panicMiddlewareController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/panicmiddleware", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusForbidden {
+		t.Error(test.DiffMessage(w.Code, http.StatusForbidden, "a middleware panic must still be caught by the exception filter"))
 	}
 }
