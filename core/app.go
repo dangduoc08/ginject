@@ -171,7 +171,7 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.injectedProviders = injectedProviders
 	app.wsConfig.logger = app.Logger
 	app.wsConfig.resolveAndCallHandler = app.http.resolveAndCallHandler
-	app.wsConfig.newCtx = func() *ctx.HTTPContext { return app.ctxPool.Get().(*ctx.HTTPContext) }
+	app.wsConfig.newCtx = func() *ctx.WSContext { return app.ctxPool.Get().(*ctx.WSContext) }
 	app.wsConfig.releaseCtx = app.releaseCtx
 	app.ws = NewWS(app.wsConfig)
 }
@@ -279,7 +279,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 				panic(err)
 			}
 			gg = common.Construct(newGG.Interface(), "NewGuard").(common.Guarder)
-			mw := func(guard common.Guarder) ctx.Handler {
+			mw := func(guard common.Guarder) ctx.HTTPHandler {
 				return func(c *ctx.HTTPContext) { handleGuard(c, guard.CanActivate(c)) }
 			}(gg)
 			for _, h := range app.module.RESTMainHandlers {
