@@ -232,11 +232,15 @@ Sets every Helmet response header on the current request and always calls `next`
 - With no fields set, `X-Permitted-Cross-Domain-Policies` is `"none"` (`TestHelmet_Use_SetsDefaultPermittedCrossDomainPolicies`).
 
 #### Parameters
-- 1st parameter: `*ctx.HTTPContext` (`c`)
+- 1st parameter: `*http.Request` (`r`)
 
-- Description: The current request context; its response headers are mutated in place.
+- Description: The current request; unused by `Helmet`, but part of the `common.MiddlewareFn` signature.
 
-- 2nd parameter: `ctx.Next` (`next`)
+- 2nd parameter: `http.ResponseWriter` (`w`)
+
+- Description: Its response headers are mutated in place.
+
+- 3rd parameter: `ctx.Next` (`next`)
 
 - Description: Called to pass control to the next handler in the chain.
 
@@ -246,7 +250,7 @@ None.
 #### Usage
 
 ```go
-helmet.Helmet{}.Use(c, next)
+helmet.Helmet{}.Use(r, w, next)
 ```
 
 ## Benchmarks

@@ -171,7 +171,7 @@ func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin 
 	return shouldVaryOrigin
 }
 
-func configureAllowHeaders(header http.Header, requestHeaders ctx.Header, allowHeaders string) bool {
+func configureAllowHeaders(header http.Header, requestHeaders http.Header, allowHeaders string) bool {
 	if allowHeaders != "" {
 		header.Set("Access-Control-Allow-Headers", allowHeaders)
 		return false
@@ -224,24 +224,28 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	return opts
 }
 
-func (m compiledCORS) Use(c *ctx.HTTPContext, next ctx.Next) {
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
+func (m compiledCORS) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
 	opts := m.opts
 
-	requestHeaders := c.Header()
+	requestHeaders := r.Header
 	requestOrigin := requestHeaders.Get("Origin")
 	if requestOrigin == "" {
 		next()
 		return
 	}
 
-	if c.GetType() == ctx.WSType {
+	if isWebSocketUpgrade(r) {
 		if _, matched := matchOrigin(opts.allowOrigin, requestOrigin, opts.isAllowCredentials); matched {
 			next()
 		}
 		return
 	}
 
-	header := c.ResponseWriter.Header()
+	header := w.Header()
 
 	var vary string
 	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.isAllowCredentials, opts.shouldVaryOrigin) {
@@ -254,7 +258,7 @@ func (m compiledCORS) Use(c *ctx.HTTPContext, next ctx.Next) {
 		header.Set("Access-Control-Allow-Credentials", "true")
 	}
 
-	isPreflight := c.Method == http.MethodOptions
+	isPreflight := r.Method == http.MethodOptions
 	if isPreflight {
 		header.Set("Access-Control-Max-Age", opts.maxAge)
 		header.Set("Access-Control-Allow-Methods", opts.allowMethods)
@@ -267,12 +271,10 @@ func (m compiledCORS) Use(c *ctx.HTTPContext, next ctx.Next) {
 
 	if isPreflight {
 		if opts.isPreflightContinue {
-			c.Next()
+			next()
 		} else {
-			c.Status(opts.optionsSuccessStatus)
 			header.Set("Content-Length", "0")
-			c.WriteHeader(opts.optionsSuccessStatus)
-			_ = c.Broker.Publish(ctx.RequestFinished, c)
+			w.WriteHeader(opts.optionsSuccessStatus)
 		}
 
 		return
@@ -281,6 +283,6 @@ func (m compiledCORS) Use(c *ctx.HTTPContext, next ctx.Next) {
 	next()
 }
 
-func (instance CORS) Use(c *ctx.HTTPContext, next ctx.Next) {
-	compiledCORS{opts: loadCORSOptions(&instance)}.Use(c, next)
+func (instance CORS) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
+	compiledCORS{opts: loadCORSOptions(&instance)}.Use(r, w, next)
 }

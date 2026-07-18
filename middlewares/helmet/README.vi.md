@@ -232,11 +232,15 @@ app.BindGlobalMiddlewares(mw)
 - Khi không đặt field nào, `X-Permitted-Cross-Domain-Policies` là `"none"` (`TestHelmet_Use_SetsDefaultPermittedCrossDomainPolicies`).
 
 #### Parameters
-- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
+- Tham số thứ 1: `*http.Request` (`r`)
 
-- Mô tả: HTTPContext của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
+- Mô tả: Request hiện tại; không được `Helmet` dùng đến, nhưng là một phần của chữ ký `common.MiddlewareFn`.
 
-- Tham số thứ 2: `ctx.Next` (`next`)
+- Tham số thứ 2: `http.ResponseWriter` (`w`)
+
+- Mô tả: Các header response của nó bị thay đổi trực tiếp (mutate in place).
+
+- Tham số thứ 3: `ctx.Next` (`next`)
 
 - Mô tả: Được gọi để chuyển quyền xử lý cho handler kế tiếp trong chuỗi.
 
@@ -246,7 +250,7 @@ Không có.
 #### Cách Dùng
 
 ```go
-helmet.Helmet{}.Use(c, next)
+helmet.Helmet{}.Use(r, w, next)
 ```
 
 ## Benchmark

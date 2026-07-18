@@ -260,9 +260,7 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
-			mw := func(middleware common.MiddlewareFn) ctx.Handler {
-				return func(c *ctx.HTTPContext) { middleware.Use(c, c.Next) }
-			}(gm)
+			mw := buildUseMiddleware(gm.Use)
 			app.http.route.Use(mw)
 		}
 	}

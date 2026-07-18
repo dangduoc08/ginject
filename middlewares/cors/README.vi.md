@@ -210,14 +210,18 @@ app.BindGlobalMiddlewares(mw)
 - Một `AllowHeaders`/`ExposeHeaders` dạng string được truyền qua nguyên văn thay vì được join (`TestCORS_Use_AllowHeadersString`, `TestCORS_Use_ExposeHeadersString`).
 - `next` luôn được gọi đối với request không phải `OPTIONS` (`TestCORS_Use_NextCalledForNonOptions`).
 - Đối với request `OPTIONS`, `next` chỉ được gọi khi `IsPreflightContinue` là `true`; ngược lại response được viết ra ngay với `OptionsSuccessStatus` (mặc định `204`, hoặc giá trị đã cấu hình) và `next` không được gọi (`TestCORS_Use_OptionsPreflightContinue`, `TestCORS_Use_OptionsPreflightStatus`, `TestCORS_Use_CustomOptionsSuccessStatus`).
-- Request WebSocket (`ctx.WSType`) dùng đúng các quy tắc so khớp origin giống HTTP, nhưng không bao giờ ghi header response — origin bị từ chối chỉ đơn giản là bỏ qua `next`.
+- Một request handshake WebSocket (nhận diện qua header request `Upgrade: websocket`) dùng đúng các quy tắc so khớp origin giống HTTP, nhưng không bao giờ ghi header response — origin bị từ chối chỉ đơn giản là bỏ qua `next`.
 
 #### Parameters
-- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
+- Tham số thứ 1: `*http.Request` (`r`)
 
-- Mô tả: HTTPContext của request hiện tại; các header response của nó bị thay đổi trực tiếp (mutate in place).
+- Mô tả: Request hiện tại; các header của nó (`Origin`, `Upgrade`) được đọc để quyết định hành vi CORS.
 
-- Tham số thứ 2: `ctx.Next` (`next`)
+- Tham số thứ 2: `http.ResponseWriter` (`w`)
+
+- Mô tả: Response writer mà các header CORS được set lên, và — khi preflight bị short-circuit — status được ghi trực tiếp vào đó.
+
+- Tham số thứ 3: `ctx.Next` (`next`)
 
 - Mô tả: Được gọi để chuyển quyền xử lý cho handler kế tiếp trong chuỗi.
 
@@ -227,7 +231,7 @@ Không có.
 #### Cách Dùng
 
 ```go
-cors.CORS{AllowOrigin: "https://example.com"}.Use(c, next)
+cors.CORS{AllowOrigin: "https://example.com"}.Use(r, w, next)
 ```
 
 ## Benchmark

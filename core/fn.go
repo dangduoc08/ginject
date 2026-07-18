@@ -582,7 +582,19 @@ func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *ag
 }
 
 func buildUseMiddleware(useFn common.Use) ctx.Handler {
-	return func(c *ctx.HTTPContext) { useFn(c, c.Next) }
+	return func(c *ctx.HTTPContext) {
+		called := false
+		next := func() {
+			called = true
+			c.Next()
+		}
+
+		useFn(c.Request, c.ResponseWriter, next)
+
+		if !called {
+			_ = c.Broker.Publish(ctx.RequestFinished, c)
+		}
+	}
 }
 
 func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
