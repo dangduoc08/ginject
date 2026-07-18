@@ -234,6 +234,7 @@ func (c panicMiddlewareController) READ_panicmiddleware() string {
 }
 
 func TestGlobalMiddlewarePanic_CaughtByExceptionFilter(t *testing.T) {
+	resetModuleGlobals()
 	app := New()
 	app.BindGlobalMiddlewares(panicMiddleware{})
 	app.Create(ModuleBuilder().Controllers(panicMiddlewareController{}).Build())
@@ -245,4 +246,45 @@ func TestGlobalMiddlewarePanic_CaughtByExceptionFilter(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Error(test.DiffMessage(w.Code, http.StatusForbidden, "a middleware panic must still be caught by the exception filter"))
 	}
+}
+
+type denyGlobalGuard struct{}
+
+func (denyGlobalGuard) CanActivate(_ *ctx.HTTPContext) bool { return false }
+
+type shapelessGlobalGuard struct{}
+
+type globalGuardController struct {
+	common.REST
+}
+
+func (c globalGuardController) NewController() Controller { return c }
+func (c globalGuardController) READ_globalguard() string  { return "ok" }
+
+func TestGlobalGuard_DeniesRESTRequest(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+	app.BindGlobalGuards(denyGlobalGuard{})
+	app.Create(ModuleBuilder().Controllers(globalGuardController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/globalguard", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusForbidden {
+		t.Error(test.DiffMessage(w.Code, http.StatusForbidden, "a denying global guard must block the REST request"))
+	}
+}
+
+func TestGlobalGuard_ShapelessGuardPanicsOnCreate(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+	app.BindGlobalGuards(shapelessGlobalGuard{})
+
+	defer func() {
+		if rec := recover(); rec == nil {
+			t.Error(test.DiffMessage(nil, "panic", "a global guard with no CanActivate method must panic at Create"))
+		}
+	}()
+	app.Create(ModuleBuilder().Controllers(globalGuardController{}).Build())
 }

@@ -1,31 +1,15 @@
 package common
 
 import (
+	"errors"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/internal/str"
-	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
-type CanActivate = func(*ctx.HTTPContext) bool
+const GuardMethodName = "CanActivate"
 
-type Guarder interface {
-	CanActivate(*ctx.HTTPContext) bool
-}
-
-type RESTGuardItem struct {
-	Method  string
-	Route   string
-	Version string
-	Pattern string
-	Common  CommonItem
-}
-
-type WSGuardItem struct {
-	EventName string
-	Common    CommonItem
-}
+type Guarder any
 
 type GuardItem struct {
 	REST RESTGuardItem
@@ -51,95 +35,10 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 	return g
 }
 
-func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := make([]GuardItem, 0, len(r.PatternToFuncNameMap)*len(g.GuardHandlers))
-
-	for _, guardHandler := range g.GuardHandlers {
-		guarderType := reflect.TypeOf(guardHandler.guarder)
-		guarderValue := reflect.ValueOf(guardHandler.guarder)
-		newGuard := reflect.New(guarderType)
-
-		for i := 0; i < guarderType.NumField(); i++ {
-			cb(i, guarderType, guarderValue, newGuard)
-		}
-
-		newGuarder := newGuard.Interface()
-		newGuarder = Construct(newGuarder, "NewGuard")
-		guardHandler.guarder = newGuarder.(Guarder)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range guardHandler.handlers {
-			fnName := GetFuncName(handler)
-			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				targetedPatterns[pattern] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || targetedPatterns[pattern] {
-				method, route, version := routing.PatternToMethodRouteVersion(pattern)
-				httpMethod := routing.OperationsMapHTTPMethods[method]
-
-				guardItemArr = append(guardItemArr, GuardItem{
-					REST: RESTGuardItem{
-						Method:  httpMethod,
-						Route:   str.Enclose(route, '/'),
-						Version: version,
-						Pattern: pattern,
-						Common: CommonItem{
-							Handler:         guardHandler.guarder.CanActivate,
-							Name:            guarderType.String(),
-							MainHandlerName: r.PatternToFuncNameMap[pattern],
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return guardItemArr
-}
-
-func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
-	guardItemArr := make([]GuardItem, 0, len(ws.funcNameByEvent)*len(g.GuardHandlers))
-
-	for _, guardHandler := range g.GuardHandlers {
-		guarderType := reflect.TypeOf(guardHandler.guarder)
-		guarderValue := reflect.ValueOf(guardHandler.guarder)
-		newGuard := reflect.New(guarderType)
-
-		for i := 0; i < guarderType.NumField(); i++ {
-			cb(i, guarderType, guarderValue, newGuard)
-		}
-
-		newGuarder := newGuard.Interface()
-		newGuarder = Construct(newGuarder, "NewGuard")
-		guardHandler.guarder = newGuarder.(Guarder)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range guardHandler.handlers {
-			fnName := GetFuncName(handler)
-			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				targetedPatterns[event] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range ws.funcNameByEvent {
-			if applyAll || targetedPatterns[pattern] {
-				guardItemArr = append(guardItemArr, GuardItem{
-					WS: WSGuardItem{
-						EventName: pattern,
-						Common: CommonItem{
-							Handler: guardHandler.guarder.CanActivate,
-							Name:    guarderType.String(),
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return guardItemArr
+func GuardShapeError(guarder any) error {
+	return errors.New(color.FmtRed(
+		"invalid handler: %v has no %s method usable as a guard",
+		reflect.TypeOf(guarder),
+		GuardMethodName,
+	))
 }

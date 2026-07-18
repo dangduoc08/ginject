@@ -16,14 +16,10 @@ func BenchmarkInjectProvidersIntoRESTGuards_ApplyAll(b *testing.B) {
 	}
 }
 
-func BenchmarkInjectProvidersIntoWSGuards_ApplyAll(b *testing.B) {
-	ws := buildBenchWS(20)
+func BenchmarkAsRESTGuard(b *testing.B) {
+	guarder := mockGuarder{}
 	b.ResetTimer()
 	for range b.N {
-		g := &Guard{}
-		g.BindGuard(mockGuarder{})
-		g.BindGuard(mockGuarder{})
-		g.BindGuard(mockGuarder{})
-		g.InjectProvidersIntoWSGuards(ws, benchCB)
+		_, _ = AsRESTGuard(guarder)
 	}
 }

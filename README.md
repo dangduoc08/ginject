@@ -311,7 +311,7 @@ c.BindMiddleware(LogMiddleware{}, c.CREATE_VERSION_1)  // specific handler only
 
 ### Guard
 
-Implement `CanActivate(*ctx.HTTPContext) bool`. Returning `false` responds with 403 Forbidden:
+Implement `CanActivate(*ctx.HTTPContext) bool` for a REST guard, or `CanActivate(*ctx.WSContext) bool` for a WS guard. Ginject inspects the bound guard's `CanActivate` signature to tell which one it is — a REST-shaped guard only ever runs for REST routes, a WS-shaped guard only for WS events. Returning `false` responds with 403 Forbidden:
 
 ```go
 type AuthGuard struct {
