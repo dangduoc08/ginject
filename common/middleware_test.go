@@ -1,6 +1,7 @@
 package common
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
@@ -9,7 +10,7 @@ import (
 
 type mockMiddlewareFn struct{}
 
-func (mockMiddlewareFn) Use(_ *ctx.HTTPContext, _ ctx.Next) {}
+func (mockMiddlewareFn) Use(_ *http.Request, _ http.ResponseWriter, _ ctx.Next) {}
 
 func TestBindMiddleware_Chaining(t *testing.T) {
 	m := &Middleware{}

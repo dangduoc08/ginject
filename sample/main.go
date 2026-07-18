@@ -5,7 +5,6 @@ import (
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/middlewares/cors"
 	"github.com/dangduoc08/ginject/middlewares/helmet"
-	"github.com/dangduoc08/ginject/middlewares/requestlogger"
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
@@ -21,7 +20,7 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(cors.CORS{}, requestlogger.RequestLogger{}, helmet.Helmet{}).
+		BindGlobalMiddlewares(cors.CORS{}, helmet.Helmet{}).
 		BindGlobalInterceptors(shared.ResponseInterceptor{})
 
 	// app.

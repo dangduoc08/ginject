@@ -283,15 +283,15 @@ Each layer runs per-request. Exception filters catch panics from any layer.
 
 ### Middleware
 
-Implement `Use(*ctx.HTTPContext, ctx.Next)`:
+Implement `Use(*http.Request, http.ResponseWriter, ctx.Next)`:
 
 ```go
 type LogMiddleware struct {
     common.Logger
 }
 
-func (m LogMiddleware) Use(c *ctx.HTTPContext, next ctx.Next) {
-    m.Info("request", "path", c.URL.Path)
+func (m LogMiddleware) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
+    m.Info("request", "path", r.URL.Path)
     next()
 }
 ```

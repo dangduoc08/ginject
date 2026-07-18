@@ -183,7 +183,7 @@ func TestCSRF_SafeMethod_GET(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodGet, "", "")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "GET must pass through"))
 	}
@@ -193,7 +193,7 @@ func TestCSRF_SafeMethod_HEAD(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodHead, "", "")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "HEAD must pass through"))
 	}
@@ -203,7 +203,7 @@ func TestCSRF_SafeMethod_OPTIONS(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodOptions, "", "")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "OPTIONS must pass through"))
 	}
@@ -214,7 +214,7 @@ func TestCSRF_SafeMethod_OPTIONS(t *testing.T) {
 func TestCSRF_SetsCookieWhenMissing(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, rec := newCSRFContext(http.MethodGet, "", "")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	cookies := rec.Result().Cookies()
 	found := false
 	for _, ck := range cookies {
@@ -230,7 +230,7 @@ func TestCSRF_SetsCookieWhenMissing(t *testing.T) {
 func TestCSRF_ReusesExistingCookie(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, rec := newCSRFContext(http.MethodGet, "", "existingtoken")
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 	for _, ck := range rec.Result().Cookies() {
 		if ck.Name == csrfDefaultCookieName {
 			t.Error(test.DiffMessage("cookie set", "no new cookie", "must not overwrite existing cookie"))
@@ -243,7 +243,7 @@ func TestCSRF_ReusesExistingCookie(t *testing.T) {
 func TestCSRF_StoresTokenInContext(t *testing.T) {
 	mw := CSRF{ContextKey: "csrf_token"}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodGet, "", "mytoken")
-	mw.Use(c, func() {
+	mw.Use(c.Request, c.ResponseWriter, func() {
 		val := c.Request.Context().Value("csrf_token")
 		if val != "mytoken" {
 			t.Error(test.DiffMessage(val, "mytoken", "token must be stored in request context"))
@@ -257,7 +257,7 @@ func TestCSRF_POST_ValidHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "POST with valid header token must pass"))
 	}
@@ -267,7 +267,7 @@ func TestCSRF_POST_ValidAltHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfAltHeader, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "POST with X-XSRF-TOKEN must pass"))
 	}
@@ -277,7 +277,7 @@ func TestCSRF_POST_ValidFormField(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodPost, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "POST with valid form field must pass"))
 	}
@@ -287,7 +287,7 @@ func TestCSRF_PUT_ValidHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodPut, csrfDefaultHeaderName, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "PUT with valid token must pass"))
 	}
@@ -297,7 +297,7 @@ func TestCSRF_PATCH_ValidHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodPatch, csrfDefaultHeaderName, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "PATCH with valid token must pass"))
 	}
@@ -307,7 +307,7 @@ func TestCSRF_DELETE_ValidHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodDelete, csrfDefaultHeaderName, "tok", "tok")
 	called := false
-	mw.Use(c, func() { called = true })
+	mw.Use(c.Request, c.ResponseWriter, func() { called = true })
 	if !called {
 		t.Error(test.DiffMessage(called, true, "DELETE with valid token must pass"))
 	}
@@ -323,7 +323,7 @@ func TestCSRF_POST_MissingToken_Panics(t *testing.T) {
 			t.Error(test.DiffMessage(nil, "panic", "missing token must panic"))
 		}
 	}()
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 }
 
 func TestCSRF_POST_WrongToken_Panics(t *testing.T) {
@@ -334,7 +334,7 @@ func TestCSRF_POST_WrongToken_Panics(t *testing.T) {
 			t.Error(test.DiffMessage(nil, "panic", "wrong token must panic"))
 		}
 	}()
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 }
 
 func TestCSRF_POST_SpecialCharsToken_Panics(t *testing.T) {
@@ -345,7 +345,7 @@ func TestCSRF_POST_SpecialCharsToken_Panics(t *testing.T) {
 			t.Error(test.DiffMessage(nil, "panic", "path traversal token must panic"))
 		}
 	}()
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 }
 
 func TestCSRF_POST_EmptyToken_Panics(t *testing.T) {
@@ -356,7 +356,7 @@ func TestCSRF_POST_EmptyToken_Panics(t *testing.T) {
 			t.Error(test.DiffMessage(nil, "panic", "empty submitted token must panic"))
 		}
 	}()
-	mw.Use(c, noop)
+	mw.Use(c.Request, c.ResponseWriter, noop)
 }
 
 // --- NewMiddleware pre-compilation ---
@@ -378,7 +378,7 @@ func TestCSRF_ConcurrentSafeRequests(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			c, _ := newCSRFContext(http.MethodGet, "", "")
-			mw.Use(c, noop)
+			mw.Use(c.Request, c.ResponseWriter, noop)
 		}()
 	}
 	wg.Wait()
@@ -392,7 +392,7 @@ func TestCSRF_ConcurrentStateChanging(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "tok", "tok")
-			mw.Use(c, noop)
+			mw.Use(c.Request, c.ResponseWriter, noop)
 		}()
 	}
 	wg.Wait()

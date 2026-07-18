@@ -1,6 +1,7 @@
 package helmet
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/dangduoc08/ginject/common"
@@ -105,10 +106,10 @@ func loadHelmetOptions(h *Helmet) *helmetOptions {
 	return opts
 }
 
-func (m compiledHelmet) Use(c *ctx.HTTPContext, next ctx.Next) {
+func (m compiledHelmet) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
 	opts := m.opts
 
-	rh := c.ResponseWriter.Header()
+	rh := w.Header()
 	rh.Set("Content-Security-Policy", opts.contentSecurityPolicy)
 	rh.Set("Cross-Origin-Embedder-Policy", opts.crossOriginEmbedderPolicy)
 	rh.Set("Cross-Origin-Opener-Policy", opts.crossOriginOpenerPolicy)
@@ -129,6 +130,6 @@ func (m compiledHelmet) Use(c *ctx.HTTPContext, next ctx.Next) {
 	next()
 }
 
-func (instance Helmet) Use(c *ctx.HTTPContext, next ctx.Next) {
-	compiledHelmet{opts: loadHelmetOptions(&instance)}.Use(c, next)
+func (instance Helmet) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
+	compiledHelmet{opts: loadHelmetOptions(&instance)}.Use(r, w, next)
 }

@@ -218,7 +218,7 @@ Issues or reuses the CSRF cookie, exposes the token via the request context, and
 - `GET`, `HEAD`, and `OPTIONS` requests always call `next` without verifying a token (`TestCSRF_SafeMethod_GET`, `TestCSRF_SafeMethod_HEAD`, `TestCSRF_SafeMethod_OPTIONS`).
 - If the configured cookie is missing, a new token is generated and set on a cookie of that name (`TestCSRF_SetsCookieWhenMissing`).
 - If the configured cookie already has a value, no new cookie is set — the existing token is reused (`TestCSRF_ReusesExistingCookie`).
-- The resolved token is stored in the request context under `ContextKey`, readable via `c.Request.Context().Value(ContextKey)` (`TestCSRF_StoresTokenInContext`).
+- The resolved token is stored in the request context under `ContextKey`, readable via `r.Context().Value(ContextKey)` (`TestCSRF_StoresTokenInContext`).
 - For `POST`, `PUT`, `PATCH`, and `DELETE` requests, a token submitted via `HeaderName` that matches the cookie token allows the request through (`TestCSRF_POST_ValidHeader`, `TestCSRF_PUT_ValidHeader`, `TestCSRF_PATCH_ValidHeader`, `TestCSRF_DELETE_ValidHeader`).
 - A token submitted via the `X-XSRF-TOKEN` header is also accepted, even when `HeaderName` is unset to its default (`TestCSRF_POST_ValidAltHeader`).
 - A token submitted via the `_csrf` form field is accepted when no header token is present (`TestCSRF_POST_ValidFormField`).
@@ -226,11 +226,15 @@ Issues or reuses the CSRF cookie, exposes the token via the request context, and
 - Safe to call concurrently from multiple goroutines, for both safe and state-changing requests (`TestCSRF_ConcurrentSafeRequests`, `TestCSRF_ConcurrentStateChanging`).
 
 #### Parameters
-- 1st parameter: `*ctx.HTTPContext` (`c`)
+- 1st parameter: `*http.Request` (`r`)
 
-- Description: The current request context; its cookies, response headers, and request context are mutated/read.
+- Description: The current request; its cookies and method are read, and its context is replaced in place (via `*r = *r.WithContext(...)`, so the caller's `*ctx.HTTPContext` sees the update too) to carry the resolved token downstream.
 
-- 2nd parameter: `ctx.Next` (`next`)
+- 2nd parameter: `http.ResponseWriter` (`w`)
+
+- Description: The CSRF cookie is set on this when a new token is generated.
+
+- 3rd parameter: `ctx.Next` (`next`)
 
 - Description: Called to pass control to the next handler in the chain.
 
@@ -240,7 +244,7 @@ None.
 #### Usage
 
 ```go
-csrf.CSRF{}.Use(c, next)
+csrf.CSRF{}.Use(r, w, next)
 ```
 
 ## Benchmarks

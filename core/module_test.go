@@ -1,6 +1,7 @@
 package core
 
 import (
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -201,7 +202,7 @@ type mtSimpleMiddleware struct{ P mtLocalProvider }
 
 var mtSimpleMiddlewareSeen mtSimpleMiddleware
 
-func (mw mtSimpleMiddleware) Use(_ *ctx.HTTPContext, next ctx.Next) {
+func (mw mtSimpleMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) {
 	mtSimpleMiddlewareSeen = mw
 	next()
 }
@@ -388,12 +389,12 @@ func TestNewModule_RESTMiddlewareInjection_LocalProviderRegistered(t *testing.T)
 	if len(m.RESTMiddlewares) != 1 {
 		t.Fatalf("expected 1 REST middleware, got %d", len(m.RESTMiddlewares))
 	}
-	handler, ok := m.RESTMiddlewares[0].Handler.(func(*ctx.HTTPContext, ctx.Next))
+	handler, ok := m.RESTMiddlewares[0].Handler.(func(*http.Request, http.ResponseWriter, ctx.Next))
 	if !ok {
 		t.Fatalf("unexpected REST middleware handler type %T", m.RESTMiddlewares[0].Handler)
 	}
 	called := false
-	handler(nil, func() { called = true })
+	handler(nil, nil, func() { called = true })
 
 	if !called {
 		t.Error(test.DiffMessage(false, true, "REST middleware should call next()"))
