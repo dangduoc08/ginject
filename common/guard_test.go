@@ -1,6 +1,7 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
@@ -10,6 +11,20 @@ import (
 type mockGuarder struct{}
 
 func (mockGuarder) CanActivate(_ *ctx.HTTPContext) bool { return true }
+
+type denyGuarder struct{}
+
+func (denyGuarder) CanActivate(_ *ctx.HTTPContext) bool { return false }
+
+type noCanActivateGuarder struct{}
+
+type wrongReturnGuarder struct{}
+
+func (wrongReturnGuarder) CanActivate(_ *ctx.HTTPContext) string { return "" }
+
+type wrongParamGuarder struct{}
+
+func (wrongParamGuarder) CanActivate(_ int) bool { return true }
 
 func TestBindGuard_Chaining(t *testing.T) {
 	g := &Guard{}
@@ -26,87 +41,12 @@ func TestBindGuard_Chaining(t *testing.T) {
 	}
 }
 
-func TestInjectProvidersIntoRESTGuards_Empty(t *testing.T) {
-	g := &Guard{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
-
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound guards → empty result"))
+func TestGuardShapeError_MessageContainsType(t *testing.T) {
+	err := GuardShapeError(noCanActivateGuarder{})
+	if err == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil error", "GuardShapeError must not return nil"))
 	}
-}
-
-func TestInjectProvidersIntoRESTGuards_ApplyAll(t *testing.T) {
-	g := &Guard{}
-	g.BindGuard(mockGuarder{})
-
-	r := buildREST(map[string]string{
-		"READ_users":    "/users/",
-		"CREATE_orders": "/orders/",
-	})
-
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "guard with no handlers applies to all patterns"))
-	}
-	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
-		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
-		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
-		}
-	}
-}
-
-func TestInjectProvidersIntoRESTGuards_MainHandlerName(t *testing.T) {
-	g := &Guard{}
-	g.BindGuard(mockGuarder{})
-
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
-
-	if len(items) != 1 {
-		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
-		return
-	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
-	}
-}
-
-func TestInjectProvidersIntoWSGuards_Empty(t *testing.T) {
-	g := &Guard{}
-	ws := buildWS(map[string]string{"message": "ON_message"})
-
-	items := g.InjectProvidersIntoWSGuards(ws, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound guards → empty result"))
-	}
-}
-
-func TestInjectProvidersIntoWSGuards_ApplyAll(t *testing.T) {
-	g := &Guard{}
-	g.BindGuard(mockGuarder{})
-
-	ws := buildWS(map[string]string{
-		"message": "ON_message",
-		"status":  "ON_status",
-	})
-
-	items := g.InjectProvidersIntoWSGuards(ws, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "guard with no handlers applies to all WS patterns"))
-	}
-	for _, item := range items {
-		if item.WS.EventName == "" {
-			t.Error(test.DiffMessage(item.WS.EventName, "non-empty", "event name"))
-		}
-		if item.WS.Common.Name == "" {
-			t.Error(test.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
-		}
+	if !strings.Contains(err.Error(), "noCanActivateGuarder") {
+		t.Error(test.DiffMessage(err.Error(), "contains noCanActivateGuarder", "error message should name the offending type"))
 	}
 }

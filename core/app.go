@@ -278,29 +278,39 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			if err != nil {
 				panic(err)
 			}
-			gg = common.Construct(newGG.Interface(), "NewGuard").(common.Guarder)
-			mw := func(guard common.Guarder) ctx.HTTPHandler {
-				return func(c *ctx.HTTPContext) { handleGuard(c, guard.CanActivate(c)) }
-			}(gg)
-			for _, h := range app.module.RESTMainHandlers {
-				httpMethod := routing.OperationsMapHTTPMethods[h.Method]
-				app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
+			guarder := common.Construct(newGG.Interface(), "NewGuard")
+
+			restCanActivate, isRESTGuard := common.AsRESTGuard(guarder)
+			wsCanActivate, isWSGuard := common.AsWSGuard(guarder)
+			if !isRESTGuard && !isWSGuard {
+				panic(common.GuardShapeError(guarder))
 			}
 
-			for _, h := range app.module.WSMainHandlers {
-				app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
+			if isRESTGuard {
+				mw := common.BuildHTTPGuardMiddleware(restCanActivate)
+				for _, h := range app.module.RESTMainHandlers {
+					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
+					app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
+				}
+			}
+
+			if isWSGuard {
+				mw := common.BuildWSGuardMiddleware(wsCanActivate)
+				for _, h := range app.module.WSMainHandlers {
+					app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
+				}
 			}
 		}
 	}
 
 	for _, mg := range app.module.RESTGuards {
-		mw := buildGuardMiddleware(mg.Handler.(common.CanActivate))
+		mw := common.BuildHTTPGuardMiddleware(mg.Handler.(common.RESTCanActivate))
 		httpMethod := routing.OperationsMapHTTPMethods[mg.Method]
 		app.http.route.For([]string{httpMethod}, mg.Route, mg.Version)(mw)
 	}
 
 	for _, mg := range app.module.WSGuards {
-		mw := buildGuardMiddleware(mg.Handler.(common.CanActivate))
+		mw := common.BuildWSGuardMiddleware(mg.Handler.(common.WSCanActivate))
 		app.ws.eventMatcher.AddMiddlewares(mg.EventName, mw)
 	}
 }
