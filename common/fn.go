@@ -160,33 +160,42 @@ func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 	if _, ok := WSOperations[op]; !ok {
 		return "", false
 	}
-	parts := strings.Split(rest, "_")
-	segs := parts[:0]
-	for _, p := range parts {
-		switch p {
-		case "":
-		case TokenAny:
-			segs = append(segs, "*")
-		default:
-			segs = append(segs, strings.ToLower(p))
+	var b strings.Builder
+	b.Grow(len(rest))
+	hasSeg := false
+	for rest != "" {
+		var p string
+		p, rest, _ = strings.Cut(rest, "_")
+		if p == "" {
+			continue
 		}
+		if hasSeg {
+			b.WriteByte('.')
+		}
+		if p == TokenAny {
+			b.WriteByte('*')
+		} else {
+			b.WriteString(strings.ToLower(p))
+		}
+		hasSeg = true
 	}
-	if len(segs) == 0 {
+	if !hasSeg {
 		return "", false
 	}
-	return strings.Join(segs, "."), true
+	return b.String(), true
 }
 
 func Construct(obj any, constructor string) any {
 	newObjValue := reflect.ValueOf(obj)
-	if newObj, ok := singletons[newObjValue.String()]; ok {
+	key := newObjValue.Type().String()
+	if newObj, ok := singletons[key]; ok {
 		return newObj
 	}
 
 	objConstructor := newObjValue.MethodByName(constructor)
 	if objConstructor.IsValid() {
-		obj = objConstructor.Call([]reflect.Value{})[0].Interface()
-		singletons[newObjValue.String()] = obj
+		obj = objConstructor.Call(nil)[0].Interface()
+		singletons[key] = obj
 	}
 
 	return obj

@@ -24,3 +24,22 @@ func BenchmarkParseFnNameToURL_Complex(b *testing.B) {
 		)
 	}
 }
+
+func BenchmarkParseWSFuncNameToEvent(b *testing.B) {
+	for range b.N {
+		ParseWSFuncNameToEvent("SUBSCRIBE_chat_to_user_ANY")
+	}
+}
+
+func BenchmarkToWSEventName(b *testing.B) {
+	for range b.N {
+		ToWSEventName("/room/events/")
+	}
+}
+
+func BenchmarkConstruct(b *testing.B) {
+	obj := constructTestType{}
+	for range b.N {
+		Construct(obj, "NewTestProvider")
+	}
+}

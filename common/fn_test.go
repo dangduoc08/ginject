@@ -141,3 +141,35 @@ func TestParseFnNameToURL_ParamWithoutPath(t *testing.T) {
 	}
 }
 
+type constructTestType struct{ id int }
+
+var constructTestCallCount int
+
+func (constructTestType) NewTestProvider() any {
+	constructTestCallCount++
+	return constructTestType{id: constructTestCallCount}
+}
+
+func TestConstruct_CachesSingletonPerType(t *testing.T) {
+	constructTestCallCount = 0
+
+	first := Construct(constructTestType{}, "NewTestProvider")
+	second := Construct(constructTestType{}, "NewTestProvider")
+
+	if constructTestCallCount != 1 {
+		t.Error(test.DiffMessage(constructTestCallCount, 1, "constructor should run exactly once"))
+	}
+	if first != second {
+		t.Error(test.DiffMessage(second, first, "Construct should return the cached singleton"))
+	}
+}
+
+type constructNoCtorType struct{ v int }
+
+func TestConstruct_MissingConstructorReturnsInputUnchanged(t *testing.T) {
+	in := constructNoCtorType{v: 5}
+	got := Construct(in, "DoesNotExist")
+	if got != in {
+		t.Error(test.DiffMessage(got, in, "Construct with unknown constructor should return input unchanged"))
+	}
+}
