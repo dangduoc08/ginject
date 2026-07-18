@@ -9,22 +9,22 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func makeCtxWithQuery(key, val string) *ctx.Context {
-	c := ctx.NewContext()
+func makeCtxWithQuery(key, val string) *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	u := &url.URL{RawQuery: url.Values{key: {val}}.Encode()}
 	c.Request = &http.Request{URL: u}
 	return c
 }
 
-func makeCtxWithHeader(key, val string) *ctx.Context {
-	c := ctx.NewContext()
+func makeCtxWithHeader(key, val string) *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	h := http.Header{key: {val}}
 	c.Request = &http.Request{Header: h}
 	return c
 }
 
-func makeCtxEmpty() *ctx.Context {
-	c := ctx.NewContext()
+func makeCtxEmpty() *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	u := &url.URL{RawQuery: ""}
 	c.Request = &http.Request{URL: u, Header: http.Header{}}
 	return c
@@ -71,7 +71,7 @@ func TestGetVersion_Custom(t *testing.T) {
 	v := &Versioning{
 		Type:           CustomVersion,
 		DefaultVersion: "v1",
-		Extractor:      func(c *ctx.Context) string { return "v9" },
+		Extractor:      func(c *ctx.HTTPContext) string { return "v9" },
 	}
 
 	got := v.GetVersion(makeCtxEmpty())

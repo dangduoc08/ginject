@@ -17,7 +17,7 @@ func TestAggregation_ConcurrentTransformAndGetAggregationOperators_RequiresExter
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			a.Transform(func(c *ctx.Context, data any) any { return data })
+			a.Transform(func(c *ctx.HTTPContext, data any) any { return data })
 			_ = a.GetAggregationOperators(OperatorTransform)
 		}()
 	}

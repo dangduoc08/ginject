@@ -9,7 +9,7 @@ import (
 )
 
 func BenchmarkSetID_FromHeader(b *testing.B) {
-	c := &Context{Broker: broker.New()}
+	c := &HTTPContext{Broker: broker.New()}
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set(RequestID, "bench-request-id")
 	b.ResetTimer()
@@ -21,7 +21,7 @@ func BenchmarkSetID_FromHeader(b *testing.B) {
 }
 
 func BenchmarkSetID_Generated(b *testing.B) {
-	c := &Context{Broker: broker.New()}
+	c := &HTTPContext{Broker: broker.New()}
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

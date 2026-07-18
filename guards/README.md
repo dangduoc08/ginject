@@ -11,7 +11,7 @@ Rate limiter guard. Panics with HTTP 429 when the limit is exceeded. Sets rate-l
 | `Limit`    | `int64`                     | `100`                     | Max requests per TTL window          |
 | `TTL`      | `time.Duration`             | `time.Minute`             | Window duration / token refill period |
 | `Strategy` | `Strategy`                  | `FixedWindow`             | `FixedWindow`, `SlidingWindow`, `TokenBucket` |
-| `KeyFunc`  | `func(*ctx.Context) string` | client IP (see below)     | Extracts the rate-limit key          |
+| `KeyFunc`  | `func(*ctx.HTTPContext) string` | client IP (see below)     | Extracts the rate-limit key          |
 | `Store`    | `cache.Cache`               | in-process memory cache   | Backend for storing counters         |
 
 ### Response headers
@@ -60,7 +60,7 @@ ctrl.BindGuard(guards.NewThrottler(guards.ThrottlerOptions{Limit: 100}))
 guards.NewThrottler(guards.ThrottlerOptions{
     Limit: 1000,
     TTL:   time.Hour,
-    KeyFunc: func(c *ctx.Context) string {
+    KeyFunc: func(c *ctx.HTTPContext) string {
         return c.Request.Header.Get("X-User-ID")
     },
 })

@@ -10,13 +10,13 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-func newBenchContext(method, origin string) *ctx.Context {
+func newBenchContext(method, origin string) *ctx.HTTPContext {
 	req := httptest.NewRequest(method, "/", nil)
 	if origin != "" {
 		req.Header.Set("Origin", origin)
 	}
 	rec := httptest.NewRecorder()
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})

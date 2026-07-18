@@ -182,7 +182,7 @@ type mtPriorityGuard struct {
 
 var mtPriorityGuardSeen mtPriorityGuard
 
-func (g mtPriorityGuard) CanActivate(_ *ctx.Context) bool {
+func (g mtPriorityGuard) CanActivate(_ *ctx.HTTPContext) bool {
 	mtPriorityGuardSeen = g
 	return true
 }
@@ -191,17 +191,17 @@ type mtUnexportedFieldGuard struct {
 	hidden mtLocalProvider //nolint:unused // exists only so reflection finds an unexported field
 }
 
-func (g mtUnexportedFieldGuard) CanActivate(_ *ctx.Context) bool { return true }
+func (g mtUnexportedFieldGuard) CanActivate(_ *ctx.HTTPContext) bool { return true }
 
 type mtUnresolvedFieldGuard struct{ Missing mtUnresolvedProvider }
 
-func (g mtUnresolvedFieldGuard) CanActivate(_ *ctx.Context) bool { return true }
+func (g mtUnresolvedFieldGuard) CanActivate(_ *ctx.HTTPContext) bool { return true }
 
 type mtSimpleMiddleware struct{ P mtLocalProvider }
 
 var mtSimpleMiddlewareSeen mtSimpleMiddleware
 
-func (mw mtSimpleMiddleware) Use(_ *ctx.Context, next ctx.Next) {
+func (mw mtSimpleMiddleware) Use(_ *ctx.HTTPContext, next ctx.Next) {
 	mtSimpleMiddlewareSeen = mw
 	next()
 }
@@ -210,7 +210,7 @@ type mtSimpleInterceptor struct{ P mtLocalProvider }
 
 var mtSimpleInterceptorSeen mtSimpleInterceptor
 
-func (ic mtSimpleInterceptor) Intercept(_ *ctx.Context, _ *aggregation.Aggregation) any {
+func (ic mtSimpleInterceptor) Intercept(_ *ctx.HTTPContext, _ *aggregation.Aggregation) any {
 	mtSimpleInterceptorSeen = ic
 	return nil
 }
@@ -219,7 +219,7 @@ type mtExFilterOneField struct{ P mtLocalProvider }
 
 var mtExFilterOneFieldSeen mtExFilterOneField
 
-func (e mtExFilterOneField) Catch(_ *ctx.Context, _ *exception.Exception) {
+func (e mtExFilterOneField) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {
 	mtExFilterOneFieldSeen = e
 }
 
@@ -308,7 +308,7 @@ func TestNewModule_RESTGuardInjection_PriorityChain(t *testing.T) {
 	if len(m.RESTGuards) != 1 {
 		t.Fatalf("expected 1 REST guard, got %d", len(m.RESTGuards))
 	}
-	handler, ok := m.RESTGuards[0].Handler.(func(*ctx.Context) bool)
+	handler, ok := m.RESTGuards[0].Handler.(func(*ctx.HTTPContext) bool)
 	if !ok {
 		t.Fatalf("unexpected REST guard handler type %T", m.RESTGuards[0].Handler)
 	}
@@ -388,7 +388,7 @@ func TestNewModule_RESTMiddlewareInjection_LocalProviderRegistered(t *testing.T)
 	if len(m.RESTMiddlewares) != 1 {
 		t.Fatalf("expected 1 REST middleware, got %d", len(m.RESTMiddlewares))
 	}
-	handler, ok := m.RESTMiddlewares[0].Handler.(func(*ctx.Context, ctx.Next))
+	handler, ok := m.RESTMiddlewares[0].Handler.(func(*ctx.HTTPContext, ctx.Next))
 	if !ok {
 		t.Fatalf("unexpected REST middleware handler type %T", m.RESTMiddlewares[0].Handler)
 	}
@@ -428,7 +428,7 @@ func TestNewModule_RESTInterceptorInjection_LocalProviderRegistered(t *testing.T
 	if len(m.RESTInterceptors) != 1 {
 		t.Fatalf("expected 1 REST interceptor, got %d", len(m.RESTInterceptors))
 	}
-	handler, ok := m.RESTInterceptors[0].Handler.(func(*ctx.Context, *aggregation.Aggregation) any)
+	handler, ok := m.RESTInterceptors[0].Handler.(func(*ctx.HTTPContext, *aggregation.Aggregation) any)
 	if !ok {
 		t.Fatalf("unexpected REST interceptor handler type %T", m.RESTInterceptors[0].Handler)
 	}
@@ -464,7 +464,7 @@ func TestNewModule_RESTExceptionFilter_SingleController_Registered(t *testing.T)
 	if len(m.RESTExceptionFilters) != 1 {
 		t.Fatalf("expected 1 REST exception filter, got %d", len(m.RESTExceptionFilters))
 	}
-	handler, ok := m.RESTExceptionFilters[0].Handler.(func(*ctx.Context, *exception.Exception))
+	handler, ok := m.RESTExceptionFilters[0].Handler.(func(*ctx.HTTPContext, *exception.Exception))
 	if !ok {
 		t.Fatalf("unexpected REST exception filter handler type %T", m.RESTExceptionFilters[0].Handler)
 	}
@@ -523,7 +523,7 @@ func TestNewModule_RESTExceptionFilter_TwoControllers_CorrectFieldIndex(t *testi
 		t.Fatalf("expected 2 REST exception filters, got %d", len(m.RESTExceptionFilters))
 	}
 	for _, ef := range m.RESTExceptionFilters {
-		handler, ok := ef.Handler.(func(*ctx.Context, *exception.Exception))
+		handler, ok := ef.Handler.(func(*ctx.HTTPContext, *exception.Exception))
 		if !ok {
 			t.Fatalf("unexpected REST exception filter handler type %T", ef.Handler)
 		}
@@ -583,7 +583,7 @@ func TestNewModule_WSGuardInjection_PriorityChain(t *testing.T) {
 	if len(m.WSGuards) != 1 {
 		t.Fatalf("expected 1 WS guard, got %d", len(m.WSGuards))
 	}
-	handler, ok := m.WSGuards[0].Handler.(func(*ctx.Context) bool)
+	handler, ok := m.WSGuards[0].Handler.(func(*ctx.HTTPContext) bool)
 	if !ok {
 		t.Fatalf("unexpected WS guard handler type %T", m.WSGuards[0].Handler)
 	}
@@ -663,7 +663,7 @@ func TestNewModule_WSInterceptorInjection_LocalProviderRegistered(t *testing.T) 
 	if len(m.WSInterceptors) != 1 {
 		t.Fatalf("expected 1 WS interceptor, got %d", len(m.WSInterceptors))
 	}
-	handler, ok := m.WSInterceptors[0].Handler.(func(*ctx.Context, *aggregation.Aggregation) any)
+	handler, ok := m.WSInterceptors[0].Handler.(func(*ctx.HTTPContext, *aggregation.Aggregation) any)
 	if !ok {
 		t.Fatalf("unexpected WS interceptor handler type %T", m.WSInterceptors[0].Handler)
 	}
@@ -716,7 +716,7 @@ func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing
 		t.Fatalf("expected 2 WS exception filters, got %d", len(m.WSExceptionFilters))
 	}
 	for _, ef := range m.WSExceptionFilters {
-		handler, ok := ef.Handler.(func(*ctx.Context, *exception.Exception))
+		handler, ok := ef.Handler.(func(*ctx.HTTPContext, *exception.Exception))
 		if !ok {
 			t.Fatalf("unexpected WS exception filter handler type %T", ef.Handler)
 		}

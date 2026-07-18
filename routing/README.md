@@ -63,7 +63,7 @@ import (
 func main() {
 	r := routing.NewRouter()
 
-	getHandler := func(c *ctx.Context) {}
+	getHandler := func(c *ctx.HTTPContext) {}
 	r.Add(http.MethodGet, "/users/{id}", "", getHandler)
 
 	isMatched, pattern, paramKeys, paramVals, handlers := r.Match(http.MethodGet, "/users/123/", "")
@@ -473,7 +473,7 @@ Mounts every route (and injectable handler) from one or more already-built sub-r
 
 ```go
 v1 := routing.NewRouter()
-v1.Add(http.MethodPatch, "/users/update/{userId}", "", func(c *ctx.Context) {})
+v1.Add(http.MethodPatch, "/users/update/{userId}", "", func(c *ctx.HTTPContext) {})
 
 gr := routing.NewRouter()
 gr.Group("/v1", v1)
@@ -509,7 +509,7 @@ Registers handlers as global middlewares for every route on this router.
 #### Usage
 
 ```go
-r.Use(func(c *ctx.Context) {
+r.Use(func(c *ctx.HTTPContext) {
 	c.Next()
 })
 ```
@@ -543,7 +543,7 @@ Returns a function that registers handlers for a route across a specific set of 
 #### Usage
 
 ```go
-r.For([]string{http.MethodGet, http.MethodPost}, "/users/{id}", "")(func(c *ctx.Context) {
+r.For([]string{http.MethodGet, http.MethodPost}, "/users/{id}", "")(func(c *ctx.HTTPContext) {
 	c.Next()
 })
 ```
@@ -581,7 +581,7 @@ Registers the main handler for a single `(method, route, version)` combination, 
 #### Usage
 
 ```go
-r.Add(http.MethodGet, "/users/{id}", "", func(c *ctx.Context) {})
+r.Add(http.MethodGet, "/users/{id}", "", func(c *ctx.HTTPContext) {})
 ```
 
 ### AddInjectableHandler

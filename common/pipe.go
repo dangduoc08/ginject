@@ -16,7 +16,7 @@ const (
 )
 
 type ContextPipeable interface {
-	Transform(*ctx.Context, ArgumentMetadata) any
+	Transform(*ctx.HTTPContext, ArgumentMetadata) any
 }
 
 type BodyPipeable interface {

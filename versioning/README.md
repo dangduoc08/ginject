@@ -58,7 +58,7 @@ func main() {
 
 With the above config, a controller method versioned with the `VERSION_1` route token (see the root `CLAUDE.md` for the naming convention) only matches requests sending `X-Api-Version: 1`. Requests with no matching version fall back to routes registered under `versioning.NeutralVersion`.
 
-`Versioning` can also be used standalone, independent of `core`, by calling `GetVersion` directly with a `*ctx.Context`:
+`Versioning` can also be used standalone, independent of `core`, by calling `GetVersion` directly with a `*ctx.HTTPContext`:
 
 ```go
 v := &versioning.Versioning{
@@ -67,7 +67,7 @@ v := &versioning.Versioning{
 	DefaultVersion: "v1",
 }
 
-requestedVersion := v.GetVersion(c) // c is *ctx.Context
+requestedVersion := v.GetVersion(c) // c is *ctx.HTTPContext
 ```
 
 ## Constants
@@ -136,18 +136,18 @@ versioning.Versioning{
 ```
 
 ### Extractor
-Type: `ExtractorHandler` (`func(*ctx.Context) string`)
+Type: `ExtractorHandler` (`func(*ctx.HTTPContext) string`)
 
 Default: `nil`
 
 Required: `false`
 
-Only consulted when [`Type`](#type) is `CustomVersion`. Called with the request `*ctx.Context`; its return value is used as-is, even if it's an empty string. If `Extractor` is `nil`, `GetVersion` returns `DefaultVersion` instead of calling it.
+Only consulted when [`Type`](#type) is `CustomVersion`. Called with the request `*ctx.HTTPContext`; its return value is used as-is, even if it's an empty string. If `Extractor` is `nil`, `GetVersion` returns `DefaultVersion` instead of calling it.
 
 ```go
 versioning.Versioning{
 	Type: versioning.CustomVersion,
-	Extractor: func(c *ctx.Context) string {
+	Extractor: func(c *ctx.HTTPContext) string {
 		return c.Param().Get("tenant")
 	},
 }
@@ -176,7 +176,7 @@ v.GetTypeString() // "header"
 Extracts the requested API version from a request context, using the strategy selected by [`Type`](#type).
 
 #### Parameters
-- 1st parameter: `*ctx.Context`
+- 1st parameter: `*ctx.HTTPContext`
 
 - Description: The request context to extract the version from.
 
@@ -194,7 +194,7 @@ v := &versioning.Versioning{
 	DefaultVersion: "v1",
 }
 
-version := v.GetVersion(c) // c is *ctx.Context
+version := v.GetVersion(c) // c is *ctx.HTTPContext
 ```
 
 #### Rules

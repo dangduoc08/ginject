@@ -12,7 +12,7 @@ import (
 
 type mockExFilter struct{}
 
-func (mockExFilter) Catch(_ *ctx.Context, _ *exception.Exception) {}
+func (mockExFilter) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {}
 
 var noopCB = func(_ int, _ reflect.Type, _ reflect.Value, _ reflect.Value) {}
 

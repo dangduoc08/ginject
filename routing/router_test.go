@@ -32,9 +32,9 @@ func TestRouteAdd(t *testing.T) {
 
 func TestRouterMatchSamePathDifferentMethodAndVersion(t *testing.T) {
 	r := NewRouter()
-	getHandler := func(c *ctx.Context) {}
-	postHandler := func(c *ctx.Context) {}
-	getV2Handler := func(c *ctx.Context) {}
+	getHandler := func(c *ctx.HTTPContext) {}
+	postHandler := func(c *ctx.HTTPContext) {}
+	getV2Handler := func(c *ctx.HTTPContext) {}
 
 	r.Add(http.MethodGet, "/users/{id}", "", getHandler)
 	r.Add(http.MethodPost, "/users/{id}", "", postHandler)
@@ -142,22 +142,22 @@ func TestRouterGroup(t *testing.T) {
 func TestRouterMiddleware(t *testing.T) {
 	counter := 0
 
-	handler1 := func(c *ctx.Context) {
+	handler1 := func(c *ctx.HTTPContext) {
 		counter++
 		c.Next()
 	}
 
-	handler2 := func(c *ctx.Context) {
+	handler2 := func(c *ctx.HTTPContext) {
 		counter += 2
 		c.Next()
 	}
 
-	handler3 := func(c *ctx.Context) {
+	handler3 := func(c *ctx.HTTPContext) {
 		counter += 3
 		c.Next()
 	}
 
-	handler4 := func(c *ctx.Context) {
+	handler4 := func(c *ctx.HTTPContext) {
 		counter += 4
 		c.Next()
 	}
@@ -176,7 +176,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext := true
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -215,7 +215,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = ctx.NewContext()
+	c = ctx.NewHTTPContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -261,7 +261,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = ctx.NewContext()
+	c = ctx.NewHTTPContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -303,7 +303,7 @@ func TestRouterMiddleware(t *testing.T) {
 	}
 
 	isNext = true
-	c = ctx.NewContext()
+	c = ctx.NewHTTPContext()
 	c.Next = func() {
 		isNext = true
 	}
@@ -398,7 +398,7 @@ func TestRouteToJSON(t *testing.T) {
 		r := NewRouter()
 
 		for _, path := range paths {
-			r.Add("", path, "", func(c *ctx.Context) {})
+			r.Add("", path, "", func(c *ctx.HTTPContext) {})
 		}
 
 		json, err := r.trie.ToJSON()

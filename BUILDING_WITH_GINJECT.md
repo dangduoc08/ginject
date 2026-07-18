@@ -42,12 +42,12 @@ Example: `READ_products_BY_productId_OF_categories_BY_categoryId_OF_store`
 → `GET /store/categories/:categoryId/products/:productId`
 
 Handler params are **resolved by type** — declare what you need and the
-framework injects it: `*ctx.Context`, `ctx.Body`, `ctx.Query`, `ctx.Param`,
+framework injects it: `*ctx.HTTPContext`, `ctx.Body`, `ctx.Query`, `ctx.Param`,
 `ctx.Header`, `ctx.Form`, `ctx.File`, a DTO type (see §3), etc. All re-exported
 from root `ginject` package.
 
 ```go
-func (i StoreController) CREATE_categories_OF_store(c *ctx.Context, dto dto.CategoryDTO) Category
+func (i StoreController) CREATE_categories_OF_store(c *ctx.HTTPContext, dto dto.CategoryDTO) Category
 ```
 
 ## 3. DTOs — validate in the DTO, not the controller
@@ -101,7 +101,7 @@ func (d PaginationDTO) Transform(query ctx.Query, arg common.ArgumentMetadata) a
 ```
 
 Pair with a generic `Page[T any] struct { Items []T; Page, Limit, Total, TotalPages int }`
-returned from list handlers, e.g. `func (i C) READ_xs(c *ctx.Context, p dto.PaginationDTO) Page[X]`.
+returned from list handlers, e.g. `func (i C) READ_xs(c *ctx.HTTPContext, p dto.PaginationDTO) Page[X]`.
 For demo-scale stores, fetch all matching docs once via `Find().Where(...).Exec()`,
 then slice in Go (`total = len(items)`) — no need for a second count query or
 pushing `Skip`/`Limit` into the storage `Query` unless the table is large.
@@ -129,7 +129,7 @@ type AuthGuard struct {
     UserService
 }
 func (g AuthGuard) NewGuard() AuthGuard { return g }
-func (g AuthGuard) CanActivate(c *ctx.Context) bool {
+func (g AuthGuard) CanActivate(c *ctx.HTTPContext) bool {
     user, ok := g.UserService.UserBySession(token)
     if !ok { return false }
     c.Request = c.WithContext(context.WithValue(c.Context(), currentUserKey, user))
@@ -154,7 +154,7 @@ The framework sets `c.Code = http.StatusCreated` (201) for **every POST**
 as `201` with whatever the handler happened to write. Always do:
 
 ```go
-aggregation.Error(func(c ginject.Context, e any) any {
+aggregation.Error(func(c ginject.HTTPContext, e any) any {
     ex, ok := e.(exception.Exception)
     if !ok { c.Status(http.StatusInternalServerError).JSON(...); return nil }
     httpCode, _ := ex.GetHTTPStatus()

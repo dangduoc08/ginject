@@ -39,19 +39,19 @@ func findArg(args []any, key string) (any, bool) {
 	return nil, false
 }
 
-func newLoggerContext(method, urlPath string, typ string) *ctx.Context {
+func newLoggerContext(method, urlPath string, typ string) *ctx.HTTPContext {
 	req := httptest.NewRequest(method, urlPath, nil)
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Init(httptest.NewRecorder(), req)
 	c.SetType(typ)
 	return c
 }
 
-func newLoggerContextWithID(method, urlPath, id, typ string) *ctx.Context {
+func newLoggerContextWithID(method, urlPath, id, typ string) *ctx.HTTPContext {
 	req := httptest.NewRequest(method, urlPath, nil)
 	req.Header.Set(ctx.RequestID, id)
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Init(httptest.NewRecorder(), req)
 	c.SetType(typ)

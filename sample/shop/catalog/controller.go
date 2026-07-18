@@ -28,7 +28,7 @@ func (instance StoreController) NewController() core.Controller {
 }
 
 // myStore resolves the store owned by the authenticated caller.
-func (instance StoreController) myStore(c *ctx.Context) Store {
+func (instance StoreController) myStore(c *ctx.HTTPContext) Store {
 	store, err := instance.StoreService.StoreByOwner(accounts.CurrentUser(c).ID)
 	if err != nil {
 		panic(err)
@@ -40,7 +40,7 @@ func (instance StoreController) myStore(c *ctx.Context) Store {
 // READ_store returns the caller's own store.
 //
 //	GET /store
-func (instance StoreController) READ_store(c *ctx.Context) Store {
+func (instance StoreController) READ_store(c *ctx.HTTPContext) Store {
 	return instance.myStore(c)
 }
 
@@ -48,7 +48,7 @@ func (instance StoreController) READ_store(c *ctx.Context) Store {
 //
 //	POST /store/categories
 //	body: { "name": string }
-func (instance StoreController) CREATE_categories_OF_store(c *ctx.Context, categoryDTO dto.CategoryDTO) Category {
+func (instance StoreController) CREATE_categories_OF_store(c *ctx.HTTPContext, categoryDTO dto.CategoryDTO) Category {
 	category, err := instance.StoreService.CreateCategory(instance.myStore(c).ID, categoryDTO.Name)
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func (instance StoreController) CREATE_categories_OF_store(c *ctx.Context, categ
 // READ_categories_OF_store lists the categories in the caller's store.
 //
 //	GET /store/categories?page=<int>&limit=<int>
-func (instance StoreController) READ_categories_OF_store(c *ctx.Context, pagination dto.PaginationDTO) Page[Category] {
+func (instance StoreController) READ_categories_OF_store(c *ctx.HTTPContext, pagination dto.PaginationDTO) Page[Category] {
 	return instance.StoreService.Categories(instance.myStore(c).ID, pagination.Page, pagination.Limit)
 }
 
@@ -68,7 +68,7 @@ func (instance StoreController) READ_categories_OF_store(c *ctx.Context, paginat
 // caller's store.
 //
 //	GET /store/categories/:categoryId
-func (instance StoreController) READ_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param) Category {
+func (instance StoreController) READ_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param) Category {
 	category, err := instance.StoreService.Category(instance.myStore(c).ID, param.Get("categoryId"))
 	if err != nil {
 		panic(err)
@@ -82,7 +82,7 @@ func (instance StoreController) READ_categories_BY_categoryId_OF_store(c *ctx.Co
 //
 //	PUT /store/categories/:categoryId
 //	body: { "name": string }
-func (instance StoreController) UPDATE_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param, categoryDTO dto.CategoryDTO) Category {
+func (instance StoreController) UPDATE_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param, categoryDTO dto.CategoryDTO) Category {
 	category, err := instance.StoreService.UpdateCategory(instance.myStore(c).ID, param.Get("categoryId"), categoryDTO.Name)
 	if err != nil {
 		panic(err)
@@ -95,7 +95,7 @@ func (instance StoreController) UPDATE_categories_BY_categoryId_OF_store(c *ctx.
 // product placed under it, from the caller's store.
 //
 //	DELETE /store/categories/:categoryId
-func (instance StoreController) DELETE_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param) ginject.Map {
+func (instance StoreController) DELETE_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param) ginject.Map {
 	if err := instance.StoreService.DeleteCategory(instance.myStore(c).ID, param.Get("categoryId")); err != nil {
 		panic(err)
 	}
@@ -110,7 +110,7 @@ func (instance StoreController) DELETE_categories_BY_categoryId_OF_store(c *ctx.
 //
 //	POST /store/categories/:categoryId/products
 //	body: { "name": string, "price": number }
-func (instance StoreController) CREATE_products_OF_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param, productDTO dto.ProductDTO) Product {
+func (instance StoreController) CREATE_products_OF_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param, productDTO dto.ProductDTO) Product {
 	product, err := instance.StoreService.CreateProduct(instance.myStore(c).ID, param.Get("categoryId"), productDTO.Name, productDTO.Price)
 	if err != nil {
 		panic(err)
@@ -123,7 +123,7 @@ func (instance StoreController) CREATE_products_OF_categories_BY_categoryId_OF_s
 // category of the caller's store.
 //
 //	GET /store/categories/:categoryId/products?page=<int>&limit=<int>
-func (instance StoreController) READ_products_OF_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param, pagination dto.PaginationDTO) Page[Product] {
+func (instance StoreController) READ_products_OF_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param, pagination dto.PaginationDTO) Page[Product] {
 	return instance.StoreService.Products(instance.myStore(c).ID, param.Get("categoryId"), pagination.Page, pagination.Limit)
 }
 
@@ -131,7 +131,7 @@ func (instance StoreController) READ_products_OF_categories_BY_categoryId_OF_sto
 // product from a category of the caller's store.
 //
 //	GET /store/categories/:categoryId/products/:productId
-func (instance StoreController) READ_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param) Product {
+func (instance StoreController) READ_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param) Product {
 	product, err := instance.StoreService.Product(instance.myStore(c).ID, param.Get("categoryId"), param.Get("productId"))
 	if err != nil {
 		panic(err)
@@ -145,7 +145,7 @@ func (instance StoreController) READ_products_BY_productId_OF_categories_BY_cate
 //
 //	PUT /store/categories/:categoryId/products/:productId
 //	body: { "name": string, "price": number }
-func (instance StoreController) UPDATE_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param, productDTO dto.ProductDTO) Product {
+func (instance StoreController) UPDATE_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param, productDTO dto.ProductDTO) Product {
 	product, err := instance.StoreService.UpdateProduct(instance.myStore(c).ID, param.Get("categoryId"), param.Get("productId"), productDTO.Name, productDTO.Price)
 	if err != nil {
 		panic(err)
@@ -158,7 +158,7 @@ func (instance StoreController) UPDATE_products_BY_productId_OF_categories_BY_ca
 // product from a category of the caller's store.
 //
 //	DELETE /store/categories/:categoryId/products/:productId
-func (instance StoreController) DELETE_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.Context, param ginject.Param) ginject.Map {
+func (instance StoreController) DELETE_products_BY_productId_OF_categories_BY_categoryId_OF_store(c *ctx.HTTPContext, param ginject.Param) ginject.Map {
 	if err := instance.StoreService.DeleteProduct(instance.myStore(c).ID, param.Get("categoryId"), param.Get("productId")); err != nil {
 		panic(err)
 	}

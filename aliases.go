@@ -21,16 +21,16 @@ type (
 	FieldLevel  = ctx.FieldLevel
 
 	// decorators
-	Context   = *ctx.Context
-	Request   = *http.Request
-	Response  = http.ResponseWriter
-	Body      = ctx.Body
-	Form      = ctx.Form
-	File      = ctx.File
-	Query     = ctx.Query
-	Header    = ctx.Header
-	Param     = ctx.Param
-	WSPayload = ctx.WSPayload
-	Next      = ctx.Next
-	Redirect  = ctx.Redirect
+	HTTPContext = *ctx.HTTPContext
+	Request     = *http.Request
+	Response    = http.ResponseWriter
+	Body        = ctx.Body
+	Form        = ctx.Form
+	File        = ctx.File
+	Query       = ctx.Query
+	Header      = ctx.Header
+	Param       = ctx.Param
+	WSPayload   = ctx.WSPayload
+	Next        = ctx.Next
+	Redirect    = ctx.Redirect
 )

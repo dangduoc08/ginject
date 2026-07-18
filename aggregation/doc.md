@@ -81,12 +81,12 @@ Multiple interceptors stack in LIFO order: the innermost interceptor's `Aggregat
 ### `AggregationOperator`
 
 ```go
-type AggregationOperator = func(*ctx.Context, any) any
+type AggregationOperator = func(*ctx.HTTPContext, any) any
 ```
 
 The fundamental unit of the pipeline. Every operator — whether registered by name or composed in `Pipe` — has this signature.
 
-- `*ctx.Context` — the current request context (HTTP or WebSocket).
+- `*ctx.HTTPContext` — the current request context (HTTP or WebSocket).
 - First `any` — the value flowing through the pipeline at this step.
 - Returns `any` — the transformed value (or a pipeline error sentinel; see [Error propagation model](#error-propagation-model)).
 
@@ -167,9 +167,9 @@ Signals that the main handler **should** run, and registers the provided pipelin
 **When to use:** Always call `Pipe` when the interceptor wants the request to reach the main handler. Operators passed to `Pipe` execute after the handler returns, transforming its result.
 
 ```go
-func (i MyInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i MyInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
-        Map(func(c ginject.Context, data any) any {
+        Map(func(c ginject.HTTPContext, data any) any {
             return map[string]any{"data": data}
         }),
     )
@@ -192,7 +192,7 @@ Returns the operator as-is (for fluent use inside `Pipe`).
 
 ```go
 return agg.Pipe(
-    agg.Consume(func(c ginject.Context, data any) any {
+    agg.Consume(func(c ginject.HTTPContext, data any) any {
         return map[string]any{"data": data, "ok": true}
     }),
 )
@@ -239,7 +239,7 @@ Registers `opr` under the key `OPERATOR_ERROR`. First-write-wins.
 The Error operator is **not** called during `Aggregate`. Instead, the framework collects all registered Error operators from all interceptors into the request context under `ERROR_AGGREGATION_CTX_VALUE_KEY`. When a panic occurs anywhere in the request pipeline, the framework's `recover()` block calls each collected Error operator with the panicking value, allowing interceptors to shape the error response.
 
 ```go
-agg.Error(func(c ginject.Context, data any) any {
+agg.Error(func(c ginject.HTTPContext, data any) any {
     return map[string]any{"error": fmt.Sprint(data)}
 })
 ```
@@ -290,7 +290,7 @@ if errorOpr != nil {
 ### `Aggregate`
 
 ```go
-func (aggregation *Aggregation) Aggregate(c *ctx.Context) any
+func (aggregation *Aggregation) Aggregate(c *ctx.HTTPContext) any
 ```
 
 Executes the full post-handler pipeline and returns the final value. Called by the framework — interceptors never call this directly.
@@ -328,14 +328,14 @@ At the end of `Aggregate`, any uncaught `*pipeErr` is unwrapped to its underlyin
 ### `Map`
 
 ```go
-func Map(fn func(*ctx.Context, any) any) AggregationOperator
+func Map(fn func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Applies `fn` to the current value and replaces it with `fn`'s return. Skips `fn` when a pipeline error is flowing.
 
 ```go
 agg.Pipe(
-    Map(func(c ginject.Context, data any) any {
+    Map(func(c ginject.HTTPContext, data any) any {
         user := data.(User)
         return UserDTO{ID: user.ID, Name: user.Name}
     }),
@@ -347,14 +347,14 @@ agg.Pipe(
 ### `Tap`
 
 ```go
-func Tap(fn func(*ctx.Context, any)) AggregationOperator
+func Tap(fn func(*ctx.HTTPContext, any)) AggregationOperator
 ```
 
 Runs `fn` as a side-effect (logging, metrics, tracing) and passes the original value through unchanged. Skips when a pipeline error is flowing.
 
 ```go
 agg.Pipe(
-    Tap(func(c ginject.Context, data any) {
+    Tap(func(c ginject.HTTPContext, data any) {
         log.Printf("handler returned: %v", data)
     }),
 )
@@ -365,7 +365,7 @@ agg.Pipe(
 ### `CatchError`
 
 ```go
-func CatchError(fn func(*ctx.Context, error) any) AggregationOperator
+func CatchError(fn func(*ctx.HTTPContext, error) any) AggregationOperator
 ```
 
 Intercepts a pipeline error and calls `fn` with the underlying `error`. The value returned by `fn` replaces the error and resumes normal flow. If no error is present, the value passes through unchanged.
@@ -375,7 +375,7 @@ Intercepts a pipeline error and calls `fn` with the underlying `error`. The valu
 ```go
 agg.Pipe(
     ThrowError(someErr),
-    CatchError(func(c ginject.Context, err error) any {
+    CatchError(func(c ginject.HTTPContext, err error) any {
         return map[string]any{"error": err.Error()}
     }),
 )
@@ -386,7 +386,7 @@ agg.Pipe(
 ### `SwitchMap`
 
 ```go
-func SwitchMap(fn func(*ctx.Context, any) any) AggregationOperator
+func SwitchMap(fn func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Projects the current value to a new value via `fn`. Semantically equivalent to `Map` in a synchronous single-value pipeline. Skips on pipeline error.
@@ -395,7 +395,7 @@ Use `SwitchMap` over `Map` to signal intent: the projection may conceptually can
 
 ```go
 agg.Pipe(
-    SwitchMap(func(c ginject.Context, data any) any {
+    SwitchMap(func(c ginject.HTTPContext, data any) any {
         id := data.(string)
         return fetchLatestState(id) // only cares about the latest
     }),
@@ -407,7 +407,7 @@ agg.Pipe(
 ### `MergeMap`
 
 ```go
-func MergeMap(fn func(*ctx.Context, any) any) AggregationOperator
+func MergeMap(fn func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Projects the current value to a new value via `fn`. Semantically equivalent to `Map` in a synchronous single-value pipeline. Skips on pipeline error.
@@ -416,7 +416,7 @@ Use `MergeMap` to signal that the projection result may represent a merged/flatt
 
 ```go
 agg.Pipe(
-    MergeMap(func(c ginject.Context, data any) any {
+    MergeMap(func(c ginject.HTTPContext, data any) any {
         items := data.([]Item)
         return flattenItems(items)
     }),
@@ -428,7 +428,7 @@ agg.Pipe(
 ### `ConcatMap`
 
 ```go
-func ConcatMap(fn func(*ctx.Context, any) any) AggregationOperator
+func ConcatMap(fn func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Projects the current value to a new value via `fn`. Semantically equivalent to `Map` in a synchronous single-value pipeline. Skips on pipeline error.
@@ -472,7 +472,7 @@ agg.Pipe(
 ### `Finalize`
 
 ```go
-func Finalize(fn func(*ctx.Context)) AggregationOperator
+func Finalize(fn func(*ctx.HTTPContext)) AggregationOperator
 ```
 
 Runs `fn` as a side-effect **regardless** of whether the pipeline is in a normal or error state, then passes the current value (or error) through unchanged. Mirrors RxJS `finalize` / `finally`.
@@ -482,10 +482,10 @@ Runs `fn` as a side-effect **regardless** of whether the pipeline is in a normal
 ```go
 agg.Pipe(
     ThrowError(ErrNotFound),
-    Finalize(func(c ginject.Context) {
+    Finalize(func(c ginject.HTTPContext) {
         metrics.RecordRequestDone() // always runs
     }),
-    CatchError(func(c ginject.Context, err error) any {
+    CatchError(func(c ginject.HTTPContext, err error) any {
         return map[string]any{"error": err.Error()}
     }),
 )
@@ -496,7 +496,7 @@ agg.Pipe(
 ### `Filter`
 
 ```go
-func Filter(predicate func(*ctx.Context, any) bool) AggregationOperator
+func Filter(predicate func(*ctx.HTTPContext, any) bool) AggregationOperator
 ```
 
 Passes the value through only when `predicate` returns `true`. When `predicate` returns `false`, injects a pipeline error (`filter: value did not match predicate`). Skips when a pipeline error is already flowing.
@@ -505,10 +505,10 @@ Use `CatchError` downstream to handle the filtered-out case.
 
 ```go
 agg.Pipe(
-    Filter(func(c ginject.Context, data any) bool {
+    Filter(func(c ginject.HTTPContext, data any) bool {
         return data != nil
     }),
-    CatchError(func(c ginject.Context, err error) any {
+    CatchError(func(c ginject.HTTPContext, err error) any {
         return map[string]any{"error": "no result"}
     }),
 )
@@ -545,7 +545,7 @@ Unconditionally injects `err` as a pipeline error, replacing any current value (
 ```go
 agg.Pipe(
     ThrowError(ErrUnauthorized),
-    CatchError(func(c ginject.Context, err error) any {
+    CatchError(func(c ginject.HTTPContext, err error) any {
         return map[string]any{"error": err.Error()}
     }),
 )
@@ -573,17 +573,17 @@ agg.Pipe(
 ### `Timeout`
 
 ```go
-func Timeout(d time.Duration, fn func(*ctx.Context, any) any) AggregationOperator
+func Timeout(d time.Duration, fn func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Runs `fn(c, data)` in a goroutine. If `fn` returns within `d`, its result flows downstream. If the deadline is exceeded, a pipeline error (`timeout: operation exceeded deadline`) is injected instead. Skips on existing pipeline error.
 
 ```go
 agg.Pipe(
-    Timeout(500*time.Millisecond, func(c ginject.Context, data any) any {
+    Timeout(500*time.Millisecond, func(c ginject.HTTPContext, data any) any {
         return expensiveTransform(data)
     }),
-    CatchError(func(c ginject.Context, err error) any {
+    CatchError(func(c ginject.HTTPContext, err error) any {
         return map[string]any{"error": "request timed out"}
     }),
 )
@@ -610,7 +610,7 @@ Skips on pipeline error. Allocates a new slice per invocation.
 ```go
 agg.Pipe(
     CombineLatest(requestID, timestamp),
-    Map(func(c ginject.Context, data any) any {
+    Map(func(c ginject.HTTPContext, data any) any {
         parts := data.([]any)
         return map[string]any{
             "result":    parts[0],
@@ -626,7 +626,7 @@ agg.Pipe(
 ### `ForkJoin`
 
 ```go
-func ForkJoin(fns ...func(*ctx.Context, any) any) AggregationOperator
+func ForkJoin(fns ...func(*ctx.HTTPContext, any) any) AggregationOperator
 ```
 
 Runs each function in `fns` concurrently, passing the current pipeline value to each. Waits for all goroutines to complete, then returns `[]any` with results in the same order as `fns`. Skips on pipeline error.
@@ -636,10 +636,10 @@ Each function writes to a dedicated index in a pre-allocated slice, so no mutex 
 ```go
 agg.Pipe(
     ForkJoin(
-        func(c ginject.Context, data any) any { return fetchProfile(data.(string)) },
-        func(c ginject.Context, data any) any { return fetchPermissions(data.(string)) },
+        func(c ginject.HTTPContext, data any) any { return fetchProfile(data.(string)) },
+        func(c ginject.HTTPContext, data any) any { return fetchPermissions(data.(string)) },
     ),
-    Map(func(c ginject.Context, data any) any {
+    Map(func(c ginject.HTTPContext, data any) any {
         parts := data.([]any)
         return map[string]any{
             "profile":     parts[0],
@@ -654,7 +654,7 @@ agg.Pipe(
 ### `Scan`
 
 ```go
-func Scan(fn func(*ctx.Context, any, any) any, seed any) AggregationOperator
+func Scan(fn func(*ctx.HTTPContext, any, any) any, seed any) AggregationOperator
 ```
 
 Applies `fn(c, seed, currentValue)` and returns the result. `seed` is captured at operator construction and is constant across calls — it is not mutated. Skips on pipeline error.
@@ -663,7 +663,7 @@ In a single-value pipeline, `Scan` is equivalent to `Map` with a fixed second ar
 
 ```go
 agg.Pipe(
-    Scan(func(c ginject.Context, acc, data any) any {
+    Scan(func(c ginject.HTTPContext, acc, data any) any {
         existing := acc.([]string)
         return append(existing, data.(string))
     }, []string{"prefix"}),
@@ -679,9 +679,9 @@ agg.Pipe(
 ```go
 type ResponseInterceptor struct{}
 
-func (i ResponseInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i ResponseInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
-        agg.Consume(func(c ginject.Context, data any) any {
+        agg.Consume(func(c ginject.HTTPContext, data any) any {
             return map[string]any{"data": data, "success": true}
         }),
     )
@@ -691,13 +691,13 @@ func (i ResponseInterceptor) Intercept(c ginject.Context, agg ginject.Aggregatio
 ### 2. Logging and metrics with `Tap` and `Finalize`
 
 ```go
-func (i LoggingInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i LoggingInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     start := time.Now()
     return agg.Pipe(
-        Tap(func(c ginject.Context, data any) {
+        Tap(func(c ginject.HTTPContext, data any) {
             log.Printf("handler returned %T in %s", data, time.Since(start))
         }),
-        Finalize(func(c ginject.Context) {
+        Finalize(func(c ginject.HTTPContext) {
             metrics.Histogram("request.duration", time.Since(start).Seconds())
         }),
     )
@@ -707,15 +707,15 @@ func (i LoggingInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation
 ### 3. Error handling with `CatchError`
 
 ```go
-func (i ErrorInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i ErrorInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
-        Map(func(c ginject.Context, data any) any {
+        Map(func(c ginject.HTTPContext, data any) any {
             if data == nil {
                 return ThrowError(ErrNotFound)(c, data) // inject error manually
             }
             return data
         }),
-        CatchError(func(c ginject.Context, err error) any {
+        CatchError(func(c ginject.HTTPContext, err error) any {
             return map[string]any{"error": err.Error()}
         }),
     )
@@ -725,19 +725,19 @@ func (i ErrorInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) 
 ### 4. Combining parallel data with `ForkJoin`
 
 ```go
-func (i EnrichInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i EnrichInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
         ForkJoin(
-            func(c ginject.Context, data any) any {
+            func(c ginject.HTTPContext, data any) any {
                 id := data.(User).ID
                 return db.FetchRoles(id)
             },
-            func(c ginject.Context, data any) any {
+            func(c ginject.HTTPContext, data any) any {
                 id := data.(User).ID
                 return db.FetchPreferences(id)
             },
         ),
-        Map(func(c ginject.Context, data any) any {
+        Map(func(c ginject.HTTPContext, data any) any {
             parts := data.([]any)
             user := /* original user from upstream interceptor */
             return EnrichedUser{Roles: parts[0], Prefs: parts[1]}
@@ -751,14 +751,14 @@ func (i EnrichInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation)
 The `Error` method registers a handler that runs when a panic occurs anywhere in the request pipeline. It is independent of `CatchError` (which only handles pipeline errors from `ThrowError` / `Filter` / `Take`).
 
 ```go
-func (i SafeInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
-    agg.Error(func(c ginject.Context, data any) any {
+func (i SafeInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
+    agg.Error(func(c ginject.HTTPContext, data any) any {
         // data is the panic value (string, error, etc.)
         log.Printf("panic recovered: %v", data)
         return map[string]any{"error": "internal server error"}
     })
     return agg.Pipe(
-        agg.Consume(func(c ginject.Context, data any) any {
+        agg.Consume(func(c ginject.HTTPContext, data any) any {
             return map[string]any{"data": data}
         }),
     )
@@ -768,12 +768,12 @@ func (i SafeInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) a
 ### 6. Timeout on an expensive transformation
 
 ```go
-func (i TimeoutInterceptor) Intercept(c ginject.Context, agg ginject.Aggregation) any {
+func (i TimeoutInterceptor) Intercept(c ginject.HTTPContext, agg ginject.Aggregation) any {
     return agg.Pipe(
-        Timeout(200*time.Millisecond, func(c ginject.Context, data any) any {
+        Timeout(200*time.Millisecond, func(c ginject.HTTPContext, data any) any {
             return heavyTransform(data)
         }),
-        CatchError(func(c ginject.Context, err error) any {
+        CatchError(func(c ginject.HTTPContext, err error) any {
             return map[string]any{"error": "transformation timed out"}
         }),
     )

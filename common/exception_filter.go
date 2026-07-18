@@ -9,10 +9,10 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type Catch = func(*ctx.Context, *exception.Exception)
+type Catch = func(*ctx.HTTPContext, *exception.Exception)
 
 type ExceptionFilterable interface {
-	Catch(*ctx.Context, *exception.Exception)
+	Catch(*ctx.HTTPContext, *exception.Exception)
 }
 
 type RESTExceptionFilterItem struct {

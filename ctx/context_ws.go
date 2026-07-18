@@ -4,28 +4,28 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func (c *Context) SetWSConfig(wsCfg *websocket.Config) {
+func (c *HTTPContext) SetWSConfig(wsCfg *websocket.Config) {
 	c.wsCfg = wsCfg
 }
 
-func (c *Context) GetWSConfig() *websocket.Config {
+func (c *HTTPContext) GetWSConfig() *websocket.Config {
 	return c.wsCfg
 }
 
-func (c *Context) SetWSConn(conn *websocket.Conn) *Context {
+func (c *HTTPContext) SetWSConn(conn *websocket.Conn) *HTTPContext {
 	c.wsConn = conn
 	return c
 }
 
-func (c *Context) WSConn() *websocket.Conn {
+func (c *HTTPContext) WSConn() *websocket.Conn {
 	return c.wsConn
 }
 
-func (c *Context) SetWSPayload(p WSPayload) *Context {
+func (c *HTTPContext) SetWSPayload(p WSPayload) *HTTPContext {
 	c.wsPayload = p
 	return c
 }
 
-func (c *Context) WSPayload() WSPayload {
+func (c *HTTPContext) WSPayload() WSPayload {
 	return c.wsPayload
 }
