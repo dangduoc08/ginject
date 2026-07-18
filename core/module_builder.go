@@ -33,7 +33,7 @@ type WSMiddlewareLayer struct {
 	// controllerPath string
 	// handlerName    string
 	EventName string
-	Handlers  []func(*ctx.HTTPContext)
+	Handlers  []func(*ctx.WSContext)
 }
 
 type WSCommonLayer struct {

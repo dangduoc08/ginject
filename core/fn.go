@@ -540,7 +540,7 @@ func normalizeRecovered(rec any) *exception.Exception {
 	return &ex
 }
 
-func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
+func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
 			p := m.Payload.(catchEventPayload)
@@ -559,7 +559,7 @@ func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handle
 	}
 }
 
-func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *aggregation.Aggregation) any) ctx.Handler {
+func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *aggregation.Aggregation) any) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		aggregationInstance := aggregation.NewAggregation()
 
@@ -579,7 +579,7 @@ func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *ag
 	}
 }
 
-func buildUseMiddleware(useFn common.Use) ctx.Handler {
+func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -601,7 +601,7 @@ func buildUseMiddleware(useFn common.Use) ctx.Handler {
 	}
 }
 
-func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
+func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) { handleGuard(c, canActiveFn(c)) }
 }
 

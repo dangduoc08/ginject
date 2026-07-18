@@ -21,22 +21,22 @@ type WSConfig struct {
 	injectedProviders map[string]Provider
 	logger            common.Logger
 
-	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
-	newCtx                func() *ctx.HTTPContext
-	releaseCtx            func(c *ctx.HTTPContext)
+	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
+	newCtx                func() *ctx.WSContext
+	releaseCtx            func(c *ctx.WSContext)
 }
 
 type WS struct {
 	catchFnsByEvent       map[string][]common.Catch
-	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
+	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	connmgr               *WSConnmgr
 	path                  string
 	globalMiddlewares     []common.MiddlewareFn
 	injectedProviders     map[string]Provider
 	logger                common.Logger
 	eventMatcher          *wsevent.WSEvent
-	newCtx                func() *ctx.HTTPContext
-	releaseCtx            func(c *ctx.HTTPContext)
+	newCtx                func() *ctx.WSContext
+	releaseCtx            func(c *ctx.WSContext)
 }
 
 func NewWS(cfg *WSConfig) *WS {
@@ -82,7 +82,7 @@ func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, s websocket.
 	s.ServeHTTP(w, r)
 }
 
-func (ws *WS) handshake(c *ctx.HTTPContext) error {
+func (ws *WS) handshake(c *ctx.WSContext) error {
 	isNext := true
 	c.Next = func() {
 		isNext = true

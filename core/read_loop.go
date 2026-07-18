@@ -130,7 +130,7 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 	reply(conn, TypeAck, payload.ID, payload.Topic)
 }
 
-func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payload WSPayload) (c *ctx.HTTPContext, ok bool) {
+func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payload WSPayload) (c *ctx.WSContext, ok bool) {
 	c = ws.newCtx()
 
 	// recover must be registered before any of the setup below (Init/SetType/

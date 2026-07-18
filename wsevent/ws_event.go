@@ -11,7 +11,7 @@ import (
 )
 
 type WSEventItem struct {
-	Middlewares []ctx.Handler
+	Middlewares []ctx.WSHandler
 	Handler     any
 }
 
@@ -32,7 +32,7 @@ func (m *WSEvent) Add(pattern string, value WSEventItem) {
 	m.wsEventItemByPattern[pattern] = value
 }
 
-func (m *WSEvent) AddMiddlewares(pattern string, middlewares ...ctx.Handler) {
+func (m *WSEvent) AddMiddlewares(pattern string, middlewares ...ctx.WSHandler) {
 	item := m.wsEventItemByPattern[pattern]
 	item.Middlewares = append(item.Middlewares, middlewares...)
 	m.wsEventItemByPattern[pattern] = item
