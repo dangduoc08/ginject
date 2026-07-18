@@ -52,7 +52,7 @@ func (c APIController) NewController() core.Controller {
 
 `RequestLogger` embed `common.Logger` thay vì bọc nó trong một field riêng, nên struct này tự expose `Debug`/`Info`/`Warn`/`Error`/`Fatal`. Khi được gắn (bind) qua `BindGlobalMiddlewares` hoặc `BindMiddleware`, DI container của Ginject sẽ tự động inject `common.Logger` đã cấu hình của app (logger của package `log` theo mặc định, hoặc bất kỳ logger nào đã truyền vào `app.UseLogger`) vào field embedded đó — bạn không cần tự đặt nó trong code ứng dụng. Khi khởi tạo một `RequestLogger` trực tiếp, như các test của package này làm, bạn phải cung cấp `Logger` một cách rõ ràng, vì nếu không, interface embedded đó sẽ là `nil`.
 
-`Use` không ghi log một cách đồng bộ: nó subscribe một handler vào broker event `ctx.RequestFinished`, rồi gọi `next` ngay lập tức. Handler đã subscribe sẽ chạy khi broker publish `ctx.RequestFinished` cho context đó (sau khi response đã thực sự được gửi), và ghi log một dòng HTTP hoặc WebSocket tùy theo `ctx.Context.GetType()`.
+`Use` không ghi log một cách đồng bộ: nó subscribe một handler vào broker event `ctx.RequestFinished`, rồi gọi `next` ngay lập tức. Handler đã subscribe sẽ chạy khi broker publish `ctx.RequestFinished` cho context đó (sau khi response đã thực sự được gửi), và ghi log một dòng HTTP hoặc WebSocket tùy theo `ctx.HTTPContext.GetType()`.
 
 ## Struct `RequestLogger`
 
@@ -81,9 +81,9 @@ Subscribe một handler ghi log một lần (one-shot) vào event `ctx.RequestFi
 - Một context có type không phải HTTP cũng không phải WebSocket (ví dụ `Type` trống) sẽ không ghi log gì khi `ctx.RequestFinished` được publish (`TestRequestLogger_Use_UnknownTypeNoLog`).
 
 #### Parameters
-- Tham số thứ 1: `*ctx.Context` (`c`)
+- Tham số thứ 1: `*ctx.HTTPContext` (`c`)
 
-- Mô tả: Context của request hiện tại; `Broker` của nó được subscribe để nhận event request đã hoàn tất.
+- Mô tả: HTTPContext của request hiện tại; `Broker` của nó được subscribe để nhận event request đã hoàn tất.
 
 - Tham số thứ 2: `ctx.Next` (`next`)
 

@@ -28,7 +28,7 @@ type DataFile struct {
 
 type File map[string][]*multipart.FileHeader
 
-func (c *Context) File() File {
+func (c *HTTPContext) File() File {
 	if c.file != nil {
 		return c.file
 	}

@@ -6,7 +6,7 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-var benchNoop = func(c *ctx.Context, data any) any { return data }
+var benchNoop = func(c *ctx.HTTPContext, data any) any { return data }
 
 func BenchmarkNewAggregation(b *testing.B) {
 	for i := 0; i < b.N; i++ {

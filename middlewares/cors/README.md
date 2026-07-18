@@ -213,7 +213,7 @@ Applies CORS headers to the current request and either calls `next` or short-cir
 - WebSocket requests (`ctx.WSType`) use the exact same origin-matching rules as HTTP, but never write response headers — a rejected origin simply skips `next`.
 
 #### Parameters
-- 1st parameter: `*ctx.Context` (`c`)
+- 1st parameter: `*ctx.HTTPContext` (`c`)
 
 - Description: The current request context; its response headers are mutated in place.
 

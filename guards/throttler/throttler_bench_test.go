@@ -16,15 +16,15 @@ func benchGuard(strategy Strategy) Throttler {
 		Limit:    1000,
 		TTL:      time.Minute,
 		Strategy: strategy,
-		KeyFunc:  func(*ctx.Context) string { return "benchkey" },
+		KeyFunc:  func(*ctx.HTTPContext) string { return "benchkey" },
 		Backend:  memcache.NewMemoryCache(),
 	}
 }
 
-func benchCtx() *ctx.Context {
+func benchCtx() *ctx.HTTPContext {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = httptest.NewRecorder()
 	return c
@@ -79,7 +79,7 @@ func BenchmarkGuard_Allow(b *testing.B) {
 		Limit:    int64(b.N) + 1,
 		TTL:      time.Minute,
 		Strategy: FixedWindow,
-		KeyFunc:  func(*ctx.Context) string { return "benchkey" },
+		KeyFunc:  func(*ctx.HTTPContext) string { return "benchkey" },
 		Backend:  memcache.NewMemoryCache(),
 	}
 	b.ResetTimer()

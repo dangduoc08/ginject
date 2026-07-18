@@ -105,7 +105,7 @@ func loadHelmetOptions(h *Helmet) *helmetOptions {
 	return opts
 }
 
-func (m compiledHelmet) Use(c *ctx.Context, next ctx.Next) {
+func (m compiledHelmet) Use(c *ctx.HTTPContext, next ctx.Next) {
 	opts := m.opts
 
 	rh := c.ResponseWriter.Header()
@@ -129,6 +129,6 @@ func (m compiledHelmet) Use(c *ctx.Context, next ctx.Next) {
 	next()
 }
 
-func (instance Helmet) Use(c *ctx.Context, next ctx.Next) {
+func (instance Helmet) Use(c *ctx.HTTPContext, next ctx.Next) {
 	compiledHelmet{opts: loadHelmetOptions(&instance)}.Use(c, next)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestStatus_SetsCodeAndReturnsSelf(t *testing.T) {
-	c := newTestContext()
+	c := newTestHTTPContext()
 	ret := c.Status(http.StatusCreated)
 	if c.Code != http.StatusCreated {
 		t.Error(test.DiffMessage(c.Code, http.StatusCreated, "Status code"))

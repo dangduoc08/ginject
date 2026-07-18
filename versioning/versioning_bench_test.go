@@ -8,21 +8,21 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-func benchCtxQuery(key, val string) *ctx.Context {
-	c := ctx.NewContext()
+func benchCtxQuery(key, val string) *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	u := &url.URL{RawQuery: url.Values{key: {val}}.Encode()}
 	c.Request = &http.Request{URL: u}
 	return c
 }
 
-func benchCtxHeader(key, val string) *ctx.Context {
-	c := ctx.NewContext()
+func benchCtxHeader(key, val string) *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	c.Request = &http.Request{Header: http.Header{key: {val}}}
 	return c
 }
 
-func benchCtxEmpty() *ctx.Context {
-	c := ctx.NewContext()
+func benchCtxEmpty() *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	c.Request = &http.Request{URL: &url.URL{}, Header: http.Header{}}
 	return c
 }
@@ -48,7 +48,7 @@ func BenchmarkGetVersion_Header(b *testing.B) {
 func BenchmarkGetVersion_Custom(b *testing.B) {
 	v := &Versioning{
 		Type:      CustomVersion,
-		Extractor: func(c *ctx.Context) string { return "v9" },
+		Extractor: func(c *ctx.HTTPContext) string { return "v9" },
 	}
 	c := benchCtxEmpty()
 	b.ResetTimer()

@@ -300,7 +300,7 @@ func logBoostrap(port int) {
 	_, _ = fmt.Fprint(os.Stdout, "\n"+accessURLs+divider+host+lan+divider+close)
 }
 
-func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
+func getDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) any {
 	switch k {
 	case contextKey:
 		return c
@@ -389,7 +389,7 @@ func getDependency(k string, c *ctx.Context, pipeValue reflect.Value) any {
 	return knownDependencyKeys
 }
 
-func returnREST(c *ctx.Context, data reflect.Value) {
+func returnREST(c *ctx.HTTPContext, data reflect.Value) {
 	switch data.Type().Kind() {
 	case
 		reflect.Map,
@@ -468,7 +468,7 @@ func toWSMessage(data reflect.Value) string {
 	}
 }
 
-func setStatusCode(c *ctx.Context, statusCode reflect.Value) {
+func setStatusCode(c *ctx.HTTPContext, statusCode reflect.Value) {
 	switch statusCode.Type().Kind() {
 	case reflect.Int:
 		status := int(statusCode.Int())
@@ -497,7 +497,7 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 	*controllers = uniqueControllers
 }
 
-func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.Context) []reflect.Value {
+func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.HTTPContext) []reflect.Value {
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
@@ -516,13 +516,13 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 }
 
 type catchEventPayload struct {
-	reqCtx    *ctx.Context
+	reqCtx    *ctx.HTTPContext
 	recovered any
 	index     int
 }
 
 func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handler {
-	return func(c *ctx.Context) {
+	return func(c *ctx.HTTPContext) {
 		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
 			p := m.Payload.(catchEventPayload)
 			catchFnIndex := p.index
@@ -561,8 +561,8 @@ func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.Handle
 	}
 }
 
-func buildInterceptMiddleware(key string, interceptFn func(*ctx.Context, *aggregation.Aggregation) any) ctx.Handler {
-	return func(c *ctx.Context) {
+func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *aggregation.Aggregation) any) ctx.Handler {
+	return func(c *ctx.HTTPContext) {
 		aggregationInstance := aggregation.NewAggregation()
 
 		if aggregations, ok := c.Context().Value(WithValueKey(key)).([]*aggregation.Aggregation); ok {
@@ -582,14 +582,14 @@ func buildInterceptMiddleware(key string, interceptFn func(*ctx.Context, *aggreg
 }
 
 func buildUseMiddleware(useFn common.Use) ctx.Handler {
-	return func(c *ctx.Context) { useFn(c, c.Next) }
+	return func(c *ctx.HTTPContext) { useFn(c, c.Next) }
 }
 
 func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
-	return func(c *ctx.Context) { handleGuard(c, canActiveFn(c)) }
+	return func(c *ctx.HTTPContext) { handleGuard(c, canActiveFn(c)) }
 }
 
-func handleGuard(c *ctx.Context, canActive bool) {
+func handleGuard(c *ctx.HTTPContext, canActive bool) {
 	if canActive {
 		c.Next()
 	} else {

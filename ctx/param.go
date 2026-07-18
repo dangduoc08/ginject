@@ -2,7 +2,7 @@ package ctx
 
 type Param map[string][]string
 
-func (c *Context) Param() Param {
+func (c *HTTPContext) Param() Param {
 	if c.param != nil {
 		return c.param
 	}

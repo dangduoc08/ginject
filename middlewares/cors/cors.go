@@ -224,7 +224,7 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	return opts
 }
 
-func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
+func (m compiledCORS) Use(c *ctx.HTTPContext, next ctx.Next) {
 	opts := m.opts
 
 	requestHeaders := c.Header()
@@ -281,6 +281,6 @@ func (m compiledCORS) Use(c *ctx.Context, next ctx.Next) {
 	next()
 }
 
-func (instance CORS) Use(c *ctx.Context, next ctx.Next) {
+func (instance CORS) Use(c *ctx.HTTPContext, next ctx.Next) {
 	compiledCORS{opts: loadCORSOptions(&instance)}.Use(c, next)
 }

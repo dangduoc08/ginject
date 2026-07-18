@@ -45,7 +45,7 @@ func TestNewHasGlobalExceptionFilter(t *testing.T) {
 }
 
 func TestGetContextIDFromHeader(t *testing.T) {
-	c := ctx.NewContext()
+	c := ctx.NewHTTPContext()
 	c.Broker = broker.New()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set(ctx.RequestID, "test-id-123")
@@ -57,10 +57,10 @@ func TestGetContextIDFromHeader(t *testing.T) {
 }
 
 func TestGetContextIDGeneratesUUID(t *testing.T) {
-	c1 := ctx.NewContext()
+	c1 := ctx.NewHTTPContext()
 	c1.Broker = broker.New()
 	c1.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
-	c2 := ctx.NewContext()
+	c2 := ctx.NewHTTPContext()
 	c2.Broker = broker.New()
 	c2.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 

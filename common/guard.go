@@ -8,10 +8,10 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type CanActivate = func(*ctx.Context) bool
+type CanActivate = func(*ctx.HTTPContext) bool
 
 type Guarder interface {
-	CanActivate(*ctx.Context) bool
+	CanActivate(*ctx.HTTPContext) bool
 }
 
 type RESTGuardItem struct {

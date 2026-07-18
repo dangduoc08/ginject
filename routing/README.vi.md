@@ -63,7 +63,7 @@ import (
 func main() {
 	r := routing.NewRouter()
 
-	getHandler := func(c *ctx.Context) {}
+	getHandler := func(c *ctx.HTTPContext) {}
 	r.Add(http.MethodGet, "/users/{id}", "", getHandler)
 
 	isMatched, pattern, paramKeys, paramVals, handlers := r.Match(http.MethodGet, "/users/123/", "")
@@ -473,7 +473,7 @@ Gắn mọi route (và injectable handler) từ một hoặc nhiều sub-router 
 
 ```go
 v1 := routing.NewRouter()
-v1.Add(http.MethodPatch, "/users/update/{userId}", "", func(c *ctx.Context) {})
+v1.Add(http.MethodPatch, "/users/update/{userId}", "", func(c *ctx.HTTPContext) {})
 
 gr := routing.NewRouter()
 gr.Group("/v1", v1)
@@ -509,7 +509,7 @@ Console:
 #### Cách Dùng
 
 ```go
-r.Use(func(c *ctx.Context) {
+r.Use(func(c *ctx.HTTPContext) {
 	c.Next()
 })
 ```
@@ -543,7 +543,7 @@ Trả về một hàm để đăng ký handler cho một route, áp dụng cho m
 #### Cách Dùng
 
 ```go
-r.For([]string{http.MethodGet, http.MethodPost}, "/users/{id}", "")(func(c *ctx.Context) {
+r.For([]string{http.MethodGet, http.MethodPost}, "/users/{id}", "")(func(c *ctx.HTTPContext) {
 	c.Next()
 })
 ```
@@ -581,7 +581,7 @@ r.For([]string{http.MethodGet, http.MethodPost}, "/users/{id}", "")(func(c *ctx.
 #### Cách Dùng
 
 ```go
-r.Add(http.MethodGet, "/users/{id}", "", func(c *ctx.Context) {})
+r.Add(http.MethodGet, "/users/{id}", "", func(c *ctx.HTTPContext) {})
 ```
 
 ### AddInjectableHandler

@@ -11,8 +11,8 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func newHTTPContext() *ctx.Context {
-	c := ctx.NewContext()
+func newHTTPContext() *ctx.HTTPContext {
+	c := ctx.NewHTTPContext()
 	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.ResponseWriter = httptest.NewRecorder()

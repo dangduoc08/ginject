@@ -14,7 +14,7 @@ type RateLimiterGuard struct {
 	config.ConfigService
 }
 
-func (instance RateLimiterGuard) CanActivate(ctx *ctx.Context) bool {
+func (instance RateLimiterGuard) CanActivate(ctx *ctx.HTTPContext) bool {
 	fmt.Println("[Global] RateLimiter guard")
 
 	return true

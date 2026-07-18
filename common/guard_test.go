@@ -9,7 +9,7 @@ import (
 
 type mockGuarder struct{}
 
-func (mockGuarder) CanActivate(_ *ctx.Context) bool { return true }
+func (mockGuarder) CanActivate(_ *ctx.HTTPContext) bool { return true }
 
 func TestBindGuard_Chaining(t *testing.T) {
 	g := &Guard{}

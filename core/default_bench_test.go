@@ -16,7 +16,7 @@ func BenchmarkGlobalExceptionFilterFull(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c := ctx.NewContext()
+		c := ctx.NewHTTPContext()
 		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
@@ -31,7 +31,7 @@ func BenchmarkGlobalExceptionFilterFallback(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		c := ctx.NewContext()
+		c := ctx.NewHTTPContext()
 		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
