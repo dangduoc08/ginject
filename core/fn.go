@@ -586,5 +586,13 @@ func buildUseMiddleware(useFn common.Use) ctx.Handler {
 }
 
 func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.Handler {
-	return func(c *ctx.Context) { common.HandleGuard(c, canActiveFn(c)) }
+	return func(c *ctx.Context) { handleGuard(c, canActiveFn(c)) }
+}
+
+func handleGuard(c *ctx.Context, canActive bool) {
+	if canActive {
+		c.Next()
+	} else {
+		panic(exception.ForbiddenException("Access denied"))
+	}
 }

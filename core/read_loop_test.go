@@ -8,7 +8,6 @@ import (
 	"golang.org/x/net/websocket"
 
 	"github.com/dangduoc08/ginject/broker"
-	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
@@ -244,7 +243,7 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 func TestHandleSubscribe_GuardDenialBlocksSubscribeAndRepliesError(t *testing.T) {
 	ws := newTestWSBare(t)
 	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.Context) {
-		common.HandleGuard(c, false)
+		handleGuard(c, false)
 	})
 	ws.eventMatcher.AddInjectableHandler("chat.to.*", func() {})
 
@@ -293,7 +292,7 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 	// Registered only now, after subscribe succeeded, so this Guard denies
 	// publish specifically without blocking the subscribe step above.
 	ws.eventMatcher.AddMiddlewares("chat.to.*", func(c *ctx.Context) {
-		common.HandleGuard(c, false)
+		handleGuard(c, false)
 	})
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})

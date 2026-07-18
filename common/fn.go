@@ -4,9 +4,6 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-
-	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/exception"
 )
 
 // to ensure constructor only run once
@@ -178,14 +175,6 @@ func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 		return "", false
 	}
 	return strings.Join(segs, "."), true
-}
-
-func HandleGuard(c *ctx.Context, canActive bool) {
-	if canActive {
-		c.Next()
-	} else {
-		panic(exception.ForbiddenException("Access denied"))
-	}
 }
 
 func Construct(obj any, constructor string) any {
