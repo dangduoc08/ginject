@@ -22,6 +22,7 @@ type (
 
 	// decorators
 	HTTPContext = *ctx.HTTPContext
+	WSContext   = *ctx.WSContext
 	Request     = *http.Request
 	Response    = http.ResponseWriter
 	Body        = ctx.Body

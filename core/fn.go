@@ -601,14 +601,3 @@ func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 	}
 }
 
-func buildGuardMiddleware(canActiveFn common.CanActivate) ctx.HTTPHandler {
-	return func(c *ctx.HTTPContext) { handleGuard(c, canActiveFn(c)) }
-}
-
-func handleGuard(c *ctx.HTTPContext, canActive bool) {
-	if canActive {
-		c.Next()
-	} else {
-		panic(exception.ForbiddenException("Access denied"))
-	}
-}
