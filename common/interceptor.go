@@ -1,32 +1,17 @@
 package common
 
 import (
+	"errors"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/internal/str"
-	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
-type Intercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any
+const InterceptorMethodName = "Intercept"
 
-type Interceptable interface {
-	Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any
-}
+type WithValueKey string
 
-type RESTInterceptorItem struct {
-	Method  string
-	Route   string
-	Version string
-	Pattern string
-	Common  CommonItem
-}
-
-type WSInterceptorItem struct {
-	EventName string
-	Common    CommonItem
-}
+type Interceptable any
 
 type InterceptorItem struct {
 	REST RESTInterceptorItem
@@ -53,95 +38,10 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 	return i
 }
 
-func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
-	interceptorItemArr := make([]InterceptorItem, 0, len(r.PatternToFuncNameMap)*len(i.InterceptorHandlers))
-
-	for _, interceptorHandler := range i.InterceptorHandlers {
-		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
-		interceptableValue := reflect.ValueOf(interceptorHandler.interceptable)
-		newInterceptor := reflect.New(interceptableType)
-
-		for j := 0; j < interceptableType.NumField(); j++ {
-			cb(j, interceptableType, interceptableValue, newInterceptor)
-		}
-
-		newInterceptable := newInterceptor.Interface()
-		newInterceptable = Construct(newInterceptable, "NewInterceptor")
-		interceptorHandler.interceptable = newInterceptable.(Interceptable)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range interceptorHandler.handlers {
-			fnName := GetFuncName(handler)
-			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				targetedPatterns[pattern] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || targetedPatterns[pattern] {
-				method, route, version := routing.PatternToMethodRouteVersion(pattern)
-				httpMethod := routing.OperationsMapHTTPMethods[method]
-
-				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-					REST: RESTInterceptorItem{
-						Method:  httpMethod,
-						Route:   str.Enclose(route, '/'),
-						Version: version,
-						Pattern: pattern,
-						Common: CommonItem{
-							Handler:         interceptorHandler.interceptable.Intercept,
-							Name:            interceptableType.String(),
-							MainHandlerName: r.PatternToFuncNameMap[pattern],
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return interceptorItemArr
-}
-
-func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
-	interceptorItemArr := make([]InterceptorItem, 0, len(ws.funcNameByEvent)*len(i.InterceptorHandlers))
-
-	for _, interceptorHandler := range i.InterceptorHandlers {
-		interceptableType := reflect.TypeOf(interceptorHandler.interceptable)
-		interceptableValue := reflect.ValueOf(interceptorHandler.interceptable)
-		newInterceptor := reflect.New(interceptableType)
-
-		for j := 0; j < interceptableType.NumField(); j++ {
-			cb(j, interceptableType, interceptableValue, newInterceptor)
-		}
-
-		newInterceptable := newInterceptor.Interface()
-		newInterceptable = Construct(newInterceptable, "NewInterceptor")
-		interceptorHandler.interceptable = newInterceptable.(Interceptable)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range interceptorHandler.handlers {
-			fnName := GetFuncName(handler)
-			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				targetedPatterns[event] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range ws.funcNameByEvent {
-			if applyAll || targetedPatterns[pattern] {
-				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-					WS: WSInterceptorItem{
-						EventName: pattern,
-						Common: CommonItem{
-							Handler: interceptorHandler.interceptable.Intercept,
-							Name:    interceptableType.String(),
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return interceptorItemArr
+func InterceptorShapeError(interceptable any) error {
+	return errors.New(color.FmtRed(
+		"invalid handler: %v has no %s method usable as an interceptor",
+		reflect.TypeOf(interceptable),
+		InterceptorMethodName,
+	))
 }

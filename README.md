@@ -344,7 +344,7 @@ c.BindGuard(AuthGuard{}, c.CREATE_VERSION_1, c.DELETE_VERSION_1)
 
 ### Interceptor
 
-Implement `Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any`. Runs before and after the handler via `Pipe`:
+Implement `Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any` for a REST interceptor, or `Intercept(*ctx.WSContext, *aggregation.Aggregation) any` for a WS one. Ginject inspects the bound interceptor's `Intercept` signature to tell which one it is — a REST-shaped interceptor only ever wraps REST handlers, a WS-shaped one only WS handlers. Runs before and after the handler via `Pipe`:
 
 ```go
 type ResponseInterceptor struct{}
@@ -372,7 +372,7 @@ c.BindInterceptor(ResponseInterceptor{})
 
 ### Exception Filter
 
-Implement `Catch(*ctx.HTTPContext, *exception.Exception)`. Catches panics and unhandled exceptions:
+Implement `Catch(*ctx.HTTPContext, *exception.Exception)` for a REST exception filter, or `Catch(*ctx.WSContext, *exception.Exception)` for a WS one. Ginject inspects the bound filter's `Catch` signature to tell which one it is — a REST-shaped filter only ever catches REST panics, a WS-shaped filter only WS ones. Catches panics and unhandled exceptions:
 
 ```go
 type AppExceptionFilter struct{}

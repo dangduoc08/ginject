@@ -1,6 +1,7 @@
 package common
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dangduoc08/ginject/aggregation"
@@ -11,6 +12,12 @@ import (
 type mockInterceptable struct{}
 
 func (mockInterceptable) Intercept(_ *ctx.HTTPContext, _ *aggregation.Aggregation) any { return nil }
+
+type noInterceptMethod struct{}
+
+type wrongParamInterceptable struct{}
+
+func (wrongParamInterceptable) Intercept(_ int, _ *aggregation.Aggregation) any { return nil }
 
 func TestBindInterceptor_Chaining(t *testing.T) {
 	i := &Interceptor{}
@@ -27,87 +34,12 @@ func TestBindInterceptor_Chaining(t *testing.T) {
 	}
 }
 
-func TestInjectProvidersIntoRESTInterceptors_Empty(t *testing.T) {
-	ic := &Interceptor{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
-
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound interceptors → empty result"))
+func TestInterceptorShapeError_MessageContainsType(t *testing.T) {
+	err := InterceptorShapeError(noInterceptMethod{})
+	if err == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil error", "InterceptorShapeError must not return nil"))
 	}
-}
-
-func TestInjectProvidersIntoRESTInterceptors_ApplyAll(t *testing.T) {
-	ic := &Interceptor{}
-	ic.BindInterceptor(mockInterceptable{})
-
-	r := buildREST(map[string]string{
-		"READ_users":    "/users/",
-		"CREATE_orders": "/orders/",
-	})
-
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "interceptor with no handlers applies to all patterns"))
-	}
-	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
-		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
-		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
-		}
-	}
-}
-
-func TestInjectProvidersIntoRESTInterceptors_MainHandlerName(t *testing.T) {
-	ic := &Interceptor{}
-	ic.BindInterceptor(mockInterceptable{})
-
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
-
-	if len(items) != 1 {
-		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
-		return
-	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
-	}
-}
-
-func TestInjectProvidersIntoWSInterceptors_Empty(t *testing.T) {
-	ic := &Interceptor{}
-	ws := buildWS(map[string]string{"message": "ON_message"})
-
-	items := ic.InjectProvidersIntoWSInterceptors(ws, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound interceptors → empty result"))
-	}
-}
-
-func TestInjectProvidersIntoWSInterceptors_ApplyAll(t *testing.T) {
-	ic := &Interceptor{}
-	ic.BindInterceptor(mockInterceptable{})
-
-	ws := buildWS(map[string]string{
-		"message": "ON_message",
-		"status":  "ON_status",
-	})
-
-	items := ic.InjectProvidersIntoWSInterceptors(ws, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "interceptor with no handlers applies to all WS patterns"))
-	}
-	for _, item := range items {
-		if item.WS.EventName == "" {
-			t.Error(test.DiffMessage(item.WS.EventName, "non-empty", "event name"))
-		}
-		if item.WS.Common.Name == "" {
-			t.Error(test.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
-		}
+	if !strings.Contains(err.Error(), "noInterceptMethod") {
+		t.Error(test.DiffMessage(err.Error(), "contains noInterceptMethod", "error message should name the offending type"))
 	}
 }
