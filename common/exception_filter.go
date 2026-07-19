@@ -1,32 +1,18 @@
 package common
 
 import (
+	"errors"
+	"net/http"
 	"reflect"
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/internal/str"
-	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
-type Catch = func(*ctx.HTTPContext, *exception.Exception)
+const ExceptionFilterMethodName = "Catch"
 
-type ExceptionFilterable interface {
-	Catch(*ctx.HTTPContext, *exception.Exception)
-}
-
-type RESTExceptionFilterItem struct {
-	Method  string
-	Route   string
-	Version string
-	Pattern string
-	Common  CommonItem
-}
-
-type WSExceptionFilterItem struct {
-	EventName string
-	Common    CommonItem
-}
+type ExceptionFilterable any
 
 type ExceptionFilterItem struct {
 	REST RESTExceptionFilterItem
@@ -52,95 +38,35 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 	return e
 }
 
-func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
-	exceptionFilterItemArr := make([]ExceptionFilterItem, 0, len(r.PatternToFuncNameMap)*len(e.ExceptionFilterHandlers))
-
-	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
-		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.exceptionFilterable)
-		exceptionFilterableValue := reflect.ValueOf(exceptionFilterHandler.exceptionFilterable)
-		newExceptionFilter := reflect.New(exceptionFilterableType)
-
-		for i := 0; i < exceptionFilterableType.NumField(); i++ {
-			cb(i, exceptionFilterableType, exceptionFilterableValue, newExceptionFilter)
-		}
-
-		newExceptionFilterable := newExceptionFilter.Interface()
-		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
-		exceptionFilterHandler.exceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range exceptionFilterHandler.handlers {
-			fnName := GetFuncName(handler)
-			if pattern, ok := r.FuncNameToPatternMap[fnName]; ok {
-				targetedPatterns[pattern] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range r.PatternToFuncNameMap {
-			if applyAll || targetedPatterns[pattern] {
-				method, route, version := routing.PatternToMethodRouteVersion(pattern)
-				httpMethod := routing.OperationsMapHTTPMethods[method]
-
-				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-					REST: RESTExceptionFilterItem{
-						Method:  httpMethod,
-						Route:   str.Enclose(route, '/'),
-						Version: version,
-						Pattern: pattern,
-						Common: CommonItem{
-							Handler:         exceptionFilterHandler.exceptionFilterable.Catch,
-							Name:            exceptionFilterableType.String(),
-							MainHandlerName: r.PatternToFuncNameMap[pattern],
-						},
-					},
-				})
-			}
-		}
-	}
-
-	return exceptionFilterItemArr
+func ExceptionFilterShapeError(exceptionFilterable any) error {
+	return errors.New(color.FmtRed(
+		"invalid handler: %v has no %s method usable as an exception filter",
+		reflect.TypeOf(exceptionFilterable),
+		ExceptionFilterMethodName,
+	))
 }
 
-func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
-	exceptionFilterItemArr := make([]ExceptionFilterItem, 0, len(ws.funcNameByEvent)*len(e.ExceptionFilterHandlers))
+type CatchEventPayload struct {
+	ReqCtx    *ctx.HTTPContext
+	Recovered any
+	Index     int
+}
 
-	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
-		exceptionFilterableType := reflect.TypeOf(exceptionFilterHandler.exceptionFilterable)
-		exceptionFilterableValue := reflect.ValueOf(exceptionFilterHandler.exceptionFilterable)
-		newExceptionFilter := reflect.New(exceptionFilterableType)
-
-		for i := 0; i < exceptionFilterableType.NumField(); i++ {
-			cb(i, exceptionFilterableType, exceptionFilterableValue, newExceptionFilter)
-		}
-
-		newExceptionFilterable := newExceptionFilter.Interface()
-		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
-		exceptionFilterHandler.exceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
-
-		targetedPatterns := map[string]bool{}
-		for _, handler := range exceptionFilterHandler.handlers {
-			fnName := GetFuncName(handler)
-			if event, ok := ParseWSFuncNameToEvent(fnName); ok {
-				targetedPatterns[event] = true
-			}
-		}
-		applyAll := len(targetedPatterns) == 0
-
-		for pattern := range ws.funcNameByEvent {
-			if applyAll || targetedPatterns[pattern] {
-				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-					WS: WSExceptionFilterItem{
-						EventName: pattern,
-						Common: CommonItem{
-							Handler: exceptionFilterHandler.exceptionFilterable.Catch,
-							Name:    exceptionFilterableType.String(),
-						},
-					},
-				})
-			}
-		}
+func NormalizeRecovered(rec any) *exception.Exception {
+	if ex, ok := rec.(exception.Exception); ok {
+		return &ex
 	}
 
-	return exceptionFilterItemArr
+	response := http.StatusText(http.StatusInternalServerError)
+	switch arg := rec.(type) {
+	case error:
+		response = arg.Error()
+	case string:
+		response = arg
+	}
+
+	ex := exception.InternalServerErrorException(response, map[string]any{
+		"description": "Unknown exception",
+	})
+	return &ex
 }
