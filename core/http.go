@@ -21,7 +21,7 @@ type HTTP struct {
 
 	versioning                    *versioning.Versioning
 	isVersioningEnabled           bool
-	catchFnsByRoute               map[string][]common.Catch
+	catchFnsByRoute               map[string][]common.RESTCatch
 	lastWildcardSlashIndexByRoute map[string]int
 
 	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
@@ -30,7 +30,7 @@ type HTTP struct {
 func newHTTP() *HTTP {
 	return &HTTP{
 		route:                         routing.NewRouter(),
-		catchFnsByRoute:               make(map[string][]common.Catch),
+		catchFnsByRoute:               make(map[string][]common.RESTCatch),
 		lastWildcardSlashIndexByRoute: make(map[string]int),
 	}
 }
@@ -69,7 +69,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 			// since we always set global exception filter as default
 			if _, ok := http.catchFnsByRoute[catchEvent]; ok {
 
-				_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: 0})
+				_ = c.Broker.Publish(catchEvent, common.CatchEventPayload{ReqCtx: c, Recovered: rec, Index: 0})
 			}
 		}
 	}()

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -37,26 +38,10 @@ func buildBenchWS(n int) *WS {
 
 var benchCB = func(_ int, _ reflect.Type, _ reflect.Value, _ reflect.Value) {}
 
-func BenchmarkInjectProvidersIntoRESTExceptionFilters_ApplyAll(b *testing.B) {
-	r := buildBenchREST(20)
+func BenchmarkNormalizeRecovered(b *testing.B) {
+	err := errors.New("boom")
 	b.ResetTimer()
 	for range b.N {
-		e := &ExceptionFilter{}
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
-		e.InjectProvidersIntoRESTExceptionFilters(r, benchCB)
-	}
-}
-
-func BenchmarkInjectProvidersIntoWSExceptionFilters_ApplyAll(b *testing.B) {
-	ws := buildBenchWS(20)
-	b.ResetTimer()
-	for range b.N {
-		e := &ExceptionFilter{}
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
-		e.InjectProvidersIntoWSExceptionFilters(ws, benchCB)
+		_ = NormalizeRecovered(err)
 	}
 }

@@ -27,7 +27,7 @@ type WSConfig struct {
 }
 
 type WS struct {
-	catchFnsByEvent       map[string][]common.Catch
+	catchFnsByEvent       map[string][]common.WSCatch
 	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	connmgr               *WSConnmgr
 	path                  string
@@ -46,7 +46,7 @@ func NewWS(cfg *WSConfig) *WS {
 	}
 
 	ws := WS{
-		catchFnsByEvent:       make(map[string][]common.Catch),
+		catchFnsByEvent:       make(map[string][]common.WSCatch),
 		resolveAndCallHandler: cfg.resolveAndCallHandler,
 		eventMatcher:          wsevent.NewWSEvent(),
 		connmgr:               NewWSConnmgr(cfg.logger),

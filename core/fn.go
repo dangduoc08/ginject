@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,13 +13,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/color"
 
-	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/exception"
 )
 
 var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
@@ -515,75 +511,11 @@ func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *c
 	return reflect.ValueOf(f).Call(args)
 }
 
-type catchEventPayload struct {
-	reqCtx    *ctx.HTTPContext
-	recovered any
-	index     int
-}
-
-func normalizeRecovered(rec any) *exception.Exception {
-	if ex, ok := rec.(exception.Exception); ok {
-		return &ex
-	}
-
-	response := http.StatusText(http.StatusInternalServerError)
-	switch arg := rec.(type) {
-	case error:
-		response = arg.Error()
-	case string:
-		response = arg
-	}
-
-	ex := exception.InternalServerErrorException(response, map[string]any{
-		"description": "Unknown exception",
-	})
-	return &ex
-}
-
-func buildCatchMiddleware(catchEvent string, catchFns []common.Catch) ctx.HTTPHandler {
-	return func(c *ctx.HTTPContext) {
-		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
-			p := m.Payload.(catchEventPayload)
-			catchFnIndex := p.index
-
-			defer func() {
-				if rec := recover(); rec != nil {
-					_ = c.Broker.Publish(catchEvent, catchEventPayload{reqCtx: c, recovered: rec, index: catchFnIndex + 1})
-				}
-			}()
-
-			catchFns[catchFnIndex](p.reqCtx, normalizeRecovered(p.recovered))
-		})
-
-		c.Next()
-	}
-}
-
-func buildInterceptMiddleware(key string, interceptFn func(*ctx.HTTPContext, *aggregation.Aggregation) any) ctx.HTTPHandler {
-	return func(c *ctx.HTTPContext) {
-		aggregationInstance := aggregation.NewAggregation()
-
-		if aggregations, ok := c.Context().Value(WithValueKey(key)).([]*aggregation.Aggregation); ok {
-			aggregations = append(aggregations, aggregationInstance)
-			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), aggregations))
-		} else {
-			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), []*aggregation.Aggregation{aggregationInstance}))
-		}
-
-		aggregationInstance.IsMainHandlerCalled = false
-		aggregationInstance.SetMainData(nil)
-
-		aggregationInstance.InterceptorData = interceptFn(c, aggregationInstance)
-
-		c.Next()
-	}
-}
-
 func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				globalExceptionFilter{}.Catch(c, normalizeRecovered(rec))
+				globalExceptionFilter{}.Catch(c, common.NormalizeRecovered(rec))
 			}
 		}()
 

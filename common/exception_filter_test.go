@@ -1,7 +1,10 @@
 package common
 
 import (
+	"errors"
+	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/dangduoc08/ginject/ctx"
@@ -13,6 +16,12 @@ import (
 type mockExFilter struct{}
 
 func (mockExFilter) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {}
+
+type noCatchExFilter struct{}
+
+type wrongParamExFilter struct{}
+
+func (wrongParamExFilter) Catch(_ int, _ *exception.Exception) {}
 
 var noopCB = func(_ int, _ reflect.Type, _ reflect.Value, _ reflect.Value) {}
 
@@ -54,87 +63,42 @@ func TestBindExceptionFilter_Chaining(t *testing.T) {
 	}
 }
 
-func TestInjectProvidersIntoRESTExceptionFilters_Empty(t *testing.T) {
-	e := &ExceptionFilter{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
-
-	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound filters → empty result"))
+func TestExceptionFilterShapeError_MessageContainsType(t *testing.T) {
+	err := ExceptionFilterShapeError(noCatchExFilter{})
+	if err == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil error", "ExceptionFilterShapeError must not return nil"))
+	}
+	if !strings.Contains(err.Error(), "noCatchExFilter") {
+		t.Error(test.DiffMessage(err.Error(), "contains noCatchExFilter", "error message should name the offending type"))
 	}
 }
 
-func TestInjectProvidersIntoRESTExceptionFilters_ApplyAll(t *testing.T) {
-	e := &ExceptionFilter{}
-	e.BindExceptionFilter(mockExFilter{})
-
-	r := buildREST(map[string]string{
-		"READ_users":    "/users/",
-		"CREATE_orders": "/orders/",
-	})
-
-	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "filter with no handlers applies to all patterns"))
-	}
-	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
-		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
-		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
-		}
+func TestNormalizeRecovered_ExceptionPassthrough(t *testing.T) {
+	original := exception.ForbiddenException("nope")
+	got := NormalizeRecovered(original)
+	if got.Error() != original.Error() {
+		t.Error(test.DiffMessage(got.Error(), original.Error(), "an *exception.Exception panic must pass through unchanged"))
 	}
 }
 
-func TestInjectProvidersIntoRESTExceptionFilters_MainHandlerName(t *testing.T) {
-	e := &ExceptionFilter{}
-	e.BindExceptionFilter(mockExFilter{})
-
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := e.InjectProvidersIntoRESTExceptionFilters(r, noopCB)
-
-	if len(items) != 1 {
-		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
-		return
-	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+func TestNormalizeRecovered_ErrorValue(t *testing.T) {
+	got := NormalizeRecovered(errors.New("boom"))
+	if got.GetResponse() != "boom" {
+		t.Error(test.DiffMessage(got.GetResponse(), "boom", "an error panic should use its Error() text as the response"))
 	}
 }
 
-func TestInjectProvidersIntoWSExceptionFilters_Empty(t *testing.T) {
-	e := &ExceptionFilter{}
-	ws := buildWS(map[string]string{"message": "ON_message"})
-
-	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
-	if len(items) != 0 {
-		t.Error(test.DiffMessage(len(items), 0, "no bound filters → empty result"))
+func TestNormalizeRecovered_StringValue(t *testing.T) {
+	got := NormalizeRecovered("boom string")
+	if got.GetResponse() != "boom string" {
+		t.Error(test.DiffMessage(got.GetResponse(), "boom string", "a string panic should be used verbatim as the response"))
 	}
 }
 
-func TestInjectProvidersIntoWSExceptionFilters_ApplyAll(t *testing.T) {
-	e := &ExceptionFilter{}
-	e.BindExceptionFilter(mockExFilter{})
-
-	ws := buildWS(map[string]string{
-		"message": "ON_message",
-		"status":  "ON_status",
-	})
-
-	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
-	if len(items) != 2 {
-		t.Error(test.DiffMessage(len(items), 2, "filter with no handlers applies to all WS patterns"))
-	}
-	for _, item := range items {
-		if item.WS.EventName == "" {
-			t.Error(test.DiffMessage(item.WS.EventName, "non-empty", "event name"))
-		}
-		if item.WS.Common.Name == "" {
-			t.Error(test.DiffMessage(item.WS.Common.Name, "non-empty", "name"))
-		}
+func TestNormalizeRecovered_UnknownTypeUsesGenericMessage(t *testing.T) {
+	got := NormalizeRecovered(42)
+	want := http.StatusText(http.StatusInternalServerError)
+	if got.GetResponse() != want {
+		t.Error(test.DiffMessage(got.GetResponse(), want, "an unrecognized panic value should fall back to the generic 500 text"))
 	}
 }
