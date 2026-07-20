@@ -40,7 +40,7 @@ func (i *Interceptor) BindInterceptor(interceptable Interceptable, handlers ...a
 
 func InterceptorShapeError(interceptable any) error {
 	return errors.New(color.FmtRed(
-		"invalid handler: %v has no %s method usable as an interceptor",
+		"invalid interceptor: %v has no %s method usable as an interceptor",
 		reflect.TypeOf(interceptable),
 		InterceptorMethodName,
 	))

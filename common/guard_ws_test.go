@@ -19,7 +19,7 @@ func TestInjectProvidersIntoWSGuards_Empty(t *testing.T) {
 
 func TestInjectProvidersIntoWSGuards_ApplyAll(t *testing.T) {
 	g := &Guard{}
-	g.BindGuard(mockGuarder{})
+	g.BindGuard(mockWSGuarder{})
 
 	ws := buildWS(map[string]string{
 		"message": "ON_message",
@@ -42,7 +42,7 @@ func TestInjectProvidersIntoWSGuards_ApplyAll(t *testing.T) {
 
 func TestInjectProvidersIntoWSGuards_HandlerIsCallableCanActivate(t *testing.T) {
 	g := &Guard{}
-	g.BindGuard(denyGuarder{})
+	g.BindGuard(denyWSGuarder{})
 
 	ws := buildWS(map[string]string{"message": "ON_message"})
 	items := g.InjectProvidersIntoWSGuards(ws, noopCB)
@@ -86,9 +86,9 @@ func TestInjectProvidersIntoWSGuards_WrongReturnType_Panics(t *testing.T) {
 }
 
 func TestAsWSGuard_Valid(t *testing.T) {
-	fn, ok := AsWSGuard(mockGuarder{})
+	fn, ok := AsWSGuard(mockWSGuarder{})
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "mockGuarder must match WSCanActivate"))
+		t.Fatal(test.DiffMessage(ok, true, "mockWSGuarder must match WSCanActivate"))
 	}
 	if fn(nil) != true {
 		t.Error(test.DiffMessage(false, true, "returned fn must call through to CanActivate"))

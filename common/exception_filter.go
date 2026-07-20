@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/color"
 )
@@ -40,14 +39,16 @@ func (e *ExceptionFilter) BindExceptionFilter(exceptionFilterable ExceptionFilte
 
 func ExceptionFilterShapeError(exceptionFilterable any) error {
 	return errors.New(color.FmtRed(
-		"invalid handler: %v has no %s method usable as an exception filter",
+		"invalid exception filter: %v has no %s method usable as an exception filter",
 		reflect.TypeOf(exceptionFilterable),
 		ExceptionFilterMethodName,
 	))
 }
 
+// ReqCtx holds either *ctx.HTTPContext or *ctx.WSContext depending on
+// which transport's catch-chain published this payload.
 type CatchEventPayload struct {
-	ReqCtx    *ctx.HTTPContext
+	ReqCtx    any
 	Recovered any
 	Index     int
 }

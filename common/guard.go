@@ -37,7 +37,7 @@ func (g *Guard) BindGuard(guarder Guarder, handlers ...any) *Guard {
 
 func GuardShapeError(guarder any) error {
 	return errors.New(color.FmtRed(
-		"invalid handler: %v has no %s method usable as a guard",
+		"invalid guard: %v has no %s method usable as a guard",
 		reflect.TypeOf(guarder),
 		GuardMethodName,
 	))

@@ -13,6 +13,7 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 	newStructuredData := reflect.New(structureType)
 	setValueToStructField := setValueToStructField(newStructuredData)
 	filteredFile := map[string][]*DataFile{}
+	fieldTags := getFieldBindTags(structureType)
 
 	for i := 0; i < structureType.NumField(); i++ {
 		structField := structureType.Field(i)
@@ -21,53 +22,50 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 			continue
 		}
 
-		if bindValues, ok := structField.Tag.Lookup(TagBind); ok {
-			bindParams := GetTagParams(bindValues)
-			if len(bindParams) > 0 {
-				bindedIndex, bindedField := GetTagParamIndex(bindParams[0])
-				if bindedValue, ok := f[bindedField]; ok {
-					switch structField.Type.Kind() {
+		if ft := fieldTags[i]; ft.ok {
+			bindedIndex, bindedField := ft.index, ft.field
+			if bindedValue, ok := f[bindedField]; ok {
+				switch structField.Type.Kind() {
 
-					case reflect.Ptr:
-						if len(bindedValue) > 0 {
-							if fileHeader, ok := slice.Get(bindedValue, bindedIndex); ok {
-								dataFile := []*DataFile{
-									{
-										FileHeader: fileHeader,
-										Index:      bindedIndex,
-										Size:       fileHeader.Size,
-										Total:      1,
-										Key:        bindedField,
-										Filename:   fileHeader.Filename,
-										Type:       fileHeader.Header.Get("Content-Type"),
-									},
-								}
-
-								filteredFile[bindedField] = dataFile
-								setValueToStructField(dataFile[0])
-							}
-						}
-						continue
-
-					case reflect.Slice:
-						dataFile := slice.Map(
-							bindedValue,
-							func(fileHeader *multipart.FileHeader, index int) *DataFile {
-								return &DataFile{
+				case reflect.Ptr:
+					if len(bindedValue) > 0 {
+						if fileHeader, ok := slice.Get(bindedValue, bindedIndex); ok {
+							dataFile := []*DataFile{
+								{
 									FileHeader: fileHeader,
-									Index:      index,
+									Index:      bindedIndex,
 									Size:       fileHeader.Size,
-									Total:      len(bindedValue),
+									Total:      1,
 									Key:        bindedField,
 									Filename:   fileHeader.Filename,
 									Type:       fileHeader.Header.Get("Content-Type"),
-								}
-							})
+								},
+							}
 
-						filteredFile[bindedField] = dataFile
-						setValueToStructField(dataFile)
-						continue
+							filteredFile[bindedField] = dataFile
+							setValueToStructField(dataFile[0])
+						}
 					}
+					continue
+
+				case reflect.Slice:
+					dataFile := slice.Map(
+						bindedValue,
+						func(fileHeader *multipart.FileHeader, index int) *DataFile {
+							return &DataFile{
+								FileHeader: fileHeader,
+								Index:      index,
+								Size:       fileHeader.Size,
+								Total:      len(bindedValue),
+								Key:        bindedField,
+								Filename:   fileHeader.Filename,
+								Type:       fileHeader.Header.Get("Content-Type"),
+							}
+						})
+
+					filteredFile[bindedField] = dataFile
+					setValueToStructField(dataFile)
+					continue
 				}
 			}
 		}

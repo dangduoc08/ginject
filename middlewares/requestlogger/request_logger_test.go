@@ -3,15 +3,12 @@ package requestlogger
 import (
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
-	"golang.org/x/net/websocket"
 )
 
 type mockLogger struct {
@@ -39,29 +36,25 @@ func findArg(args []any, key string) (any, bool) {
 	return nil, false
 }
 
-func newLoggerContext(method, urlPath string, typ string) *ctx.HTTPContext {
+func newLoggerContext(method, urlPath string) *ctx.HTTPContext {
 	req := httptest.NewRequest(method, urlPath, nil)
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Init(httptest.NewRecorder(), req)
-	c.SetType(typ)
 	return c
 }
 
-func newLoggerContextWithID(method, urlPath, id, typ string) *ctx.HTTPContext {
+func newLoggerContextWithID(method, urlPath, id string) *ctx.HTTPContext {
 	req := httptest.NewRequest(method, urlPath, nil)
 	req.Header.Set(ctx.RequestID, id)
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Init(httptest.NewRecorder(), req)
-	c.SetType(typ)
 	return c
 }
 
 func TestRequestLogger_Use_CallsNext(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/")
 	called := false
 	rl.Use(c, func() { called = true })
 	if !called {
@@ -72,9 +65,9 @@ func TestRequestLogger_Use_CallsNext(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsURL(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/api/users", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/api/users")
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	if !log.called {
 		t.Error(test.DiffMessage(log.called, true, "Info should be called"))
 		return
@@ -87,9 +80,9 @@ func TestRequestLogger_Use_HTTPLogsURL(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsMethod(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodPost, "/api/users", ctx.HTTPType)
+	c := newLoggerContext(http.MethodPost, "/api/users")
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Method")
 	if !ok {
 		t.Error(test.DiffMessage(nil, "Method key", "Method key missing from log args"))
@@ -103,10 +96,10 @@ func TestRequestLogger_Use_HTTPLogsMethod(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsStatus(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/")
 	c.Code = http.StatusCreated
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Status")
 	if !ok {
 		t.Error(test.DiffMessage(nil, "Status key", "Status key missing from log args"))
@@ -120,9 +113,9 @@ func TestRequestLogger_Use_HTTPLogsStatus(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsProtocol(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/")
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Protocol")
 	if !ok {
 		t.Error(test.DiffMessage(nil, "Protocol key", "Protocol key missing from log args"))
@@ -136,9 +129,9 @@ func TestRequestLogger_Use_HTTPLogsProtocol(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsRequestID(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContextWithID(http.MethodGet, "/", "req-abc", ctx.HTTPType)
+	c := newLoggerContextWithID(http.MethodGet, "/", "req-abc")
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, ctx.RequestID)
 	if !ok {
 		t.Error(test.DiffMessage(nil, ctx.RequestID+" key", "RequestID key missing from log args"))
@@ -152,10 +145,10 @@ func TestRequestLogger_Use_HTTPLogsRequestID(t *testing.T) {
 func TestRequestLogger_Use_HTTPLogsTime(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/")
 	c.Timestamp = time.Now().Add(-50 * time.Millisecond)
 	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
+	c.Event.Emit(ctx.RequestFinished, c)
 	v, ok := findArg(log.args, "Time")
 	if !ok {
 		t.Error(test.DiffMessage(nil, "Time key", "Time key missing from log args"))
@@ -170,53 +163,9 @@ func TestRequestLogger_Use_HTTPLogsTime(t *testing.T) {
 func TestRequestLogger_Use_NoLogWithoutEventEmit(t *testing.T) {
 	log := &mockLogger{}
 	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", ctx.HTTPType)
+	c := newLoggerContext(http.MethodGet, "/")
 	rl.Use(c, func() {})
 	if log.called {
 		t.Error(test.DiffMessage(log.called, false, "Info should not be called before RequestFinished"))
-	}
-}
-
-func TestRequestLogger_Use_WSLogsLocationPath(t *testing.T) {
-	log := &mockLogger{}
-	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/ws", ctx.WSType)
-	c.SetWSConfig(&websocket.Config{Location: &url.URL{Path: "/chat"}})
-	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
-	if !log.called {
-		t.Error(test.DiffMessage(log.called, true, "Info should be called for WS"))
-		return
-	}
-	if log.msg != "/chat" {
-		t.Error(test.DiffMessage(log.msg, "/chat", "WS log message should be Location.Path"))
-	}
-}
-
-func TestRequestLogger_Use_WSLogsMethodAndID(t *testing.T) {
-	log := &mockLogger{}
-	rl := RequestLogger{Logger: log}
-	c := newLoggerContextWithID(http.MethodGet, "/ws", "ws-req-1", ctx.WSType)
-	c.SetWSConfig(&websocket.Config{Location: &url.URL{Path: "/chat"}})
-	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
-	v, ok := findArg(log.args, ctx.RequestID)
-	if !ok {
-		t.Error(test.DiffMessage(nil, ctx.RequestID+" key", "RequestID key missing from WS log args"))
-		return
-	}
-	if v != "ws-req-1" {
-		t.Error(test.DiffMessage(v, "ws-req-1", "WS RequestID value mismatch"))
-	}
-}
-
-func TestRequestLogger_Use_UnknownTypeNoLog(t *testing.T) {
-	log := &mockLogger{}
-	rl := RequestLogger{Logger: log}
-	c := newLoggerContext(http.MethodGet, "/", "")
-	rl.Use(c, func() {})
-	_ = c.Broker.Publish(ctx.RequestFinished, c)
-	if log.called {
-		t.Error(test.DiffMessage(log.called, false, "Info should not be called for unknown type"))
 	}
 }

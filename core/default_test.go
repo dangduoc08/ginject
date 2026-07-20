@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
@@ -13,10 +12,8 @@ import (
 
 func newHTTPContext() *ctx.HTTPContext {
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.ResponseWriter = httptest.NewRecorder()
-	c.SetType(ctx.HTTPType)
 	return c
 }
 

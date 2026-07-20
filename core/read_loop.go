@@ -133,13 +133,6 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payload WSPayload) (c *ctx.WSContext, ok bool) {
 	c = ws.newCtx()
 
-	// recover must be registered before any of the setup below (Init/SetType/
-	// SetWSConn/SetWSPayload) — a panic there (e.g. Init is handed a nil
-	// ResponseWriter on purpose, since WS has none per-message) would
-	// otherwise propagate uncaught past this function, past handleSubscribe/
-	// dispatchWSEvent, past readLoop, and crash the whole process (an
-	// unrecovered panic in any goroutine takes down the entire program) —
-	// while also skipping the caller's ws.releaseCtx(c), leaking c.
 	defer func() {
 		if rec := recover(); rec != nil {
 			msg := fmt.Sprint(rec)
@@ -151,9 +144,7 @@ func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payl
 		}
 	}()
 
-	c.Init(nil, conn.Conn.Request())
-	c.SetType(ctx.WSType)
-	c.SetWSConn(conn.Conn)
+	c.Init(conn.Conn)
 	messageMap, _ := payload.Message.(map[string]any)
 	c.SetWSPayload(ctx.WSPayload(messageMap))
 

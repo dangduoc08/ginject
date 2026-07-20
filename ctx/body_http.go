@@ -40,32 +40,23 @@ func (b Body) Set(k string, v any) {
 	keys = slice.Filter[string](keys, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
-	obj := b
 	if len(keys) == 0 {
 		return
 	}
 
+	obj := b
 	for i, key := range keys {
-		if val, ok := obj[key]; ok {
-			if deeperObj, ok := val.(map[string]any); ok {
-				obj = deeperObj
-				if i == len(keys)-1 {
-					obj[key] = v
-					return
-				}
-			} else if i == len(keys)-1 {
-				obj[key] = v
-				return
-			}
-		} else {
-			if i == len(keys)-1 {
-				obj[key] = v
-				return
-			} else {
-				obj[key] = make(map[string]any)
-				obj = obj[key].(map[string]any)
-			}
+		if i == len(keys)-1 {
+			obj[key] = v
+			return
 		}
+
+		deeperObj, ok := obj[key].(map[string]any)
+		if !ok {
+			deeperObj = make(map[string]any)
+			obj[key] = deeperObj
+		}
+		obj = deeperObj
 	}
 }
 
@@ -74,24 +65,25 @@ func (b Body) Get(k string) any {
 	keys = slice.Filter(keys, func(el string, i int) bool {
 		return strings.TrimSpace(el) != ""
 	})
-	obj := b
 	if len(keys) == 0 {
-		return obj
+		return b
 	}
 
+	obj := b
 	for i, key := range keys {
-		if val, ok := obj[key]; ok {
-			if deeperObj, ok := val.(map[string]any); ok {
-				obj = deeperObj
-				if i == len(keys)-1 {
-					return obj
-				}
-			} else if i == len(keys)-1 {
-				return obj[key]
-			} else {
-				return nil
-			}
+		val, ok := obj[key]
+		if !ok {
+			return nil
 		}
+		if i == len(keys)-1 {
+			return val
+		}
+
+		deeperObj, ok := val.(map[string]any)
+		if !ok {
+			return nil
+		}
+		obj = deeperObj
 	}
 
 	return nil

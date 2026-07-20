@@ -69,7 +69,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 			// since we always set global exception filter as default
 			if _, ok := http.catchFnsByRoute[catchEvent]; ok {
 
-				_ = c.Broker.Publish(catchEvent, common.CatchEventPayload{ReqCtx: c, Recovered: rec, Index: 0})
+				c.Event.Emit(catchEvent, common.CatchEventPayload{ReqCtx: c, Recovered: rec, Index: 0})
 			}
 		}
 	}()
@@ -151,7 +151,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 								}
 
 								aggregation.SetMainData(aggregatedData)
-								aggregatedData = aggregation.Aggregate(c)
+								aggregatedData = aggregation.Aggregate()
 							} else {
 								isMainHandlerCalled = false
 								if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
@@ -243,7 +243,7 @@ func (http *HTTP) serveContent(c *ctx.HTTPContext, lastWildcardSlashIndex int, d
 			http.returnNotFound(c)
 		} else {
 			stdHTTP.ServeFile(c.ResponseWriter, c.Request, dir)
-			_ = c.Broker.Publish(ctx.RequestFinished, c)
+			c.Event.Emit(ctx.RequestFinished, c)
 		}
 	} else {
 		http.returnNotFound(c)

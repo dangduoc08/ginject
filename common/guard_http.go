@@ -48,8 +48,12 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 
 		canActivate, ok := AsRESTGuard(guardHandler.guarder)
 		if !ok {
+			if _, ok = AsWSGuard(guardHandler.guarder); ok {
+				continue
+			}
+
 			panic(errors.New(color.FmtRed(
-				"invalid handler: %v.%s must be func(*ctx.HTTPContext) bool to be bound as a REST guard",
+				"invalid guard: %v.%s must be func(*ctx.HTTPContext) bool to be bound as a REST guard",
 				guarderType,
 				GuardMethodName,
 			)))

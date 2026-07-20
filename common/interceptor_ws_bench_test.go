@@ -1,8 +1,6 @@
 package common
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/dangduoc08/ginject/aggregation"
@@ -14,15 +12,15 @@ func BenchmarkInjectProvidersIntoWSInterceptors_ApplyAll(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		ic := &Interceptor{}
-		ic.BindInterceptor(mockInterceptable{})
-		ic.BindInterceptor(mockInterceptable{})
-		ic.BindInterceptor(mockInterceptable{})
+		ic.BindInterceptor(mockWSInterceptable{})
+		ic.BindInterceptor(mockWSInterceptable{})
+		ic.BindInterceptor(mockWSInterceptable{})
 		ic.InjectProvidersIntoWSInterceptors(ws, benchCB)
 	}
 }
 
 func BenchmarkAsWSInterceptor(b *testing.B) {
-	interceptable := mockInterceptable{}
+	interceptable := mockWSInterceptable{}
 	b.ResetTimer()
 	for range b.N {
 		_, _ = AsWSInterceptor(interceptable)
@@ -30,8 +28,7 @@ func BenchmarkAsWSInterceptor(b *testing.B) {
 }
 
 func BenchmarkBuildWSInterceptMiddleware(b *testing.B) {
-	c := ctx.NewHTTPContext()
-	c.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	c := ctx.NewWSContext()
 	c.Next = func() {}
 
 	mw := BuildWSInterceptMiddleware("bench.event", func(*ctx.WSContext, *aggregation.Aggregation) any {
