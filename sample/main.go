@@ -24,6 +24,10 @@ func main() {
 		BindGlobalInterceptors(shared.LogHTTPInterceptor{}, shared.LogWSInterceptor{}).
 		BindGlobalExceptionFilters(shared.LogHTTPExceptionFilter{}, shared.LogWSExceptionFilter{})
 
+	app.EnableWS(&core.WSConfig{
+		Path: "ws",
+	})
+
 	// app.
 	// 	EnableVersioning(versioning.Versioning{
 	// 		Type: versioning.HeaderVersion,
