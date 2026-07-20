@@ -451,3 +451,49 @@ func TestBindStruct_Pointers_NilOnWrongType(t *testing.T) {
 		t.Error(test.DiffMessage(dto.PtrMap, nil, "*map wrong type should be nil"))
 	}
 }
+
+type interfaceFieldDTO struct {
+	Any    any  `bind:"any_field"`
+	PtrAny *any `bind:"ptr_any_field"`
+}
+
+func TestBindStruct_InterfaceFields(t *testing.T) {
+	data := map[string]any{
+		"any_field":     "hello",
+		"ptr_any_field": "world",
+	}
+	res, _ := BindStruct(data, &[]FieldLevel{}, interfaceFieldDTO{}, "", "")
+	dto, ok := res.(interfaceFieldDTO)
+	if !ok {
+		t.Fatal(test.DiffMessage(res, interfaceFieldDTO{}, "BindStruct should return an interfaceFieldDTO"))
+	}
+	if dto.Any != "hello" {
+		t.Error(test.DiffMessage(dto.Any, "hello", "interface field should be bound as-is"))
+	}
+	if dto.PtrAny == nil || *dto.PtrAny != "world" {
+		t.Error(test.DiffMessage(dto.PtrAny, "world", "*interface field should be bound as a pointer to the value"))
+	}
+}
+
+type missingFieldDTO struct {
+	Present string `bind:"present"`
+	Missing string `bind:"missing"`
+}
+
+func TestBindStruct_FieldNotInData(t *testing.T) {
+	data := map[string]any{"present": "value"}
+	_, fls := BindStruct(data, &[]FieldLevel{}, missingFieldDTO{}, "", "")
+
+	var found bool
+	for _, fl := range fls {
+		if fl.Tag() == "missing" {
+			found = true
+			if fl.IsValue() {
+				t.Error(test.DiffMessage(fl.IsValue(), false, "a field absent from the data map should be reported as not a value"))
+			}
+		}
+	}
+	if !found {
+		t.Error("expected a FieldLevel entry for the missing tag")
+	}
+}

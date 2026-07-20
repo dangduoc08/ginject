@@ -3,7 +3,6 @@ package requestlogger
 import (
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 )
@@ -13,18 +12,10 @@ type RequestLogger struct {
 }
 
 func (instance RequestLogger) Use(c *ctx.HTTPContext, next ctx.Next) {
-	_, _ = c.Broker.Once(ctx.RequestFinished, func(m *broker.Message) {
-		newC := m.Payload.(*ctx.HTTPContext)
+	c.Event.Once(ctx.RequestFinished, func(args ...any) {
+		newC := args[0].(*ctx.HTTPContext)
 
-		var msg string
-		switch newC.GetType() {
-		case ctx.HTTPType:
-			msg = newC.URL.String()
-		case ctx.WSType:
-			msg = c.GetWSConfig().Location.Path
-		default:
-			return
-		}
+		var msg string = newC.URL.String()
 
 		instance.Info(
 			msg,

@@ -348,3 +348,90 @@ func TestBindStrArr(t *testing.T) {
 		t.Error(test.DiffMessage(actual33, expected33, "complex shouldn be binded"))
 	}
 }
+
+type strArrSliceDTO struct {
+	Bools     []bool       `bind:"bools"`
+	Ints      []int        `bind:"ints"`
+	Int8s     []int8       `bind:"int8s"`
+	Int16s    []int16      `bind:"int16s"`
+	Int32s    []int32      `bind:"int32s"`
+	Int64s    []int64      `bind:"int64s"`
+	Uints     []uint       `bind:"uints"`
+	Uint8s    []uint8      `bind:"uint8s"`
+	Uint16s   []uint16     `bind:"uint16s"`
+	Uint32s   []uint32     `bind:"uint32s"`
+	Uint64s   []uint64     `bind:"uint64s"`
+	Float32s  []float32    `bind:"float32s"`
+	Float64s  []float64    `bind:"float64s"`
+	Complex64 []complex64  `bind:"complex64s"`
+	Complex   []complex128 `bind:"complex128s"`
+	Strings   []string     `bind:"strings"`
+	Anys      []any        `bind:"anys"`
+	Missing   string       `bind:"missing_field"`
+}
+
+func TestBindStrArr_SliceFields(t *testing.T) {
+	data := map[string][]string{
+		"bools":       {"true", "false"},
+		"ints":        {"1", "2"},
+		"int8s":       {"1"},
+		"int16s":      {"1"},
+		"int32s":      {"1"},
+		"int64s":      {"1"},
+		"uints":       {"1"},
+		"uint8s":      {"1"},
+		"uint16s":     {"1"},
+		"uint32s":     {"1"},
+		"uint64s":     {"1"},
+		"float32s":    {"1.5"},
+		"float64s":    {"1.5"},
+		"complex64s":  {"1+2i"},
+		"complex128s": {"1+2i"},
+		"strings":     {"a", "b"},
+		"anys":        {"a", "1"},
+	}
+
+	res, fls := BindStrArr(data, &[]FieldLevel{}, strArrSliceDTO{})
+	dto, ok := res.(strArrSliceDTO)
+	if !ok {
+		t.Fatal(test.DiffMessage(res, strArrSliceDTO{}, "BindStrArr should return a strArrSliceDTO"))
+	}
+
+	if len(dto.Bools) != 2 || !dto.Bools[0] || dto.Bools[1] {
+		t.Error(test.DiffMessage(dto.Bools, []bool{true, false}, "[]bool field should be bound"))
+	}
+	if len(dto.Ints) != 2 || dto.Ints[0] != 1 || dto.Ints[1] != 2 {
+		t.Error(test.DiffMessage(dto.Ints, []int{1, 2}, "[]int field should be bound"))
+	}
+	if len(dto.Int8s) != 1 || dto.Int8s[0] != 1 {
+		t.Error(test.DiffMessage(dto.Int8s, []int8{1}, "[]int8 field should be bound"))
+	}
+	if len(dto.Uints) != 1 || dto.Uints[0] != 1 {
+		t.Error(test.DiffMessage(dto.Uints, []uint{1}, "[]uint field should be bound"))
+	}
+	if len(dto.Float32s) != 1 || dto.Float32s[0] != 1.5 {
+		t.Error(test.DiffMessage(dto.Float32s, []float32{1.5}, "[]float32 field should be bound"))
+	}
+	if len(dto.Complex64) != 1 || dto.Complex64[0] != complex64(1+2i) {
+		t.Error(test.DiffMessage(dto.Complex64, []complex64{1 + 2i}, "[]complex64 field should be bound"))
+	}
+	if len(dto.Strings) != 2 || dto.Strings[0] != "a" {
+		t.Error(test.DiffMessage(dto.Strings, []string{"a", "b"}, "[]string field should be bound"))
+	}
+	if len(dto.Anys) != 2 {
+		t.Error(test.DiffMessage(dto.Anys, []any{"a", "1"}, "[]any field should be bound"))
+	}
+
+	found := false
+	for _, fl := range fls {
+		if fl.Tag() == "missing_field" {
+			found = true
+			if fl.IsValue() {
+				t.Error(test.DiffMessage(fl.IsValue(), false, "a field with no matching data key should be reported as not a value"))
+			}
+		}
+	}
+	if !found {
+		t.Error("expected a FieldLevel entry for the missing_field tag")
+	}
+}

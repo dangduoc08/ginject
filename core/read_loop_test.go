@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
@@ -20,20 +19,19 @@ import (
 // pre-registered, so callers can register their own via
 // ws.eventMatcher.AddInjectableHandler/AddMiddlewares for scenarios that
 // need a specific handler or middleware.
-func newTestWSBare(t *testing.T) *WS {
+func newTestWSBare(t testing.TB) *WS {
 	t.Helper()
 
 	ws := NewWS(&WSConfig{logger: log.NewLog(nil)})
-	ws.newCtx = func() *ctx.HTTPContext {
-		c := ctx.NewHTTPContext()
-		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
+	ws.newCtx = func() *ctx.WSContext {
+		c := ctx.NewWSContext()
 		return c
 	}
-	ws.releaseCtx = func(c *ctx.HTTPContext) {
+	ws.releaseCtx = func(c *ctx.WSContext) {
 		c.Reset()
 	}
-	ws.resolveAndCallHandler = func(f any, c *ctx.HTTPContext) []reflect.Value {
-		return invokeHandlerByProviders(f, nil, c)
+	ws.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
+		return invokeWSHandlerByProviders(f, nil, c)
 	}
 
 	return ws
@@ -43,7 +41,7 @@ func newTestWSBare(t *testing.T) *WS {
 // event patterns had been registered by real SUBSCRIBE_xxx controllers,
 // using a no-op handler. Only the pattern's presence matters for the
 // whitelist-only tests that use this helper.
-func newTestWS(t *testing.T, eventPatterns ...string) *WS {
+func newTestWS(t testing.TB, eventPatterns ...string) *WS {
 	t.Helper()
 
 	ws := newTestWSBare(t)
@@ -54,7 +52,7 @@ func newTestWS(t *testing.T, eventPatterns ...string) *WS {
 	return ws
 }
 
-func recvWSPayload(t *testing.T, conn *websocket.Conn) WSPayload {
+func recvWSPayload(t testing.TB, conn *websocket.Conn) WSPayload {
 	t.Helper()
 
 	var p WSPayload
@@ -243,7 +241,7 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 // way to reach publish's must-already-be-subscribed check at all.
 func TestHandleSubscribe_GuardDenialBlocksSubscribeAndRepliesError(t *testing.T) {
 	ws := newTestWSBare(t)
-	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildHTTPGuardMiddleware(func(*ctx.HTTPContext) bool { return false }))
+	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return false }))
 	ws.eventMatcher.AddInjectableHandler("chat.to.*", func() {})
 
 	serverConn, clientConn, cleanup := newTestWSConnPair(t)
@@ -290,7 +288,7 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 
 	// Registered only now, after subscribe succeeded, so this Guard denies
 	// publish specifically without blocking the subscribe step above.
-	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildHTTPGuardMiddleware(func(*ctx.HTTPContext) bool { return false }))
+	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return false }))
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
 
@@ -362,5 +360,61 @@ func TestDispatchWSEvent_InjectsWSPayloadIntoHandler(t *testing.T) {
 
 	if got == nil || got["foo"] != "bar" {
 		t.Error(test.DiffMessage(got, ctx.WSPayload{"foo": "bar"}, "handler should receive the published message as ctx.WSPayload"))
+	}
+}
+
+func TestReadLoop_DispatchesSubscribeAndUnsupportedType(t *testing.T) {
+	ws := newTestWS(t, "chat.to.*")
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	done := make(chan struct{})
+	go func() {
+		readLoop(conn, ws)
+		close(done)
+	}()
+
+	if err := websocket.JSON.Send(clientConn, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}}); err != nil {
+		t.Fatal(err)
+	}
+	got := recvWSPayload(t, clientConn)
+	if got.Type != TypeAck {
+		t.Error(test.DiffMessage(got.Type, TypeAck, "readLoop should dispatch a subscribe message to handleSubscribe"))
+	}
+
+	if err := websocket.JSON.Send(clientConn, WSPayload{ID: "req-2", Type: "bogus"}); err != nil {
+		t.Fatal(err)
+	}
+	got = recvWSPayload(t, clientConn)
+	if got.Type != TypeError {
+		t.Error(test.DiffMessage(got.Type, TypeError, "readLoop should reply with an error for an unsupported payload type"))
+	}
+
+	_ = clientConn.Close()
+	<-done
+}
+
+func TestHandleUnsubscribe_RemovesTopicAndAcks(t *testing.T) {
+	ws := newTestWS(t, "chat.to.*")
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn) // ack from subscribe
+
+	handleUnsubscribe(conn, ws.connmgr, WSPayload{ID: "req-2", Topic: []string{"chat.to.user2"}})
+	got := recvWSPayload(t, clientConn)
+
+	if got.Type != TypeAck {
+		t.Error(test.DiffMessage(got.Type, TypeAck, "handleUnsubscribe should ack once all topics are removed"))
+	}
+	if ws.connmgr.isSubscribed("conn-1", "chat.to.user2") {
+		t.Error(test.DiffMessage(true, false, "handleUnsubscribe should remove the subscription"))
 	}
 }

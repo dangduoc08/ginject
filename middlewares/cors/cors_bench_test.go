@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 )
 
@@ -19,7 +18,6 @@ func newBenchContext(method, origin string) *ctx.HTTPContext {
 	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c
 }
 

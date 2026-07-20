@@ -1,10 +1,6 @@
 package aggregation
 
-import (
-	"github.com/dangduoc08/ginject/ctx"
-)
-
-type AggregationOperator = func(*ctx.HTTPContext, any) any
+type AggregationOperator = func(any) any
 
 type Operator struct {
 	Name        string
@@ -53,13 +49,13 @@ func (aggregation *Aggregation) setOperators(name string, op AggregationOperator
 	return aggregation
 }
 
-func (aggregation *Aggregation) Aggregate(c *ctx.HTTPContext) any {
+func (aggregation *Aggregation) Aggregate() any {
 	for _, operator := range aggregation.operators {
 		switch operator.Name {
 		case OperatorTransform:
-			aggregation.mainData = operator.Aggregation(c, aggregation.mainData)
+			aggregation.mainData = operator.Aggregation(aggregation.mainData)
 		case OperatorTap:
-			operator.Aggregation(c, aggregation.mainData)
+			operator.Aggregation(aggregation.mainData)
 		}
 	}
 

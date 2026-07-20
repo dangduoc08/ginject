@@ -17,6 +17,10 @@ type mockExFilter struct{}
 
 func (mockExFilter) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {}
 
+type mockWSExFilter struct{}
+
+func (mockWSExFilter) Catch(_ *ctx.WSContext, _ *exception.Exception) {}
+
 type noCatchExFilter struct{}
 
 type wrongParamExFilter struct{}

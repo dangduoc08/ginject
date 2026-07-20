@@ -4,7 +4,6 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/color"
@@ -44,8 +43,12 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 
 		catch, ok := AsWSExceptionFilter(exceptionFilterHandler.exceptionFilterable)
 		if !ok {
+			if _, ok = AsRESTExceptionFilter(exceptionFilterHandler.exceptionFilterable); ok {
+				continue
+			}
+
 			panic(errors.New(color.FmtRed(
-				"invalid handler: %v.%s must be func(*ctx.WSContext, *exception.Exception) to be bound as a WS exception filter",
+				"invalid exception filter: %v.%s must be func(*ctx.WSContext, *exception.Exception) to be bound as a WS exception filter",
 				exceptionFilterableType,
 				ExceptionFilterMethodName,
 			)))
@@ -80,17 +83,17 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 
 func BuildWSCatchMiddleware(catchEvent string, catchFns []WSCatch) ctx.WSHandler {
 	return func(c *ctx.WSContext) {
-		_, _ = c.Broker.Subscribe(catchEvent, func(m *broker.Message) {
-			p := m.Payload.(CatchEventPayload)
+		c.Event.On(catchEvent, func(args ...any) {
+			p := args[0].(CatchEventPayload)
 			catchFnIndex := p.Index
 
 			defer func() {
 				if rec := recover(); rec != nil {
-					_ = c.Broker.Publish(catchEvent, CatchEventPayload{ReqCtx: p.ReqCtx, Recovered: rec, Index: catchFnIndex + 1})
+					c.Event.Emit(catchEvent, CatchEventPayload{ReqCtx: p.ReqCtx, Recovered: rec, Index: catchFnIndex + 1})
 				}
 			}()
 
-			catchFns[catchFnIndex](p.ReqCtx, NormalizeRecovered(p.Recovered))
+			catchFns[catchFnIndex](p.ReqCtx.(*ctx.WSContext), NormalizeRecovered(p.Recovered))
 		})
 
 		c.Next()

@@ -82,7 +82,7 @@ func (ws *WS) upgrade(w stdHTTP.ResponseWriter, r *stdHTTP.Request, s websocket.
 	s.ServeHTTP(w, r)
 }
 
-func (ws *WS) handshake(c *ctx.WSContext) error {
+func (ws *WS) handshake(c *ctx.HTTPContext) error {
 	isNext := true
 	c.Next = func() {
 		isNext = true
@@ -96,9 +96,7 @@ func (ws *WS) handshake(c *ctx.WSContext) error {
 	}
 
 	if isNext {
-		if err := c.Broker.Publish(ctx.RequestFinished, c); err != nil {
-			ws.logger.Error("WSRequestFinishedPublishFailed", "error", err)
-		}
+		c.Event.Emit(ctx.RequestFinished, c)
 		return nil
 	}
 

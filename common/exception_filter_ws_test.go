@@ -3,7 +3,6 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
@@ -21,7 +20,7 @@ func TestInjectProvidersIntoWSExceptionFilters_Empty(t *testing.T) {
 
 func TestInjectProvidersIntoWSExceptionFilters_ApplyAll(t *testing.T) {
 	e := &ExceptionFilter{}
-	e.BindExceptionFilter(mockExFilter{})
+	e.BindExceptionFilter(mockWSExFilter{})
 
 	ws := buildWS(map[string]string{
 		"message": "ON_message",
@@ -44,7 +43,7 @@ func TestInjectProvidersIntoWSExceptionFilters_ApplyAll(t *testing.T) {
 
 func TestInjectProvidersIntoWSExceptionFilters_HandlerIsCallableCatch(t *testing.T) {
 	e := &ExceptionFilter{}
-	e.BindExceptionFilter(mockExFilter{})
+	e.BindExceptionFilter(mockWSExFilter{})
 
 	ws := buildWS(map[string]string{"message": "ON_message"})
 	items := e.InjectProvidersIntoWSExceptionFilters(ws, noopCB)
@@ -71,9 +70,9 @@ func TestInjectProvidersIntoWSExceptionFilters_NoCatch_Panics(t *testing.T) {
 }
 
 func TestAsWSExceptionFilter_Valid(t *testing.T) {
-	fn, ok := AsWSExceptionFilter(mockExFilter{})
+	fn, ok := AsWSExceptionFilter(mockWSExFilter{})
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "mockExFilter must match WSCatch"))
+		t.Fatal(test.DiffMessage(ok, true, "mockWSExFilter must match WSCatch"))
 	}
 	ex := exception.InternalServerErrorException("")
 	fn(nil, &ex)
@@ -94,8 +93,7 @@ func TestAsWSExceptionFilter_WrongShape(t *testing.T) {
 }
 
 func TestBuildWSCatchMiddleware_CallsNext(t *testing.T) {
-	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
+	c := ctx.NewWSContext()
 	called := false
 	c.Next = func() { called = true }
 
@@ -110,8 +108,7 @@ func TestBuildWSCatchMiddleware_CallsNext(t *testing.T) {
 }
 
 func TestBuildWSCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
-	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
+	c := ctx.NewWSContext()
 	c.Next = func() {}
 
 	var gotEx *exception.Exception
@@ -120,7 +117,7 @@ func TestBuildWSCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
 	})
 	mw(c)
 
-	_ = c.Broker.Publish("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
+	c.Event.Emit("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
 
 	if gotEx == nil {
 		t.Fatal(test.DiffMessage(nil, "non-nil exception", "publishing to the subscribed event must invoke the catch function"))
@@ -131,8 +128,7 @@ func TestBuildWSCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
 }
 
 func TestBuildWSCatchMiddleware_FallsBackToNextIndexOnPanic(t *testing.T) {
-	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
+	c := ctx.NewWSContext()
 	c.Next = func() {}
 
 	secondCalled := false
@@ -142,7 +138,7 @@ func TestBuildWSCatchMiddleware_FallsBackToNextIndexOnPanic(t *testing.T) {
 	})
 	mw(c)
 
-	_ = c.Broker.Publish("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
+	c.Event.Emit("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
 
 	if !secondCalled {
 		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next index"))

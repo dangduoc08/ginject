@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 )
@@ -41,7 +40,6 @@ func newCSRFContext(method, token, cookieToken string) (*ctx.HTTPContext, *httpt
 	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c, rec
 }
 
@@ -57,7 +55,6 @@ func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken strin
 	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c, rec
 }
 

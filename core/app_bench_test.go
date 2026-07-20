@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 )
 
@@ -28,12 +27,11 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 	app.Create(ModuleBuilder().Build())
 
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	handler := func() reflect.Value { return reflect.ValueOf("bench") }
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		invokeHandlerByProviders(handler, app.injectedProviders, c)
+		invokeHTTPHandlerByProviders(handler, app.injectedProviders, c)
 	}
 }

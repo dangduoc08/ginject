@@ -24,7 +24,7 @@ func resetModuleGlobals() {
 	modulesInjectedFromMain = nil
 	staticModuleByDynamicPtr = make(map[uintptr]*Module)
 	globalPrefixesByController = make(map[string][]string)
-	globalProviderByKey = make(map[string]Provider)
+	globalProviderByKey = sync.Map{}
 	providerSingletonByKey = make(map[string]Provider)
 	common.InsertedRoutes = make(map[string]string)
 	common.InsertedEvents = make(map[string]string)
@@ -107,7 +107,7 @@ func TestNewModule_StaticSubmoduleGlobalProvider_PromotedToGlobal(t *testing.T) 
 	root.NewModule()
 
 	key := genFieldKey(reflect.TypeOf(mtGlobalSubProvider{}))
-	if globalProviderByKey[key] == nil {
+	if _, ok := globalProviderByKey.Load(key); !ok {
 		t.Error(test.DiffMessage(nil, "non-nil provider", "a provider from an IsGlobal static submodule imported by the main module must be promoted to globalProviderByKey"))
 	}
 }
@@ -227,9 +227,9 @@ func (e mtExFilterOneField) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {
 func seedPriorityChainGlobals() {
 	// a stale/other-module global registration for the SAME type the module
 	// also declares locally - local must still win.
-	globalProviderByKey[genFieldKey(reflect.TypeOf(mtLocalProvider{}))] = mtLocalProvider{Source: "stale-global"}
-	globalProviderByKey[genFieldKey(reflect.TypeOf(mtGlobalOnlyProvider{}))] = mtGlobalOnlyProvider{Source: "global"}
-	globalInterfaceByKey[genFieldKey(reflect.TypeOf(mtInterfaceOnlyProvider{}))] = mtInterfaceOnlyProvider{Source: "interface"}
+	globalProviderByKey.Store(genFieldKey(reflect.TypeOf(mtLocalProvider{})), mtLocalProvider{Source: "stale-global"})
+	globalProviderByKey.Store(genFieldKey(reflect.TypeOf(mtGlobalOnlyProvider{})), mtGlobalOnlyProvider{Source: "global"})
+	globalInterfaceByKey.Store(genFieldKey(reflect.TypeOf(mtInterfaceOnlyProvider{})), mtInterfaceOnlyProvider{Source: "interface"})
 }
 
 func assertPriorityChainSeen(t *testing.T, label string) {
@@ -558,20 +558,50 @@ func TestNewModule_WSMainHandler_Registered(t *testing.T) {
 	}
 }
 
+type mtPriorityGuardWS struct {
+	Local       mtLocalProvider
+	GlobalOnly  mtGlobalOnlyProvider
+	IfaceOnly   mtInterfaceOnlyProvider
+	Passthrough mtPassthroughValue
+}
+
+var mtPriorityGuardWSSeen mtPriorityGuardWS
+
+func (g mtPriorityGuardWS) CanActivate(_ *ctx.WSContext) bool {
+	mtPriorityGuardWSSeen = g
+	return true
+}
+
+func assertPriorityChainSeenWS(t *testing.T, label string) {
+	t.Helper()
+	if mtPriorityGuardWSSeen.Local.Source != "local" {
+		t.Error(test.DiffMessage(mtPriorityGuardWSSeen.Local.Source, "local", label+": local module provider must win over a global provider of the same type"))
+	}
+	if mtPriorityGuardWSSeen.GlobalOnly.Source != "global" {
+		t.Error(test.DiffMessage(mtPriorityGuardWSSeen.GlobalOnly.Source, "global", label+": field with no local provider must fall back to globalProviderByKey"))
+	}
+	if mtPriorityGuardWSSeen.IfaceOnly.Source != "interface" {
+		t.Error(test.DiffMessage(mtPriorityGuardWSSeen.IfaceOnly.Source, "interface", label+": field with no local/global provider must fall back to globalInterfaceByKey"))
+	}
+	if mtPriorityGuardWSSeen.Passthrough.Tag != "original" {
+		t.Error(test.DiffMessage(mtPriorityGuardWSSeen.Passthrough.Tag, "original", label+": non-Provider field must pass through the bound instance's original value"))
+	}
+}
+
 type mtWSGuardPriorityController struct {
 	common.WS
 	common.Guard
 }
 
 func (c mtWSGuardPriorityController) NewController() Controller {
-	c.BindGuard(mtPriorityGuard{Passthrough: mtPassthroughValue{Tag: "original"}})
+	c.BindGuard(mtPriorityGuardWS{Passthrough: mtPassthroughValue{Tag: "original"}})
 	return c
 }
 func (c mtWSGuardPriorityController) SUBSCRIBE_mtwsguardpriority() string { return "ok" }
 
 func TestNewModule_WSGuardInjection_PriorityChain(t *testing.T) {
 	resetModuleGlobals()
-	mtPriorityGuardSeen = mtPriorityGuard{}
+	mtPriorityGuardWSSeen = mtPriorityGuardWS{}
 	seedPriorityChainGlobals()
 
 	m := ModuleBuilder().
@@ -584,13 +614,13 @@ func TestNewModule_WSGuardInjection_PriorityChain(t *testing.T) {
 	if len(m.WSGuards) != 1 {
 		t.Fatalf("expected 1 WS guard, got %d", len(m.WSGuards))
 	}
-	handler, ok := m.WSGuards[0].Handler.(func(*ctx.HTTPContext) bool)
+	handler, ok := m.WSGuards[0].Handler.(func(*ctx.WSContext) bool)
 	if !ok {
 		t.Fatalf("unexpected WS guard handler type %T", m.WSGuards[0].Handler)
 	}
 	handler(nil)
 
-	assertPriorityChainSeen(t, "WS guard")
+	assertPriorityChainSeenWS(t, "WS guard")
 }
 
 type mtWSGuardUnexportedController struct {
@@ -639,20 +669,29 @@ func TestNewModule_WSGuardInjection_UnresolvedDependencyPanics(t *testing.T) {
 	m.NewModule()
 }
 
+type mtSimpleInterceptorWS struct{ P mtLocalProvider }
+
+var mtSimpleInterceptorWSSeen mtSimpleInterceptorWS
+
+func (ic mtSimpleInterceptorWS) Intercept(_ *ctx.WSContext, _ *aggregation.Aggregation) any {
+	mtSimpleInterceptorWSSeen = ic
+	return nil
+}
+
 type mtWSInterceptorController struct {
 	common.WS
 	common.Interceptor
 }
 
 func (c mtWSInterceptorController) NewController() Controller {
-	c.BindInterceptor(mtSimpleInterceptor{})
+	c.BindInterceptor(mtSimpleInterceptorWS{})
 	return c
 }
 func (c mtWSInterceptorController) SUBSCRIBE_mtwsinterceptor() string { return "ok" }
 
 func TestNewModule_WSInterceptorInjection_LocalProviderRegistered(t *testing.T) {
 	resetModuleGlobals()
-	mtSimpleInterceptorSeen = mtSimpleInterceptor{}
+	mtSimpleInterceptorWSSeen = mtSimpleInterceptorWS{}
 
 	m := ModuleBuilder().
 		Providers(mtLocalProvider{}).
@@ -664,15 +703,23 @@ func TestNewModule_WSInterceptorInjection_LocalProviderRegistered(t *testing.T) 
 	if len(m.WSInterceptors) != 1 {
 		t.Fatalf("expected 1 WS interceptor, got %d", len(m.WSInterceptors))
 	}
-	handler, ok := m.WSInterceptors[0].Handler.(func(*ctx.HTTPContext, *aggregation.Aggregation) any)
+	handler, ok := m.WSInterceptors[0].Handler.(func(*ctx.WSContext, *aggregation.Aggregation) any)
 	if !ok {
 		t.Fatalf("unexpected WS interceptor handler type %T", m.WSInterceptors[0].Handler)
 	}
 	handler(nil, aggregation.NewAggregation())
 
-	if mtSimpleInterceptorSeen.P.Source != "local" {
-		t.Error(test.DiffMessage(mtSimpleInterceptorSeen.P.Source, "local", "WS interceptor field should resolve from local module providers"))
+	if mtSimpleInterceptorWSSeen.P.Source != "local" {
+		t.Error(test.DiffMessage(mtSimpleInterceptorWSSeen.P.Source, "local", "WS interceptor field should resolve from local module providers"))
 	}
+}
+
+type mtExFilterOneFieldWS struct{ P mtLocalProvider }
+
+var mtExFilterOneFieldWSSeen mtExFilterOneFieldWS
+
+func (e mtExFilterOneFieldWS) Catch(_ *ctx.WSContext, _ *exception.Exception) {
+	mtExFilterOneFieldWSSeen = e
 }
 
 type mtWSExFilterController0 struct {
@@ -681,7 +728,7 @@ type mtWSExFilterController0 struct {
 }
 
 func (c mtWSExFilterController0) NewController() Controller {
-	c.BindExceptionFilter(mtExFilterOneField{})
+	c.BindExceptionFilter(mtExFilterOneFieldWS{})
 	return c
 }
 func (c mtWSExFilterController0) SUBSCRIBE_mtwsexfilterc0() string { return "ok" }
@@ -692,7 +739,7 @@ type mtWSExFilterController1 struct {
 }
 
 func (c mtWSExFilterController1) NewController() Controller {
-	c.BindExceptionFilter(mtExFilterOneField{})
+	c.BindExceptionFilter(mtExFilterOneFieldWS{})
 	return c
 }
 func (c mtWSExFilterController1) SUBSCRIBE_mtwsexfilterc1() string { return "ok" }
@@ -717,7 +764,7 @@ func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing
 		t.Fatalf("expected 2 WS exception filters, got %d", len(m.WSExceptionFilters))
 	}
 	for _, ef := range m.WSExceptionFilters {
-		handler, ok := ef.Handler.(func(*ctx.HTTPContext, *exception.Exception))
+		handler, ok := ef.Handler.(func(*ctx.WSContext, *exception.Exception))
 		if !ok {
 			t.Fatalf("unexpected WS exception filter handler type %T", ef.Handler)
 		}

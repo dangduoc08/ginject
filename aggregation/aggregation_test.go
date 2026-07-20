@@ -3,7 +3,6 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
@@ -67,11 +66,11 @@ func TestTransform_RegisteredAndApplied(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("original")
 	called := false
-	a.Transform(func(c *ctx.HTTPContext, data any) any {
+	a.Transform(func(data any) any {
 		called = true
 		return "transformed"
 	})
-	result := a.Aggregate(nil)
+	result := a.Aggregate()
 	if !called {
 		t.Error(test.DiffMessage(called, true, "Transform operator must be called"))
 	}
@@ -82,7 +81,7 @@ func TestTransform_RegisteredAndApplied(t *testing.T) {
 
 func TestTransform_ReturnsOperator(t *testing.T) {
 	a := NewAggregation()
-	noop := func(c *ctx.HTTPContext, data any) any { return data }
+	noop := func(data any) any { return data }
 	got := a.Transform(noop)
 	if got == nil {
 		t.Error(test.DiffMessage(got, "non-nil", "Transform must return the operator"))
@@ -93,11 +92,11 @@ func TestTap_CalledButDoesNotTransform(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("original")
 	called := false
-	a.Tap(func(c *ctx.HTTPContext, data any) any {
+	a.Tap(func(data any) any {
 		called = true
 		return "tap-result"
 	})
-	result := a.Aggregate(nil)
+	result := a.Aggregate()
 	if !called {
 		t.Error(test.DiffMessage(called, true, "Tap operator must be called"))
 	}
@@ -108,8 +107,8 @@ func TestTap_CalledButDoesNotTransform(t *testing.T) {
 
 func TestGetAggregationOperators_Match(t *testing.T) {
 	a := NewAggregation()
-	a.Transform(func(c *ctx.HTTPContext, data any) any { return data })
-	a.Tap(func(c *ctx.HTTPContext, data any) any { return data })
+	a.Transform(func(data any) any { return data })
+	a.Tap(func(data any) any { return data })
 	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 1 {
 		t.Error(test.DiffMessage(len(ops), 1, "must return exactly 1 Tap operator"))
@@ -121,7 +120,7 @@ func TestGetAggregationOperators_Match(t *testing.T) {
 
 func TestGetAggregationOperators_NoMatch(t *testing.T) {
 	a := NewAggregation()
-	a.Transform(func(c *ctx.HTTPContext, data any) any { return data })
+	a.Transform(func(data any) any { return data })
 	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 0 {
 		t.Error(test.DiffMessage(len(ops), 0, "must return empty slice when no match"))
@@ -130,8 +129,8 @@ func TestGetAggregationOperators_NoMatch(t *testing.T) {
 
 func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
 	a := NewAggregation()
-	a.Tap(func(c *ctx.HTTPContext, data any) any { return "e1" })
-	a.Tap(func(c *ctx.HTTPContext, data any) any { return "e2" })
+	a.Tap(func(data any) any { return "e1" })
+	a.Tap(func(data any) any { return "e2" })
 	ops := a.GetAggregationOperators(OperatorTap)
 	if len(ops) != 2 {
 		t.Error(test.DiffMessage(len(ops), 2, "must return all matching operators"))
@@ -149,7 +148,7 @@ func TestGetAggregationOperators_EmptyAggregation(t *testing.T) {
 func TestAggregate_NoOperators(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("data")
-	result := a.Aggregate(nil)
+	result := a.Aggregate()
 	if result != "data" {
 		t.Error(test.DiffMessage(result, "data", "no operators must return mainData unchanged"))
 	}
@@ -157,7 +156,7 @@ func TestAggregate_NoOperators(t *testing.T) {
 
 func TestAggregate_NilData(t *testing.T) {
 	a := NewAggregation()
-	result := a.Aggregate(nil)
+	result := a.Aggregate()
 	if result != nil {
 		t.Error(test.DiffMessage(result, nil, "nil mainData must be returned as nil"))
 	}
@@ -167,15 +166,15 @@ func TestAggregate_TransformAndTap_Order(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData(0)
 	order := []string{}
-	a.Transform(func(c *ctx.HTTPContext, data any) any {
+	a.Transform(func(data any) any {
 		order = append(order, "transform")
 		return data.(int) + 1
 	})
-	a.Tap(func(c *ctx.HTTPContext, data any) any {
+	a.Tap(func(data any) any {
 		order = append(order, "tap")
 		return data
 	})
-	result := a.Aggregate(nil)
+	result := a.Aggregate()
 	if result != 1 {
 		t.Error(test.DiffMessage(result, 1, "Transform must increment value"))
 	}
@@ -187,9 +186,9 @@ func TestAggregate_TransformAndTap_Order(t *testing.T) {
 func TestAggregate_MultipleTransforms(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData(0)
-	a.Transform(func(c *ctx.HTTPContext, data any) any { return data.(int) + 1 })
-	a.Transform(func(c *ctx.HTTPContext, data any) any { return data.(int) * 3 })
-	result := a.Aggregate(nil)
+	a.Transform(func(data any) any { return data.(int) + 1 })
+	a.Transform(func(data any) any { return data.(int) * 3 })
+	result := a.Aggregate()
 	if result != 3 {
 		t.Error(test.DiffMessage(result, 3, "(0+1)*3 = 3"))
 	}

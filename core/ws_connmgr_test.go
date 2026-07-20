@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
+	"github.com/dangduoc08/ginject/broker2"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
 )
@@ -18,7 +19,7 @@ import (
 // dials it, returning the server-side and client-side *websocket.Conn. The
 // server-side handler blocks until cleanup() closes it, so the connection
 // stays alive for the duration of the test.
-func newTestWSConnPair(t *testing.T) (server *websocket.Conn, client *websocket.Conn, cleanup func()) {
+func newTestWSConnPair(t testing.TB) (server *websocket.Conn, client *websocket.Conn, cleanup func()) {
 	t.Helper()
 
 	serverConnCh := make(chan *websocket.Conn, 1)
@@ -177,4 +178,74 @@ func TestWSConnmgr_UnregisterStopsWriterWithoutPanic(t *testing.T) {
 	// A send racing with (or arriving after) Unregister must not panic —
 	// done is closed, not send, precisely so this stays safe.
 	conn.TrySend(WSPayload{Type: TypeEvent, Message: "after-unregister"})
+}
+
+func TestWSConnmgr_Get(t *testing.T) {
+	serverConn, _, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	connmgr := NewWSConnmgr(log.NewLog(nil))
+	registered := connmgr.Register("conn-1", serverConn)
+	defer connmgr.Unregister("conn-1")
+
+	got, ok := connmgr.Get("conn-1")
+	if !ok || got != registered {
+		t.Error(test.DiffMessage(got, registered, "Get should return the connection registered under that id"))
+	}
+
+	if _, ok := connmgr.Get("missing"); ok {
+		t.Error(test.DiffMessage(ok, false, "Get should report false for an unregistered id"))
+	}
+}
+
+func TestWSConnmgr_Touch(t *testing.T) {
+	serverConn, _, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	connmgr := NewWSConnmgr(log.NewLog(nil))
+	conn := connmgr.Register("conn-1", serverConn)
+	defer connmgr.Unregister("conn-1")
+
+	before := conn.LastSeen
+	time.Sleep(time.Millisecond)
+	connmgr.touch("conn-1")
+
+	got, _ := connmgr.Get("conn-1")
+	if !got.LastSeen.After(before) {
+		t.Error(test.DiffMessage(got.LastSeen, "after "+before.String(), "touch should advance LastSeen"))
+	}
+}
+
+func TestWSConnmgr_TouchUnknownConnIsNoop(t *testing.T) {
+	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr.touch("missing")
+}
+
+func TestWSConnmgr_UnsubscribeRemovesOnlyMatchingTopic(t *testing.T) {
+	connmgr := NewWSConnmgr(log.NewLog(nil))
+
+	if err := connmgr.Subscribe("conn-1", "topic.a", func(*broker2.Message) {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := connmgr.Subscribe("conn-1", "topic.b", func(*broker2.Message) {}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := connmgr.Unsubscribe("conn-1", "topic.a"); err != nil {
+		t.Fatal(err)
+	}
+
+	if connmgr.isSubscribed("conn-1", "topic.a") {
+		t.Error(test.DiffMessage(true, false, "Unsubscribe should remove the given topic"))
+	}
+	if !connmgr.isSubscribed("conn-1", "topic.b") {
+		t.Error(test.DiffMessage(false, true, "Unsubscribe should leave other topics untouched"))
+	}
+}
+
+func TestWSConnmgr_UnsubscribeUnknownTopicIsNoop(t *testing.T) {
+	connmgr := NewWSConnmgr(log.NewLog(nil))
+	if err := connmgr.Unsubscribe("conn-1", "never-subscribed"); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe on a topic never subscribed to should not error"))
+	}
 }

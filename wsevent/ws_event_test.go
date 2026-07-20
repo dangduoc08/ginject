@@ -124,8 +124,8 @@ func TestWSEvent_ConcurrentMatchAfterAdd_NoDataRace(t *testing.T) {
 
 func TestWSEvent_AddMiddlewaresBeforeInjectableHandler_MatchesAndKeepsBoth(t *testing.T) {
 	r := wsevent.NewWSEvent()
-	mw1 := func(*ctx.HTTPContext) {}
-	mw2 := func(*ctx.HTTPContext) {}
+	mw1 := func(*ctx.WSContext) {}
+	mw2 := func(*ctx.WSContext) {}
 	handler := func() {}
 
 	r.AddMiddlewares("chat.created", mw1)
@@ -147,7 +147,7 @@ func TestWSEvent_AddMiddlewaresBeforeInjectableHandler_MatchesAndKeepsBoth(t *te
 func TestWSEvent_AddMiddlewaresAfterInjectableHandler_KeepsHandler(t *testing.T) {
 	r := wsevent.NewWSEvent()
 	handler := func() {}
-	mw := func(*ctx.HTTPContext) {}
+	mw := func(*ctx.WSContext) {}
 
 	r.AddInjectableHandler("chat.created", handler)
 	r.AddMiddlewares("chat.created", mw)
@@ -166,7 +166,7 @@ func TestWSEvent_AddMiddlewaresAfterInjectableHandler_KeepsHandler(t *testing.T)
 
 func TestWSEvent_AddMiddlewaresAlone_PatternStaysUnmatchable(t *testing.T) {
 	r := wsevent.NewWSEvent()
-	r.AddMiddlewares("chat.created", func(*ctx.HTTPContext) {})
+	r.AddMiddlewares("chat.created", func(*ctx.WSContext) {})
 
 	_, _, ok := r.Match("chat.created")
 	if ok {

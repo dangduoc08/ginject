@@ -3,7 +3,6 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 )
@@ -13,15 +12,15 @@ func BenchmarkInjectProvidersIntoWSExceptionFilters_ApplyAll(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		e := &ExceptionFilter{}
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
-		e.BindExceptionFilter(mockExFilter{})
+		e.BindExceptionFilter(mockWSExFilter{})
+		e.BindExceptionFilter(mockWSExFilter{})
+		e.BindExceptionFilter(mockWSExFilter{})
 		e.InjectProvidersIntoWSExceptionFilters(ws, benchCB)
 	}
 }
 
 func BenchmarkAsWSExceptionFilter(b *testing.B) {
-	exceptionFilterable := mockExFilter{}
+	exceptionFilterable := mockWSExFilter{}
 	b.ResetTimer()
 	for range b.N {
 		_, _ = AsWSExceptionFilter(exceptionFilterable)
@@ -29,8 +28,7 @@ func BenchmarkAsWSExceptionFilter(b *testing.B) {
 }
 
 func BenchmarkBuildWSCatchMiddleware(b *testing.B) {
-	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
+	c := ctx.NewWSContext()
 	c.Next = func() {}
 
 	mw := BuildWSCatchMiddleware("bench.event", []WSCatch{

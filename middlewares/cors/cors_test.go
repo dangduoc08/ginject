@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 )
@@ -21,7 +20,6 @@ func newTestContext(method, origin string) (*ctx.HTTPContext, *httptest.Response
 	c := ctx.NewHTTPContext()
 	c.Request = req
 	c.ResponseWriter = rec
-	c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 	return c, rec
 }
 

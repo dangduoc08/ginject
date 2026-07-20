@@ -49,8 +49,12 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 
 		intercept, ok := AsRESTInterceptor(interceptorHandler.interceptable)
 		if !ok {
+			if _, ok = AsWSInterceptor(interceptorHandler.interceptable); ok {
+				continue
+			}
+
 			panic(errors.New(color.FmtRed(
-				"invalid handler: %v.%s must be func(*ctx.HTTPContext, *aggregation.Aggregation) any to be bound as a REST interceptor",
+				"invalid interceptor: %v.%s must be func(*ctx.HTTPContext, *aggregation.Aggregation) any to be bound as a REST interceptor",
 				interceptableType,
 				InterceptorMethodName,
 			)))

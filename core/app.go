@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
@@ -19,8 +18,9 @@ import (
 )
 
 type App struct {
-	http    *HTTP
-	ctxPool sync.Pool
+	http      *HTTP
+	ctxPool   sync.Pool
+	wsCtxPool sync.Pool
 
 	isDevtoolEnabled bool
 	devtool          *devtool.Devtool
@@ -41,7 +41,8 @@ type App struct {
 }
 
 const (
-	contextKey      = "/*ctx.HTTPContext"
+	httpContextKey  = "/*ctx.HTTPContext"
+	wsContextKey    = "/*ctx.WSContext"
 	wsConnectionKey = "/*websocket.Conn"
 	requestKey      = "/*http.Request"
 	responseKey     = "net/http/http.ResponseWriter"
@@ -56,30 +57,38 @@ const (
 	redirectKey     = "/func(string)"
 )
 
-// knownDependencyKeys is the set of dependency-type keys the framework can
-// resolve for a handler parameter (see getDependency); values are unused
-// and always 1.
-var knownDependencyKeys = map[string]int{
-	contextKey:                  1,
+// knownRESTDependencyKeys is the set of dependency-type keys the framework
+// can resolve for a REST handler parameter (see getHTTPDependency); values
+// are unused and always 1.
+var knownRESTDependencyKeys = map[string]int{
+	httpContextKey:            1,
+	requestKey:                1,
+	responseKey:               1,
+	bodyKey:                   1,
+	formKey:                   1,
+	queryKey:                  1,
+	headerKey:                 1,
+	paramKey:                  1,
+	fileKey:                   1,
+	nextKey:                   1,
+	redirectKey:               1,
+	common.ContextPipeableKey: 1,
+	common.BodyPipeableKey:    1,
+	common.FormPipeableKey:    1,
+	common.QueryPipeableKey:   1,
+	common.HeaderPipeableKey:  1,
+	common.ParamPipeableKey:   1,
+	common.FilePipeableKey:    1,
+}
+
+// knownWSDependencyKeys is the set of dependency-type keys the framework
+// can resolve for a WS handler parameter (see getWSDependency); WS handlers
+// only get WS-relevant dependencies, not the REST-only ones above.
+var knownWSDependencyKeys = map[string]int{
+	wsContextKey:                1,
 	wsConnectionKey:             1,
-	requestKey:                  1,
-	responseKey:                 1,
-	bodyKey:                     1,
-	formKey:                     1,
-	queryKey:                    1,
-	headerKey:                   1,
-	paramKey:                    1,
-	fileKey:                     1,
 	wsPayloadKey:                1,
 	nextKey:                     1,
-	redirectKey:                 1,
-	common.ContextPipeableKey:   1,
-	common.BodyPipeableKey:      1,
-	common.FormPipeableKey:      1,
-	common.QueryPipeableKey:     1,
-	common.HeaderPipeableKey:    1,
-	common.ParamPipeableKey:     1,
-	common.FilePipeableKey:      1,
 	common.WSPayloadPipeableKey: 1,
 }
 
@@ -91,13 +100,12 @@ func New() *App {
 		ws:   nil,
 		ctxPool: sync.Pool{
 			New: func() any {
-				c := ctx.NewHTTPContext()
-				c.Broker = broker.NewWithConfig(
-					broker.Config{
-						RecoverPanics: true,
-					},
-				)
-				return c
+				return ctx.NewHTTPContext()
+			},
+		},
+		wsCtxPool: sync.Pool{
+			New: func() any {
+				return ctx.NewWSContext()
 			},
 		},
 	}
@@ -112,13 +120,11 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.Init(w, r)
 
 	if app.isWSEnabled && app.ws.isWSPath(r.URL.Path) {
-		c.SetType(ctx.WSType)
 		app.ws.upgrade(w, r, websocket.Server{
 			Handshake: func(wsCfg *websocket.Config, r *http.Request) error {
 				defer app.releaseCtx(c)
 
 				c.Request = r
-				c.SetWSConfig(wsCfg)
 				return app.ws.handshake(c)
 			},
 			Handler: websocket.Handler(app.ws.handleRequest),
@@ -128,7 +134,6 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer app.releaseCtx(c)
-	c.SetType(ctx.HTTPType)
 	c.ResponseWriter.Header().Set(ctx.RequestID, c.GetID())
 	app.http.handleRequest(c)
 }
@@ -170,9 +175,11 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 
 	app.wsConfig.injectedProviders = injectedProviders
 	app.wsConfig.logger = app.Logger
-	app.wsConfig.resolveAndCallHandler = app.http.resolveAndCallHandler
-	app.wsConfig.newCtx = func() *ctx.WSContext { return app.ctxPool.Get().(*ctx.WSContext) }
-	app.wsConfig.releaseCtx = app.releaseCtx
+	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
+		return invokeWSHandlerByProviders(f, injectedProviders, c)
+	}
+	app.wsConfig.newCtx = func() *ctx.WSContext { return app.wsCtxPool.Get().(*ctx.WSContext) }
+	app.wsConfig.releaseCtx = app.releaseWSCtx
 	app.ws = NewWS(app.wsConfig)
 }
 
@@ -180,7 +187,7 @@ func (app *App) initLogger() {
 	if app.Logger == nil {
 		app.Logger = log.NewLog(nil)
 	}
-	globalInterfaceByKey[injectableInterfaces[0]] = app.Logger
+	globalInterfaceByKey.Store(injectableInterfaces[0], app.Logger)
 }
 
 func (app *App) initProviders(m *Module) map[string]Provider {
@@ -193,7 +200,7 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 	app.injectedProviders = injectedProviders
 
 	resolveAndCallHandler := func(f any, c *ctx.HTTPContext) []reflect.Value {
-		return invokeHandlerByProviders(f, injectedProviders, c)
+		return invokeHTTPHandlerByProviders(f, injectedProviders, c)
 	}
 	app.http.resolveAndCallHandler = resolveAndCallHandler
 
@@ -386,6 +393,11 @@ func (app *App) releaseCtx(c *ctx.HTTPContext) {
 	app.ctxPool.Put(c)
 }
 
+func (app *App) releaseWSCtx(c *ctx.WSContext) {
+	c.Reset()
+	app.wsCtxPool.Put(c)
+}
+
 func (app *App) BindGlobalGuards(guarders ...common.Guarder) *App {
 	app.globalGuarders = append(app.globalGuarders, guarders...)
 
@@ -432,7 +444,7 @@ func (app *App) EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App
 
 func (app *App) UseLogger(logger common.Logger) *App {
 	app.Logger = logger
-	globalInterfaceByKey[injectableInterfaces[0]] = app.Logger
+	globalInterfaceByKey.Store(injectableInterfaces[0], app.Logger)
 
 	return app
 }
