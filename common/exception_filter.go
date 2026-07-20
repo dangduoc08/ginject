@@ -45,10 +45,10 @@ func ExceptionFilterShapeError(exceptionFilterable any) error {
 	))
 }
 
-// ReqCtx holds either *ctx.HTTPContext or *ctx.WSContext depending on
+// Ctx holds either *ctx.HTTPContext or *ctx.WSContext depending on
 // which transport's catch-chain published this payload.
 type CatchEventPayload struct {
-	ReqCtx    any
+	Ctx       any
 	Recovered any
 	Index     int
 }
