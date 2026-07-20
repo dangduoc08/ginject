@@ -1,8 +1,6 @@
 package common
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/dangduoc08/ginject/aggregation"
@@ -11,9 +9,7 @@ import (
 )
 
 func newInterceptorTestWSContext() *ctx.WSContext {
-	c := ctx.NewHTTPContext()
-	c.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
-	return c
+	return ctx.NewWSContext()
 }
 
 func TestInjectProvidersIntoWSInterceptors_Empty(t *testing.T) {
@@ -28,7 +24,7 @@ func TestInjectProvidersIntoWSInterceptors_Empty(t *testing.T) {
 
 func TestInjectProvidersIntoWSInterceptors_ApplyAll(t *testing.T) {
 	ic := &Interceptor{}
-	ic.BindInterceptor(mockInterceptable{})
+	ic.BindInterceptor(mockWSInterceptable{})
 
 	ws := buildWS(map[string]string{
 		"message": "ON_message",
@@ -51,7 +47,7 @@ func TestInjectProvidersIntoWSInterceptors_ApplyAll(t *testing.T) {
 
 func TestInjectProvidersIntoWSInterceptors_HandlerIsCallableIntercept(t *testing.T) {
 	ic := &Interceptor{}
-	ic.BindInterceptor(mockInterceptable{})
+	ic.BindInterceptor(mockWSInterceptable{})
 
 	ws := buildWS(map[string]string{"message": "ON_message"})
 	items := ic.InjectProvidersIntoWSInterceptors(ws, noopCB)
@@ -78,9 +74,9 @@ func TestInjectProvidersIntoWSInterceptors_NoIntercept_Panics(t *testing.T) {
 }
 
 func TestAsWSInterceptor_Valid(t *testing.T) {
-	fn, ok := AsWSInterceptor(mockInterceptable{})
+	fn, ok := AsWSInterceptor(mockWSInterceptable{})
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "mockInterceptable must match WSIntercept"))
+		t.Fatal(test.DiffMessage(ok, true, "mockWSInterceptable must match WSIntercept"))
 	}
 	fn(nil, aggregation.NewAggregation())
 }

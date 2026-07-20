@@ -8,7 +8,6 @@ import (
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
-	"github.com/dangduoc08/ginject/sample/shop"
 )
 
 func main() {
@@ -20,8 +19,10 @@ func main() {
 
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(cors.CORS{}, helmet.Helmet{}).
-		BindGlobalInterceptors(shared.ResponseInterceptor{})
+		BindGlobalMiddlewares(cors.CORS{}, helmet.Helmet{}, shared.LogMiddleware{}).
+		BindGlobalGuards(shared.LogHTTPGuard{}, shared.LogWSGuard{}).
+		BindGlobalInterceptors(shared.LogHTTPInterceptor{}, shared.LogWSInterceptor{}).
+		BindGlobalExceptionFilters(shared.LogHTTPExceptionFilter{}, shared.LogWSExceptionFilter{})
 
 	// app.
 	// 	EnableVersioning(versioning.Versioning{
@@ -32,7 +33,7 @@ func main() {
 
 	app.Create(
 		core.ModuleBuilder().
-			Imports(benchmarks.Module, confs.ConfModule, shop.Module).
+			Imports(benchmarks.Module, confs.ConfModule).
 			Build(),
 	)
 

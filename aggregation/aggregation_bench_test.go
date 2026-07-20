@@ -2,11 +2,9 @@ package aggregation
 
 import (
 	"testing"
-
-	"github.com/dangduoc08/ginject/ctx"
 )
 
-var benchNoop = func(c *ctx.HTTPContext, data any) any { return data }
+var benchNoop = func(data any) any { return data }
 
 func BenchmarkNewAggregation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
@@ -19,7 +17,7 @@ func BenchmarkAggregate_NoOperators(b *testing.B) {
 	a.SetMainData("data")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.Aggregate(nil)
+		a.Aggregate()
 	}
 }
 
@@ -29,7 +27,7 @@ func BenchmarkAggregate_Transform(b *testing.B) {
 	a.Transform(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.Aggregate(nil)
+		a.Aggregate()
 	}
 }
 
@@ -40,7 +38,7 @@ func BenchmarkAggregate_AllOperators(b *testing.B) {
 	a.Tap(benchNoop)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		a.Aggregate(nil)
+		a.Aggregate()
 	}
 }
 

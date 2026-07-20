@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
 )
@@ -245,39 +246,190 @@ func TestGetLocalIP(t *testing.T) {
 
 func TestGetDependencyContext(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(contextKey, c, reflect.Value{})
+	got := getHTTPDependency(httpContextKey, c, reflect.Value{})
 	if got != c {
-		t.Error(test.DiffMessage(got, c, "getDependency contextKey"))
+		t.Error(test.DiffMessage(got, c, "getHTTPDependency httpContextKey"))
 	}
 }
 
 func TestGetDependencyRequest(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(requestKey, c, reflect.Value{})
+	got := getHTTPDependency(requestKey, c, reflect.Value{})
 	if got != c.Request {
-		t.Error(test.DiffMessage(got, c.Request, "getDependency requestKey"))
+		t.Error(test.DiffMessage(got, c.Request, "getHTTPDependency requestKey"))
 	}
 }
 
 func TestGetDependencyResponse(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency(responseKey, c, reflect.Value{})
+	got := getHTTPDependency(responseKey, c, reflect.Value{})
 	if got != c.ResponseWriter {
-		t.Error(test.DiffMessage(got, c.ResponseWriter, "getDependency responseKey"))
+		t.Error(test.DiffMessage(got, c.ResponseWriter, "getHTTPDependency responseKey"))
 	}
 }
 
 func TestGetDependencyUnknownReturnsDependencies(t *testing.T) {
 	c := newHTTPContext()
-	got := getDependency("unknown-key", c, reflect.Value{})
+	got := getHTTPDependency("unknown-key", c, reflect.Value{})
 	if got == nil {
-		t.Error(test.DiffMessage(nil, "dependencies map", "getDependency unknown key should return dependencies"))
+		t.Error(test.DiffMessage(nil, "dependencies map", "getHTTPDependency unknown key should return dependencies"))
+	}
+}
+
+type fnTestProvider struct{ Tag string }
+
+func (p fnTestProvider) NewProvider() Provider { return p }
+
+type fnContextPipeableDTO struct{ P fnTestProvider }
+
+func (d fnContextPipeableDTO) Transform(*ctx.HTTPContext, common.ArgumentMetadata) any { return nil }
+
+type fnBodyPipeableDTO struct{ P fnTestProvider }
+
+func (d fnBodyPipeableDTO) Transform(ctx.Body, common.ArgumentMetadata) any { return nil }
+
+type fnFormPipeableDTO struct{}
+
+func (d fnFormPipeableDTO) Transform(ctx.Form, common.ArgumentMetadata) any { return nil }
+
+type fnQueryPipeableDTO struct{}
+
+func (d fnQueryPipeableDTO) Transform(ctx.Query, common.ArgumentMetadata) any { return nil }
+
+type fnHeaderPipeableDTO struct{}
+
+func (d fnHeaderPipeableDTO) Transform(ctx.Header, common.ArgumentMetadata) any { return nil }
+
+type fnParamPipeableDTO struct{}
+
+func (d fnParamPipeableDTO) Transform(ctx.Param, common.ArgumentMetadata) any { return nil }
+
+type fnFilePipeableDTO struct{}
+
+func (d fnFilePipeableDTO) Transform(ctx.File, common.ArgumentMetadata) any { return nil }
+
+type fnWSPayloadPipeableDTO struct{}
+
+func (d fnWSPayloadPipeableDTO) Transform(ctx.WSPayload, common.ArgumentMetadata) any { return nil }
+
+func TestGetFnArgsByType_NonPipeableResolvesTypeKey(t *testing.T) {
+	handler := func(*ctx.HTTPContext) {}
+	fType := reflect.TypeOf(handler)
+
+	var gotKey string
+	var gotIndex int
+	getFnArgsByType(fType, nil, func(key string, i int, _ reflect.Value) {
+		gotKey = key
+		gotIndex = i
+	})
+
+	if gotKey != httpContextKey {
+		t.Error(test.DiffMessage(gotKey, httpContextKey, "non-pipeable param should resolve to its PkgPath+String key"))
+	}
+	if gotIndex != 0 {
+		t.Error(test.DiffMessage(gotIndex, 0, "single param should be reported at index 0"))
+	}
+}
+
+func TestGetFnArgsByType_ContextPipeableInjectsProvider(t *testing.T) {
+	handler := func(fnContextPipeableDTO) {}
+	fType := reflect.TypeOf(handler)
+	injectedProviders := map[string]Provider{
+		genFieldKey(reflect.TypeOf(fnTestProvider{})): fnTestProvider{Tag: "injected"},
+	}
+
+	var gotKey string
+	var gotValue reflect.Value
+	getFnArgsByType(fType, injectedProviders, func(key string, i int, v reflect.Value) {
+		gotKey = key
+		gotValue = v
+	})
+
+	if gotKey != common.ContextPipeableKey {
+		t.Error(test.DiffMessage(gotKey, common.ContextPipeableKey, "ContextPipeable param should resolve to ContextPipeableKey"))
+	}
+	dto, ok := gotValue.Interface().(*fnContextPipeableDTO)
+	if !ok {
+		t.Fatalf("expected resolved value to be a *fnContextPipeableDTO, got %T", gotValue.Interface())
+	}
+	if dto.P.Tag != "injected" {
+		t.Error(test.DiffMessage(dto.P.Tag, "injected", "ContextPipeable DTO's provider field should be injected from injectedProviders"))
+	}
+}
+
+func TestGetFnArgsByType_BodyPipeableInjectsProvider(t *testing.T) {
+	handler := func(fnBodyPipeableDTO) {}
+	fType := reflect.TypeOf(handler)
+	injectedProviders := map[string]Provider{
+		genFieldKey(reflect.TypeOf(fnTestProvider{})): fnTestProvider{Tag: "injected"},
+	}
+
+	var gotKey string
+	var gotValue reflect.Value
+	getFnArgsByType(fType, injectedProviders, func(key string, i int, v reflect.Value) {
+		gotKey = key
+		gotValue = v
+	})
+
+	if gotKey != common.BodyPipeableKey {
+		t.Error(test.DiffMessage(gotKey, common.BodyPipeableKey, "BodyPipeable param should resolve to BodyPipeableKey"))
+	}
+	dto := gotValue.Interface().(*fnBodyPipeableDTO)
+	if dto.P.Tag != "injected" {
+		t.Error(test.DiffMessage(dto.P.Tag, "injected", "BodyPipeable DTO's provider field should be injected from injectedProviders"))
+	}
+}
+
+func TestGetFnArgsByType_AllPipeableKindsResolveTheirKey(t *testing.T) {
+	cases := []struct {
+		name    string
+		handler any
+		wantKey string
+	}{
+		{"form", func(fnFormPipeableDTO) {}, common.FormPipeableKey},
+		{"query", func(fnQueryPipeableDTO) {}, common.QueryPipeableKey},
+		{"header", func(fnHeaderPipeableDTO) {}, common.HeaderPipeableKey},
+		{"param", func(fnParamPipeableDTO) {}, common.ParamPipeableKey},
+		{"file", func(fnFilePipeableDTO) {}, common.FilePipeableKey},
+		{"wsPayload", func(fnWSPayloadPipeableDTO) {}, common.WSPayloadPipeableKey},
+	}
+
+	for _, c := range cases {
+		var gotKey string
+		getFnArgsByType(reflect.TypeOf(c.handler), map[string]Provider{}, func(key string, i int, _ reflect.Value) {
+			gotKey = key
+		})
+		if gotKey != c.wantKey {
+			t.Error(test.DiffMessage(gotKey, c.wantKey, c.name+"Pipeable param should resolve to "+c.wantKey))
+		}
+	}
+}
+
+func TestGetFnArgsByType_MultipleParamsResolveInOrder(t *testing.T) {
+	handler := func(*ctx.HTTPContext, fnQueryPipeableDTO, *http.Request) {}
+	fType := reflect.TypeOf(handler)
+
+	var gotKeys []string
+	var gotIndexes []int
+	getFnArgsByType(fType, map[string]Provider{}, func(key string, i int, _ reflect.Value) {
+		gotKeys = append(gotKeys, key)
+		gotIndexes = append(gotIndexes, i)
+	})
+
+	wantKeys := []string{httpContextKey, common.QueryPipeableKey, requestKey}
+	for i, want := range wantKeys {
+		if gotKeys[i] != want {
+			t.Error(test.DiffMessage(gotKeys[i], want, "param order should be preserved"))
+		}
+		if gotIndexes[i] != i {
+			t.Error(test.DiffMessage(gotIndexes[i], i, "param index should match its position"))
+		}
 	}
 }
 
 func TestIsInjectableHandlerValid(t *testing.T) {
 	handler := func(c *ctx.HTTPContext) {}
-	err := isInjectableHandler(handler, nil)
+	err := isInjectableHandler(handler, nil, knownRESTDependencyKeys)
 	if err != nil {
 		t.Error(test.DiffMessage(err, nil, "isInjectableHandler valid handler"))
 	}
@@ -286,7 +438,7 @@ func TestIsInjectableHandlerValid(t *testing.T) {
 func TestIsInjectableHandlerInvalid(t *testing.T) {
 	type unknownType struct{}
 	handler := func(_ unknownType) {}
-	err := isInjectableHandler(handler, nil)
+	err := isInjectableHandler(handler, nil, knownRESTDependencyKeys)
 	if err == nil {
 		t.Error(test.DiffMessage(nil, "error", "isInjectableHandler with unknown arg should return error"))
 	}

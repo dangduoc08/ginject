@@ -32,7 +32,6 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 func getFnArgsByType(injectableFnType reflect.Type, injectedProviders map[string]Provider, cb func(string, int, reflect.Value)) {
 	for i := 0; i < injectableFnType.NumIn(); i++ {
 		argType := injectableFnType.In(i)
-		arg := argType.PkgPath() + "/" + argType.String()
 		newArg := reflect.New(argType).Elem()
 		argAnyValue := newArg.Interface()
 
@@ -93,16 +92,17 @@ func getFnArgsByType(injectableFnType reflect.Type, injectedProviders map[string
 
 			cb(common.WSPayloadPipeableKey, i, newArg)
 		} else {
+			arg := argType.PkgPath() + "/" + argType.String()
 			cb(arg, i, newArg)
 		}
 	}
 }
 
-func isInjectableHandler(handler any, injectedProviders map[string]Provider) error {
+func isInjectableHandler(handler any, injectedProviders map[string]Provider, knownKeys map[string]int) error {
 	var e error
 
 	getFnArgs(handler, injectedProviders, func(arg string, i int, pipeValue reflect.Value) {
-		if _, ok := knownDependencyKeys[arg]; !ok {
+		if _, ok := knownKeys[arg]; !ok {
 			e = fmt.Errorf(
 				"dependency injection: can't resolve dependencies of the '%v'. Please make sure that the argument dependency at index [%v] is available in the handler",
 				reflect.TypeOf(handler).String(),
@@ -136,6 +136,20 @@ func genFieldKey(t reflect.Type) string {
 	return t.PkgPath() + "/" + t.String()
 }
 
+// snapshotGlobalProviders copies the current contents of globalProviderByKey
+// into a plain map for the rare call sites that need a map[string]Provider
+// value rather than point lookups (dynamic module factories aren't called
+// often enough for this to matter, and their arguments are never pipeable
+// types, so the snapshot only needs to be internally consistent, not live).
+func snapshotGlobalProviders() map[string]Provider {
+	snapshot := make(map[string]Provider)
+	globalProviderByKey.Range(func(k, v any) bool {
+		snapshot[k.(string)] = v.(Provider)
+		return true
+	})
+	return snapshot
+}
+
 func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 	dynamicModuleType := reflect.TypeOf(dynamicModule)
 	var args []reflect.Value
@@ -151,11 +165,11 @@ func createStaticModuleFromDynamicModule(dynamicModule any) *Module {
 		)
 	}
 
-	getFnArgs(dynamicModule, globalProviderByKey, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if globalProviderByKey[dynamicArgKey] != nil {
-			args = append(args, reflect.ValueOf(globalProviderByKey[dynamicArgKey]))
-		} else if globalInterfaceByKey[dynamicArgKey] != nil {
-			args = append(args, reflect.ValueOf(globalInterfaceByKey[dynamicArgKey]))
+	getFnArgs(dynamicModule, snapshotGlobalProviders(), func(dynamicArgKey string, i int, pipeValue reflect.Value) {
+		if p, ok := globalProviderByKey.Load(dynamicArgKey); ok {
+			args = append(args, reflect.ValueOf(p))
+		} else if iface, ok := globalInterfaceByKey.Load(dynamicArgKey); ok {
+			args = append(args, reflect.ValueOf(iface))
 		} else {
 			panic(genError(dynamicModuleType, dynamicArgKey, i))
 		}
@@ -197,10 +211,10 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 		// resolve dependencies error
 		if componentFieldKey != "" && injectedProviders[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[componentFieldKey]))
-		} else if componentFieldKey != "" && globalProviderByKey[componentFieldKey] != nil {
-			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalProviderByKey[componentFieldKey]))
-		} else if componentFieldKey != "" && globalInterfaceByKey[componentFieldKey] != nil {
-			newComponent.Elem().Field(j).Set(reflect.ValueOf(globalInterfaceByKey[componentFieldKey]))
+		} else if p, ok := globalProviderByKey.Load(componentFieldKey); componentFieldKey != "" && ok {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(p))
+		} else if iface, ok := globalInterfaceByKey.Load(componentFieldKey); componentFieldKey != "" && ok {
+			newComponent.Elem().Field(j).Set(reflect.ValueOf(iface))
 		} else if !isInjectedProvider(componentFieldType) {
 
 			// if module set state to provider
@@ -251,10 +265,10 @@ func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provi
 
 		if injectedProviders[injectProviderKey] != nil {
 			newInstance.Elem().Field(i).Set(reflect.ValueOf(injectedProviders[injectProviderKey]))
-		} else if globalProviderByKey[injectProviderKey] != nil {
-			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalProviderByKey[injectProviderKey]))
-		} else if globalInterfaceByKey[injectProviderKey] != nil {
-			newInstance.Elem().Field(i).Set(reflect.ValueOf(globalInterfaceByKey[injectProviderKey]))
+		} else if p, ok := globalProviderByKey.Load(injectProviderKey); ok {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(p))
+		} else if iface, ok := globalInterfaceByKey.Load(injectProviderKey); ok {
+			newInstance.Elem().Field(i).Set(reflect.ValueOf(iface))
 		} else if !isInjectedProvider(fieldType) {
 			newInstance.Elem().Field(i).Set(ownerValue.Field(i))
 		} else {
@@ -296,12 +310,10 @@ func logBoostrap(port int) {
 	_, _ = fmt.Fprint(os.Stdout, "\n"+accessURLs+divider+host+lan+divider+close)
 }
 
-func getDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) any {
+func getHTTPDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) any {
 	switch k {
-	case contextKey:
+	case httpContextKey:
 		return c
-	case wsConnectionKey:
-		return c.WSConn()
 	case requestKey:
 		return c.Request
 	case responseKey:
@@ -318,8 +330,6 @@ func getDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) any {
 		return c.Param()
 	case fileKey:
 		return c.File()
-	case wsPayloadKey:
-		return c.WSPayload()
 	case nextKey:
 		return c.Next
 	case redirectKey:
@@ -328,61 +338,47 @@ func getDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) any {
 		return pipeValue.
 			Interface().(common.ContextPipeable).
 			Transform(c, common.ArgumentMetadata{
-				ParamType:   common.ContextPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.ContextPipeableKey,
 			})
 	case common.BodyPipeableKey:
 		return pipeValue.
 			Interface().(common.BodyPipeable).
 			Transform(c.Body(), common.ArgumentMetadata{
-				ParamType:   common.BodyPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.BodyPipeableKey,
 			})
 	case common.FormPipeableKey:
 		return pipeValue.
 			Interface().(common.FormPipeable).
 			Transform(c.Form(), common.ArgumentMetadata{
-				ParamType:   common.FormPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.FormPipeableKey,
 			})
 	case common.QueryPipeableKey:
 		return pipeValue.
 			Interface().(common.QueryPipeable).
 			Transform(c.Query(), common.ArgumentMetadata{
-				ParamType:   common.QueryPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.QueryPipeableKey,
 			})
 	case common.HeaderPipeableKey:
 		return pipeValue.
 			Interface().(common.HeaderPipeable).
 			Transform(c.Header(), common.ArgumentMetadata{
-				ParamType:   common.HeaderPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.HeaderPipeableKey,
 			})
 	case common.ParamPipeableKey:
 		return pipeValue.
 			Interface().(common.ParamPipeable).
 			Transform(c.Param(), common.ArgumentMetadata{
-				ParamType:   common.ParamPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.ParamPipeableKey,
 			})
 	case common.FilePipeableKey:
 		return pipeValue.
 			Interface().(common.FilePipeable).
 			Transform(c.File(), common.ArgumentMetadata{
-				ParamType:   common.FilePipeableKey,
-				ContextType: c.GetType(),
-			})
-	case common.WSPayloadPipeableKey:
-		return pipeValue.
-			Interface().(common.WSPayloadPipeable).
-			Transform(c.WSPayload(), common.ArgumentMetadata{
-				ParamType:   common.WSPayloadPipeableKey,
-				ContextType: c.GetType(),
+				ParamType: common.FilePipeableKey,
 			})
 	}
 
-	return knownDependencyKeys
+	return knownRESTDependencyKeys
 }
 
 func returnREST(c *ctx.HTTPContext, data reflect.Value) {
@@ -493,12 +489,51 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 	*controllers = uniqueControllers
 }
 
-func invokeHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.HTTPContext) []reflect.Value {
+func invokeHTTPHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.HTTPContext) []reflect.Value {
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if _, ok := knownDependencyKeys[dynamicArgKey]; ok {
-			args = append(args, reflect.ValueOf(getDependency(dynamicArgKey, c, pipeValue)))
+		if _, ok := knownRESTDependencyKeys[dynamicArgKey]; ok {
+			args = append(args, reflect.ValueOf(getHTTPDependency(dynamicArgKey, c, pipeValue)))
+		} else {
+			panic(fmt.Errorf(
+				"dependency injection: can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
+				fType.String(),
+				i,
+			))
+		}
+	})
+
+	return reflect.ValueOf(f).Call(args)
+}
+
+func getWSDependency(k string, c *ctx.WSContext, pipeValue reflect.Value) any {
+	switch k {
+	case wsContextKey:
+		return c
+	case wsConnectionKey:
+		return c.Conn
+	case wsPayloadKey:
+		return c.WSPayload()
+	case nextKey:
+		return c.Next
+	case common.WSPayloadPipeableKey:
+		return pipeValue.
+			Interface().(common.WSPayloadPipeable).
+			Transform(c.WSPayload(), common.ArgumentMetadata{
+				ParamType: common.WSPayloadPipeableKey,
+			})
+	}
+
+	return knownWSDependencyKeys
+}
+
+func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.WSContext) []reflect.Value {
+	fType := reflect.TypeOf(f)
+	args := make([]reflect.Value, 0, fType.NumIn())
+	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
+		if _, ok := knownWSDependencyKeys[dynamicArgKey]; ok {
+			args = append(args, reflect.ValueOf(getWSDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
 				"dependency injection: can't resolve dependencies of the %v. Please make sure that the argument dependency at index [%v] is available in the handler",
@@ -528,8 +563,7 @@ func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 		useFn(c.Request, c.ResponseWriter, next)
 
 		if !called {
-			_ = c.Broker.Publish(ctx.RequestFinished, c)
+			c.Event.Emit(ctx.RequestFinished, c)
 		}
 	}
 }
-

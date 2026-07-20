@@ -5,7 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 )
@@ -17,10 +16,8 @@ func BenchmarkGlobalExceptionFilterFull(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		c := ctx.NewHTTPContext()
-		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
-		c.SetType(ctx.HTTPType)
 		filter.Catch(c, &ex)
 	}
 }
@@ -32,10 +29,8 @@ func BenchmarkGlobalExceptionFilterFallback(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		c := ctx.NewHTTPContext()
-		c.Broker = broker.NewWithConfig(broker.Config{RecoverPanics: true})
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.ResponseWriter = httptest.NewRecorder()
-		c.SetType(ctx.HTTPType)
 		filter.Catch(c, &ex)
 	}
 }

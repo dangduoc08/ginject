@@ -16,8 +16,15 @@ var mainModulePtr uintptr
 var modulesInjectedFromMain []uintptr
 var staticModuleByDynamicPtr = make(map[uintptr]*Module)
 var globalPrefixesByController = make(map[string][]string)
-var globalProviderByKey map[string]Provider = make(map[string]Provider)
-var globalInterfaceByKey map[string]any = make(map[string]any)
+
+// globalProviderByKey and globalInterfaceByKey are read on every request
+// that resolves a pipeable handler parameter (see injectDependencies,
+// reached from getFnArgsByType), concurrently with other goroutines
+// potentially still calling App.Create/UseLogger. sync.Map gives them their
+// own internal synchronization instead of relying on moduleGlobalMu, which
+// would otherwise have to be taken on the hot request path.
+var globalProviderByKey sync.Map  // map[string]Provider
+var globalInterfaceByKey sync.Map // map[string]any
 var providerSingletonByKey map[string]Provider = make(map[string]Provider)
 var fieldNameByRole = map[string]string{
 	"rest":            "REST",
@@ -77,7 +84,7 @@ func (m *Module) injectGlobalProviders() {
 	for _, provider := range m.providers {
 
 		// generate a unique key for the provider
-		globalProviderByKey[genProviderKey(provider)] = provider
+		globalProviderByKey.Store(genProviderKey(provider), provider)
 	}
 }
 
@@ -305,7 +312,7 @@ func (m *Module) bindRESTController(controller Controller, injectedProviders map
 	// for mainhandler: name = mainHandlerName
 	// add for consistency with another layers
 	for pattern, handler := range rest.RouterMap {
-		if err := isInjectableHandler(handler, injectedProviders); err != nil {
+		if err := isInjectableHandler(handler, injectedProviders, knownRESTDependencyKeys); err != nil {
 			panic(color.FmtRed("%s", err.Error()))
 		}
 		method, route, version := routing.PatternToMethodRouteVersion(pattern)
@@ -432,7 +439,7 @@ func (m *Module) bindWSController(controller Controller, injectedProviders map[s
 
 	// add ws main handler
 	for eventName, handler := range ws.EventMap {
-		if err := isInjectableHandler(handler, injectedProviders); err != nil {
+		if err := isInjectableHandler(handler, injectedProviders, knownWSDependencyKeys); err != nil {
 			panic(color.FmtRed("%s", err.Error()))
 		}
 

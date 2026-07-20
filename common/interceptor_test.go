@@ -13,6 +13,10 @@ type mockInterceptable struct{}
 
 func (mockInterceptable) Intercept(_ *ctx.HTTPContext, _ *aggregation.Aggregation) any { return nil }
 
+type mockWSInterceptable struct{}
+
+func (mockWSInterceptable) Intercept(_ *ctx.WSContext, _ *aggregation.Aggregation) any { return nil }
+
 type noInterceptMethod struct{}
 
 type wrongParamInterceptable struct{}

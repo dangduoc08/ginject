@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
@@ -48,7 +47,6 @@ func TestNewHasGlobalExceptionFilter(t *testing.T) {
 
 func TestGetContextIDFromHeader(t *testing.T) {
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set(ctx.RequestID, "test-id-123")
 	c.Init(httptest.NewRecorder(), r)
@@ -60,10 +58,8 @@ func TestGetContextIDFromHeader(t *testing.T) {
 
 func TestGetContextIDGeneratesUUID(t *testing.T) {
 	c1 := ctx.NewHTTPContext()
-	c1.Broker = broker.New()
 	c1.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	c2 := ctx.NewHTTPContext()
-	c2.Broker = broker.New()
 	c2.Init(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 
 	if c1.GetID() == "" {
@@ -202,6 +198,45 @@ func TestServeHTTPConcurrent_NoDataRace(t *testing.T) {
 					t.Error(test.DiffMessage(w.Code, http.StatusNotFound, "unmatched route should return 404 under concurrent load"))
 				}
 			}
+		}()
+	}
+	wg.Wait()
+}
+
+type raceGlobalProvider struct{ Tag string }
+
+func (p raceGlobalProvider) NewProvider() Provider { return p }
+
+type raceGlobalMiddleware struct{ P raceGlobalProvider }
+
+func (mw raceGlobalMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) { next() }
+
+// TestConcurrentAppCreate_NoDataRace guards against a real, verified race:
+// App.initLogger/UseLogger write to the package-level globalInterfaceByKey
+// map with no lock, and injectDependencies (reached from every global
+// middleware/guard/interceptor/exceptionFilter binding, from every module
+// provider, and from every per-request pipeable-parameter resolution) reads
+// globalProviderByKey/globalInterfaceByKey. Apps built and Created
+// concurrently — a realistic scenario for parallel tests or multi-tenant
+// setups — must not race on that shared state. Deliberately no controller
+// here: this is about the provider-injection paths, not route registration
+// (which has its own, separate global-state reset story via
+// resetModuleGlobals/common.InsertedRoutes).
+func TestConcurrentAppCreate_NoDataRace(t *testing.T) {
+	resetModuleGlobals()
+
+	const n = 8
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+
+			app := New()
+			app.BindGlobalMiddlewares(raceGlobalMiddleware{})
+			app.Create(ModuleBuilder().
+				Providers(raceGlobalProvider{}).
+				Build())
 		}()
 	}
 	wg.Wait()

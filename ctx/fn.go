@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/dangduoc08/ginject/internal/slice"
 )
@@ -47,6 +48,38 @@ func GetTagParamIndex(v string) (int, string) {
 		return parsedInt, bindedField
 	}
 	return 0, bindedField
+}
+
+type fieldBindTag struct {
+	ok    bool
+	index int
+	field string
+}
+
+var fieldBindTagCache sync.Map
+
+func getFieldBindTags(t reflect.Type) []fieldBindTag {
+	if v, ok := fieldBindTagCache.Load(t); ok {
+		return v.([]fieldBindTag)
+	}
+
+	n := t.NumField()
+	tags := make([]fieldBindTag, n)
+	for i := 0; i < n; i++ {
+		bindValues, ok := t.Field(i).Tag.Lookup(TagBind)
+		if !ok {
+			continue
+		}
+		bindParams := GetTagParams(bindValues)
+		if len(bindParams) == 0 {
+			continue
+		}
+		index, field := GetTagParamIndex(bindParams[0])
+		tags[i] = fieldBindTag{ok: true, index: index, field: field}
+	}
+
+	actual, _ := fieldBindTagCache.LoadOrStore(t, tags)
+	return actual.([]fieldBindTag)
 }
 
 func setValueToStructField(s reflect.Value) func(i int) func(v any) {
@@ -391,7 +424,7 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 
 		// define dynamic slice map
 		mapType := reflect.SliceOf(typ.Elem())
-		mapStruct := reflect.MakeSlice(mapType, 0, 0)
+		mapStruct := reflect.MakeSlice(mapType, 0, len(arr))
 
 		for i, el := range arr {
 			if obj, ok := el.(map[string]any); ok {
@@ -416,7 +449,7 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 
 		// define dynamic slice struct
 		sliceType := reflect.SliceOf(typ.Elem())
-		sliceStruct := reflect.MakeSlice(sliceType, 0, 0)
+		sliceStruct := reflect.MakeSlice(sliceType, 0, len(arr))
 
 		for i, el := range arr {
 			if obj, ok := el.(map[string]any); ok {
@@ -659,7 +692,7 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 		// define dynamic map slice
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
-		mapSlice := reflect.MakeMap(mapType)
+		mapSlice := reflect.MakeMapWithSize(mapType, len(obj))
 
 		for objKey, objValue := range obj {
 			if arr, ok := objValue.([]any); ok {
@@ -677,7 +710,7 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 	case reflect.Map:
 		// define dynamic map slice
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
-		mapMap := reflect.MakeMap(mapType)
+		mapMap := reflect.MakeMapWithSize(mapType, len(obj))
 		subElem := typ.Elem().Elem()
 		declaredTyp := subElem.Kind()
 
@@ -833,10 +866,11 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 			case reflect.Slice:
 
 				// define dynamic map slice
+				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
-				mapSlice := reflect.MakeMap(mapType)
+				mapSlice := reflect.MakeMapWithSize(mapType, len(subObj))
 
-				for subObjKey, subObjValue := range objValue.(map[string]any) {
+				for subObjKey, subObjValue := range subObj {
 					if subObjValue, ok := subObjValue.([]any); ok {
 						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
 						parentTagWithKey := fmt.Sprintf("%v.%v", parentTag, subObjKey)
@@ -850,10 +884,11 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 			case reflect.Map:
 
 				// define dynamic map slice
+				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
-				mapMapMap := reflect.MakeMap(mapType)
+				mapMapMap := reflect.MakeMapWithSize(mapType, len(subObj))
 
-				for subObjKey, subObjValue := range objValue.(map[string]any) {
+				for subObjKey, subObjValue := range subObj {
 					if subObjValue, ok := subObjValue.(map[string]any); ok {
 						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
 						parentTagWithKey := fmt.Sprintf("%v.%v", parentTag, subObjKey)
@@ -867,10 +902,11 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 			case reflect.Struct:
 
 				// define dynamic map struct
+				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
-				mapStruct := reflect.MakeMap(mapType)
+				mapStruct := reflect.MakeMapWithSize(mapType, len(subObj))
 
-				for subObjKey, subObjValue := range objValue.(map[string]any) {
+				for subObjKey, subObjValue := range subObj {
 					if subObjValue, ok := subObjValue.(map[string]any); ok {
 						parentNSWithKey := fmt.Sprintf("%v.%v", parentNS, subObjKey)
 						parentTagWithKey := fmt.Sprintf("%v.%v", parentTag, subObjKey)
@@ -897,7 +933,7 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 		// define dynamic map struct
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
-		mapStruct := reflect.MakeMap(mapType)
+		mapStruct := reflect.MakeMapWithSize(mapType, len(obj))
 
 		for objKey, objValue := range obj {
 			if subObj, ok := objValue.(map[string]any); ok {
@@ -920,12 +956,4 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 	}
 
 	return nil
-}
-
-func ResolveWSEventName(e string) (string, string) {
-	i := strings.IndexByte(e, '_')
-	if i < 0 {
-		return "", e
-	}
-	return e[:i], e[i+1:]
 }

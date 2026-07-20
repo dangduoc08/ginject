@@ -44,8 +44,12 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 
 		intercept, ok := AsWSInterceptor(interceptorHandler.interceptable)
 		if !ok {
+			if _, ok = AsRESTInterceptor(interceptorHandler.interceptable); ok {
+				continue
+			}
+
 			panic(errors.New(color.FmtRed(
-				"invalid handler: %v.%s must be func(*ctx.WSContext, *aggregation.Aggregation) any to be bound as a WS interceptor",
+				"invalid interceptor: %v.%s must be func(*ctx.WSContext, *aggregation.Aggregation) any to be bound as a WS interceptor",
 				interceptableType,
 				InterceptorMethodName,
 			)))
@@ -84,9 +88,9 @@ func BuildWSInterceptMiddleware(key string, interceptFn WSIntercept) ctx.WSHandl
 
 		if aggregations, ok := c.Context().Value(WithValueKey(key)).([]*aggregation.Aggregation); ok {
 			aggregations = append(aggregations, aggregationInstance)
-			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), aggregations))
+			c.SetContext(context.WithValue(c.Context(), WithValueKey(key), aggregations))
 		} else {
-			c.Request = c.WithContext(context.WithValue(c.Context(), WithValueKey(key), []*aggregation.Aggregation{aggregationInstance}))
+			c.SetContext(context.WithValue(c.Context(), WithValueKey(key), []*aggregation.Aggregation{aggregationInstance}))
 		}
 
 		aggregationInstance.IsMainHandlerCalled = false

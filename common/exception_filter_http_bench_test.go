@@ -3,7 +3,6 @@ package common
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 )
@@ -30,7 +29,6 @@ func BenchmarkAsRESTExceptionFilter(b *testing.B) {
 
 func BenchmarkBuildHTTPCatchMiddleware(b *testing.B) {
 	c := ctx.NewHTTPContext()
-	c.Broker = broker.New()
 	c.Next = func() {}
 
 	mw := BuildHTTPCatchMiddleware("bench.event", []RESTCatch{
