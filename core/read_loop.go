@@ -1,10 +1,11 @@
 package core
 
 import (
-	"fmt"
 	"io"
 
+	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/broker2"
+	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/wsevent"
@@ -65,13 +66,13 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 			continue
 		}
 
-		item, _, ok := ws.eventMatcher.Match(topic)
+		item, pattern, ok := ws.eventMatcher.Match(topic)
 		if !ok {
-			reply(conn, TypeError, payload.ID, "no handler registered for topic: "+topic)
+			replyException(conn, payload.ID, exception.TopicNotFoundException("no handler registered for topic: "+topic))
 			return
 		}
 
-		c, ok := runWSMiddlewares(conn, ws, item, payload)
+		c, ok := runWSMiddlewares(conn, ws, pattern, item, payload)
 		ws.releaseCtx(c)
 		if !ok {
 			return
@@ -85,7 +86,7 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 			})
 		})
 		if err != nil {
-			reply(conn, TypeError, payload.ID, err.Error())
+			replyException(conn, payload.ID, exception.WSInternalErrorException(err.Error()))
 			return
 		}
 	}
@@ -96,7 +97,7 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 func handleUnsubscribe(conn *WSConnection, connmgr *WSConnmgr, payload WSPayload) {
 	for _, topic := range payload.Topic {
 		if err := connmgr.Unsubscribe(conn.ID, topic); err != nil {
-			reply(conn, TypeError, payload.ID, err.Error())
+			replyException(conn, payload.ID, exception.WSInternalErrorException(err.Error()))
 			return
 		}
 	}
@@ -106,23 +107,23 @@ func handleUnsubscribe(conn *WSConnection, connmgr *WSConnmgr, payload WSPayload
 
 func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 	for _, topic := range payload.Topic {
-		item, _, ok := ws.eventMatcher.Match(topic)
+		item, pattern, ok := ws.eventMatcher.Match(topic)
 		if !ok {
-			reply(conn, TypeError, payload.ID, "no handler registered for topic: "+topic)
+			replyException(conn, payload.ID, exception.TopicNotFoundException("no handler registered for topic: "+topic))
 			return
 		}
 
 		if !ws.connmgr.isSubscribed(conn.ID, topic) {
-			reply(conn, TypeError, payload.ID, "must subscribe before publishing to: "+topic)
+			replyException(conn, payload.ID, exception.NotSubscribedException("must subscribe before publishing to: "+topic))
 			return
 		}
 
-		if !dispatchWSEvent(conn, ws, item, payload) {
+		if !dispatchWSEvent(conn, ws, pattern, item, payload) {
 			return
 		}
 
 		if err := ws.connmgr.Broker.Publish(topic, payload.Message); err != nil {
-			reply(conn, TypeError, payload.ID, err.Error())
+			replyException(conn, payload.ID, exception.WSInternalErrorException(err.Error()))
 			return
 		}
 	}
@@ -130,16 +131,33 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 	reply(conn, TypeAck, payload.ID, payload.Topic)
 }
 
-func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payload WSPayload) (c *ctx.WSContext, ok bool) {
+func runCatchChain(conn *WSConnection, ws *WS, c *ctx.WSContext, pattern string, payloadID string, rec any) {
+	c.SetSend(func(data any) {
+		reply(conn, TypeError, payloadID, data)
+	})
+
+	if _, ok := ws.catchFnsByEvent[pattern]; ok {
+		c.Event.Emit(pattern, common.CatchEventPayload{Ctx: c, Recovered: rec, Index: 0})
+		return
+	}
+
+	replyException(conn, payloadID, *common.NormalizeRecovered(rec))
+}
+
+func replyException(conn *WSConnection, id string, ex exception.Exception) {
+	reply(conn, TypeError, id, ctx.Map{
+		"code":    ex.GetCode(),
+		"error":   ex.Error(),
+		"message": ex.GetMessage(),
+	})
+}
+
+func runWSMiddlewares(conn *WSConnection, ws *WS, pattern string, item wsevent.WSEventItem, payload WSPayload) (c *ctx.WSContext, ok bool) {
 	c = ws.newCtx()
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			msg := fmt.Sprint(rec)
-			if ex, isException := rec.(exception.Exception); isException {
-				msg = ex.Error()
-			}
-			reply(conn, TypeError, payload.ID, msg)
+			runCatchChain(conn, ws, c, pattern, payload.ID, rec)
 			ok = false
 		}
 	}()
@@ -161,8 +179,8 @@ func runWSMiddlewares(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payl
 	return c, isNext
 }
 
-func dispatchWSEvent(conn *WSConnection, ws *WS, item wsevent.WSEventItem, payload WSPayload) (ok bool) {
-	c, mwOK := runWSMiddlewares(conn, ws, item, payload)
+func dispatchWSEvent(conn *WSConnection, ws *WS, pattern string, item wsevent.WSEventItem, payload WSPayload) (ok bool) {
+	c, mwOK := runWSMiddlewares(conn, ws, pattern, item, payload)
 	defer ws.releaseCtx(c)
 
 	if !mwOK {
@@ -171,16 +189,36 @@ func dispatchWSEvent(conn *WSConnection, ws *WS, item wsevent.WSEventItem, paylo
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			msg := fmt.Sprint(rec)
-			if ex, isException := rec.(exception.Exception); isException {
-				msg = ex.Error()
-			}
-			reply(conn, TypeError, payload.ID, msg)
+			runCatchChain(conn, ws, c, pattern, payload.ID, rec)
 			ok = false
 		}
 	}()
 
 	data := ws.resolveAndCallHandler(item.Handler, c)
+
+	if aggregations, ok := c.Context().Value(WithValueKey(pattern)).([]*aggregation.Aggregation); ok {
+		var aggregatedData any
+		totalAggregations := len(aggregations)
+
+		for i := totalAggregations - 1; i >= 0; i-- {
+			agg := aggregations[i]
+
+			if !agg.IsMainHandlerCalled {
+				reply(conn, TypeEvent, payload.ID, agg.InterceptorData)
+				return true
+			}
+
+			if i == totalAggregations-1 && len(data) > 0 {
+				aggregatedData = data[len(data)-1].Interface()
+			}
+			agg.SetMainData(aggregatedData)
+			aggregatedData = agg.Aggregate()
+		}
+
+		reply(conn, TypeEvent, payload.ID, aggregatedData)
+		return true
+	}
+
 	if len(data) > 0 {
 		reply(conn, TypeEvent, payload.ID, data[len(data)-1].Interface())
 	}

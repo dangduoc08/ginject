@@ -154,8 +154,8 @@ func TestBuildHTTPCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
 	if gotEx == nil {
 		t.Fatal(test.DiffMessage(nil, "non-nil exception", "publishing to the subscribed event must invoke the catch function"))
 	}
-	if gotEx.GetResponse() != "boom" {
-		t.Error(test.DiffMessage(gotEx.GetResponse(), "boom", "the recovered value must be normalized before being passed to Catch"))
+	if gotEx.GetMessage() != "boom" {
+		t.Error(test.DiffMessage(gotEx.GetMessage(), "boom", "the recovered value must be normalized before being passed to Catch"))
 	}
 }
 

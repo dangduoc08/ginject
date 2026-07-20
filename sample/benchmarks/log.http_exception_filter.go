@@ -21,10 +21,9 @@ func (instance LogModuleHTTPExceptionFilter) Catch(c ginject.HTTPContext, ex gin
 		panic(exception.InternalServerErrorException("LogModuleHTTPExceptionFilter error triggered"))
 	}
 
-	httpCode, _ := ex.GetHTTPStatus()
-	c.Status(httpCode).JSON(ctx.Map{
+	c.Status(ex.GetCode()).JSON(ctx.Map{
 		"code":    ex.GetCode(),
 		"error":   ex.Error(),
-		"message": ex.GetResponse(),
+		"message": ex.GetMessage(),
 	})
 }

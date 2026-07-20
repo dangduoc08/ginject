@@ -110,7 +110,7 @@ func New() *App {
 		},
 	}
 
-	app.BindGlobalExceptionFilters(globalExceptionFilter{})
+	app.BindGlobalExceptionFilters(globalHTTPExceptionFilter{}, globalWSExceptionFilter{})
 
 	return app
 }

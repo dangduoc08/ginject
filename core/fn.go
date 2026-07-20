@@ -550,7 +550,7 @@ func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				globalExceptionFilter{}.Catch(c, common.NormalizeRecovered(rec))
+				globalHTTPExceptionFilter{}.Catch(c, common.NormalizeRecovered(rec))
 			}
 		}()
 
