@@ -2,118 +2,117 @@ package exception
 
 import (
 	"net/http"
-	"strconv"
 )
 
-var (
-	codeBadRequest                = strconv.Itoa(http.StatusBadRequest)
-	codeConflict                  = strconv.Itoa(http.StatusConflict)
-	codeForbidden                 = strconv.Itoa(http.StatusForbidden)
-	codeGone                      = strconv.Itoa(http.StatusGone)
-	codeInternalServerError       = strconv.Itoa(http.StatusInternalServerError)
-	codeMethodNotAllowed          = strconv.Itoa(http.StatusMethodNotAllowed)
-	codeNotAcceptable             = strconv.Itoa(http.StatusNotAcceptable)
-	codeNotFound                  = strconv.Itoa(http.StatusNotFound)
-	codeRequestTimeout            = strconv.Itoa(http.StatusRequestTimeout)
-	codeUnauthorized              = strconv.Itoa(http.StatusUnauthorized)
-	codeRequestEntityTooLarge     = strconv.Itoa(http.StatusRequestEntityTooLarge)
-	codeUnsupportedMediaType      = strconv.Itoa(http.StatusUnsupportedMediaType)
-	codeUnprocessableEntity       = strconv.Itoa(http.StatusUnprocessableEntity)
-	codeNotImplemented            = strconv.Itoa(http.StatusNotImplemented)
-	codeHTTPVersionNotSupported   = strconv.Itoa(http.StatusHTTPVersionNotSupported)
-	codeBadGateway                = strconv.Itoa(http.StatusBadGateway)
-	codeServiceUnavailable        = strconv.Itoa(http.StatusServiceUnavailable)
-	codeGatewayTimeout            = strconv.Itoa(http.StatusGatewayTimeout)
-	codeTeapot                    = strconv.Itoa(http.StatusTeapot)
-	codePreconditionFailed        = strconv.Itoa(http.StatusPreconditionFailed)
-	codeMisdirectedRequest        = strconv.Itoa(http.StatusMisdirectedRequest)
-	codeTooManyRequests           = strconv.Itoa(http.StatusTooManyRequests)
+const (
+	codeBadRequest              = http.StatusBadRequest
+	codeConflict                = http.StatusConflict
+	codeForbidden               = http.StatusForbidden
+	codeGone                    = http.StatusGone
+	codeInternalServerError     = http.StatusInternalServerError
+	codeMethodNotAllowed        = http.StatusMethodNotAllowed
+	codeNotAcceptable           = http.StatusNotAcceptable
+	codeNotFound                = http.StatusNotFound
+	codeRequestTimeout          = http.StatusRequestTimeout
+	codeUnauthorized            = http.StatusUnauthorized
+	codeRequestEntityTooLarge   = http.StatusRequestEntityTooLarge
+	codeUnsupportedMediaType    = http.StatusUnsupportedMediaType
+	codeUnprocessableEntity     = http.StatusUnprocessableEntity
+	codeNotImplemented          = http.StatusNotImplemented
+	codeHTTPVersionNotSupported = http.StatusHTTPVersionNotSupported
+	codeBadGateway              = http.StatusBadGateway
+	codeServiceUnavailable      = http.StatusServiceUnavailable
+	codeGatewayTimeout          = http.StatusGatewayTimeout
+	codeTeapot                  = http.StatusTeapot
+	codePreconditionFailed      = http.StatusPreconditionFailed
+	codeMisdirectedRequest      = http.StatusMisdirectedRequest
+	codeTooManyRequests         = http.StatusTooManyRequests
 )
 
-func BadRequestException(response any, opts ...any) Exception {
-	return NewException(response, codeBadRequest, opts...)
+func BadRequestException(message string, opts ...any) Exception {
+	return NewException(message, codeBadRequest, opts...)
 }
 
-func ConflictException(response any, opts ...any) Exception {
-	return NewException(response, codeConflict, opts...)
+func ConflictException(message string, opts ...any) Exception {
+	return NewException(message, codeConflict, opts...)
 }
 
-func ForbiddenException(response any, opts ...any) Exception {
-	return NewException(response, codeForbidden, opts...)
+func ForbiddenException(message string, opts ...any) Exception {
+	return NewException(message, codeForbidden, opts...)
 }
 
-func GoneException(response any, opts ...any) Exception {
-	return NewException(response, codeGone, opts...)
+func GoneException(message string, opts ...any) Exception {
+	return NewException(message, codeGone, opts...)
 }
 
-func InternalServerErrorException(response any, opts ...any) Exception {
-	return NewException(response, codeInternalServerError, opts...)
+func InternalServerErrorException(message string, opts ...any) Exception {
+	return NewException(message, codeInternalServerError, opts...)
 }
 
-func MethodNotAllowedException(response any, opts ...any) Exception {
-	return NewException(response, codeMethodNotAllowed, opts...)
+func MethodNotAllowedException(message string, opts ...any) Exception {
+	return NewException(message, codeMethodNotAllowed, opts...)
 }
 
-func NotAcceptableException(response any, opts ...any) Exception {
-	return NewException(response, codeNotAcceptable, opts...)
+func NotAcceptableException(message string, opts ...any) Exception {
+	return NewException(message, codeNotAcceptable, opts...)
 }
 
-func NotFoundException(response any, opts ...any) Exception {
-	return NewException(response, codeNotFound, opts...)
+func NotFoundException(message string, opts ...any) Exception {
+	return NewException(message, codeNotFound, opts...)
 }
 
-func RequestTimeoutException(response any, opts ...any) Exception {
-	return NewException(response, codeRequestTimeout, opts...)
+func RequestTimeoutException(message string, opts ...any) Exception {
+	return NewException(message, codeRequestTimeout, opts...)
 }
 
-func UnauthorizedException(response any, opts ...any) Exception {
-	return NewException(response, codeUnauthorized, opts...)
+func UnauthorizedException(message string, opts ...any) Exception {
+	return NewException(message, codeUnauthorized, opts...)
 }
 
-func RequestEntityTooLargeException(response any, opts ...any) Exception {
-	return NewException(response, codeRequestEntityTooLarge, opts...)
+func RequestEntityTooLargeException(message string, opts ...any) Exception {
+	return NewException(message, codeRequestEntityTooLarge, opts...)
 }
 
-func UnsupportedMediaTypeException(response any, opts ...any) Exception {
-	return NewException(response, codeUnsupportedMediaType, opts...)
+func UnsupportedMediaTypeException(message string, opts ...any) Exception {
+	return NewException(message, codeUnsupportedMediaType, opts...)
 }
 
-func UnprocessableEntityException(response any, opts ...any) Exception {
-	return NewException(response, codeUnprocessableEntity, opts...)
+func UnprocessableEntityException(message string, opts ...any) Exception {
+	return NewException(message, codeUnprocessableEntity, opts...)
 }
 
-func NotImplementedException(response any, opts ...any) Exception {
-	return NewException(response, codeNotImplemented, opts...)
+func NotImplementedException(message string, opts ...any) Exception {
+	return NewException(message, codeNotImplemented, opts...)
 }
 
-func HTTPVersionNotSupportedException(response any, opts ...any) Exception {
-	return NewException(response, codeHTTPVersionNotSupported, opts...)
+func HTTPVersionNotSupportedException(message string, opts ...any) Exception {
+	return NewException(message, codeHTTPVersionNotSupported, opts...)
 }
 
-func BadGatewayException(response any, opts ...any) Exception {
-	return NewException(response, codeBadGateway, opts...)
+func BadGatewayException(message string, opts ...any) Exception {
+	return NewException(message, codeBadGateway, opts...)
 }
 
-func ServiceUnavailableException(response any, opts ...any) Exception {
-	return NewException(response, codeServiceUnavailable, opts...)
+func ServiceUnavailableException(message string, opts ...any) Exception {
+	return NewException(message, codeServiceUnavailable, opts...)
 }
 
-func GatewayTimeoutException(response any, opts ...any) Exception {
-	return NewException(response, codeGatewayTimeout, opts...)
+func GatewayTimeoutException(message string, opts ...any) Exception {
+	return NewException(message, codeGatewayTimeout, opts...)
 }
 
-func TeapotException(response any, opts ...any) Exception {
-	return NewException(response, codeTeapot, opts...)
+func TeapotException(message string, opts ...any) Exception {
+	return NewException(message, codeTeapot, opts...)
 }
 
-func PreconditionFailedException(response any, opts ...any) Exception {
-	return NewException(response, codePreconditionFailed, opts...)
+func PreconditionFailedException(message string, opts ...any) Exception {
+	return NewException(message, codePreconditionFailed, opts...)
 }
 
-func MisdirectedRequestException(response any, opts ...any) Exception {
-	return NewException(response, codeMisdirectedRequest, opts...)
+func MisdirectedRequestException(message string, opts ...any) Exception {
+	return NewException(message, codeMisdirectedRequest, opts...)
 }
 
-func TooManyRequestsException(response any, opts ...any) Exception {
-	return NewException(response, codeTooManyRequests, opts...)
+func TooManyRequestsException(message string, opts ...any) Exception {
+	return NewException(message, codeTooManyRequests, opts...)
 }

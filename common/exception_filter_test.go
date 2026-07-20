@@ -87,22 +87,22 @@ func TestNormalizeRecovered_ExceptionPassthrough(t *testing.T) {
 
 func TestNormalizeRecovered_ErrorValue(t *testing.T) {
 	got := NormalizeRecovered(errors.New("boom"))
-	if got.GetResponse() != "boom" {
-		t.Error(test.DiffMessage(got.GetResponse(), "boom", "an error panic should use its Error() text as the response"))
+	if got.GetMessage() != "boom" {
+		t.Error(test.DiffMessage(got.GetMessage(), "boom", "an error panic should use its Error() text as the response"))
 	}
 }
 
 func TestNormalizeRecovered_StringValue(t *testing.T) {
 	got := NormalizeRecovered("boom string")
-	if got.GetResponse() != "boom string" {
-		t.Error(test.DiffMessage(got.GetResponse(), "boom string", "a string panic should be used verbatim as the response"))
+	if got.GetMessage() != "boom string" {
+		t.Error(test.DiffMessage(got.GetMessage(), "boom string", "a string panic should be used verbatim as the response"))
 	}
 }
 
 func TestNormalizeRecovered_UnknownTypeUsesGenericMessage(t *testing.T) {
 	got := NormalizeRecovered(42)
 	want := http.StatusText(http.StatusInternalServerError)
-	if got.GetResponse() != want {
-		t.Error(test.DiffMessage(got.GetResponse(), want, "an unrecognized panic value should fall back to the generic 500 text"))
+	if got.GetMessage() != want {
+		t.Error(test.DiffMessage(got.GetMessage(), want, "an unrecognized panic value should fall back to the generic 500 text"))
 	}
 }

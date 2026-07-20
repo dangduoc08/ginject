@@ -252,33 +252,30 @@ func (http *HTTP) serveContent(c *ctx.HTTPContext, lastWildcardSlashIndex int, d
 
 func (http *HTTP) returnNotFound(c *ctx.HTTPContext) {
 	notFoundException := exception.NotFoundException("Cannot " + c.Method + " " + c.URL.Path)
-	httpCode, _ := notFoundException.GetHTTPStatus()
-	c.Status(httpCode)
+	c.Status(notFoundException.GetCode())
 	c.JSON(ctx.Map{
 		"code":    notFoundException.GetCode(),
 		"error":   notFoundException.Error(),
-		"message": notFoundException.GetResponse(),
+		"message": notFoundException.GetMessage(),
 	})
 }
 
 func (http *HTTP) returnInvalidURL(c *ctx.HTTPContext) {
 	badRequestException := exception.BadRequestException("Invalid URL path")
-	httpCode, _ := badRequestException.GetHTTPStatus()
-	c.Status(httpCode)
+	c.Status(badRequestException.GetCode())
 	c.JSON(ctx.Map{
 		"code":    badRequestException.GetCode(),
 		"error":   badRequestException.Error(),
-		"message": badRequestException.GetResponse(),
+		"message": badRequestException.GetMessage(),
 	})
 }
 
 func (http *HTTP) returnDeprecatedURL(c *ctx.HTTPContext) {
 	goneException := exception.GoneException("Deprecated URL usage")
-	httpCode, _ := goneException.GetHTTPStatus()
-	c.Status(httpCode)
+	c.Status(goneException.GetCode())
 	c.JSON(ctx.Map{
 		"code":    goneException.GetCode(),
 		"error":   goneException.Error(),
-		"message": goneException.GetResponse(),
+		"message": goneException.GetMessage(),
 	})
 }

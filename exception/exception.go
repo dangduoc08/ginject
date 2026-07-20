@@ -4,13 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 )
 
 type Exception struct {
-	response any
-	error    error
-	code     string
+	message string
+	error   error
+	code    int
 }
 
 type ExceptionOptions struct {
@@ -18,71 +17,68 @@ type ExceptionOptions struct {
 	Cause       error
 }
 
-func (exception Exception) Error() string {
-	return exception.error.Error()
+func (e Exception) Error() string {
+	if e.error == nil {
+		return ""
+	}
+	return e.error.Error()
 }
 
-func (exception Exception) Unwrap() error {
-	return errors.Unwrap(exception.error)
+func (e Exception) Unwrap() error {
+	return e.error
 }
 
-func (exception Exception) GetCode() string {
-	return exception.code
+func (e Exception) GetCode() int {
+	return e.code
 }
 
-func (exception Exception) GetResponse() any {
-	return exception.response
+func (e Exception) GetMessage() string {
+	return e.message
 }
 
-func (exception Exception) GetHTTPStatus() (int, string) {
-	codeInt, err := strconv.Atoi(exception.code)
-	if err == nil {
-		statusText := http.StatusText(codeInt)
-		if statusText != "" {
-			return codeInt, statusText
+func (e Exception) GetStatusText() string {
+	statusText := http.StatusText(e.code)
+	if statusText == "" {
+		statusText = wsCloseStatusText[e.code]
+	}
+	return statusText
+}
+
+func (e Exception) errorBuilder(opts ...any) Exception {
+	if len(opts) == 0 {
+		if text := e.GetStatusText(); text != "" {
+			e.error = errors.New(text)
 		}
-	}
-	return 0, ""
-}
-
-func (exception Exception) errorBuilder(opts ...any) Exception {
-
-	// By default error will be HTTP statuses
-	_, text := exception.GetHTTPStatus()
-	if text != "" {
-		exception.error = errors.New(text)
+		return e
 	}
 
-	if len(opts) > 0 {
-		switch option := opts[0].(type) {
-		case string:
-			exception.error = errors.New(option)
-		case Exception:
-			exception.error = option.error
-		case error:
-			exception.error = option
-		case ExceptionOptions:
-			if option.Description != "" {
-				exception.error = errors.New(option.Description)
-			}
-
-			if option.Cause != nil {
-				if exception.error != nil {
-					exception.error = fmt.Errorf("%v: %w", exception.error, option.Cause)
-				} else {
-					exception.error = option.Cause
-				}
-			}
+	switch option := opts[0].(type) {
+	case string:
+		e.error = errors.New(option)
+	case error:
+		e.error = option
+	case ExceptionOptions:
+		if option.Description != "" {
+			e.error = errors.New(option.Description)
+		} else if text := e.GetStatusText(); text != "" {
+			e.error = errors.New(text)
 		}
+
+		if option.Cause == nil {
+			break
+		}
+
+		if e.error == nil {
+			e.error = option.Cause
+			break
+		}
+
+		e.error = fmt.Errorf("%v: %w", e.error, option.Cause)
 	}
 
-	return exception
+	return e
 }
 
-func NewException(response any, code string, opts ...any) Exception {
-	return Exception{
-		response: response,
-		code:     code,
-	}.
-		errorBuilder(opts...)
+func NewException(message string, code int, opts ...any) Exception {
+	return Exception{message: message, code: code}.errorBuilder(opts...)
 }

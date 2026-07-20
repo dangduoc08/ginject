@@ -3,57 +3,60 @@ package exception
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"testing"
 )
 
-func BenchmarkBadRequestException(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = BadRequestException("validation error")
-	}
-}
-
-func BenchmarkNotFoundException(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = NotFoundException("not found")
-	}
-}
-
-func BenchmarkInternalServerErrorException(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = InternalServerErrorException("internal error")
-	}
-}
-
 func BenchmarkNewException_NoOpts(b *testing.B) {
-	code := strconv.Itoa(http.StatusBadRequest)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = NewException("body", code)
+	for range b.N {
+		_ = NewException("body", http.StatusBadRequest)
 	}
 }
 
 func BenchmarkNewException_StringOpt(b *testing.B) {
-	code := strconv.Itoa(http.StatusBadRequest)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = NewException("body", code, "custom message")
+	for range b.N {
+		_ = NewException("body", http.StatusBadRequest, "custom message")
+	}
+}
+
+func BenchmarkNewException_ErrorOpt(b *testing.B) {
+	cause := errors.New("underlying error")
+	b.ResetTimer()
+	for range b.N {
+		_ = NewException("body", http.StatusBadRequest, cause)
 	}
 }
 
 func BenchmarkNewException_ExceptionOptions_Cause(b *testing.B) {
-	code := strconv.Itoa(http.StatusBadRequest)
 	cause := errors.New("db error")
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = NewException("body", code, ExceptionOptions{Cause: cause})
+	for range b.N {
+		_ = NewException("body", http.StatusBadRequest, ExceptionOptions{Cause: cause})
 	}
 }
 
-func BenchmarkGetHTTPStatus(b *testing.B) {
-	e := BadRequestException("body")
+func BenchmarkException_GetStatusText(b *testing.B) {
+	e := NewException("body", http.StatusBadRequest)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = e.GetHTTPStatus()
+	for range b.N {
+		_ = e.GetStatusText()
+	}
+}
+
+func BenchmarkException_Error(b *testing.B) {
+	e := NewException("body", http.StatusBadRequest)
+	b.ResetTimer()
+	for range b.N {
+		_ = e.Error()
+	}
+}
+
+func BenchmarkException_ErrorsIs(b *testing.B) {
+	cause := errors.New("db error")
+	e := NewException("body", http.StatusInternalServerError, ExceptionOptions{Cause: cause})
+	b.ResetTimer()
+	for range b.N {
+		_ = errors.Is(e, cause)
 	}
 }

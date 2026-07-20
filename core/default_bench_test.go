@@ -9,8 +9,8 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 )
 
-func BenchmarkGlobalExceptionFilterFull(b *testing.B) {
-	filter := globalExceptionFilter{}
+func BenchmarkGlobalHTTPExceptionFilterFull(b *testing.B) {
+	filter := globalHTTPExceptionFilter{}
 	ex := exception.BadRequestException("validation error")
 
 	b.ResetTimer()
@@ -22,9 +22,9 @@ func BenchmarkGlobalExceptionFilterFull(b *testing.B) {
 	}
 }
 
-func BenchmarkGlobalExceptionFilterFallback(b *testing.B) {
-	filter := globalExceptionFilter{}
-	ex := exception.InternalServerErrorException(42)
+func BenchmarkGlobalHTTPExceptionFilterFallback(b *testing.B) {
+	filter := globalHTTPExceptionFilter{}
+	ex := exception.InternalServerErrorException("")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
