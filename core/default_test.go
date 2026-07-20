@@ -17,8 +17,8 @@ func newHTTPContext() *ctx.HTTPContext {
 	return c
 }
 
-func TestGlobalExceptionFilterHTTPFullException(t *testing.T) {
-	filter := globalExceptionFilter{}
+func TestGlobalHTTPExceptionFilterFullException(t *testing.T) {
+	filter := globalHTTPExceptionFilter{}
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
 
@@ -30,12 +30,12 @@ func TestGlobalExceptionFilterHTTPFullException(t *testing.T) {
 	}
 }
 
-func TestGlobalExceptionFilterHTTPStructMessage(t *testing.T) {
-	filter := globalExceptionFilter{}
+func TestGlobalHTTPExceptionFilterEmptyMessageFallsBackToDefault(t *testing.T) {
+	filter := globalHTTPExceptionFilter{}
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
 
-	ex := exception.InternalServerErrorException(map[string]any{"detail": "db error"})
+	ex := exception.InternalServerErrorException("")
 	filter.Catch(c, &ex)
 
 	if w.Code != http.StatusInternalServerError {
@@ -43,18 +43,46 @@ func TestGlobalExceptionFilterHTTPStructMessage(t *testing.T) {
 	}
 }
 
-func TestGlobalExceptionFilterHTTPIntMessage(t *testing.T) {
-	filter := globalExceptionFilter{}
-	c := newHTTPContext()
+func TestGlobalWSExceptionFilterFullException(t *testing.T) {
+	filter := globalWSExceptionFilter{}
+	c := ctx.NewWSContext()
 
-	ex := exception.InternalServerErrorException(42)
+	var got any
+	c.SetSend(func(data any) { got = data })
+
+	ex := exception.PolicyViolationException("nope")
 	filter.Catch(c, &ex)
+
+	env, ok := got.(ctx.Map)
+	if !ok {
+		t.Fatalf("expected ctx.Map envelope, got %T: %+v", got, got)
+	}
+	if env["code"] != 1008 {
+		t.Error(test.DiffMessage(env["code"], 1008, "WS status code for PolicyViolation"))
+	}
+	if env["error"] != "Policy Violation" {
+		t.Error(test.DiffMessage(env["error"], "Policy Violation", "WS status text"))
+	}
+	if env["message"] != "nope" {
+		t.Error(test.DiffMessage(env["message"], "nope", "WS message"))
+	}
 }
 
-func TestGlobalExceptionFilterHTTPNilMessage(t *testing.T) {
-	filter := globalExceptionFilter{}
-	c := newHTTPContext()
+func TestGlobalWSExceptionFilterEmptyMessageFallsBackToDefault(t *testing.T) {
+	filter := globalWSExceptionFilter{}
+	c := ctx.NewWSContext()
 
-	ex := exception.InternalServerErrorException(nil)
+	var got any
+	c.SetSend(func(data any) { got = data })
+
+	ex := exception.InternalServerErrorException("")
 	filter.Catch(c, &ex)
+
+	env, ok := got.(ctx.Map)
+	if !ok {
+		t.Fatalf("expected ctx.Map envelope, got %T: %+v", got, got)
+	}
+	if env["code"] != http.StatusInternalServerError {
+		t.Error(test.DiffMessage(env["code"], http.StatusInternalServerError, "WS status code fallback"))
+	}
 }

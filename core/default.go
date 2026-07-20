@@ -1,8 +1,6 @@
 package core
 
 import (
-	"reflect"
-
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 )
@@ -13,11 +11,11 @@ import (
 
 var defaultException = exception.InternalServerErrorException("Unhandled exception has occurred")
 
-type globalExceptionFilter struct{}
+type globalHTTPExceptionFilter struct{}
 
-func (g globalExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception) {
+func (g globalHTTPExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception) {
 	code := ex.GetCode()
-	if code == "" {
+	if code == 0 {
 		code = defaultException.GetCode()
 	}
 
@@ -25,27 +23,40 @@ func (g globalExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception
 	if err == "" {
 		err = defaultException.Error()
 	}
-	data := ctx.Map{
-		"code":  code,
-		"error": err,
+
+	message := ex.GetMessage()
+	if message == "" {
+		message = defaultException.GetMessage()
 	}
 
-	message := ex.GetResponse()
-	var msgKind reflect.Kind
-	if message != nil {
-		msgKind = reflect.TypeOf(message).Kind()
-	}
-	switch msgKind {
-	case reflect.String, reflect.Map, reflect.Slice, reflect.Struct:
-		data["message"] = message
-	default:
-		data["message"] = defaultException.GetResponse()
+	c.Status(code).JSON(ctx.Map{
+		"code":    code,
+		"error":   err,
+		"message": message,
+	})
+}
+
+type globalWSExceptionFilter struct{}
+
+func (g globalWSExceptionFilter) Catch(c *ctx.WSContext, ex *exception.Exception) {
+	code := ex.GetCode()
+	if code == 0 {
+		code = defaultException.GetCode()
 	}
 
-	httpCode, httpText := ex.GetHTTPStatus()
-	if httpText == "" {
-		httpCode, _ = defaultException.GetHTTPStatus()
+	err := ex.Error()
+	if err == "" {
+		err = defaultException.Error()
 	}
 
-	c.Status(httpCode).JSON(data)
+	message := ex.GetMessage()
+	if message == "" {
+		message = defaultException.GetMessage()
+	}
+
+	c.Send(ctx.Map{
+		"code":    code,
+		"error":   err,
+		"message": message,
+	})
 }
