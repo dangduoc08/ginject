@@ -69,7 +69,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 			// since we always set global exception filter as default
 			if _, ok := http.catchFnsByRoute[catchEvent]; ok {
 
-				c.Event.Emit(catchEvent, common.CatchEventPayload{ReqCtx: c, Recovered: rec, Index: 0})
+				c.Event.Emit(catchEvent, common.CatchEventPayload{Ctx: c, Recovered: rec, Index: 0})
 			}
 		}
 	}()

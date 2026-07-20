@@ -101,11 +101,11 @@ func BuildHTTPCatchMiddleware(catchEvent string, catchFns []RESTCatch) ctx.HTTPH
 
 			defer func() {
 				if rec := recover(); rec != nil {
-					c.Event.Emit(catchEvent, CatchEventPayload{ReqCtx: p.ReqCtx, Recovered: rec, Index: catchFnIndex + 1})
+					c.Event.Emit(catchEvent, CatchEventPayload{Ctx: p.Ctx, Recovered: rec, Index: catchFnIndex + 1})
 				}
 			}()
 
-			catchFns[catchFnIndex](p.ReqCtx.(*ctx.HTTPContext), NormalizeRecovered(p.Recovered))
+			catchFns[catchFnIndex](p.Ctx.(*ctx.HTTPContext), NormalizeRecovered(p.Recovered))
 		})
 
 		c.Next()

@@ -117,7 +117,7 @@ func TestBuildWSCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
 	})
 	mw(c)
 
-	c.Event.Emit("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
+	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
 
 	if gotEx == nil {
 		t.Fatal(test.DiffMessage(nil, "non-nil exception", "publishing to the subscribed event must invoke the catch function"))
@@ -138,7 +138,7 @@ func TestBuildWSCatchMiddleware_FallsBackToNextIndexOnPanic(t *testing.T) {
 	})
 	mw(c)
 
-	c.Event.Emit("test.event", CatchEventPayload{ReqCtx: c, Recovered: "boom", Index: 0})
+	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
 
 	if !secondCalled {
 		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next index"))

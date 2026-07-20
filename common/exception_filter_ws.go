@@ -89,11 +89,11 @@ func BuildWSCatchMiddleware(catchEvent string, catchFns []WSCatch) ctx.WSHandler
 
 			defer func() {
 				if rec := recover(); rec != nil {
-					c.Event.Emit(catchEvent, CatchEventPayload{ReqCtx: p.ReqCtx, Recovered: rec, Index: catchFnIndex + 1})
+					c.Event.Emit(catchEvent, CatchEventPayload{Ctx: p.Ctx, Recovered: rec, Index: catchFnIndex + 1})
 				}
 			}()
 
-			catchFns[catchFnIndex](p.ReqCtx.(*ctx.WSContext), NormalizeRecovered(p.Recovered))
+			catchFns[catchFnIndex](p.Ctx.(*ctx.WSContext), NormalizeRecovered(p.Recovered))
 		})
 
 		c.Next()
