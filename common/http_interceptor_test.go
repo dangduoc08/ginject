@@ -16,116 +16,116 @@ func newInterceptorTestContext() *ctx.HTTPContext {
 	return c
 }
 
-func TestInjectProvidersIntoRESTInterceptors_Empty(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_Empty(t *testing.T) {
 	ic := &Interceptor{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	items := ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 	if len(items) != 0 {
 		t.Error(test.DiffMessage(len(items), 0, "no bound interceptors → empty result"))
 	}
 }
 
-func TestInjectProvidersIntoRESTInterceptors_ApplyAll(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_ApplyAll(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(mockInterceptable{})
 
-	r := buildREST(map[string]string{
+	r := buildHTTP(map[string]string{
 		"READ_users":    "/users/",
 		"CREATE_orders": "/orders/",
 	})
 
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	items := ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 	if len(items) != 2 {
 		t.Error(test.DiffMessage(len(items), 2, "interceptor with no handlers applies to all patterns"))
 	}
 	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
+		if item.HTTP.Method != "GET" {
+			t.Error(test.DiffMessage(item.HTTP.Method, "GET", "method"))
 		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
+		if item.HTTP.Pattern == "" {
+			t.Error(test.DiffMessage(item.HTTP.Pattern, "non-empty", "pattern"))
 		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
+		if item.HTTP.Common.Name == "" {
+			t.Error(test.DiffMessage(item.HTTP.Common.Name, "non-empty", "name"))
 		}
 	}
 }
 
-func TestInjectProvidersIntoRESTInterceptors_MainHandlerName(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_MainHandlerName(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(mockInterceptable{})
 
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	r := buildHTTP(map[string]string{"READ_items": "/items/"})
+	items := ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 
 	if len(items) != 1 {
 		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
 		return
 	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+	if items[0].HTTP.Common.MainHandlerName != "READ_items" {
+		t.Error(test.DiffMessage(items[0].HTTP.Common.MainHandlerName, "READ_items", "main handler name"))
 	}
 }
 
-func TestInjectProvidersIntoRESTInterceptors_HandlerIsCallableIntercept(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_HandlerIsCallableIntercept(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(mockInterceptable{})
 
-	r := buildREST(map[string]string{"READ_users": "/users/"})
-	items := ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
+	items := ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 	if len(items) != 1 {
 		t.Fatal(test.DiffMessage(len(items), 1, "one pattern → one item"))
 	}
 
-	if _, ok := items[0].REST.Common.Handler.(RESTIntercept); !ok {
-		t.Fatal(test.DiffMessage(items[0].REST.Common.Handler, "RESTIntercept", "Handler must be callable as RESTIntercept"))
+	if _, ok := items[0].HTTP.Common.Handler.(HTTPIntercept); !ok {
+		t.Fatal(test.DiffMessage(items[0].HTTP.Common.Handler, "HTTPIntercept", "Handler must be callable as HTTPIntercept"))
 	}
 }
 
-func TestInjectProvidersIntoRESTInterceptors_NoIntercept_Panics(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_NoIntercept_Panics(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(noInterceptMethod{})
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
 	defer func() {
 		if rec := recover(); rec == nil {
 			t.Error(test.DiffMessage(nil, "panic", "interceptor with no Intercept method must panic"))
 		}
 	}()
-	ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 }
 
-func TestInjectProvidersIntoRESTInterceptors_WrongParamType_Panics(t *testing.T) {
+func TestInjectProvidersIntoHTTPInterceptors_WrongParamType_Panics(t *testing.T) {
 	ic := &Interceptor{}
 	ic.BindInterceptor(wrongParamInterceptable{})
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
 	defer func() {
 		if rec := recover(); rec == nil {
 			t.Error(test.DiffMessage(nil, "panic", "Intercept with a non-context first param must panic"))
 		}
 	}()
-	ic.InjectProvidersIntoRESTInterceptors(r, noopCB)
+	ic.InjectProvidersIntoHTTPInterceptors(r, noopCB)
 }
 
-func TestAsRESTInterceptor_Valid(t *testing.T) {
-	fn, ok := AsRESTInterceptor(mockInterceptable{})
+func TestAsHTTPInterceptor_Valid(t *testing.T) {
+	fn, ok := AsHTTPInterceptor(mockInterceptable{})
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "mockInterceptable must match RESTIntercept"))
+		t.Fatal(test.DiffMessage(ok, true, "mockInterceptable must match HTTPIntercept"))
 	}
 	fn(nil, aggregation.NewAggregation())
 }
 
-func TestAsRESTInterceptor_NoMethod(t *testing.T) {
-	_, ok := AsRESTInterceptor(noInterceptMethod{})
+func TestAsHTTPInterceptor_NoMethod(t *testing.T) {
+	_, ok := AsHTTPInterceptor(noInterceptMethod{})
 	if ok {
 		t.Error(test.DiffMessage(true, false, "an interceptable with no Intercept must not match"))
 	}
 }
 
-func TestAsRESTInterceptor_WrongShape(t *testing.T) {
-	_, ok := AsRESTInterceptor(wrongParamInterceptable{})
+func TestAsHTTPInterceptor_WrongShape(t *testing.T) {
+	_, ok := AsHTTPInterceptor(wrongParamInterceptable{})
 	if ok {
 		t.Error(test.DiffMessage(true, false, "an Intercept with a non-context first param must not match"))
 	}

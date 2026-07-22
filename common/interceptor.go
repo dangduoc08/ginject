@@ -14,7 +14,7 @@ type WithValueKey string
 type Interceptable any
 
 type InterceptorItem struct {
-	REST RESTInterceptorItem
+	HTTP HTTPInterceptorItem
 	WS   WSInterceptorItem
 }
 

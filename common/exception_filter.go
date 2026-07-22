@@ -14,7 +14,7 @@ const ExceptionFilterMethodName = "Catch"
 type ExceptionFilterable any
 
 type ExceptionFilterItem struct {
-	REST RESTExceptionFilterItem
+	HTTP HTTPExceptionFilterItem
 	WS   WSExceptionFilterItem
 }
 

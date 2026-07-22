@@ -11,9 +11,9 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type RESTCanActivate = func(*ctx.HTTPContext) bool
+type HTTPCanActivate = func(*ctx.HTTPContext) bool
 
-type RESTGuardItem struct {
+type HTTPGuardItem struct {
 	Method  string
 	Route   string
 	Version string
@@ -21,16 +21,16 @@ type RESTGuardItem struct {
 	Common  CommonItem
 }
 
-func AsRESTGuard(guarder any) (RESTCanActivate, bool) {
+func AsHTTPGuard(guarder any) (HTTPCanActivate, bool) {
 	method := reflect.ValueOf(guarder).MethodByName(GuardMethodName)
 	if !method.IsValid() {
 		return nil, false
 	}
-	fn, ok := method.Interface().(RESTCanActivate)
+	fn, ok := method.Interface().(HTTPCanActivate)
 	return fn, ok
 }
 
-func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
+func (g *Guard) InjectProvidersIntoHTTPGuards(r *HTTP, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []GuardItem {
 	guardItemArr := make([]GuardItem, 0, len(r.PatternToFuncNameMap)*len(g.GuardHandlers))
 
 	for _, guardHandler := range g.GuardHandlers {
@@ -46,14 +46,14 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 		newGuarder = Construct(newGuarder, "NewGuard")
 		guardHandler.guarder = newGuarder.(Guarder)
 
-		canActivate, ok := AsRESTGuard(guardHandler.guarder)
+		canActivate, ok := AsHTTPGuard(guardHandler.guarder)
 		if !ok {
 			if _, ok = AsWSGuard(guardHandler.guarder); ok {
 				continue
 			}
 
 			panic(errors.New(color.FmtRed(
-				"invalid guard: %v.%s must be func(*ctx.HTTPContext) bool to be bound as a REST guard",
+				"invalid guard: %v.%s must be func(*ctx.HTTPContext) bool to be bound as a HTTP guard",
 				guarderType,
 				GuardMethodName,
 			)))
@@ -74,7 +74,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				guardItemArr = append(guardItemArr, GuardItem{
-					REST: RESTGuardItem{
+					HTTP: HTTPGuardItem{
 						Method:  httpMethod,
 						Route:   str.Enclose(route, '/'),
 						Version: version,
@@ -93,7 +93,7 @@ func (g *Guard) InjectProvidersIntoRESTGuards(r *REST, cb func(int, reflect.Type
 	return guardItemArr
 }
 
-func BuildHTTPGuardMiddleware(canActivateFn RESTCanActivate) ctx.HTTPHandler {
+func BuildHTTPGuardMiddleware(canActivateFn HTTPCanActivate) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) { handleHTTPGuard(c, canActivateFn(c)) }
 }
 

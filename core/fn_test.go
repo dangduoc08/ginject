@@ -155,48 +155,48 @@ func TestSetStatusCodeInterfaceInvalid(t *testing.T) {
 	}
 }
 
-func TestReturnRESTString(t *testing.T) {
+func TestReturnHTTPString(t *testing.T) {
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
-	returnREST(c, reflect.ValueOf("hello"))
+	returnHTTP(c, reflect.ValueOf("hello"))
 	if w.Body.String() != "hello" {
-		t.Error(test.DiffMessage(w.Body.String(), "hello", "returnREST string"))
+		t.Error(test.DiffMessage(w.Body.String(), "hello", "returnHTTP string"))
 	}
 }
 
-func TestReturnRESTMap(t *testing.T) {
+func TestReturnHTTPMap(t *testing.T) {
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
-	returnREST(c, reflect.ValueOf(map[string]any{"k": "v"}))
+	returnHTTP(c, reflect.ValueOf(map[string]any{"k": "v"}))
 	if w.Body.Len() == 0 {
-		t.Error(test.DiffMessage(0, ">0", "returnREST map should produce JSON body"))
+		t.Error(test.DiffMessage(0, ">0", "returnHTTP map should produce JSON body"))
 	}
 }
 
-func TestReturnRESTInt(t *testing.T) {
+func TestReturnHTTPInt(t *testing.T) {
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
-	returnREST(c, reflect.ValueOf(42))
+	returnHTTP(c, reflect.ValueOf(42))
 	if w.Body.String() != "42" {
-		t.Error(test.DiffMessage(w.Body.String(), "42", "returnREST int"))
+		t.Error(test.DiffMessage(w.Body.String(), "42", "returnHTTP int"))
 	}
 }
 
-func TestReturnRESTBool(t *testing.T) {
+func TestReturnHTTPBool(t *testing.T) {
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
-	returnREST(c, reflect.ValueOf(true))
+	returnHTTP(c, reflect.ValueOf(true))
 	if w.Body.String() != "true" {
-		t.Error(test.DiffMessage(w.Body.String(), "true", "returnREST bool"))
+		t.Error(test.DiffMessage(w.Body.String(), "true", "returnHTTP bool"))
 	}
 }
 
-func TestReturnRESTSlice(t *testing.T) {
+func TestReturnHTTPSlice(t *testing.T) {
 	c := newHTTPContext()
 	w := c.ResponseWriter.(*httptest.ResponseRecorder)
-	returnREST(c, reflect.ValueOf([]int{1, 2, 3}))
+	returnHTTP(c, reflect.ValueOf([]int{1, 2, 3}))
 	if w.Body.Len() == 0 {
-		t.Error(test.DiffMessage(0, ">0", "returnREST slice should produce JSON body"))
+		t.Error(test.DiffMessage(0, ">0", "returnHTTP slice should produce JSON body"))
 	}
 }
 
@@ -429,7 +429,7 @@ func TestGetFnArgsByType_MultipleParamsResolveInOrder(t *testing.T) {
 
 func TestIsInjectableHandlerValid(t *testing.T) {
 	handler := func(c *ctx.HTTPContext) {}
-	err := isInjectableHandler(handler, nil, knownRESTDependencyKeys)
+	err := isInjectableHandler(handler, nil, knownHTTPDependencyKeys)
 	if err != nil {
 		t.Error(test.DiffMessage(err, nil, "isInjectableHandler valid handler"))
 	}
@@ -438,7 +438,7 @@ func TestIsInjectableHandlerValid(t *testing.T) {
 func TestIsInjectableHandlerInvalid(t *testing.T) {
 	type unknownType struct{}
 	handler := func(_ unknownType) {}
-	err := isInjectableHandler(handler, nil, knownRESTDependencyKeys)
+	err := isInjectableHandler(handler, nil, knownHTTPDependencyKeys)
 	if err == nil {
 		t.Error(test.DiffMessage(nil, "error", "isInjectableHandler with unknown arg should return error"))
 	}

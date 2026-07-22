@@ -239,7 +239,7 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 }
 
 // buildFieldInjectionCallback returns the per-field callback passed to
-// common.InjectProvidersInto{REST,WS}{ExceptionFilters,Middlewares,Guards,Interceptors}.
+// common.InjectProvidersInto{HTTP,WS}{ExceptionFilters,Middlewares,Guards,Interceptors}.
 // Each bound guard/middleware/interceptor/exceptionFilter field is resolved
 // by the same provider priority as injectDependencies: local module
 // providers, then globalProviderByKey, then globalInterfaceByKey, then passthrough
@@ -378,10 +378,10 @@ func getHTTPDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) an
 			})
 	}
 
-	return knownRESTDependencyKeys
+	return knownHTTPDependencyKeys
 }
 
-func returnREST(c *ctx.HTTPContext, data reflect.Value) {
+func returnHTTP(c *ctx.HTTPContext, data reflect.Value) {
 	switch data.Type().Kind() {
 	case
 		reflect.Map,
@@ -493,7 +493,7 @@ func invokeHTTPHandlerByProviders(f any, injectedProviders map[string]Provider, 
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
-		if _, ok := knownRESTDependencyKeys[dynamicArgKey]; ok {
+		if _, ok := knownHTTPDependencyKeys[dynamicArgKey]; ok {
 			args = append(args, reflect.ValueOf(getHTTPDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(

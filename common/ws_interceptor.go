@@ -44,7 +44,7 @@ func (i *Interceptor) InjectProvidersIntoWSInterceptors(ws *WS, cb func(int, ref
 
 		intercept, ok := AsWSInterceptor(interceptorHandler.interceptable)
 		if !ok {
-			if _, ok = AsRESTInterceptor(interceptorHandler.interceptable); ok {
+			if _, ok = AsHTTPInterceptor(interceptorHandler.interceptable); ok {
 				continue
 			}
 

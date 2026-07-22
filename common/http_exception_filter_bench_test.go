@@ -7,23 +7,23 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 )
 
-func BenchmarkInjectProvidersIntoRESTExceptionFilters_ApplyAll(b *testing.B) {
-	r := buildBenchREST(20)
+func BenchmarkInjectProvidersIntoHTTPExceptionFilters_ApplyAll(b *testing.B) {
+	r := buildBenchHTTP(20)
 	b.ResetTimer()
 	for range b.N {
 		e := &ExceptionFilter{}
 		e.BindExceptionFilter(mockExFilter{})
 		e.BindExceptionFilter(mockExFilter{})
 		e.BindExceptionFilter(mockExFilter{})
-		e.InjectProvidersIntoRESTExceptionFilters(r, benchCB)
+		e.InjectProvidersIntoHTTPExceptionFilters(r, benchCB)
 	}
 }
 
-func BenchmarkAsRESTExceptionFilter(b *testing.B) {
+func BenchmarkAsHTTPExceptionFilter(b *testing.B) {
 	exceptionFilterable := mockExFilter{}
 	b.ResetTimer()
 	for range b.N {
-		_, _ = AsRESTExceptionFilter(exceptionFilterable)
+		_, _ = AsHTTPExceptionFilter(exceptionFilterable)
 	}
 }
 
@@ -31,7 +31,7 @@ func BenchmarkBuildHTTPCatchMiddleware(b *testing.B) {
 	c := ctx.NewHTTPContext()
 	c.Next = func() {}
 
-	mw := BuildHTTPCatchMiddleware("bench.event", []RESTCatch{
+	mw := BuildHTTPCatchMiddleware("bench.event", []HTTPCatch{
 		func(*ctx.HTTPContext, *exception.Exception) {},
 	})
 

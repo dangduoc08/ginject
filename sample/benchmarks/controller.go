@@ -11,7 +11,7 @@ import (
 )
 
 type Controller struct {
-	common.REST
+	common.HTTP
 	common.WS
 	common.Middleware
 	common.Guard
@@ -33,7 +33,7 @@ func (instance Controller) NewController() core.Controller {
 }
 
 func (instance Controller) READ_ping(query ginject.Query) ginject.Map {
-	fmt.Println("[REST] READ_ping triggered")
+	fmt.Println("[HTTP] READ_ping triggered")
 
 	if query.Get("error") == "true" {
 		panic(exception.InternalServerErrorException("READ_ping error triggered"))

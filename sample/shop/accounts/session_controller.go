@@ -13,7 +13,7 @@ import (
 // session resource: POST starts one (login), DELETE ends the caller's
 // current one (logout).
 type SessionsController struct {
-	common.REST
+	common.HTTP
 	common.Guard
 
 	UserService

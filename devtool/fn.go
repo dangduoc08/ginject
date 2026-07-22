@@ -9,12 +9,12 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-func generateLayersByPattern(restLayers []common.RESTLayer) map[string][]*common.RESTLayer {
-	result := map[string][]*common.RESTLayer{}
+func generateLayersByPattern(httpLayers []common.HTTPLayer) map[string][]*common.HTTPLayer {
+	result := map[string][]*common.HTTPLayer{}
 
-	for _, layer := range restLayers {
+	for _, layer := range httpLayers {
 		if _, ok := result[layer.Pattern]; !ok {
-			result[layer.Pattern] = []*common.RESTLayer{}
+			result[layer.Pattern] = []*common.HTTPLayer{}
 		}
 
 		result[layer.Pattern] = append(
