@@ -8,7 +8,7 @@ import (
 	"github.com/dangduoc08/ginject/common"
 )
 
-type benchPrefixTargetController struct{ common.REST }
+type benchPrefixTargetController struct{ common.HTTP }
 
 func (c benchPrefixTargetController) NewController() Controller      { return c }
 func (c benchPrefixTargetController) READ_benchprefixtarget() string { return "ok" }
@@ -54,27 +54,27 @@ func BenchmarkRegisterControllerPrefixes(b *testing.B) {
 	}
 }
 
-type benchModuleController0 struct{ common.REST }
+type benchModuleController0 struct{ common.HTTP }
 
 func (c benchModuleController0) NewController() Controller         { return c }
 func (c benchModuleController0) READ_benchmoduleresource0() string { return "ok" }
 
-type benchModuleController1 struct{ common.REST }
+type benchModuleController1 struct{ common.HTTP }
 
 func (c benchModuleController1) NewController() Controller         { return c }
 func (c benchModuleController1) READ_benchmoduleresource1() string { return "ok" }
 
-type benchModuleController2 struct{ common.REST }
+type benchModuleController2 struct{ common.HTTP }
 
 func (c benchModuleController2) NewController() Controller         { return c }
 func (c benchModuleController2) READ_benchmoduleresource2() string { return "ok" }
 
-type benchModuleController3 struct{ common.REST }
+type benchModuleController3 struct{ common.HTTP }
 
 func (c benchModuleController3) NewController() Controller         { return c }
 func (c benchModuleController3) READ_benchmoduleresource3() string { return "ok" }
 
-type benchModuleController4 struct{ common.REST }
+type benchModuleController4 struct{ common.HTTP }
 
 func (c benchModuleController4) NewController() Controller         { return c }
 func (c benchModuleController4) READ_benchmoduleresource4() string { return "ok" }

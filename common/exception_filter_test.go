@@ -29,8 +29,8 @@ func (wrongParamExFilter) Catch(_ int, _ *exception.Exception) {}
 
 var noopCB = func(_ int, _ reflect.Type, _ reflect.Value, _ reflect.Value) {}
 
-func buildREST(fnToRoute map[string]string) *REST {
-	r := &REST{
+func buildHTTP(fnToRoute map[string]string) *HTTP {
+	r := &HTTP{
 		PatternToFuncNameMap: make(map[string]string, len(fnToRoute)),
 		FuncNameToPatternMap: make(map[string]string, len(fnToRoute)),
 	}

@@ -153,7 +153,7 @@ func TestReturnDeprecatedURL(t *testing.T) {
 
 func TestAddMainHandler_ServeRouteComputesWildcardIndex(t *testing.T) {
 	h := newHTTP()
-	h.addMainHandler(common.RESTLayer{
+	h.addMainHandler(common.HTTPLayer{
 		Method:  routing.SERVE,
 		Route:   "/static/*/",
 		Handler: func() {},
@@ -171,7 +171,7 @@ func TestAddMainHandler_ServeRouteComputesWildcardIndex(t *testing.T) {
 
 func TestAddMainHandler_NonWildcardServeRouteHasZeroIndex(t *testing.T) {
 	h := newHTTP()
-	h.addMainHandler(common.RESTLayer{
+	h.addMainHandler(common.HTTPLayer{
 		Method:  routing.SERVE,
 		Route:   "/static/logo.png",
 		Handler: func() {},

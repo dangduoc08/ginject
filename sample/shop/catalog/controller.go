@@ -15,7 +15,7 @@ import (
 // lookup is scoped to the caller's store, so one user can never see or
 // modify another user's catalog.
 type StoreController struct {
-	common.REST
+	common.HTTP
 	common.Guard
 
 	StoreService

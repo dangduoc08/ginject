@@ -43,7 +43,7 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 
 		catch, ok := AsWSExceptionFilter(exceptionFilterHandler.exceptionFilterable)
 		if !ok {
-			if _, ok = AsRESTExceptionFilter(exceptionFilterHandler.exceptionFilterable); ok {
+			if _, ok = AsHTTPExceptionFilter(exceptionFilterHandler.exceptionFilterable); ok {
 				continue
 			}
 

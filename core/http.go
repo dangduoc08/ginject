@@ -21,7 +21,7 @@ type HTTP struct {
 
 	versioning                    *versioning.Versioning
 	isVersioningEnabled           bool
-	catchFnsByRoute               map[string][]common.RESTCatch
+	catchFnsByRoute               map[string][]common.HTTPCatch
 	lastWildcardSlashIndexByRoute map[string]int
 
 	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
@@ -30,7 +30,7 @@ type HTTP struct {
 func newHTTP() *HTTP {
 	return &HTTP{
 		route:                         routing.NewRouter(),
-		catchFnsByRoute:               make(map[string][]common.RESTCatch),
+		catchFnsByRoute:               make(map[string][]common.HTTPCatch),
 		lastWildcardSlashIndexByRoute: make(map[string]int),
 	}
 }
@@ -43,7 +43,7 @@ func (http *HTTP) enableVersioning(v versioning.Versioning) {
 	http.isVersioningEnabled = true
 }
 
-func (http *HTTP) addMainHandler(moduleHandler common.RESTLayer) {
+func (http *HTTP) addMainHandler(moduleHandler common.HTTPLayer) {
 	httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
 	if moduleHandler.Method == routing.SERVE {
 		r := moduleHandler.Route
@@ -165,7 +165,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 									}
 									http.serveContent(c, lastWildcardSlashIndex, dir)
 								} else {
-									returnREST(c, reflect.ValueOf(aggregation.InterceptorData))
+									returnHTTP(c, reflect.ValueOf(aggregation.InterceptorData))
 								}
 								break
 							}
@@ -183,7 +183,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 								}
 								http.serveContent(c, lastWildcardSlashIndex, dir)
 							} else {
-								returnREST(c, reflect.ValueOf(aggregatedData))
+								returnHTTP(c, reflect.ValueOf(aggregatedData))
 							}
 						}
 					} else {
@@ -192,7 +192,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 								dir := data[0].Interface()
 								http.serveContent(c, lastWildcardSlashIndex, dir)
 							} else {
-								returnREST(c, data[0])
+								returnHTTP(c, data[0])
 							}
 						} else if len(data) > 1 {
 							setStatusCode(c, data[0])
@@ -200,7 +200,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 								dir := data[1].Interface()
 								http.serveContent(c, lastWildcardSlashIndex, dir)
 							} else {
-								returnREST(c, data[1])
+								returnHTTP(c, data[1])
 							}
 						}
 					}

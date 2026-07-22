@@ -57,10 +57,10 @@ const (
 	redirectKey     = "/func(string)"
 )
 
-// knownRESTDependencyKeys is the set of dependency-type keys the framework
-// can resolve for a REST handler parameter (see getHTTPDependency); values
+// knownHTTPDependencyKeys is the set of dependency-type keys the framework
+// can resolve for a HTTP handler parameter (see getHTTPDependency); values
 // are unused and always 1.
-var knownRESTDependencyKeys = map[string]int{
+var knownHTTPDependencyKeys = map[string]int{
 	httpContextKey:            1,
 	requestKey:                1,
 	responseKey:               1,
@@ -83,7 +83,7 @@ var knownRESTDependencyKeys = map[string]int{
 
 // knownWSDependencyKeys is the set of dependency-type keys the framework
 // can resolve for a WS handler parameter (see getWSDependency); WS handlers
-// only get WS-relevant dependencies, not the REST-only ones above.
+// only get WS-relevant dependencies, not the HTTP-only ones above.
 var knownWSDependencyKeys = map[string]int{
 	wsContextKey:                1,
 	wsConnectionKey:             1,
@@ -206,11 +206,11 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 }
 
 func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
-	for i := len(app.module.RESTExceptionFilters) - 1; i >= 0; i-- {
-		ef := app.module.RESTExceptionFilters[i]
+	for i := len(app.module.HTTPExceptionFilters) - 1; i >= 0; i-- {
+		ef := app.module.HTTPExceptionFilters[i]
 		httpMethod := routing.OperationsMapHTTPMethods[ef.Method]
 		endpoint := routing.MethodRouteVersionToPattern(httpMethod, ef.Route, ef.Version)
-		app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], ef.Handler.(common.RESTCatch))
+		app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], ef.Handler.(common.HTTPCatch))
 	}
 
 	if app.ws != nil {
@@ -229,17 +229,17 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 			}
 			exceptionFilterable := common.Construct(newGef.Interface(), "NewExceptionFilter")
 
-			restCatch, isRESTFilter := common.AsRESTExceptionFilter(exceptionFilterable)
+			httpCatch, isHTTPFilter := common.AsHTTPExceptionFilter(exceptionFilterable)
 			wsCatch, isWSFilter := common.AsWSExceptionFilter(exceptionFilterable)
-			if !isRESTFilter && !isWSFilter {
+			if !isHTTPFilter && !isWSFilter {
 				panic(common.ExceptionFilterShapeError(exceptionFilterable))
 			}
 
-			if isRESTFilter {
-				for _, h := range app.module.RESTMainHandlers {
+			if isHTTPFilter {
+				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					endpoint := routing.MethodRouteVersionToPattern(httpMethod, h.Route, h.Version)
-					app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], restCatch)
+					app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], httpCatch)
 				}
 			}
 
@@ -281,7 +281,7 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 		}
 	}
 
-	for _, rm := range app.module.RESTMiddlewares {
+	for _, rm := range app.module.HTTPMiddlewares {
 		mw := buildUseMiddleware(rm.Handler.(common.Use))
 		httpMethod := routing.OperationsMapHTTPMethods[rm.Method]
 		app.http.route.For([]string{httpMethod}, rm.Route, rm.Version)(mw)
@@ -297,15 +297,15 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 			guarder := common.Construct(newGG.Interface(), "NewGuard")
 
-			restCanActivate, isRESTGuard := common.AsRESTGuard(guarder)
+			httpCanActivate, isHTTPGuard := common.AsHTTPGuard(guarder)
 			wsCanActivate, isWSGuard := common.AsWSGuard(guarder)
-			if !isRESTGuard && !isWSGuard {
+			if !isHTTPGuard && !isWSGuard {
 				panic(common.GuardShapeError(guarder))
 			}
 
-			if isRESTGuard {
-				mw := common.BuildHTTPGuardMiddleware(restCanActivate)
-				for _, h := range app.module.RESTMainHandlers {
+			if isHTTPGuard {
+				mw := common.BuildHTTPGuardMiddleware(httpCanActivate)
+				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
 				}
@@ -320,8 +320,8 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 		}
 	}
 
-	for _, mg := range app.module.RESTGuards {
-		mw := common.BuildHTTPGuardMiddleware(mg.Handler.(common.RESTCanActivate))
+	for _, mg := range app.module.HTTPGuards {
+		mw := common.BuildHTTPGuardMiddleware(mg.Handler.(common.HTTPCanActivate))
 		httpMethod := routing.OperationsMapHTTPMethods[mg.Method]
 		app.http.route.For([]string{httpMethod}, mg.Route, mg.Version)(mw)
 	}
@@ -343,17 +343,17 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 			}
 			interceptable := common.Construct(newGI.Interface(), "NewInterceptor")
 
-			restIntercept, isRESTInterceptor := common.AsRESTInterceptor(interceptable)
+			httpIntercept, isHTTPInterceptor := common.AsHTTPInterceptor(interceptable)
 			wsIntercept, isWSInterceptor := common.AsWSInterceptor(interceptable)
-			if !isRESTInterceptor && !isWSInterceptor {
+			if !isHTTPInterceptor && !isWSInterceptor {
 				panic(common.InterceptorShapeError(interceptable))
 			}
 
-			if isRESTInterceptor {
-				for _, h := range app.module.RESTMainHandlers {
+			if isHTTPInterceptor {
+				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					endpoint := routing.MethodRouteVersionToPattern(httpMethod, h.Route, h.Version)
-					mw := common.BuildHTTPInterceptMiddleware(endpoint, restIntercept)
+					mw := common.BuildHTTPInterceptMiddleware(endpoint, httpIntercept)
 					app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
 				}
 			}
@@ -367,10 +367,10 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 		}
 	}
 
-	for _, mi := range app.module.RESTInterceptors {
+	for _, mi := range app.module.HTTPInterceptors {
 		httpMethod := routing.OperationsMapHTTPMethods[mi.Method]
 		endpoint := routing.MethodRouteVersionToPattern(httpMethod, mi.Route, mi.Version)
-		mw := common.BuildHTTPInterceptMiddleware(endpoint, mi.Handler.(common.RESTIntercept))
+		mw := common.BuildHTTPInterceptMiddleware(endpoint, mi.Handler.(common.HTTPIntercept))
 		app.http.route.For([]string{httpMethod}, mi.Route, mi.Version)(mw)
 	}
 
@@ -383,7 +383,7 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 }
 
 func (app *App) initMainHandlers() {
-	for _, h := range app.module.RESTMainHandlers {
+	for _, h := range app.module.HTTPMainHandlers {
 		app.http.addMainHandler(h)
 	}
 
@@ -461,9 +461,9 @@ func (app *App) Get(p Provider) any {
 
 func (app *App) Listen(port int) error {
 
-	// REST logs
+	// HTTP logs
 	var routeArr []string
-	for _, h := range app.module.RESTMainHandlers {
+	for _, h := range app.module.HTTPMainHandlers {
 		routeArr = append(routeArr, h.Pattern)
 	}
 	sort.Strings(routeArr)
@@ -520,12 +520,12 @@ func (app *App) initDevtool() {
 	devtoolBuilder := devtool.DevtoolBuilder()
 
 	app.devtool = devtoolBuilder.
-		AddExceptionFilters(app.globalExceptionFilters, app.module.RESTExceptionFilters).
-		AddMiddlewares(app.globalMiddlewares, app.module.RESTMiddlewares).
-		AddGuarders(app.globalGuarders, app.module.RESTGuards).
-		AddInterceptors(app.globalInterceptors, app.module.RESTInterceptors).
+		AddExceptionFilters(app.globalExceptionFilters, app.module.HTTPExceptionFilters).
+		AddMiddlewares(app.globalMiddlewares, app.module.HTTPMiddlewares).
+		AddGuarders(app.globalGuarders, app.module.HTTPGuards).
+		AddInterceptors(app.globalInterceptors, app.module.HTTPInterceptors).
 		AddVersioning(app.http.versioning).
-		AddRESTMainHandlers(app.module.RESTMainHandlers).
+		AddHTTPMainHandlers(app.module.HTTPMainHandlers).
 		Build()
 
 	go app.devtool.Serve()

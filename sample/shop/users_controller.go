@@ -13,7 +13,7 @@ import (
 // provisioned with its own Store, ready to manage categories and products.
 // It's the one controller that spans both the accounts and catalog modules.
 type UsersController struct {
-	common.REST
+	common.HTTP
 
 	accounts.UserService
 	catalog.StoreService

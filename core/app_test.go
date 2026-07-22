@@ -31,7 +31,7 @@ func TestNew(t *testing.T) {
 		t.Error(test.DiffMessage(nil, "router", "route not initialized"))
 	}
 	if app.http.catchFnsByRoute == nil {
-		t.Error(test.DiffMessage(nil, "map", "catchRESTFnsMap not initialized"))
+		t.Error(test.DiffMessage(nil, "map", "catchHTTPFnsMap not initialized"))
 	}
 	if app.Logger != nil {
 		t.Error(test.DiffMessage(app.Logger, nil, "Logger should be nil before Create"))
@@ -260,7 +260,7 @@ func (panicMiddleware) Use(_ *http.Request, _ http.ResponseWriter, _ ctx.Next) {
 }
 
 type panicMiddlewareController struct {
-	common.REST
+	common.HTTP
 }
 
 func (c panicMiddlewareController) NewController() Controller { return c }
@@ -290,13 +290,13 @@ func (denyGlobalGuard) CanActivate(_ *ctx.HTTPContext) bool { return false }
 type shapelessGlobalGuard struct{}
 
 type globalGuardController struct {
-	common.REST
+	common.HTTP
 }
 
 func (c globalGuardController) NewController() Controller { return c }
 func (c globalGuardController) READ_globalguard() string  { return "ok" }
 
-func TestGlobalGuard_DeniesRESTRequest(t *testing.T) {
+func TestGlobalGuard_DeniesHTTPRequest(t *testing.T) {
 	resetModuleGlobals()
 	app := New()
 	app.BindGlobalGuards(denyGlobalGuard{})
@@ -307,7 +307,7 @@ func TestGlobalGuard_DeniesRESTRequest(t *testing.T) {
 	app.ServeHTTP(w, r)
 
 	if w.Code != http.StatusForbidden {
-		t.Error(test.DiffMessage(w.Code, http.StatusForbidden, "a denying global guard must block the REST request"))
+		t.Error(test.DiffMessage(w.Code, http.StatusForbidden, "a denying global guard must block the HTTP request"))
 	}
 }
 

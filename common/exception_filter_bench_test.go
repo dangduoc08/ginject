@@ -9,8 +9,8 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-func buildBenchREST(n int) *REST {
-	r := &REST{
+func buildBenchHTTP(n int) *HTTP {
+	r := &HTTP{
 		PatternToFuncNameMap: make(map[string]string, n),
 		FuncNameToPatternMap: make(map[string]string, n),
 	}

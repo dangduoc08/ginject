@@ -18,17 +18,17 @@ type devtoolBuilder struct {
 	globalGuarders         []common.Guarder
 	globalInterceptors     []common.Interceptable
 
-	moduleExceptionFilters []common.RESTLayer
-	moduleMiddlewares      []common.RESTLayer
-	moduleGuarders         []common.RESTLayer
-	moduleInterceptors     []common.RESTLayer
+	moduleExceptionFilters []common.HTTPLayer
+	moduleMiddlewares      []common.HTTPLayer
+	moduleGuarders         []common.HTTPLayer
+	moduleInterceptors     []common.HTTPLayer
 
-	exceptionFiltersByPattern map[string][]*common.RESTLayer
-	middlewaresByPattern      map[string][]*common.RESTLayer
-	guardsByPattern           map[string][]*common.RESTLayer
-	interceptorsByPattern     map[string][]*common.RESTLayer
+	exceptionFiltersByPattern map[string][]*common.HTTPLayer
+	middlewaresByPattern      map[string][]*common.HTTPLayer
+	guardsByPattern           map[string][]*common.HTTPLayer
+	interceptorsByPattern     map[string][]*common.HTTPLayer
 
-	restMainHandlers []common.RESTLayer
+	httpMainHandlers []common.HTTPLayer
 }
 
 func DevtoolBuilder() *devtoolBuilder {
@@ -37,7 +37,7 @@ func DevtoolBuilder() *devtoolBuilder {
 
 func (devtoolBuilder *devtoolBuilder) AddExceptionFilters(
 	globalExceptionFilters []common.ExceptionFilterable,
-	moduleExceptionFilters []common.RESTLayer,
+	moduleExceptionFilters []common.HTTPLayer,
 ) *devtoolBuilder {
 	devtoolBuilder.globalExceptionFilters = append(devtoolBuilder.globalExceptionFilters, globalExceptionFilters...)
 	devtoolBuilder.moduleExceptionFilters = append(devtoolBuilder.moduleExceptionFilters, moduleExceptionFilters...)
@@ -47,7 +47,7 @@ func (devtoolBuilder *devtoolBuilder) AddExceptionFilters(
 
 func (devtoolBuilder *devtoolBuilder) AddMiddlewares(
 	globalMiddlewares []common.MiddlewareFn,
-	moduleMiddlewares []common.RESTLayer,
+	moduleMiddlewares []common.HTTPLayer,
 ) *devtoolBuilder {
 	devtoolBuilder.globalMiddlewares = append(devtoolBuilder.globalMiddlewares, globalMiddlewares...)
 	devtoolBuilder.moduleMiddlewares = append(devtoolBuilder.moduleMiddlewares, moduleMiddlewares...)
@@ -57,7 +57,7 @@ func (devtoolBuilder *devtoolBuilder) AddMiddlewares(
 
 func (devtoolBuilder *devtoolBuilder) AddGuarders(
 	globalGuarders []common.Guarder,
-	moduleGuarders []common.RESTLayer,
+	moduleGuarders []common.HTTPLayer,
 ) *devtoolBuilder {
 	devtoolBuilder.globalGuarders = append(devtoolBuilder.globalGuarders, globalGuarders...)
 	devtoolBuilder.moduleGuarders = append(devtoolBuilder.moduleGuarders, moduleGuarders...)
@@ -67,7 +67,7 @@ func (devtoolBuilder *devtoolBuilder) AddGuarders(
 
 func (devtoolBuilder *devtoolBuilder) AddInterceptors(
 	globalInterceptors []common.Interceptable,
-	moduleInterceptors []common.RESTLayer,
+	moduleInterceptors []common.HTTPLayer,
 ) *devtoolBuilder {
 	devtoolBuilder.globalInterceptors = append(devtoolBuilder.globalInterceptors, globalInterceptors...)
 	devtoolBuilder.moduleInterceptors = append(devtoolBuilder.moduleInterceptors, moduleInterceptors...)
@@ -81,17 +81,17 @@ func (devtoolBuilder *devtoolBuilder) AddVersioning(versioning *versioning.Versi
 	return devtoolBuilder
 }
 
-func (devtoolBuilder *devtoolBuilder) AddRESTMainHandlers(restMainHandlers []common.RESTLayer) *devtoolBuilder {
-	devtoolBuilder.restMainHandlers = append(devtoolBuilder.restMainHandlers, restMainHandlers...)
+func (devtoolBuilder *devtoolBuilder) AddHTTPMainHandlers(httpMainHandlers []common.HTTPLayer) *devtoolBuilder {
+	devtoolBuilder.httpMainHandlers = append(devtoolBuilder.httpMainHandlers, httpMainHandlers...)
 
-	sort.Slice(devtoolBuilder.restMainHandlers, func(i, j int) bool {
-		return devtoolBuilder.restMainHandlers[i].Route < devtoolBuilder.restMainHandlers[j].Route
+	sort.Slice(devtoolBuilder.httpMainHandlers, func(i, j int) bool {
+		return devtoolBuilder.httpMainHandlers[i].Route < devtoolBuilder.httpMainHandlers[j].Route
 	})
 
 	return devtoolBuilder
 }
 
-func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Layer, []*Layer, []*Layer) {
+func (devtoolBuilder *devtoolBuilder) createGlobalHTTPLayers() ([]*Layer, []*Layer, []*Layer, []*Layer) {
 	globalExceptionFilters := slice.Map(
 		devtoolBuilder.globalExceptionFilters,
 		func(el common.ExceptionFilterable, i int) *Layer {
@@ -135,10 +135,10 @@ func (devtoolBuilder *devtoolBuilder) createGlobalRESTLayers() ([]*Layer, []*Lay
 	return globalExceptionFilters, globalMiddlewares, globalGuarders, globalInterceptors
 }
 
-func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPattern string) ([]*Layer, []*Layer, []*Layer, []*Layer) {
+func (devtoolBuilder *devtoolBuilder) createModuleHTTPLayers(moduleHandlerPattern string) ([]*Layer, []*Layer, []*Layer, []*Layer) {
 	moduleExceptionFilters := slice.Map(
 		devtoolBuilder.exceptionFiltersByPattern[moduleHandlerPattern],
-		func(el *common.RESTLayer, i int) *Layer {
+		func(el *common.HTTPLayer, i int) *Layer {
 			return &Layer{
 				Name:  el.Name,
 				Scope: LayerScope_REQUEST_SCOPE,
@@ -148,7 +148,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 
 	moduleMiddlewares := slice.Map(
 		devtoolBuilder.middlewaresByPattern[moduleHandlerPattern],
-		func(el *common.RESTLayer, i int) *Layer {
+		func(el *common.HTTPLayer, i int) *Layer {
 			return &Layer{
 				Name:  el.Name,
 				Scope: LayerScope_REQUEST_SCOPE,
@@ -158,7 +158,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 
 	moduleGuards := slice.Map(
 		devtoolBuilder.guardsByPattern[moduleHandlerPattern],
-		func(el *common.RESTLayer, i int) *Layer {
+		func(el *common.HTTPLayer, i int) *Layer {
 			return &Layer{
 				Name:  el.Name,
 				Scope: LayerScope_REQUEST_SCOPE,
@@ -168,7 +168,7 @@ func (devtoolBuilder *devtoolBuilder) createModuleRESTLayers(moduleHandlerPatter
 
 	moduleInterceptors := slice.Map(
 		devtoolBuilder.interceptorsByPattern[moduleHandlerPattern],
-		func(el *common.RESTLayer, i int) *Layer {
+		func(el *common.HTTPLayer, i int) *Layer {
 			return &Layer{
 				Name:  el.Name,
 				Scope: LayerScope_REQUEST_SCOPE,
@@ -183,7 +183,7 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 	devtool := &Devtool{
 		GetConfigurationResponse: GetConfigurationResponse{
 			Controller: &Controller{
-				Rest: []*RESTComponent{},
+				Http: []*HTTPComponent{},
 			},
 		},
 	}
@@ -191,23 +191,23 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 	globalExceptionFilters,
 		globalMiddlewares,
 		globalGuards,
-		globalInterceptors := devtoolBuilder.createGlobalRESTLayers()
+		globalInterceptors := devtoolBuilder.createGlobalHTTPLayers()
 
 	devtoolBuilder.exceptionFiltersByPattern = generateLayersByPattern(devtoolBuilder.moduleExceptionFilters)
 	devtoolBuilder.middlewaresByPattern = generateLayersByPattern(devtoolBuilder.moduleMiddlewares)
 	devtoolBuilder.guardsByPattern = generateLayersByPattern(devtoolBuilder.moduleGuarders)
 	devtoolBuilder.interceptorsByPattern = generateLayersByPattern(devtoolBuilder.moduleInterceptors)
 
-	// Create REST Component
-	for _, moduleHandler := range devtoolBuilder.restMainHandlers {
+	// Create HTTP Component
+	for _, moduleHandler := range devtoolBuilder.httpMainHandlers {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
 
 		moduleExceptionFilters,
 			moduleMiddlewares,
 			moduleGuards,
-			moduleInterceptors := devtoolBuilder.createModuleRESTLayers(moduleHandler.Pattern)
+			moduleInterceptors := devtoolBuilder.createModuleHTTPLayers(moduleHandler.Pattern)
 
-		restComponent := &RESTComponent{
+		httpComponent := &HTTPComponent{
 			Handler:          moduleHandler.Name,
 			HttpMethod:       httpMethod,
 			Route:            moduleHandler.Route,
@@ -215,12 +215,12 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 			Middlewares:      append(globalMiddlewares, moduleMiddlewares...),
 			Guards:           append(globalGuards, moduleGuards...),
 			Interceptors:     append(globalInterceptors, moduleInterceptors...),
-			Versioning: &RESTVersioning{
+			Versioning: &HTTPVersioning{
 				Value: moduleHandler.Version,
 				Key:   devtoolBuilder.versioning.Key,
 				Type:  int32(devtoolBuilder.versioning.Type),
 			},
-			Request: &RESTRequest{},
+			Request: &HTTPRequest{},
 		}
 
 		funcType := reflect.TypeOf(moduleHandler.Handler)
@@ -231,23 +231,23 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 			if pipeType != "" {
 				switch pipeType {
 				case common.BodyPipeableKey:
-					restComponent.Request.Body = schemas
+					httpComponent.Request.Body = schemas
 				case common.FormPipeableKey:
-					restComponent.Request.Form = schemas
+					httpComponent.Request.Form = schemas
 				case common.QueryPipeableKey:
-					restComponent.Request.Query = schemas
+					httpComponent.Request.Query = schemas
 				case common.HeaderPipeableKey:
-					restComponent.Request.Header = schemas
+					httpComponent.Request.Header = schemas
 				case common.ParamPipeableKey:
-					restComponent.Request.Param = schemas
+					httpComponent.Request.Param = schemas
 				case common.FilePipeableKey:
-					restComponent.Request.File = schemas
+					httpComponent.Request.File = schemas
 				}
 			}
 		}
 
-		restComponent.Id = generateHandlerID(moduleHandler.ControllerPath + restComponent.Handler)
-		devtool.Controller.Rest = append(devtool.Controller.Rest, restComponent)
+		httpComponent.Id = generateHandlerID(moduleHandler.ControllerPath + httpComponent.Handler)
+		devtool.Controller.Http = append(devtool.Controller.Http, httpComponent)
 	}
 
 	return devtool

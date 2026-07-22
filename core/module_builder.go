@@ -94,11 +94,11 @@ func (m *moduleBuilder) Build() *Module {
 		providers:      m.providers,
 		controllers:    m.controllers,
 
-		RESTExceptionFilters: []common.RESTLayer{},
-		RESTMiddlewares:      []common.RESTLayer{},
-		RESTGuards:           []common.RESTLayer{},
-		RESTInterceptors:     []common.RESTLayer{},
-		RESTMainHandlers:     []common.RESTLayer{},
+		HTTPExceptionFilters: []common.HTTPLayer{},
+		HTTPMiddlewares:      []common.HTTPLayer{},
+		HTTPGuards:           []common.HTTPLayer{},
+		HTTPInterceptors:     []common.HTTPLayer{},
+		HTTPMainHandlers:     []common.HTTPLayer{},
 
 		WSGuards:           []common.WSLayer{},
 		WSInterceptors:     []common.WSLayer{},

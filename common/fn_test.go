@@ -45,7 +45,7 @@ func TestToWSEventName(t *testing.T) {
 	}
 }
 
-// TestParseFnNameToURL_AllHTTPMethods verifies every REST operation maps to
+// TestParseFnNameToURL_AllHTTPMethods verifies every HTTP operation maps to
 // the correct HTTP method.
 func TestParseFnNameToURL_AllHTTPMethods(t *testing.T) {
 	cases := []struct {

@@ -11,9 +11,9 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type RESTCatch = func(*ctx.HTTPContext, *exception.Exception)
+type HTTPCatch = func(*ctx.HTTPContext, *exception.Exception)
 
-type RESTExceptionFilterItem struct {
+type HTTPExceptionFilterItem struct {
 	Method  string
 	Route   string
 	Version string
@@ -21,16 +21,16 @@ type RESTExceptionFilterItem struct {
 	Common  CommonItem
 }
 
-func AsRESTExceptionFilter(exceptionFilterable any) (RESTCatch, bool) {
+func AsHTTPExceptionFilter(exceptionFilterable any) (HTTPCatch, bool) {
 	method := reflect.ValueOf(exceptionFilterable).MethodByName(ExceptionFilterMethodName)
 	if !method.IsValid() {
 		return nil, false
 	}
-	fn, ok := method.Interface().(RESTCatch)
+	fn, ok := method.Interface().(HTTPCatch)
 	return fn, ok
 }
 
-func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
+func (e *ExceptionFilter) InjectProvidersIntoHTTPExceptionFilters(r *HTTP, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []ExceptionFilterItem {
 	exceptionFilterItemArr := make([]ExceptionFilterItem, 0, len(r.PatternToFuncNameMap)*len(e.ExceptionFilterHandlers))
 
 	for _, exceptionFilterHandler := range e.ExceptionFilterHandlers {
@@ -46,14 +46,14 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 		newExceptionFilterable = Construct(newExceptionFilterable, "NewExceptionFilter")
 		exceptionFilterHandler.exceptionFilterable = newExceptionFilterable.(ExceptionFilterable)
 
-		catch, ok := AsRESTExceptionFilter(exceptionFilterHandler.exceptionFilterable)
+		catch, ok := AsHTTPExceptionFilter(exceptionFilterHandler.exceptionFilterable)
 		if !ok {
 			if _, ok = AsWSExceptionFilter(exceptionFilterHandler.exceptionFilterable); ok {
 				continue
 			}
 
 			panic(errors.New(color.FmtRed(
-				"invalid exception filter: %v.%s must be func(*ctx.HTTPContext, *exception.Exception) to be bound as a REST exception filter",
+				"invalid exception filter: %v.%s must be func(*ctx.HTTPContext, *exception.Exception) to be bound as a HTTP exception filter",
 				exceptionFilterableType,
 				ExceptionFilterMethodName,
 			)))
@@ -74,7 +74,7 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				exceptionFilterItemArr = append(exceptionFilterItemArr, ExceptionFilterItem{
-					REST: RESTExceptionFilterItem{
+					HTTP: HTTPExceptionFilterItem{
 						Method:  httpMethod,
 						Route:   str.Enclose(route, '/'),
 						Version: version,
@@ -93,7 +93,7 @@ func (e *ExceptionFilter) InjectProvidersIntoRESTExceptionFilters(r *REST, cb fu
 	return exceptionFilterItemArr
 }
 
-func BuildHTTPCatchMiddleware(catchEvent string, catchFns []RESTCatch) ctx.HTTPHandler {
+func BuildHTTPCatchMiddleware(catchEvent string, catchFns []HTTPCatch) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		c.Event.On(catchEvent, func(args ...any) {
 			p := args[0].(CatchEventPayload)

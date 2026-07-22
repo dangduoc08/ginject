@@ -37,7 +37,7 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 
 		if i == 0 {
 			var ok bool
-			method, ok = RESTOperations[s]
+			method, ok = HTTPOperations[s]
 			if !ok {
 				return "", "", ""
 			}
@@ -50,7 +50,7 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 			break
 		}
 
-		if _, ok := RESTOperations[s]; ok || s == TokenOf {
+		if _, ok := HTTPOperations[s]; ok || s == TokenOf {
 			i++
 			path := ""
 			isAny := false
@@ -112,7 +112,7 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 
 			i++
 			start := i
-			for i < len(subStr) && RESTTokenMap[subStr[i]] == "" {
+			for i < len(subStr) && HTTPTokenMap[subStr[i]] == "" {
 				i++
 			}
 			param := strings.Join(subStr[start:i], "_")

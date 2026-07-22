@@ -4,15 +4,15 @@ import (
 	"testing"
 )
 
-func BenchmarkInjectProvidersIntoRESTMiddlewares_ApplyAll(b *testing.B) {
-	r := buildBenchREST(20)
+func BenchmarkInjectProvidersIntoHTTPMiddlewares_ApplyAll(b *testing.B) {
+	r := buildBenchHTTP(20)
 	b.ResetTimer()
 	for range b.N {
 		m := &Middleware{}
 		m.BindMiddleware(mockMiddlewareFn{})
 		m.BindMiddleware(mockMiddlewareFn{})
 		m.BindMiddleware(mockMiddlewareFn{})
-		m.InjectProvidersIntoRESTMiddlewares(r, benchCB)
+		m.InjectProvidersIntoHTTPMiddlewares(r, benchCB)
 	}
 }
 
