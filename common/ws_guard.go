@@ -43,7 +43,7 @@ func (g *Guard) InjectProvidersIntoWSGuards(ws *WS, cb func(int, reflect.Type, r
 
 		canActivate, ok := AsWSGuard(guardHandler.guarder)
 		if !ok {
-			if _, ok = AsRESTGuard(guardHandler.guarder); ok {
+			if _, ok = AsHTTPGuard(guardHandler.guarder); ok {
 				continue
 			}
 

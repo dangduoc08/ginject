@@ -7,7 +7,7 @@ import (
 )
 
 func TestGetPrefixes_NoHandlers(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.Prefix("/api")
 	prefixes := r.GetPrefixes()
 	if len(prefixes) != 1 {
@@ -25,7 +25,7 @@ func TestGetPrefixes_NoHandlers(t *testing.T) {
 }
 
 func TestGetPrefixes_WithHandlers(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.Prefix("/v1", fnTestController{}.READ_users, fnTestController{}.CREATE_orders)
 	prefixes := r.GetPrefixes()
 	if len(prefixes) != 2 {
@@ -47,7 +47,7 @@ func TestGetPrefixes_WithHandlers(t *testing.T) {
 }
 
 func TestGetPrefixes_Empty(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	prefixes := r.GetPrefixes()
 	if len(prefixes) != 0 {
 		t.Error(test.DiffMessage(len(prefixes), 0, "no prefixes configured"))
@@ -55,7 +55,7 @@ func TestGetPrefixes_Empty(t *testing.T) {
 }
 
 func TestAddPrefixesToRoute_WildcardApplies(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.Prefix("/api")
 	prefixes := r.GetPrefixes()
 	got := r.addPrefixesToRoute("/users/", "READ_users", prefixes)
@@ -66,7 +66,7 @@ func TestAddPrefixesToRoute_WildcardApplies(t *testing.T) {
 }
 
 func TestAddPrefixesToRoute_SpecificFnMatch(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.Prefix("/v1", fnTestController{}.READ_users)
 	prefixes := r.GetPrefixes()
 	got := r.addPrefixesToRoute("/users/", "READ_users", prefixes)
@@ -77,7 +77,7 @@ func TestAddPrefixesToRoute_SpecificFnMatch(t *testing.T) {
 }
 
 func TestAddPrefixesToRoute_SpecificFnNoMatch(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.Prefix("/v1", fnTestController{}.READ_users)
 	prefixes := r.GetPrefixes()
 	got := r.addPrefixesToRoute("/orders/", "CREATE_orders", prefixes)
@@ -88,7 +88,7 @@ func TestAddPrefixesToRoute_SpecificFnNoMatch(t *testing.T) {
 }
 
 func TestAddPrefixesToRoute_NoPrefixes(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	got := r.addPrefixesToRoute("/items/", "READ_items", nil)
 	want := "/items/"
 	if got != want {
@@ -97,7 +97,7 @@ func TestAddPrefixesToRoute_NoPrefixes(t *testing.T) {
 }
 
 func TestAddToRouters_InitMaps(t *testing.T) {
-	r := &REST{}
+	r := &HTTP{}
 	r.addToRouters("READ_users", "/users/", "", "GET", nil)
 	if r.RouterMap == nil {
 		t.Error(test.DiffMessage(r.RouterMap, "non-nil", "RouterMap initialized"))
@@ -115,7 +115,7 @@ func TestAddHandlerToRouterMap_StoresPattern(t *testing.T) {
 	InsertedRoutes = make(map[string]string)
 	defer func() { InsertedRoutes = orig }()
 
-	r := &REST{}
+	r := &HTTP{}
 	r.AddHandlerToRouterMap(nil, "READ_items", nil)
 	if len(r.RouterMap) != 1 {
 		t.Error(test.DiffMessage(len(r.RouterMap), 1, "one route added"))
@@ -130,7 +130,7 @@ func TestGetConfigurations_MatchesInserted(t *testing.T) {
 	InsertedRoutes = make(map[string]string)
 	defer func() { InsertedRoutes = orig }()
 
-	r := &REST{}
+	r := &HTTP{}
 	r.AddHandlerToRouterMap(nil, "READ_items", nil)
 	r.AddHandlerToRouterMap(nil, "CREATE_items", nil)
 

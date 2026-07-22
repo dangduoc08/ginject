@@ -7,135 +7,135 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-func TestInjectProvidersIntoRESTGuards_Empty(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_Empty(t *testing.T) {
 	g := &Guard{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
+	items := g.InjectProvidersIntoHTTPGuards(r, noopCB)
 	if len(items) != 0 {
 		t.Error(test.DiffMessage(len(items), 0, "no bound guards → empty result"))
 	}
 }
 
-func TestInjectProvidersIntoRESTGuards_ApplyAll(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_ApplyAll(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(mockGuarder{})
 
-	r := buildREST(map[string]string{
+	r := buildHTTP(map[string]string{
 		"READ_users":    "/users/",
 		"CREATE_orders": "/orders/",
 	})
 
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
+	items := g.InjectProvidersIntoHTTPGuards(r, noopCB)
 	if len(items) != 2 {
 		t.Error(test.DiffMessage(len(items), 2, "guard with no handlers applies to all patterns"))
 	}
 	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
+		if item.HTTP.Method != "GET" {
+			t.Error(test.DiffMessage(item.HTTP.Method, "GET", "method"))
 		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
+		if item.HTTP.Pattern == "" {
+			t.Error(test.DiffMessage(item.HTTP.Pattern, "non-empty", "pattern"))
 		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
+		if item.HTTP.Common.Name == "" {
+			t.Error(test.DiffMessage(item.HTTP.Common.Name, "non-empty", "name"))
 		}
 	}
 }
 
-func TestInjectProvidersIntoRESTGuards_MainHandlerName(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_MainHandlerName(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(mockGuarder{})
 
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
+	r := buildHTTP(map[string]string{"READ_items": "/items/"})
+	items := g.InjectProvidersIntoHTTPGuards(r, noopCB)
 
 	if len(items) != 1 {
 		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
 		return
 	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+	if items[0].HTTP.Common.MainHandlerName != "READ_items" {
+		t.Error(test.DiffMessage(items[0].HTTP.Common.MainHandlerName, "READ_items", "main handler name"))
 	}
 }
 
-func TestInjectProvidersIntoRESTGuards_HandlerIsCallableCanActivate(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_HandlerIsCallableCanActivate(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(denyGuarder{})
 
-	r := buildREST(map[string]string{"READ_users": "/users/"})
-	items := g.InjectProvidersIntoRESTGuards(r, noopCB)
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
+	items := g.InjectProvidersIntoHTTPGuards(r, noopCB)
 	if len(items) != 1 {
 		t.Fatal(test.DiffMessage(len(items), 1, "one pattern → one item"))
 	}
 
-	canActivate, ok := items[0].REST.Common.Handler.(RESTCanActivate)
+	canActivate, ok := items[0].HTTP.Common.Handler.(HTTPCanActivate)
 	if !ok {
-		t.Fatal(test.DiffMessage(items[0].REST.Common.Handler, "RESTCanActivate", "Handler must be callable as RESTCanActivate"))
+		t.Fatal(test.DiffMessage(items[0].HTTP.Common.Handler, "HTTPCanActivate", "Handler must be callable as HTTPCanActivate"))
 	}
 	if canActivate(nil) != false {
 		t.Error(test.DiffMessage(true, false, "Handler must call through to the bound guard's CanActivate"))
 	}
 }
 
-func TestInjectProvidersIntoRESTGuards_NoCanActivate_Panics(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_NoCanActivate_Panics(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(noCanActivateGuarder{})
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
 	defer func() {
 		if rec := recover(); rec == nil {
 			t.Error(test.DiffMessage(nil, "panic", "guard with no CanActivate method must panic"))
 		}
 	}()
-	g.InjectProvidersIntoRESTGuards(r, noopCB)
+	g.InjectProvidersIntoHTTPGuards(r, noopCB)
 }
 
-func TestInjectProvidersIntoRESTGuards_WrongReturnType_Panics(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_WrongReturnType_Panics(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(wrongReturnGuarder{})
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
 	defer func() {
 		if rec := recover(); rec == nil {
 			t.Error(test.DiffMessage(nil, "panic", "CanActivate returning non-bool must panic"))
 		}
 	}()
-	g.InjectProvidersIntoRESTGuards(r, noopCB)
+	g.InjectProvidersIntoHTTPGuards(r, noopCB)
 }
 
-func TestInjectProvidersIntoRESTGuards_WrongParamType_Panics(t *testing.T) {
+func TestInjectProvidersIntoHTTPGuards_WrongParamType_Panics(t *testing.T) {
 	g := &Guard{}
 	g.BindGuard(wrongParamGuarder{})
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
 	defer func() {
 		if rec := recover(); rec == nil {
 			t.Error(test.DiffMessage(nil, "panic", "CanActivate with a non-context param must panic"))
 		}
 	}()
-	g.InjectProvidersIntoRESTGuards(r, noopCB)
+	g.InjectProvidersIntoHTTPGuards(r, noopCB)
 }
 
-func TestAsRESTGuard_Valid(t *testing.T) {
-	fn, ok := AsRESTGuard(mockGuarder{})
+func TestAsHTTPGuard_Valid(t *testing.T) {
+	fn, ok := AsHTTPGuard(mockGuarder{})
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "mockGuarder must match RESTCanActivate"))
+		t.Fatal(test.DiffMessage(ok, true, "mockGuarder must match HTTPCanActivate"))
 	}
 	if fn(nil) != true {
 		t.Error(test.DiffMessage(false, true, "returned fn must call through to CanActivate"))
 	}
 }
 
-func TestAsRESTGuard_NoMethod(t *testing.T) {
-	_, ok := AsRESTGuard(noCanActivateGuarder{})
+func TestAsHTTPGuard_NoMethod(t *testing.T) {
+	_, ok := AsHTTPGuard(noCanActivateGuarder{})
 	if ok {
 		t.Error(test.DiffMessage(true, false, "a guarder with no CanActivate must not match"))
 	}
 }
 
-func TestAsRESTGuard_WrongShape(t *testing.T) {
-	_, ok := AsRESTGuard(wrongReturnGuarder{})
+func TestAsHTTPGuard_WrongShape(t *testing.T) {
+	_, ok := AsHTTPGuard(wrongReturnGuarder{})
 	if ok {
 		t.Error(test.DiffMessage(true, false, "a CanActivate returning non-bool must not match"))
 	}

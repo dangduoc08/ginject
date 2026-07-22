@@ -27,7 +27,7 @@ var globalProviderByKey sync.Map  // map[string]Provider
 var globalInterfaceByKey sync.Map // map[string]any
 var providerSingletonByKey map[string]Provider = make(map[string]Provider)
 var fieldNameByRole = map[string]string{
-	"rest":            "REST",
+	"http":            "HTTP",
 	"guard":           "Guard",
 	"interceptor":     "Interceptor",
 	"exceptionFilter": "ExceptionFilter",
@@ -52,20 +52,20 @@ type Module struct {
 	IsGlobal bool
 	OnInit   func()
 
-	// store REST module exception filters
-	RESTExceptionFilters []common.RESTLayer
+	// store HTTP module exception filters
+	HTTPExceptionFilters []common.HTTPLayer
 
-	// store REST module middlewares
-	RESTMiddlewares []common.RESTLayer
+	// store HTTP module middlewares
+	HTTPMiddlewares []common.HTTPLayer
 
-	// store REST module guards
-	RESTGuards []common.RESTLayer
+	// store HTTP module guards
+	HTTPGuards []common.HTTPLayer
 
-	// store REST module interceptors
-	RESTInterceptors []common.RESTLayer
+	// store HTTP module interceptors
+	HTTPInterceptors []common.HTTPLayer
 
-	// store REST main handlers
-	RESTMainHandlers []common.RESTLayer
+	// store HTTP main handlers
+	HTTPMainHandlers []common.HTTPLayer
 
 	// store WS module guards
 	WSGuards []common.WSLayer
@@ -276,7 +276,7 @@ func (m *Module) injectControllers(injectedProviders map[string]Provider) {
 
 		m.controllers[i] = newController.Interface().(Controller).NewController()
 
-		m.bindRESTController(m.controllers[i], injectedProviders)
+		m.bindHTTPController(m.controllers[i], injectedProviders)
 		m.bindWSController(m.controllers[i], injectedProviders)
 	}
 }
@@ -285,13 +285,13 @@ func controllerModulePrefixes(controllerType reflect.Type) []string {
 	return globalPrefixesByController[genFieldKey(controllerType)]
 }
 
-func (m *Module) bindRESTController(controller Controller, injectedProviders map[string]Provider) {
+func (m *Module) bindHTTPController(controller Controller, injectedProviders map[string]Provider) {
 	controllerType := reflect.TypeOf(controller)
-	if _, ok := controllerType.FieldByName(fieldNameByRole["rest"]); !ok {
+	if _, ok := controllerType.FieldByName(fieldNameByRole["http"]); !ok {
 		return
 	}
 
-	rest := reflect.ValueOf(controller).FieldByName(fieldNameByRole["rest"]).Interface().(common.REST)
+	http := reflect.ValueOf(controller).FieldByName(fieldNameByRole["http"]).Interface().(common.HTTP)
 	controllerPath := controllerType.PkgPath()
 	modulePrefixes := controllerModulePrefixes(controllerType)
 
@@ -300,119 +300,119 @@ func (m *Module) bindRESTController(controller Controller, injectedProviders map
 
 		// for main handler
 		handler := reflect.ValueOf(controller).Method(j).Interface()
-		rest.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
+		http.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
 	}
 
-	m.bindRESTExceptionFilters(controller, controllerType, controllerPath, &rest, injectedProviders)
-	m.bindRESTMiddlewares(controller, controllerType, controllerPath, &rest, injectedProviders)
-	m.bindRESTGuards(controller, controllerType, controllerPath, &rest, injectedProviders)
-	m.bindRESTInterceptors(controller, controllerType, controllerPath, &rest, injectedProviders)
+	m.bindHTTPExceptionFilters(controller, controllerType, controllerPath, &http, injectedProviders)
+	m.bindHTTPMiddlewares(controller, controllerType, controllerPath, &http, injectedProviders)
+	m.bindHTTPGuards(controller, controllerType, controllerPath, &http, injectedProviders)
+	m.bindHTTPInterceptors(controller, controllerType, controllerPath, &http, injectedProviders)
 
 	// add main handler
 	// for mainhandler: name = mainHandlerName
 	// add for consistency with another layers
-	for pattern, handler := range rest.RouterMap {
-		if err := isInjectableHandler(handler, injectedProviders, knownRESTDependencyKeys); err != nil {
+	for pattern, handler := range http.RouterMap {
+		if err := isInjectableHandler(handler, injectedProviders, knownHTTPDependencyKeys); err != nil {
 			panic(color.FmtRed("%s", err.Error()))
 		}
 		method, route, version := routing.PatternToMethodRouteVersion(pattern)
-		m.RESTMainHandlers = append(m.RESTMainHandlers, common.RESTLayer{
+		m.HTTPMainHandlers = append(m.HTTPMainHandlers, common.HTTPLayer{
 			ControllerPath:  controllerPath,
 			Method:          method,
 			Route:           str.Enclose(route, '/'),
 			Version:         version,
 			Handler:         handler,
-			Name:            rest.PatternToFuncNameMap[pattern],
-			MainHandlerName: rest.PatternToFuncNameMap[pattern],
+			Name:            http.PatternToFuncNameMap[pattern],
+			MainHandlerName: http.PatternToFuncNameMap[pattern],
 			Pattern:         pattern,
 		})
 	}
 }
 
-func (m *Module) bindRESTExceptionFilters(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
+func (m *Module) bindHTTPExceptionFilters(controller Controller, controllerType reflect.Type, controllerPath string, http *common.HTTP, injectedProviders map[string]Provider) {
 	if _, ok := controllerType.FieldByName(fieldNameByRole["exceptionFilter"]); !ok {
 		return
 	}
 
 	exceptionFilter := reflect.ValueOf(controller).FieldByName(fieldNameByRole["exceptionFilter"]).Interface().(common.ExceptionFilter)
-	items := exceptionFilter.InjectProvidersIntoRESTExceptionFilters(rest, buildFieldInjectionCallback("exceptionFilter", injectedProviders))
+	items := exceptionFilter.InjectProvidersIntoHTTPExceptionFilters(http, buildFieldInjectionCallback("exceptionFilter", injectedProviders))
 
 	for _, item := range items {
-		m.RESTExceptionFilters = append(m.RESTExceptionFilters, common.RESTLayer{
+		m.HTTPExceptionFilters = append(m.HTTPExceptionFilters, common.HTTPLayer{
 			ControllerPath:  controllerPath,
-			Method:          item.REST.Method,
-			Route:           item.REST.Route,
-			Version:         item.REST.Version,
-			Handler:         item.REST.Common.Handler,
-			Name:            item.REST.Common.Name,
-			MainHandlerName: item.REST.Common.MainHandlerName,
-			Pattern:         item.REST.Pattern,
+			Method:          item.HTTP.Method,
+			Route:           item.HTTP.Route,
+			Version:         item.HTTP.Version,
+			Handler:         item.HTTP.Common.Handler,
+			Name:            item.HTTP.Common.Name,
+			MainHandlerName: item.HTTP.Common.MainHandlerName,
+			Pattern:         item.HTTP.Pattern,
 		})
 	}
 }
 
-func (m *Module) bindRESTMiddlewares(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
+func (m *Module) bindHTTPMiddlewares(controller Controller, controllerType reflect.Type, controllerPath string, http *common.HTTP, injectedProviders map[string]Provider) {
 	if _, ok := controllerType.FieldByName(fieldNameByRole["middleware"]); !ok {
 		return
 	}
 
 	middleware := reflect.ValueOf(controller).FieldByName(fieldNameByRole["middleware"]).Interface().(common.Middleware)
-	items := middleware.InjectProvidersIntoRESTMiddlewares(rest, buildFieldInjectionCallback("middleware function", injectedProviders))
+	items := middleware.InjectProvidersIntoHTTPMiddlewares(http, buildFieldInjectionCallback("middleware function", injectedProviders))
 
 	for _, item := range items {
-		m.RESTMiddlewares = append(m.RESTMiddlewares, common.RESTLayer{
+		m.HTTPMiddlewares = append(m.HTTPMiddlewares, common.HTTPLayer{
 			ControllerPath:  controllerPath,
-			Method:          item.REST.Method,
-			Route:           item.REST.Route,
-			Version:         item.REST.Version,
-			Handler:         item.REST.Common.Handler,
-			Name:            item.REST.Common.Name,
-			MainHandlerName: item.REST.Common.MainHandlerName,
-			Pattern:         item.REST.Pattern,
+			Method:          item.HTTP.Method,
+			Route:           item.HTTP.Route,
+			Version:         item.HTTP.Version,
+			Handler:         item.HTTP.Common.Handler,
+			Name:            item.HTTP.Common.Name,
+			MainHandlerName: item.HTTP.Common.MainHandlerName,
+			Pattern:         item.HTTP.Pattern,
 		})
 	}
 }
 
-func (m *Module) bindRESTGuards(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
+func (m *Module) bindHTTPGuards(controller Controller, controllerType reflect.Type, controllerPath string, http *common.HTTP, injectedProviders map[string]Provider) {
 	if _, ok := controllerType.FieldByName(fieldNameByRole["guard"]); !ok {
 		return
 	}
 
 	guard := reflect.ValueOf(controller).FieldByName(fieldNameByRole["guard"]).Interface().(common.Guard)
-	items := guard.InjectProvidersIntoRESTGuards(rest, buildFieldInjectionCallback("guarder", injectedProviders))
+	items := guard.InjectProvidersIntoHTTPGuards(http, buildFieldInjectionCallback("guarder", injectedProviders))
 
 	for _, item := range items {
-		m.RESTGuards = append(m.RESTGuards, common.RESTLayer{
+		m.HTTPGuards = append(m.HTTPGuards, common.HTTPLayer{
 			ControllerPath:  controllerPath,
-			Method:          item.REST.Method,
-			Route:           item.REST.Route,
-			Version:         item.REST.Version,
-			Handler:         item.REST.Common.Handler,
-			Name:            item.REST.Common.Name,
-			MainHandlerName: item.REST.Common.MainHandlerName,
-			Pattern:         item.REST.Pattern,
+			Method:          item.HTTP.Method,
+			Route:           item.HTTP.Route,
+			Version:         item.HTTP.Version,
+			Handler:         item.HTTP.Common.Handler,
+			Name:            item.HTTP.Common.Name,
+			MainHandlerName: item.HTTP.Common.MainHandlerName,
+			Pattern:         item.HTTP.Pattern,
 		})
 	}
 }
 
-func (m *Module) bindRESTInterceptors(controller Controller, controllerType reflect.Type, controllerPath string, rest *common.REST, injectedProviders map[string]Provider) {
+func (m *Module) bindHTTPInterceptors(controller Controller, controllerType reflect.Type, controllerPath string, http *common.HTTP, injectedProviders map[string]Provider) {
 	if _, ok := controllerType.FieldByName(fieldNameByRole["interceptor"]); !ok {
 		return
 	}
 
 	interceptor := reflect.ValueOf(controller).FieldByName(fieldNameByRole["interceptor"]).Interface().(common.Interceptor)
-	items := interceptor.InjectProvidersIntoRESTInterceptors(rest, buildFieldInjectionCallback("interceptor", injectedProviders))
+	items := interceptor.InjectProvidersIntoHTTPInterceptors(http, buildFieldInjectionCallback("interceptor", injectedProviders))
 
 	for _, item := range items {
-		m.RESTInterceptors = append(m.RESTInterceptors, common.RESTLayer{
+		m.HTTPInterceptors = append(m.HTTPInterceptors, common.HTTPLayer{
 			ControllerPath:  controllerPath,
-			Method:          item.REST.Method,
-			Route:           item.REST.Route,
-			Version:         item.REST.Version,
-			Handler:         item.REST.Common.Handler,
-			Name:            item.REST.Common.Name,
-			MainHandlerName: item.REST.Common.MainHandlerName,
-			Pattern:         item.REST.Pattern,
+			Method:          item.HTTP.Method,
+			Route:           item.HTTP.Route,
+			Version:         item.HTTP.Version,
+			Handler:         item.HTTP.Common.Handler,
+			Name:            item.HTTP.Common.Name,
+			MainHandlerName: item.HTTP.Common.MainHandlerName,
+			Pattern:         item.HTTP.Pattern,
 		})
 	}
 }

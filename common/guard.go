@@ -12,7 +12,7 @@ const GuardMethodName = "CanActivate"
 type Guarder any
 
 type GuardItem struct {
-	REST RESTGuardItem
+	HTTP HTTPGuardItem
 	WS   WSGuardItem
 }
 

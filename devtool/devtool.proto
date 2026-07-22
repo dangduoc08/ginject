@@ -19,9 +19,9 @@ message GetConfigurationRequest {}
 
 message GetConfigurationResponse { Controller controller = 1; }
 
-message Controller { repeated RESTComponent rest = 1; }
+message Controller { repeated HTTPComponent http = 1; }
 
-message RESTComponent {
+message HTTPComponent {
   string id = 1;
   string handler = 2;
   string http_method = 3;
@@ -30,8 +30,8 @@ message RESTComponent {
   repeated Layer middlewares = 6;
   repeated Layer guards = 7;
   repeated Layer interceptors = 8;
-  RESTVersioning versioning = 9;
-  RESTRequest request = 10;
+  HTTPVersioning versioning = 9;
+  HTTPRequest request = 10;
 }
 
 message Layer {
@@ -39,13 +39,13 @@ message Layer {
   string name = 2;
 }
 
-message RESTVersioning {
+message HTTPVersioning {
   int32 type = 1;
   string value = 2;
   string key = 3;
 }
 
-message RESTRequest {
+message HTTPRequest {
   repeated Schema body = 1;
   repeated Schema form = 2;
   repeated Schema query = 3;

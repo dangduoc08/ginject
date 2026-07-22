@@ -12,9 +12,9 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-type RESTIntercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any
+type HTTPIntercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any
 
-type RESTInterceptorItem struct {
+type HTTPInterceptorItem struct {
 	Method  string
 	Route   string
 	Version string
@@ -22,16 +22,16 @@ type RESTInterceptorItem struct {
 	Common  CommonItem
 }
 
-func AsRESTInterceptor(interceptable any) (RESTIntercept, bool) {
+func AsHTTPInterceptor(interceptable any) (HTTPIntercept, bool) {
 	method := reflect.ValueOf(interceptable).MethodByName(InterceptorMethodName)
 	if !method.IsValid() {
 		return nil, false
 	}
-	fn, ok := method.Interface().(RESTIntercept)
+	fn, ok := method.Interface().(HTTPIntercept)
 	return fn, ok
 }
 
-func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
+func (i *Interceptor) InjectProvidersIntoHTTPInterceptors(r *HTTP, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []InterceptorItem {
 	interceptorItemArr := make([]InterceptorItem, 0, len(r.PatternToFuncNameMap)*len(i.InterceptorHandlers))
 
 	for _, interceptorHandler := range i.InterceptorHandlers {
@@ -47,14 +47,14 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 		newInterceptable = Construct(newInterceptable, "NewInterceptor")
 		interceptorHandler.interceptable = newInterceptable.(Interceptable)
 
-		intercept, ok := AsRESTInterceptor(interceptorHandler.interceptable)
+		intercept, ok := AsHTTPInterceptor(interceptorHandler.interceptable)
 		if !ok {
 			if _, ok = AsWSInterceptor(interceptorHandler.interceptable); ok {
 				continue
 			}
 
 			panic(errors.New(color.FmtRed(
-				"invalid interceptor: %v.%s must be func(*ctx.HTTPContext, *aggregation.Aggregation) any to be bound as a REST interceptor",
+				"invalid interceptor: %v.%s must be func(*ctx.HTTPContext, *aggregation.Aggregation) any to be bound as a HTTP interceptor",
 				interceptableType,
 				InterceptorMethodName,
 			)))
@@ -75,7 +75,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				interceptorItemArr = append(interceptorItemArr, InterceptorItem{
-					REST: RESTInterceptorItem{
+					HTTP: HTTPInterceptorItem{
 						Method:  httpMethod,
 						Route:   str.Enclose(route, '/'),
 						Version: version,
@@ -94,7 +94,7 @@ func (i *Interceptor) InjectProvidersIntoRESTInterceptors(r *REST, cb func(int, 
 	return interceptorItemArr
 }
 
-func BuildHTTPInterceptMiddleware(key string, interceptFn RESTIntercept) ctx.HTTPHandler {
+func BuildHTTPInterceptMiddleware(key string, interceptFn HTTPIntercept) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		aggregationInstance := aggregation.NewAggregation()
 

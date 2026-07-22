@@ -9,23 +9,23 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 )
 
-func BenchmarkInjectProvidersIntoRESTInterceptors_ApplyAll(b *testing.B) {
-	r := buildBenchREST(20)
+func BenchmarkInjectProvidersIntoHTTPInterceptors_ApplyAll(b *testing.B) {
+	r := buildBenchHTTP(20)
 	b.ResetTimer()
 	for range b.N {
 		ic := &Interceptor{}
 		ic.BindInterceptor(mockInterceptable{})
 		ic.BindInterceptor(mockInterceptable{})
 		ic.BindInterceptor(mockInterceptable{})
-		ic.InjectProvidersIntoRESTInterceptors(r, benchCB)
+		ic.InjectProvidersIntoHTTPInterceptors(r, benchCB)
 	}
 }
 
-func BenchmarkAsRESTInterceptor(b *testing.B) {
+func BenchmarkAsHTTPInterceptor(b *testing.B) {
 	interceptable := mockInterceptable{}
 	b.ResetTimer()
 	for range b.N {
-		_, _ = AsRESTInterceptor(interceptable)
+		_, _ = AsHTTPInterceptor(interceptable)
 	}
 }
 

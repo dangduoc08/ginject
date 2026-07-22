@@ -153,7 +153,7 @@ func TestNewModule_StaticModuleControllerDedup_AcrossSharedImport(t *testing.T) 
 }
 
 // ---------------------------------------------------------------------------
-// shared provider/guard fixtures for the REST/WS layer-injection tests
+// shared provider/guard fixtures for the HTTP/WS layer-injection tests
 // ---------------------------------------------------------------------------
 
 type mtLocalProvider struct{ Source string }
@@ -249,15 +249,15 @@ func assertPriorityChainSeen(t *testing.T, label string) {
 }
 
 // ---------------------------------------------------------------------------
-// REST controller processing
+// HTTP controller processing
 // ---------------------------------------------------------------------------
 
-type mtPrefixedController struct{ common.REST }
+type mtPrefixedController struct{ common.HTTP }
 
 func (c mtPrefixedController) NewController() Controller   { return c }
 func (c mtPrefixedController) READ_mtprefixtarget() string { return "ok" }
 
-func TestNewModule_RESTMainHandler_RegisteredWithModulePrefix(t *testing.T) {
+func TestNewModule_HTTPMainHandler_RegisteredWithModulePrefix(t *testing.T) {
 	resetModuleGlobals()
 
 	m := ModuleBuilder().Controllers(mtPrefixedController{}).Build()
@@ -265,26 +265,26 @@ func TestNewModule_RESTMainHandler_RegisteredWithModulePrefix(t *testing.T) {
 
 	m.NewModule()
 
-	if len(m.RESTMainHandlers) != 1 {
-		t.Fatalf("expected 1 REST main handler, got %d", len(m.RESTMainHandlers))
+	if len(m.HTTPMainHandlers) != 1 {
+		t.Fatalf("expected 1 HTTP main handler, got %d", len(m.HTTPMainHandlers))
 	}
-	h := m.RESTMainHandlers[0]
+	h := m.HTTPMainHandlers[0]
 	if h.Method != "GET" {
-		t.Error(test.DiffMessage(h.Method, "GET", "REST main handler method"))
+		t.Error(test.DiffMessage(h.Method, "GET", "HTTP main handler method"))
 	}
 	if !strings.Contains(h.Route, "v1") || !strings.Contains(h.Route, "mtprefixtarget") {
-		t.Error(test.DiffMessage(h.Route, "route containing both the module prefix and the resource name", "REST main handler route"))
+		t.Error(test.DiffMessage(h.Route, "route containing both the module prefix and the resource name", "HTTP main handler route"))
 	}
 	if h.Handler == nil {
-		t.Error(test.DiffMessage(nil, "non-nil handler", "REST main handler Handler"))
+		t.Error(test.DiffMessage(nil, "non-nil handler", "HTTP main handler Handler"))
 	}
 	if h.MainHandlerName != "READ_mtprefixtarget" {
-		t.Error(test.DiffMessage(h.MainHandlerName, "READ_mtprefixtarget", "REST main handler name"))
+		t.Error(test.DiffMessage(h.MainHandlerName, "READ_mtprefixtarget", "HTTP main handler name"))
 	}
 }
 
 type mtGuardPriorityController struct {
-	common.REST
+	common.HTTP
 	common.Guard
 }
 
@@ -294,7 +294,7 @@ func (c mtGuardPriorityController) NewController() Controller {
 }
 func (c mtGuardPriorityController) READ_mtguardpriority() string { return "ok" }
 
-func TestNewModule_RESTGuardInjection_PriorityChain(t *testing.T) {
+func TestNewModule_HTTPGuardInjection_PriorityChain(t *testing.T) {
 	resetModuleGlobals()
 	mtPriorityGuardSeen = mtPriorityGuard{}
 	seedPriorityChainGlobals()
@@ -306,20 +306,20 @@ func TestNewModule_RESTGuardInjection_PriorityChain(t *testing.T) {
 
 	m.NewModule()
 
-	if len(m.RESTGuards) != 1 {
-		t.Fatalf("expected 1 REST guard, got %d", len(m.RESTGuards))
+	if len(m.HTTPGuards) != 1 {
+		t.Fatalf("expected 1 HTTP guard, got %d", len(m.HTTPGuards))
 	}
-	handler, ok := m.RESTGuards[0].Handler.(func(*ctx.HTTPContext) bool)
+	handler, ok := m.HTTPGuards[0].Handler.(func(*ctx.HTTPContext) bool)
 	if !ok {
-		t.Fatalf("unexpected REST guard handler type %T", m.RESTGuards[0].Handler)
+		t.Fatalf("unexpected HTTP guard handler type %T", m.HTTPGuards[0].Handler)
 	}
 	handler(nil)
 
-	assertPriorityChainSeen(t, "REST guard")
+	assertPriorityChainSeen(t, "HTTP guard")
 }
 
 type mtGuardUnexportedController struct {
-	common.REST
+	common.HTTP
 	common.Guard
 }
 
@@ -329,7 +329,7 @@ func (c mtGuardUnexportedController) NewController() Controller {
 }
 func (c mtGuardUnexportedController) READ_mtguardunexported() string { return "ok" }
 
-func TestNewModule_RESTGuardInjection_UnexportedFieldPanics(t *testing.T) {
+func TestNewModule_HTTPGuardInjection_UnexportedFieldPanics(t *testing.T) {
 	resetModuleGlobals()
 	defer func() {
 		if r := recover(); r == nil {
@@ -342,7 +342,7 @@ func TestNewModule_RESTGuardInjection_UnexportedFieldPanics(t *testing.T) {
 }
 
 type mtGuardUnresolvedController struct {
-	common.REST
+	common.HTTP
 	common.Guard
 }
 
@@ -352,7 +352,7 @@ func (c mtGuardUnresolvedController) NewController() Controller {
 }
 func (c mtGuardUnresolvedController) READ_mtguardunresolved() string { return "ok" }
 
-func TestNewModule_RESTGuardInjection_UnresolvedDependencyPanics(t *testing.T) {
+func TestNewModule_HTTPGuardInjection_UnresolvedDependencyPanics(t *testing.T) {
 	resetModuleGlobals()
 	defer func() {
 		if r := recover(); r == nil {
@@ -365,7 +365,7 @@ func TestNewModule_RESTGuardInjection_UnresolvedDependencyPanics(t *testing.T) {
 }
 
 type mtMiddlewareController struct {
-	common.REST
+	common.HTTP
 	common.Middleware
 }
 
@@ -375,7 +375,7 @@ func (c mtMiddlewareController) NewController() Controller {
 }
 func (c mtMiddlewareController) READ_mtmiddleware() string { return "ok" }
 
-func TestNewModule_RESTMiddlewareInjection_LocalProviderRegistered(t *testing.T) {
+func TestNewModule_HTTPMiddlewareInjection_LocalProviderRegistered(t *testing.T) {
 	resetModuleGlobals()
 	mtSimpleMiddlewareSeen = mtSimpleMiddleware{}
 
@@ -386,26 +386,26 @@ func TestNewModule_RESTMiddlewareInjection_LocalProviderRegistered(t *testing.T)
 
 	m.NewModule()
 
-	if len(m.RESTMiddlewares) != 1 {
-		t.Fatalf("expected 1 REST middleware, got %d", len(m.RESTMiddlewares))
+	if len(m.HTTPMiddlewares) != 1 {
+		t.Fatalf("expected 1 HTTP middleware, got %d", len(m.HTTPMiddlewares))
 	}
-	handler, ok := m.RESTMiddlewares[0].Handler.(func(*http.Request, http.ResponseWriter, ctx.Next))
+	handler, ok := m.HTTPMiddlewares[0].Handler.(func(*http.Request, http.ResponseWriter, ctx.Next))
 	if !ok {
-		t.Fatalf("unexpected REST middleware handler type %T", m.RESTMiddlewares[0].Handler)
+		t.Fatalf("unexpected HTTP middleware handler type %T", m.HTTPMiddlewares[0].Handler)
 	}
 	called := false
 	handler(nil, nil, func() { called = true })
 
 	if !called {
-		t.Error(test.DiffMessage(false, true, "REST middleware should call next()"))
+		t.Error(test.DiffMessage(false, true, "HTTP middleware should call next()"))
 	}
 	if mtSimpleMiddlewareSeen.P.Source != "local" {
-		t.Error(test.DiffMessage(mtSimpleMiddlewareSeen.P.Source, "local", "REST middleware field should resolve from local module providers"))
+		t.Error(test.DiffMessage(mtSimpleMiddlewareSeen.P.Source, "local", "HTTP middleware field should resolve from local module providers"))
 	}
 }
 
 type mtInterceptorController struct {
-	common.REST
+	common.HTTP
 	common.Interceptor
 }
 
@@ -415,7 +415,7 @@ func (c mtInterceptorController) NewController() Controller {
 }
 func (c mtInterceptorController) READ_mtinterceptor() string { return "ok" }
 
-func TestNewModule_RESTInterceptorInjection_LocalProviderRegistered(t *testing.T) {
+func TestNewModule_HTTPInterceptorInjection_LocalProviderRegistered(t *testing.T) {
 	resetModuleGlobals()
 	mtSimpleInterceptorSeen = mtSimpleInterceptor{}
 
@@ -426,22 +426,22 @@ func TestNewModule_RESTInterceptorInjection_LocalProviderRegistered(t *testing.T
 
 	m.NewModule()
 
-	if len(m.RESTInterceptors) != 1 {
-		t.Fatalf("expected 1 REST interceptor, got %d", len(m.RESTInterceptors))
+	if len(m.HTTPInterceptors) != 1 {
+		t.Fatalf("expected 1 HTTP interceptor, got %d", len(m.HTTPInterceptors))
 	}
-	handler, ok := m.RESTInterceptors[0].Handler.(func(*ctx.HTTPContext, *aggregation.Aggregation) any)
+	handler, ok := m.HTTPInterceptors[0].Handler.(func(*ctx.HTTPContext, *aggregation.Aggregation) any)
 	if !ok {
-		t.Fatalf("unexpected REST interceptor handler type %T", m.RESTInterceptors[0].Handler)
+		t.Fatalf("unexpected HTTP interceptor handler type %T", m.HTTPInterceptors[0].Handler)
 	}
 	handler(nil, aggregation.NewAggregation())
 
 	if mtSimpleInterceptorSeen.P.Source != "local" {
-		t.Error(test.DiffMessage(mtSimpleInterceptorSeen.P.Source, "local", "REST interceptor field should resolve from local module providers"))
+		t.Error(test.DiffMessage(mtSimpleInterceptorSeen.P.Source, "local", "HTTP interceptor field should resolve from local module providers"))
 	}
 }
 
 type mtExFilterSingleController struct {
-	common.REST
+	common.HTTP
 	common.ExceptionFilter
 }
 
@@ -451,7 +451,7 @@ func (c mtExFilterSingleController) NewController() Controller {
 }
 func (c mtExFilterSingleController) READ_mtexfiltersingle() string { return "ok" }
 
-func TestNewModule_RESTExceptionFilter_SingleController_Registered(t *testing.T) {
+func TestNewModule_HTTPExceptionFilter_SingleController_Registered(t *testing.T) {
 	resetModuleGlobals()
 	mtExFilterOneFieldSeen = mtExFilterOneField{}
 
@@ -462,12 +462,12 @@ func TestNewModule_RESTExceptionFilter_SingleController_Registered(t *testing.T)
 
 	m.NewModule()
 
-	if len(m.RESTExceptionFilters) != 1 {
-		t.Fatalf("expected 1 REST exception filter, got %d", len(m.RESTExceptionFilters))
+	if len(m.HTTPExceptionFilters) != 1 {
+		t.Fatalf("expected 1 HTTP exception filter, got %d", len(m.HTTPExceptionFilters))
 	}
-	handler, ok := m.RESTExceptionFilters[0].Handler.(func(*ctx.HTTPContext, *exception.Exception))
+	handler, ok := m.HTTPExceptionFilters[0].Handler.(func(*ctx.HTTPContext, *exception.Exception))
 	if !ok {
-		t.Fatalf("unexpected REST exception filter handler type %T", m.RESTExceptionFilters[0].Handler)
+		t.Fatalf("unexpected HTTP exception filter handler type %T", m.HTTPExceptionFilters[0].Handler)
 	}
 	handler(nil, nil)
 
@@ -477,7 +477,7 @@ func TestNewModule_RESTExceptionFilter_SingleController_Registered(t *testing.T)
 }
 
 type mtExFilterMultiController0 struct {
-	common.REST
+	common.HTTP
 	common.ExceptionFilter
 }
 
@@ -488,7 +488,7 @@ func (c mtExFilterMultiController0) NewController() Controller {
 func (c mtExFilterMultiController0) READ_mtexfilterbugc0() string { return "ok" }
 
 type mtExFilterMultiController1 struct {
-	common.REST
+	common.HTTP
 	common.ExceptionFilter
 }
 
@@ -498,19 +498,19 @@ func (c mtExFilterMultiController1) NewController() Controller {
 }
 func (c mtExFilterMultiController1) READ_mtexfilterbugc1() string { return "ok" }
 
-// TestNewModule_RESTExceptionFilter_TwoControllers_CorrectFieldIndex used to
-// pin a bug in module.go's REST exceptionFilter callback: it discarded its
+// TestNewModule_HTTPExceptionFilter_TwoControllers_CorrectFieldIndex used to
+// pin a bug in module.go's HTTP exceptionFilter callback: it discarded its
 // own field-index parameter and instead reused the outer
 // `for i, controller := range m.controllers` loop variable to index into
 // the exceptionFilter's fields, so the 2nd+ controller in a module panicked
 // with "reflect: Field index out of range" whenever its exceptionFilter had
-// fewer fields than that controller's index. The REST/WS callbacks were
+// fewer fields than that controller's index. The HTTP/WS callbacks were
 // unified into buildFieldInjectionCallback (fn.go) during the module.go
 // refactor, which fixed this as a side effect - both layers now share the
 // WS side's (always correct) field-index handling. This test asserts the
 // fixed behavior; its WS counterpart just below asserts the same thing for
 // WS to guard against a regression re-introducing the split.
-func TestNewModule_RESTExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing.T) {
+func TestNewModule_HTTPExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing.T) {
 	resetModuleGlobals()
 
 	m := ModuleBuilder().
@@ -520,13 +520,13 @@ func TestNewModule_RESTExceptionFilter_TwoControllers_CorrectFieldIndex(t *testi
 
 	m.NewModule()
 
-	if len(m.RESTExceptionFilters) != 2 {
-		t.Fatalf("expected 2 REST exception filters, got %d", len(m.RESTExceptionFilters))
+	if len(m.HTTPExceptionFilters) != 2 {
+		t.Fatalf("expected 2 HTTP exception filters, got %d", len(m.HTTPExceptionFilters))
 	}
-	for _, ef := range m.RESTExceptionFilters {
+	for _, ef := range m.HTTPExceptionFilters {
 		handler, ok := ef.Handler.(func(*ctx.HTTPContext, *exception.Exception))
 		if !ok {
-			t.Fatalf("unexpected REST exception filter handler type %T", ef.Handler)
+			t.Fatalf("unexpected HTTP exception filter handler type %T", ef.Handler)
 		}
 		handler(nil, nil) // must not panic
 	}
@@ -745,11 +745,11 @@ func (c mtWSExFilterController1) NewController() Controller {
 func (c mtWSExFilterController1) SUBSCRIBE_mtwsexfilterc1() string { return "ok" }
 
 // TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex confirms
-// the WS exceptionFilter callback does NOT have the REST field-index bug
-// (see TestNewModule_RESTExceptionFilter_TwoControllers_FieldIndexBug): a
+// the WS exceptionFilter callback does NOT have the HTTP field-index bug
+// (see TestNewModule_HTTPExceptionFilter_TwoControllers_FieldIndexBug): a
 // 2nd controller with a 1-field exceptionFilter must inject correctly
-// instead of panicking. Any refactor that unifies the REST/WS exceptionFilter
-// callbacks into one helper must preserve THIS behavior, not the REST one.
+// instead of panicking. Any refactor that unifies the HTTP/WS exceptionFilter
+// callbacks into one helper must preserve THIS behavior, not the HTTP one.
 func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing.T) {
 	resetModuleGlobals()
 
@@ -784,7 +784,7 @@ type mtConcurrentProvider struct{}
 
 func (p mtConcurrentProvider) NewProvider() Provider { return p }
 
-type mtConcurrentController struct{ common.REST }
+type mtConcurrentController struct{ common.HTTP }
 
 func (c mtConcurrentController) NewController() Controller         { return c }
 func (c mtConcurrentController) READ_mtconcurrentresource() string { return "ok" }

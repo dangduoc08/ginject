@@ -15,7 +15,7 @@ type MiddlewareFn interface {
 	Use(*http.Request, http.ResponseWriter, ctx.Next)
 }
 
-type RESTMiddlewareItem struct {
+type HTTPMiddlewareItem struct {
 	Method  string
 	Route   string
 	Version string
@@ -29,7 +29,7 @@ type WSMiddlewareItem struct {
 }
 
 type MiddlewareItem struct {
-	REST RESTMiddlewareItem
+	HTTP HTTPMiddlewareItem
 	WS   WSMiddlewareItem
 }
 
@@ -52,7 +52,7 @@ func (m *Middleware) BindMiddleware(middlewareFn MiddlewareFn, handlers ...any) 
 	return m
 }
 
-func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
+func (m *Middleware) InjectProvidersIntoHTTPMiddlewares(r *HTTP, cb func(int, reflect.Type, reflect.Value, reflect.Value)) []MiddlewareItem {
 	middlewareItemArr := make([]MiddlewareItem, 0, len(r.PatternToFuncNameMap)*len(m.MiddlewareHandlers))
 
 	for _, middlewareHandler := range m.MiddlewareHandlers {
@@ -83,7 +83,7 @@ func (m *Middleware) InjectProvidersIntoRESTMiddlewares(r *REST, cb func(int, re
 				httpMethod := routing.OperationsMapHTTPMethods[method]
 
 				middlewareItemArr = append(middlewareItemArr, MiddlewareItem{
-					REST: RESTMiddlewareItem{
+					HTTP: HTTPMiddlewareItem{
 						Method:  httpMethod,
 						Route:   str.Enclose(route, '/'),
 						Version: version,

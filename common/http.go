@@ -10,7 +10,7 @@ import (
 	"github.com/dangduoc08/ginject/routing"
 )
 
-var RESTOperations = map[string]string{
+var HTTPOperations = map[string]string{
 	"READ":        http.MethodGet,
 	"CREATE":      http.MethodPost,
 	"UPDATE":      http.MethodPut,
@@ -31,7 +31,7 @@ const (
 	TokenVersion = "VERSION"
 )
 
-var RESTTokenMap = map[string]string{
+var HTTPTokenMap = map[string]string{
 	TokenBy:      TokenBy,
 	TokenAnd:     TokenAnd,
 	TokenOf:      TokenOf,
@@ -40,7 +40,7 @@ var RESTTokenMap = map[string]string{
 	TokenVersion: TokenVersion,
 }
 
-type RESTLayer struct {
+type HTTPLayer struct {
 	Handler         any
 	ControllerPath  string
 	Name            string
@@ -51,14 +51,14 @@ type RESTLayer struct {
 	MainHandlerName string
 }
 
-type RESTConfig struct {
+type HTTPConfig struct {
 	Method  string
 	Route   string
 	Version string
 	Func    string
 }
 
-type REST struct {
+type HTTP struct {
 	prefixes             []Prefix
 	PatternToFuncNameMap map[string]string
 	FuncNameToPatternMap map[string]string
@@ -70,7 +70,7 @@ type Prefix struct {
 	Handlers []any
 }
 
-func (r *REST) addToRouters(fnName, route, version, method string, injectableHandler any) {
+func (r *HTTP) addToRouters(fnName, route, version, method string, injectableHandler any) {
 	if r.RouterMap == nil {
 		r.RouterMap = make(map[string]any)
 	}
@@ -90,7 +90,7 @@ func (r *REST) addToRouters(fnName, route, version, method string, injectableHan
 	r.FuncNameToPatternMap[fnName] = pattern
 }
 
-func (r *REST) GetPrefixes() []map[string]string {
+func (r *HTTP) GetPrefixes() []map[string]string {
 	prefixes := make([]map[string]string, 0, len(r.prefixes))
 
 	for _, prefixConf := range r.prefixes {
@@ -111,7 +111,7 @@ func (r *REST) GetPrefixes() []map[string]string {
 	return prefixes
 }
 
-func (r *REST) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
+func (r *HTTP) addPrefixesToRoute(route, fnName string, prefixes []map[string]string) string {
 	for _, prefix := range prefixes {
 		for prefixValue, prefixFnName := range prefix {
 			if prefixFnName == "*" || prefixFnName == fnName {
@@ -123,7 +123,7 @@ func (r *REST) addPrefixesToRoute(route, fnName string, prefixes []map[string]st
 	return route
 }
 
-func (r *REST) Prefix(v string, handlers ...any) *REST {
+func (r *HTTP) Prefix(v string, handlers ...any) *HTTP {
 	r.prefixes = append([]Prefix{
 		{
 			Value:    v,
@@ -134,7 +134,7 @@ func (r *REST) Prefix(v string, handlers ...any) *REST {
 	return r
 }
 
-func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
+func (r *HTTP) AddHandlerToRouterMap(modulePrefixes []string, fnName string, handler any) {
 	prefixes := r.GetPrefixes()
 
 	httpMethod, route, version := ParseFuncNameToURL(fnName)
@@ -161,12 +161,12 @@ func (r *REST) AddHandlerToRouterMap(modulePrefixes []string, fnName string, han
 	}
 }
 
-func (r *REST) GetConfigurations() []RESTConfig {
-	routes := make([]RESTConfig, 0, len(InsertedRoutes))
+func (r *HTTP) GetConfigurations() []HTTPConfig {
+	routes := make([]HTTPConfig, 0, len(InsertedRoutes))
 
 	for routeMethod, fn := range InsertedRoutes {
 		method, route, version := routing.PatternToMethodRouteVersion(routeMethod)
-		routes = append(routes, RESTConfig{
+		routes = append(routes, HTTPConfig{
 			Method:  method,
 			Route:   route,
 			Version: version,

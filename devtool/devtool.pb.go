@@ -152,7 +152,7 @@ func (x *GetConfigurationResponse) GetController() *Controller {
 
 type Controller struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Rest          []*RESTComponent       `protobuf:"bytes,1,rep,name=rest,proto3" json:"rest,omitempty"`
+	Http          []*HTTPComponent       `protobuf:"bytes,1,rep,name=http,proto3" json:"http,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -187,14 +187,14 @@ func (*Controller) Descriptor() ([]byte, []int) {
 	return file_devtool_devtool_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Controller) GetRest() []*RESTComponent {
+func (x *Controller) GetHttp() []*HTTPComponent {
 	if x != nil {
-		return x.Rest
+		return x.Http
 	}
 	return nil
 }
 
-type RESTComponent struct {
+type HTTPComponent struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Handler          string                 `protobuf:"bytes,2,opt,name=handler,proto3" json:"handler,omitempty"`
@@ -204,26 +204,26 @@ type RESTComponent struct {
 	Middlewares      []*Layer               `protobuf:"bytes,6,rep,name=middlewares,proto3" json:"middlewares,omitempty"`
 	Guards           []*Layer               `protobuf:"bytes,7,rep,name=guards,proto3" json:"guards,omitempty"`
 	Interceptors     []*Layer               `protobuf:"bytes,8,rep,name=interceptors,proto3" json:"interceptors,omitempty"`
-	Versioning       *RESTVersioning        `protobuf:"bytes,9,opt,name=versioning,proto3" json:"versioning,omitempty"`
-	Request          *RESTRequest           `protobuf:"bytes,10,opt,name=request,proto3" json:"request,omitempty"`
+	Versioning       *HTTPVersioning        `protobuf:"bytes,9,opt,name=versioning,proto3" json:"versioning,omitempty"`
+	Request          *HTTPRequest           `protobuf:"bytes,10,opt,name=request,proto3" json:"request,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
 
-func (x *RESTComponent) Reset() {
-	*x = RESTComponent{}
+func (x *HTTPComponent) Reset() {
+	*x = HTTPComponent{}
 	mi := &file_devtool_devtool_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RESTComponent) String() string {
+func (x *HTTPComponent) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RESTComponent) ProtoMessage() {}
+func (*HTTPComponent) ProtoMessage() {}
 
-func (x *RESTComponent) ProtoReflect() protoreflect.Message {
+func (x *HTTPComponent) ProtoReflect() protoreflect.Message {
 	mi := &file_devtool_devtool_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -235,75 +235,75 @@ func (x *RESTComponent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RESTComponent.ProtoReflect.Descriptor instead.
-func (*RESTComponent) Descriptor() ([]byte, []int) {
+// Deprecated: Use HTTPComponent.ProtoReflect.Descriptor instead.
+func (*HTTPComponent) Descriptor() ([]byte, []int) {
 	return file_devtool_devtool_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RESTComponent) GetId() string {
+func (x *HTTPComponent) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *RESTComponent) GetHandler() string {
+func (x *HTTPComponent) GetHandler() string {
 	if x != nil {
 		return x.Handler
 	}
 	return ""
 }
 
-func (x *RESTComponent) GetHttpMethod() string {
+func (x *HTTPComponent) GetHttpMethod() string {
 	if x != nil {
 		return x.HttpMethod
 	}
 	return ""
 }
 
-func (x *RESTComponent) GetRoute() string {
+func (x *HTTPComponent) GetRoute() string {
 	if x != nil {
 		return x.Route
 	}
 	return ""
 }
 
-func (x *RESTComponent) GetExceptionFilters() []*Layer {
+func (x *HTTPComponent) GetExceptionFilters() []*Layer {
 	if x != nil {
 		return x.ExceptionFilters
 	}
 	return nil
 }
 
-func (x *RESTComponent) GetMiddlewares() []*Layer {
+func (x *HTTPComponent) GetMiddlewares() []*Layer {
 	if x != nil {
 		return x.Middlewares
 	}
 	return nil
 }
 
-func (x *RESTComponent) GetGuards() []*Layer {
+func (x *HTTPComponent) GetGuards() []*Layer {
 	if x != nil {
 		return x.Guards
 	}
 	return nil
 }
 
-func (x *RESTComponent) GetInterceptors() []*Layer {
+func (x *HTTPComponent) GetInterceptors() []*Layer {
 	if x != nil {
 		return x.Interceptors
 	}
 	return nil
 }
 
-func (x *RESTComponent) GetVersioning() *RESTVersioning {
+func (x *HTTPComponent) GetVersioning() *HTTPVersioning {
 	if x != nil {
 		return x.Versioning
 	}
 	return nil
 }
 
-func (x *RESTComponent) GetRequest() *RESTRequest {
+func (x *HTTPComponent) GetRequest() *HTTPRequest {
 	if x != nil {
 		return x.Request
 	}
@@ -362,7 +362,7 @@ func (x *Layer) GetName() string {
 	return ""
 }
 
-type RESTVersioning struct {
+type HTTPVersioning struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          int32                  `protobuf:"varint,1,opt,name=type,proto3" json:"type,omitempty"`
 	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -371,20 +371,20 @@ type RESTVersioning struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RESTVersioning) Reset() {
-	*x = RESTVersioning{}
+func (x *HTTPVersioning) Reset() {
+	*x = HTTPVersioning{}
 	mi := &file_devtool_devtool_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RESTVersioning) String() string {
+func (x *HTTPVersioning) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RESTVersioning) ProtoMessage() {}
+func (*HTTPVersioning) ProtoMessage() {}
 
-func (x *RESTVersioning) ProtoReflect() protoreflect.Message {
+func (x *HTTPVersioning) ProtoReflect() protoreflect.Message {
 	mi := &file_devtool_devtool_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -396,33 +396,33 @@ func (x *RESTVersioning) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RESTVersioning.ProtoReflect.Descriptor instead.
-func (*RESTVersioning) Descriptor() ([]byte, []int) {
+// Deprecated: Use HTTPVersioning.ProtoReflect.Descriptor instead.
+func (*HTTPVersioning) Descriptor() ([]byte, []int) {
 	return file_devtool_devtool_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *RESTVersioning) GetType() int32 {
+func (x *HTTPVersioning) GetType() int32 {
 	if x != nil {
 		return x.Type
 	}
 	return 0
 }
 
-func (x *RESTVersioning) GetValue() string {
+func (x *HTTPVersioning) GetValue() string {
 	if x != nil {
 		return x.Value
 	}
 	return ""
 }
 
-func (x *RESTVersioning) GetKey() string {
+func (x *HTTPVersioning) GetKey() string {
 	if x != nil {
 		return x.Key
 	}
 	return ""
 }
 
-type RESTRequest struct {
+type HTTPRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Body          []*Schema              `protobuf:"bytes,1,rep,name=body,proto3" json:"body,omitempty"`
 	Form          []*Schema              `protobuf:"bytes,2,rep,name=form,proto3" json:"form,omitempty"`
@@ -434,20 +434,20 @@ type RESTRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RESTRequest) Reset() {
-	*x = RESTRequest{}
+func (x *HTTPRequest) Reset() {
+	*x = HTTPRequest{}
 	mi := &file_devtool_devtool_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RESTRequest) String() string {
+func (x *HTTPRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RESTRequest) ProtoMessage() {}
+func (*HTTPRequest) ProtoMessage() {}
 
-func (x *RESTRequest) ProtoReflect() protoreflect.Message {
+func (x *HTTPRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_devtool_devtool_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -459,47 +459,47 @@ func (x *RESTRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RESTRequest.ProtoReflect.Descriptor instead.
-func (*RESTRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use HTTPRequest.ProtoReflect.Descriptor instead.
+func (*HTTPRequest) Descriptor() ([]byte, []int) {
 	return file_devtool_devtool_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *RESTRequest) GetBody() []*Schema {
+func (x *HTTPRequest) GetBody() []*Schema {
 	if x != nil {
 		return x.Body
 	}
 	return nil
 }
 
-func (x *RESTRequest) GetForm() []*Schema {
+func (x *HTTPRequest) GetForm() []*Schema {
 	if x != nil {
 		return x.Form
 	}
 	return nil
 }
 
-func (x *RESTRequest) GetQuery() []*Schema {
+func (x *HTTPRequest) GetQuery() []*Schema {
 	if x != nil {
 		return x.Query
 	}
 	return nil
 }
 
-func (x *RESTRequest) GetHeader() []*Schema {
+func (x *HTTPRequest) GetHeader() []*Schema {
 	if x != nil {
 		return x.Header
 	}
 	return nil
 }
 
-func (x *RESTRequest) GetParam() []*Schema {
+func (x *HTTPRequest) GetParam() []*Schema {
 	if x != nil {
 		return x.Param
 	}
 	return nil
 }
 
-func (x *RESTRequest) GetFile() []*Schema {
+func (x *HTTPRequest) GetFile() []*Schema {
 	if x != nil {
 		return x.File
 	}
@@ -594,8 +594,8 @@ const file_devtool_devtool_proto_rawDesc = "" +
 	"controller\"8\n" +
 	"\n" +
 	"Controller\x12*\n" +
-	"\x04rest\x18\x01 \x03(\v2\x16.devtool.RESTComponentR\x04rest\"\xa4\x03\n" +
-	"\rRESTComponent\x12\x0e\n" +
+	"\x04http\x18\x01 \x03(\v2\x16.devtool.HTTPComponentR\x04http\"\xa4\x03\n" +
+	"\rHTTPComponent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\ahandler\x18\x02 \x01(\tR\ahandler\x12\x1f\n" +
 	"\vhttp_method\x18\x03 \x01(\tR\n" +
@@ -606,18 +606,18 @@ const file_devtool_devtool_proto_rawDesc = "" +
 	"\x06guards\x18\a \x03(\v2\x0e.devtool.LayerR\x06guards\x122\n" +
 	"\finterceptors\x18\b \x03(\v2\x0e.devtool.LayerR\finterceptors\x127\n" +
 	"\n" +
-	"versioning\x18\t \x01(\v2\x17.devtool.RESTVersioningR\n" +
+	"versioning\x18\t \x01(\v2\x17.devtool.HTTPVersioningR\n" +
 	"versioning\x12.\n" +
 	"\arequest\x18\n" +
-	" \x01(\v2\x14.devtool.RESTRequestR\arequest\"F\n" +
+	" \x01(\v2\x14.devtool.HTTPRequestR\arequest\"F\n" +
 	"\x05Layer\x12)\n" +
 	"\x05scope\x18\x01 \x01(\x0e2\x13.devtool.LayerScopeR\x05scope\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"L\n" +
-	"\x0eRESTVersioning\x12\x12\n" +
+	"\x0eHTTPVersioning\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\x05R\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12\x10\n" +
 	"\x03key\x18\x03 \x01(\tR\x03key\"\xf3\x01\n" +
-	"\vRESTRequest\x12#\n" +
+	"\vHTTPRequest\x12#\n" +
 	"\x04body\x18\x01 \x03(\v2\x0f.devtool.SchemaR\x04body\x12#\n" +
 	"\x04form\x18\x02 \x03(\v2\x0f.devtool.SchemaR\x04form\x12%\n" +
 	"\x05query\x18\x03 \x03(\v2\x0f.devtool.SchemaR\x05query\x12'\n" +
@@ -659,28 +659,28 @@ var file_devtool_devtool_proto_goTypes = []any{
 	(*GetConfigurationRequest)(nil),  // 1: devtool.GetConfigurationRequest
 	(*GetConfigurationResponse)(nil), // 2: devtool.GetConfigurationResponse
 	(*Controller)(nil),               // 3: devtool.Controller
-	(*RESTComponent)(nil),            // 4: devtool.RESTComponent
+	(*HTTPComponent)(nil),            // 4: devtool.HTTPComponent
 	(*Layer)(nil),                    // 5: devtool.Layer
-	(*RESTVersioning)(nil),           // 6: devtool.RESTVersioning
-	(*RESTRequest)(nil),              // 7: devtool.RESTRequest
+	(*HTTPVersioning)(nil),           // 6: devtool.HTTPVersioning
+	(*HTTPRequest)(nil),              // 7: devtool.HTTPRequest
 	(*Schema)(nil),                   // 8: devtool.Schema
 }
 var file_devtool_devtool_proto_depIdxs = []int32{
 	3,  // 0: devtool.GetConfigurationResponse.controller:type_name -> devtool.Controller
-	4,  // 1: devtool.Controller.rest:type_name -> devtool.RESTComponent
-	5,  // 2: devtool.RESTComponent.exception_filters:type_name -> devtool.Layer
-	5,  // 3: devtool.RESTComponent.middlewares:type_name -> devtool.Layer
-	5,  // 4: devtool.RESTComponent.guards:type_name -> devtool.Layer
-	5,  // 5: devtool.RESTComponent.interceptors:type_name -> devtool.Layer
-	6,  // 6: devtool.RESTComponent.versioning:type_name -> devtool.RESTVersioning
-	7,  // 7: devtool.RESTComponent.request:type_name -> devtool.RESTRequest
+	4,  // 1: devtool.Controller.http:type_name -> devtool.HTTPComponent
+	5,  // 2: devtool.HTTPComponent.exception_filters:type_name -> devtool.Layer
+	5,  // 3: devtool.HTTPComponent.middlewares:type_name -> devtool.Layer
+	5,  // 4: devtool.HTTPComponent.guards:type_name -> devtool.Layer
+	5,  // 5: devtool.HTTPComponent.interceptors:type_name -> devtool.Layer
+	6,  // 6: devtool.HTTPComponent.versioning:type_name -> devtool.HTTPVersioning
+	7,  // 7: devtool.HTTPComponent.request:type_name -> devtool.HTTPRequest
 	0,  // 8: devtool.Layer.scope:type_name -> devtool.LayerScope
-	8,  // 9: devtool.RESTRequest.body:type_name -> devtool.Schema
-	8,  // 10: devtool.RESTRequest.form:type_name -> devtool.Schema
-	8,  // 11: devtool.RESTRequest.query:type_name -> devtool.Schema
-	8,  // 12: devtool.RESTRequest.header:type_name -> devtool.Schema
-	8,  // 13: devtool.RESTRequest.param:type_name -> devtool.Schema
-	8,  // 14: devtool.RESTRequest.file:type_name -> devtool.Schema
+	8,  // 9: devtool.HTTPRequest.body:type_name -> devtool.Schema
+	8,  // 10: devtool.HTTPRequest.form:type_name -> devtool.Schema
+	8,  // 11: devtool.HTTPRequest.query:type_name -> devtool.Schema
+	8,  // 12: devtool.HTTPRequest.header:type_name -> devtool.Schema
+	8,  // 13: devtool.HTTPRequest.param:type_name -> devtool.Schema
+	8,  // 14: devtool.HTTPRequest.file:type_name -> devtool.Schema
 	8,  // 15: devtool.Schema.item:type_name -> devtool.Schema
 	8,  // 16: devtool.Schema.properties:type_name -> devtool.Schema
 	1,  // 17: devtool.DevtoolService.GetConfiguration:input_type -> devtool.GetConfigurationRequest

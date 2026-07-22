@@ -27,55 +27,55 @@ func TestBindMiddleware_Chaining(t *testing.T) {
 	}
 }
 
-func TestInjectProvidersIntoRESTMiddlewares_Empty(t *testing.T) {
+func TestInjectProvidersIntoHTTPMiddlewares_Empty(t *testing.T) {
 	m := &Middleware{}
-	r := buildREST(map[string]string{"READ_users": "/users/"})
+	r := buildHTTP(map[string]string{"READ_users": "/users/"})
 
-	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
+	items := m.InjectProvidersIntoHTTPMiddlewares(r, noopCB)
 	if len(items) != 0 {
 		t.Error(test.DiffMessage(len(items), 0, "no bound middlewares → empty result"))
 	}
 }
 
-func TestInjectProvidersIntoRESTMiddlewares_ApplyAll(t *testing.T) {
+func TestInjectProvidersIntoHTTPMiddlewares_ApplyAll(t *testing.T) {
 	m := &Middleware{}
 	m.BindMiddleware(mockMiddlewareFn{})
 
-	r := buildREST(map[string]string{
+	r := buildHTTP(map[string]string{
 		"READ_users":    "/users/",
 		"CREATE_orders": "/orders/",
 	})
 
-	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
+	items := m.InjectProvidersIntoHTTPMiddlewares(r, noopCB)
 	if len(items) != 2 {
 		t.Error(test.DiffMessage(len(items), 2, "middleware with no handlers applies to all patterns"))
 	}
 	for _, item := range items {
-		if item.REST.Method != "GET" {
-			t.Error(test.DiffMessage(item.REST.Method, "GET", "method"))
+		if item.HTTP.Method != "GET" {
+			t.Error(test.DiffMessage(item.HTTP.Method, "GET", "method"))
 		}
-		if item.REST.Pattern == "" {
-			t.Error(test.DiffMessage(item.REST.Pattern, "non-empty", "pattern"))
+		if item.HTTP.Pattern == "" {
+			t.Error(test.DiffMessage(item.HTTP.Pattern, "non-empty", "pattern"))
 		}
-		if item.REST.Common.Name == "" {
-			t.Error(test.DiffMessage(item.REST.Common.Name, "non-empty", "name"))
+		if item.HTTP.Common.Name == "" {
+			t.Error(test.DiffMessage(item.HTTP.Common.Name, "non-empty", "name"))
 		}
 	}
 }
 
-func TestInjectProvidersIntoRESTMiddlewares_MainHandlerName(t *testing.T) {
+func TestInjectProvidersIntoHTTPMiddlewares_MainHandlerName(t *testing.T) {
 	m := &Middleware{}
 	m.BindMiddleware(mockMiddlewareFn{})
 
-	r := buildREST(map[string]string{"READ_items": "/items/"})
-	items := m.InjectProvidersIntoRESTMiddlewares(r, noopCB)
+	r := buildHTTP(map[string]string{"READ_items": "/items/"})
+	items := m.InjectProvidersIntoHTTPMiddlewares(r, noopCB)
 
 	if len(items) != 1 {
 		t.Error(test.DiffMessage(len(items), 1, "one pattern → one item"))
 		return
 	}
-	if items[0].REST.Common.MainHandlerName != "READ_items" {
-		t.Error(test.DiffMessage(items[0].REST.Common.MainHandlerName, "READ_items", "main handler name"))
+	if items[0].HTTP.Common.MainHandlerName != "READ_items" {
+		t.Error(test.DiffMessage(items[0].HTTP.Common.MainHandlerName, "READ_items", "main handler name"))
 	}
 }
 
