@@ -43,9 +43,6 @@ func TestServeContent_NoWildcard_ExistingFile(t *testing.T) {
 	h := newHTTP()
 	c, w := newTestHTTPContextForServe("/hello.txt")
 
-	var fired bool
-	c.Event.On(ctx.RequestFinished, func(args ...any) { fired = true })
-
 	h.serveContent(c, 0, file)
 
 	if w.Code != http.StatusOK {
@@ -53,9 +50,6 @@ func TestServeContent_NoWildcard_ExistingFile(t *testing.T) {
 	}
 	if w.Body.String() != "hello" {
 		t.Error(test.DiffMessage(w.Body.String(), "hello", "serveContent should write the file contents"))
-	}
-	if !fired {
-		t.Error(test.DiffMessage(fired, true, "serveContent should emit RequestFinished after serving a file"))
 	}
 }
 

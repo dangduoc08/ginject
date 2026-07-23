@@ -96,7 +96,6 @@ func (ws *WS) handshake(c *ctx.HTTPContext) error {
 	}
 
 	if isNext {
-		c.Event.Emit(ctx.RequestFinished, c)
 		return nil
 	}
 

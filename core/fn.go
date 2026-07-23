@@ -554,16 +554,10 @@ func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 			}
 		}()
 
-		called := false
 		next := func() {
-			called = true
 			c.Next()
 		}
 
 		useFn(c.Request, c.ResponseWriter, next)
-
-		if !called {
-			c.Event.Emit(ctx.RequestFinished, c)
-		}
 	}
 }

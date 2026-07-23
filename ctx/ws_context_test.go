@@ -8,13 +8,6 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-func TestNewWSContext(t *testing.T) {
-	c := NewWSContext()
-	if c.Event == nil {
-		t.Error(test.DiffMessage(c.Event, "<non-nil>", "NewWSContext should initialize Event"))
-	}
-}
-
 func TestWSContext_Init(t *testing.T) {
 	c := NewWSContext()
 	conn := &websocket.Conn{}
