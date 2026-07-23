@@ -1,4 +1,4 @@
-package ctx
+package event
 
 import (
 	"sync"
@@ -144,7 +144,7 @@ func TestEvent_Reset(t *testing.T) {
 	e := NewEvent()
 	e.On("x", func(args ...any) {})
 	e.Once("y", func(args ...any) {})
-	e.reset()
+	e.Reset()
 
 	if e.HasListeners("x") || e.HasListeners("y") {
 		t.Error(test.DiffMessage(true, false, "reset should clear all listeners"))
