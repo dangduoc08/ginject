@@ -238,7 +238,6 @@ func (http *HTTP) serveContent(c *ctx.HTTPContext, lastWildcardSlashIndex int, d
 			http.returnNotFound(c)
 		} else {
 			stdHTTP.ServeFile(c.ResponseWriter, c.Request, dir)
-			c.Event.Emit(ctx.RequestFinished, c)
 		}
 	} else {
 		http.returnNotFound(c)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"golang.org/x/net/websocket"
 )
@@ -15,8 +14,7 @@ type WSContext struct {
 	id  string
 	ctx context.Context
 
-	Next  Next
-	Event *event.Event
+	Next Next
 
 	payload   WSPayload
 	Timestamp time.Time
@@ -25,9 +23,7 @@ type WSContext struct {
 }
 
 func NewWSContext() *WSContext {
-	return &WSContext{
-		Event: event.NewEvent(),
-	}
+	return &WSContext{}
 }
 
 func (c *WSContext) Init(conn *websocket.Conn) {
@@ -42,7 +38,6 @@ func (c *WSContext) Reset() {
 	c.Conn = nil
 	c.payload = nil
 	c.send = nil
-	c.Event.Reset()
 }
 
 // SetSend wires the function Send delivers data through. ctx has no

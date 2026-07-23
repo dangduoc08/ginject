@@ -16,6 +16,5 @@ type (
 )
 
 const (
-	RequestFinished = "RequestFinished"
-	CatchException  = "CatchException"
+	CatchException = "CatchException"
 )
