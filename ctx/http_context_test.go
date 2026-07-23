@@ -195,17 +195,3 @@ func TestHTTPContext_Redirect(t *testing.T) {
 		t.Error(test.DiffMessage(loc, "/new-location", "Redirect should set the Location header"))
 	}
 }
-
-func TestHTTPContext_TextJSONEmitRequestFinished(t *testing.T) {
-	c := newTestHTTPContext()
-	c.Request = httptest.NewRequest("GET", "/", nil)
-	c.ResponseWriter = httptest.NewRecorder()
-
-	var fired bool
-	c.Event.On(RequestFinished, func(args ...any) { fired = true })
-	c.Text("done")
-
-	if !fired {
-		t.Error(test.DiffMessage(fired, true, "Text should emit RequestFinished"))
-	}
-}

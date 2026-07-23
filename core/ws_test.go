@@ -43,14 +43,8 @@ func TestHandshake_Allowed(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/ws", nil)
 	c.ResponseWriter = httptest.NewRecorder()
 
-	var fired bool
-	c.Event.On(ctx.RequestFinished, func(args ...any) { fired = true })
-
 	if err := ws.handshake(c); err != nil {
 		t.Error(test.DiffMessage(err, nil, "handshake with no middlewares should succeed"))
-	}
-	if !fired {
-		t.Error(test.DiffMessage(fired, true, "a successful handshake should emit RequestFinished"))
 	}
 }
 

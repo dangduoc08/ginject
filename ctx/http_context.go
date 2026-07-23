@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
 )
@@ -27,15 +26,13 @@ type HTTPContext struct {
 	id string
 
 	Next      Next
-	Event     *event.Event
 	Code      int
 	Timestamp time.Time
 }
 
 func NewHTTPContext() *HTTPContext {
 	return &HTTPContext{
-		Code:  http.StatusOK,
-		Event: event.NewEvent(),
+		Code: http.StatusOK,
 	}
 }
 
@@ -60,7 +57,6 @@ func (c *HTTPContext) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
-	c.Event.Reset()
 }
 
 func (c *HTTPContext) SetID() {
@@ -90,7 +86,6 @@ func (c *HTTPContext) Text(data string, args ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(RequestFinished, c)
 }
 
 func (c *HTTPContext) JSON(data ...any) {
@@ -99,7 +94,6 @@ func (c *HTTPContext) JSON(data ...any) {
 		responseWriter: c.ResponseWriter,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(RequestFinished, c)
 }
 
 func (c *HTTPContext) JSONP(data ...any) {
@@ -115,11 +109,9 @@ func (c *HTTPContext) JSONP(data ...any) {
 		callback:       callback,
 	}
 	c.dataWriter.WriteData(c.Code)
-	c.Event.Emit(RequestFinished, c)
 }
 
 func (c *HTTPContext) Redirect(url string) {
 	c.Status(http.StatusMovedPermanently)
 	http.Redirect(c.ResponseWriter, c.Request, url, c.Code)
-	c.Event.Emit(RequestFinished, c)
 }
