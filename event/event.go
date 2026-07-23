@@ -1,4 +1,4 @@
-package ctx
+package event
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ func NewEvent() *Event {
 	}
 }
 
-func (e *Event) reset() {
+func (e *Event) Reset() {
 	e.mu.Lock()
 	clear(e.opts)
 	clear(e.onceOpts)

@@ -1,4 +1,4 @@
-package ctx
+package event
 
 import "testing"
 

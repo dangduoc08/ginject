@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
 )
@@ -26,7 +27,7 @@ type HTTPContext struct {
 	id string
 
 	Next      Next
-	Event     *Event
+	Event     *event.Event
 	Code      int
 	Timestamp time.Time
 }
@@ -34,7 +35,7 @@ type HTTPContext struct {
 func NewHTTPContext() *HTTPContext {
 	return &HTTPContext{
 		Code:  http.StatusOK,
-		Event: NewEvent(),
+		Event: event.NewEvent(),
 	}
 }
 
@@ -59,7 +60,7 @@ func (c *HTTPContext) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
-	c.Event.reset()
+	c.Event.Reset()
 }
 
 func (c *HTTPContext) SetID() {
