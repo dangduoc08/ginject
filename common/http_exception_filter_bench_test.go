@@ -27,16 +27,14 @@ func BenchmarkAsHTTPExceptionFilter(b *testing.B) {
 	}
 }
 
-func BenchmarkBuildHTTPCatchMiddleware(b *testing.B) {
+func BenchmarkRunHTTPCatchChain(b *testing.B) {
 	c := ctx.NewHTTPContext()
-	c.Next = func() {}
-
-	mw := BuildHTTPCatchMiddleware("bench.event", []HTTPCatch{
+	catchFns := []HTTPCatch{
 		func(*ctx.HTTPContext, *exception.Exception) {},
-	})
+	}
 
 	b.ResetTimer()
 	for range b.N {
-		mw(c)
+		RunHTTPCatchChain(c, catchFns, "boom")
 	}
 }

@@ -27,16 +27,14 @@ func BenchmarkAsWSExceptionFilter(b *testing.B) {
 	}
 }
 
-func BenchmarkBuildWSCatchMiddleware(b *testing.B) {
+func BenchmarkRunWSCatchChain(b *testing.B) {
 	c := ctx.NewWSContext()
-	c.Next = func() {}
-
-	mw := BuildWSCatchMiddleware("bench.event", []WSCatch{
+	catchFns := []WSCatch{
 		func(*ctx.WSContext, *exception.Exception) {},
-	})
+	}
 
 	b.ResetTimer()
 	for range b.N {
-		mw(c)
+		RunWSCatchChain(c, catchFns, "boom")
 	}
 }
