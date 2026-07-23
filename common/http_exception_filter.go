@@ -93,21 +93,16 @@ func (e *ExceptionFilter) InjectProvidersIntoHTTPExceptionFilters(r *HTTP, cb fu
 	return exceptionFilterItemArr
 }
 
-func BuildHTTPCatchMiddleware(catchEvent string, catchFns []HTTPCatch) ctx.HTTPHandler {
-	return func(c *ctx.HTTPContext) {
-		c.Event.On(catchEvent, func(args ...any) {
-			p := args[0].(CatchEventPayload)
-			catchFnIndex := p.Index
-
-			defer func() {
-				if rec := recover(); rec != nil {
-					c.Event.Emit(catchEvent, CatchEventPayload{Ctx: p.Ctx, Recovered: rec, Index: catchFnIndex + 1})
-				}
-			}()
-
-			catchFns[catchFnIndex](p.Ctx.(*ctx.HTTPContext), NormalizeRecovered(p.Recovered))
-		})
-
-		c.Next()
+func RunHTTPCatchChain(c *ctx.HTTPContext, catchFns []HTTPCatch, rec any) {
+	if len(catchFns) == 0 {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			RunHTTPCatchChain(c, catchFns[1:], r)
+		}
+	}()
+
+	catchFns[0](c, NormalizeRecovered(rec))
 }

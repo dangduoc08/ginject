@@ -136,8 +136,8 @@ func runCatchChain(conn *WSConnection, ws *WS, c *ctx.WSContext, pattern string,
 		reply(conn, TypeError, payloadID, data)
 	})
 
-	if _, ok := ws.catchFnsByEvent[pattern]; ok {
-		c.Event.Emit(pattern, common.CatchEventPayload{Ctx: c, Recovered: rec, Index: 0})
+	if catchFns, ok := ws.catchFnsByEvent[pattern]; ok {
+		common.RunWSCatchChain(c, catchFns, rec)
 		return
 	}
 

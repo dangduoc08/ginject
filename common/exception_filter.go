@@ -45,14 +45,6 @@ func ExceptionFilterShapeError(exceptionFilterable any) error {
 	))
 }
 
-// Ctx holds either *ctx.HTTPContext or *ctx.WSContext depending on
-// which transport's catch-chain published this payload.
-type CatchEventPayload struct {
-	Ctx       any
-	Recovered any
-	Index     int
-}
-
 func NormalizeRecovered(rec any) *exception.Exception {
 	if ex, ok := rec.(exception.Exception); ok {
 		return &ex

@@ -124,55 +124,37 @@ func TestAsHTTPExceptionFilter_WrongShape(t *testing.T) {
 	}
 }
 
-func TestBuildHTTPCatchMiddleware_CallsNext(t *testing.T) {
+func TestRunHTTPCatchChain_InvokesCatch(t *testing.T) {
 	c := ctx.NewHTTPContext()
-	called := false
-	c.Next = func() { called = true }
-
-	mw := BuildHTTPCatchMiddleware("test.event", []HTTPCatch{
-		func(*ctx.HTTPContext, *exception.Exception) {},
-	})
-	mw(c)
-
-	if !called {
-		t.Error(test.DiffMessage(called, true, "BuildHTTPCatchMiddleware must call Next"))
-	}
-}
-
-func TestBuildHTTPCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
-	c := ctx.NewHTTPContext()
-	c.Next = func() {}
 
 	var gotEx *exception.Exception
-	mw := BuildHTTPCatchMiddleware("test.event", []HTTPCatch{
+	RunHTTPCatchChain(c, []HTTPCatch{
 		func(_ *ctx.HTTPContext, ex *exception.Exception) { gotEx = ex },
-	})
-	mw(c)
-
-	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
+	}, "boom")
 
 	if gotEx == nil {
-		t.Fatal(test.DiffMessage(nil, "non-nil exception", "publishing to the subscribed event must invoke the catch function"))
+		t.Fatal(test.DiffMessage(nil, "non-nil exception", "RunHTTPCatchChain must invoke the catch function"))
 	}
 	if gotEx.GetMessage() != "boom" {
 		t.Error(test.DiffMessage(gotEx.GetMessage(), "boom", "the recovered value must be normalized before being passed to Catch"))
 	}
 }
 
-func TestBuildHTTPCatchMiddleware_FallsBackToNextIndexOnPanic(t *testing.T) {
+func TestRunHTTPCatchChain_FallsBackToNextOnPanic(t *testing.T) {
 	c := ctx.NewHTTPContext()
-	c.Next = func() {}
 
 	secondCalled := false
-	mw := BuildHTTPCatchMiddleware("test.event", []HTTPCatch{
+	RunHTTPCatchChain(c, []HTTPCatch{
 		func(*ctx.HTTPContext, *exception.Exception) { panic("filter itself panics") },
 		func(*ctx.HTTPContext, *exception.Exception) { secondCalled = true },
-	})
-	mw(c)
-
-	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
+	}, "boom")
 
 	if !secondCalled {
-		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next index"))
+		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next one in the chain"))
 	}
+}
+
+func TestRunHTTPCatchChain_EmptyIsNoop(t *testing.T) {
+	c := ctx.NewHTTPContext()
+	RunHTTPCatchChain(c, nil, "boom")
 }

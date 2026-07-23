@@ -63,13 +63,8 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 
 	defer func() {
 		if rec := recover(); rec != nil {
-
-			// Execute exception filters if any
-			// normally this one always ok
-			// since we always set global exception filter as default
-			if _, ok := http.catchFnsByRoute[catchEvent]; ok {
-
-				c.Event.Emit(catchEvent, common.CatchEventPayload{Ctx: c, Recovered: rec, Index: 0})
+			if catchFns, ok := http.catchFnsByRoute[catchEvent]; ok {
+				common.RunHTTPCatchChain(c, catchFns, rec)
 			}
 		}
 	}()

@@ -92,55 +92,37 @@ func TestAsWSExceptionFilter_WrongShape(t *testing.T) {
 	}
 }
 
-func TestBuildWSCatchMiddleware_CallsNext(t *testing.T) {
+func TestRunWSCatchChain_InvokesCatch(t *testing.T) {
 	c := ctx.NewWSContext()
-	called := false
-	c.Next = func() { called = true }
-
-	mw := BuildWSCatchMiddleware("test.event", []WSCatch{
-		func(*ctx.WSContext, *exception.Exception) {},
-	})
-	mw(c)
-
-	if !called {
-		t.Error(test.DiffMessage(called, true, "BuildWSCatchMiddleware must call Next"))
-	}
-}
-
-func TestBuildWSCatchMiddleware_InvokesCatchOnPublish(t *testing.T) {
-	c := ctx.NewWSContext()
-	c.Next = func() {}
 
 	var gotEx *exception.Exception
-	mw := BuildWSCatchMiddleware("test.event", []WSCatch{
+	RunWSCatchChain(c, []WSCatch{
 		func(_ *ctx.WSContext, ex *exception.Exception) { gotEx = ex },
-	})
-	mw(c)
-
-	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
+	}, "boom")
 
 	if gotEx == nil {
-		t.Fatal(test.DiffMessage(nil, "non-nil exception", "publishing to the subscribed event must invoke the catch function"))
+		t.Fatal(test.DiffMessage(nil, "non-nil exception", "RunWSCatchChain must invoke the catch function"))
 	}
 	if gotEx.GetMessage() != "boom" {
 		t.Error(test.DiffMessage(gotEx.GetMessage(), "boom", "the recovered value must be normalized before being passed to Catch"))
 	}
 }
 
-func TestBuildWSCatchMiddleware_FallsBackToNextIndexOnPanic(t *testing.T) {
+func TestRunWSCatchChain_FallsBackToNextOnPanic(t *testing.T) {
 	c := ctx.NewWSContext()
-	c.Next = func() {}
 
 	secondCalled := false
-	mw := BuildWSCatchMiddleware("test.event", []WSCatch{
+	RunWSCatchChain(c, []WSCatch{
 		func(*ctx.WSContext, *exception.Exception) { panic("filter itself panics") },
 		func(*ctx.WSContext, *exception.Exception) { secondCalled = true },
-	})
-	mw(c)
-
-	c.Event.Emit("test.event", CatchEventPayload{Ctx: c, Recovered: "boom", Index: 0})
+	}, "boom")
 
 	if !secondCalled {
-		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next index"))
+		t.Error(test.DiffMessage(secondCalled, true, "a panicking catch fn must fall back to the next one in the chain"))
 	}
+}
+
+func TestRunWSCatchChain_EmptyIsNoop(t *testing.T) {
+	c := ctx.NewWSContext()
+	RunWSCatchChain(c, nil, "boom")
 }
