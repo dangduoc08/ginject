@@ -143,11 +143,11 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //  1. initProviders must run first — it builds injectedProviders and
 //     app.module (parsed from m), which everything below reads from.
 //  2. initWS must run right after that, and BEFORE initExceptionFilters/
-//     bindCatchMiddlewares/initGuards/initInterceptors/initMainHandlers —
-//     those functions write into app.ws.catchFnsByEvent / app.ws.eventMatcher
-//     whenever app.module has WS handlers. app.ws stays nil if EnableWS was
-//     never called, so every one of those call sites is guarded with
-//     app.ws != nil rather than assuming it's set.
+//     initGuards/initInterceptors/initMainHandlers — those functions write
+//     into app.ws.catchFnsByEvent / app.ws.eventMatcher whenever app.module
+//     has WS handlers. app.ws stays nil if EnableWS was never called, so
+//     every one of those call sites is guarded with app.ws != nil rather
+//     than assuming it's set.
 //  3. initDevtool must run last — it reads the fully-populated
 //     module/route state to build the devtool snapshot.
 //
@@ -159,7 +159,6 @@ func (app *App) Create(m *Module) {
 	app.initWS(injectedProviders)
 	app.initMiddlewares(injectedProviders)
 	app.initExceptionFilters(injectedProviders)
-	app.bindCatchMiddlewares()
 	app.initGuards(injectedProviders)
 	app.initInterceptors(injectedProviders)
 	app.initMainHandlers()
@@ -248,22 +247,6 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 					app.ws.catchFnsByEvent[h.EventName] = append(app.ws.catchFnsByEvent[h.EventName], wsCatch)
 				}
 			}
-		}
-	}
-}
-
-func (app *App) bindCatchMiddlewares() {
-	for pattern, catchFns := range app.http.catchFnsByRoute {
-		mw := common.BuildHTTPCatchMiddleware(pattern, catchFns)
-		method, route, version := routing.PatternToMethodRouteVersion(pattern)
-		httpMethod := routing.OperationsMapHTTPMethods[method]
-		app.http.route.For([]string{httpMethod}, route, version)(mw)
-	}
-
-	if app.ws != nil {
-		for pattern, catchFns := range app.ws.catchFnsByEvent {
-			mw := common.BuildWSCatchMiddleware(pattern, catchFns)
-			app.ws.eventMatcher.AddMiddlewares(pattern, mw)
 		}
 	}
 }

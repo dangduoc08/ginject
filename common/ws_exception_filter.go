@@ -81,21 +81,16 @@ func (e *ExceptionFilter) InjectProvidersIntoWSExceptionFilters(ws *WS, cb func(
 	return exceptionFilterItemArr
 }
 
-func BuildWSCatchMiddleware(catchEvent string, catchFns []WSCatch) ctx.WSHandler {
-	return func(c *ctx.WSContext) {
-		c.Event.On(catchEvent, func(args ...any) {
-			p := args[0].(CatchEventPayload)
-			catchFnIndex := p.Index
-
-			defer func() {
-				if rec := recover(); rec != nil {
-					c.Event.Emit(catchEvent, CatchEventPayload{Ctx: p.Ctx, Recovered: rec, Index: catchFnIndex + 1})
-				}
-			}()
-
-			catchFns[catchFnIndex](p.Ctx.(*ctx.WSContext), NormalizeRecovered(p.Recovered))
-		})
-
-		c.Next()
+func RunWSCatchChain(c *ctx.WSContext, catchFns []WSCatch, rec any) {
+	if len(catchFns) == 0 {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			RunWSCatchChain(c, catchFns[1:], r)
+		}
+	}()
+
+	catchFns[0](c, NormalizeRecovered(rec))
 }
