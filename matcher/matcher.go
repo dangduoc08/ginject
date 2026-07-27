@@ -7,7 +7,7 @@ type Kind uint8
 const (
 	KindExact Kind = iota
 	KindGlobal
-	KindSingleSuffix
+	KindSuffixWildcard
 	KindComplex
 )
 
@@ -19,15 +19,15 @@ type Pattern struct {
 }
 
 func Parse(raw string) Pattern {
-	if raw == "*" || raw == ">" {
-		return Pattern{raw: raw, segments: []string{">"}, kind: KindGlobal}
+	if raw == "*" {
+		return Pattern{raw: raw, kind: KindGlobal}
 	}
 
 	segs := strings.Split(raw, ".")
 
 	hasWild := false
 	for _, s := range segs {
-		if s == "*" || s == ">" {
+		if s == "*" {
 			hasWild = true
 			break
 		}
@@ -40,7 +40,7 @@ func Parse(raw string) Pattern {
 	if len(segs) >= 2 && segs[len(segs)-1] == "*" {
 		simple := true
 		for _, s := range segs[:len(segs)-1] {
-			if s == "*" || s == ">" {
+			if s == "*" {
 				simple = false
 				break
 			}
@@ -49,7 +49,7 @@ func Parse(raw string) Pattern {
 			return Pattern{
 				raw:          raw,
 				segments:     segs,
-				kind:         KindSingleSuffix,
+				kind:         KindSuffixWildcard,
 				simplePrefix: strings.Join(segs[:len(segs)-1], "."),
 			}
 		}
@@ -70,37 +70,39 @@ func Match(p Pattern, topic string) bool {
 		return true
 	case KindExact:
 		return p.raw == topic
-	case KindSingleSuffix:
+	case KindSuffixWildcard:
 		if !strings.HasPrefix(topic, p.simplePrefix+".") {
 			return false
 		}
-		rest := topic[len(p.simplePrefix)+1:]
-		return len(rest) > 0 && !strings.Contains(rest, ".")
+		return len(topic) > len(p.simplePrefix)+1
 	case KindComplex:
 		return matchSegments(p.segments, strings.Split(topic, "."))
 	}
 	return false
 }
 
+// matchSegments matches pattern tokens against topic tokens. "*" consumes
+// exactly one topic segment, except when it is the pattern's last token, in
+// which case it greedily consumes one or more remaining segments.
 func matchSegments(pattern, topic []string) bool {
 	pi, ti := 0, 0
 	for pi < len(pattern) {
-		switch pattern[pi] {
-		case ">":
-			return ti < len(topic)
-		case "*":
+		if pattern[pi] == "*" {
+			if pi == len(pattern)-1 {
+				return ti < len(topic)
+			}
 			if ti >= len(topic) {
 				return false
 			}
 			pi++
 			ti++
-		default:
-			if ti >= len(topic) || pattern[pi] != topic[ti] {
-				return false
-			}
-			pi++
-			ti++
+			continue
 		}
+		if ti >= len(topic) || pattern[pi] != topic[ti] {
+			return false
+		}
+		pi++
+		ti++
 	}
 	return pi == len(pattern) && ti == len(topic)
 }
