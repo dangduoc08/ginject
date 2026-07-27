@@ -135,7 +135,20 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				defer app.releaseCtx(c)
 
 				c.Request = r
-				return app.ws.handshake(c)
+				c.Status(http.StatusSwitchingProtocols)
+				err := app.ws.handshake(c)
+				if app.event.HasListeners(trace.EventName) {
+					app.event.Emit(trace.EventName, trace.Event{
+						ID:        c.GetID(),
+						Stage:     trace.StageComplete,
+						Transport: trace.TransportHTTP,
+						Operation: c.Method,
+						Target:    c.URL.Path,
+						Code:      c.Code,
+						Duration:  time.Since(c.Timestamp),
+					})
+				}
+				return err
 			},
 			Handler: websocket.Handler(app.ws.handleRequest),
 		})
@@ -194,6 +207,7 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 
 	app.wsConfig.injectedProviders = injectedProviders
 	app.wsConfig.logger = app.Logger
+	app.wsConfig.event = app.event
 	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
 		return invokeWSHandlerByProviders(f, injectedProviders, c)
 	}
@@ -314,13 +328,13 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
-			mw := buildUseMiddleware(gm.Use, app.event, name)
+			mw := buildUseMiddleware(gm.Use, app.event, name, trace.TransportHTTP)
 			app.http.route.Use(mw)
 		}
 	}
 
 	for _, rm := range app.module.HTTPMiddlewares {
-		mw := buildUseMiddleware(rm.Handler.(common.Use), app.event, rm.Name)
+		mw := buildUseMiddleware(rm.Handler.(common.Use), app.event, rm.Name, trace.TransportHTTP)
 		httpMethod := routing.OperationsMapHTTPMethods[rm.Method]
 		app.http.route.For([]string{httpMethod}, rm.Route, rm.Version)(mw)
 	}
