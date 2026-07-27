@@ -8,11 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dangduoc08/ginject/accesslog"
+	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
+	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/routing"
+	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
 	"golang.org/x/net/websocket"
 )
@@ -22,8 +26,13 @@ type App struct {
 	ctxPool   sync.Pool
 	wsCtxPool sync.Pool
 
+	event *event.Event
+
 	isDevtoolEnabled bool
 	devtool          *devtool.Devtool
+
+	isAccessLogEnabled bool
+	accesslog          *accesslog.AccessLog
 
 	ws          *WS
 	wsConfig    *WSConfig
@@ -96,8 +105,9 @@ type WithValueKey = common.WithValueKey
 
 func New() *App {
 	app := &App{
-		http: newHTTP(),
-		ws:   nil,
+		http:  newHTTP(),
+		ws:    nil,
+		event: event.NewEvent(),
 		ctxPool: sync.Pool{
 			New: func() any {
 				return ctx.NewHTTPContext()
@@ -136,6 +146,17 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer app.releaseCtx(c)
 	c.ResponseWriter.Header().Set(ctx.RequestID, c.GetID())
 	app.http.handleRequest(c)
+	if app.event.HasListeners(trace.EventName) {
+		app.event.Emit(trace.EventName, trace.Event{
+			ID:        c.GetID(),
+			Stage:     trace.StageComplete,
+			Transport: trace.TransportHTTP,
+			Operation: c.Method,
+			Target:    c.URL.Path,
+			Code:      c.Code,
+			Duration:  time.Since(c.Timestamp),
+		})
+	}
 }
 
 // Order matters here and is easy to break by accident:
@@ -163,6 +184,7 @@ func (app *App) Create(m *Module) {
 	app.initInterceptors(injectedProviders)
 	app.initMainHandlers()
 	app.initDevtool()
+	app.initAccessLog()
 }
 
 func (app *App) initWS(injectedProviders map[string]Provider) {
@@ -178,6 +200,17 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.newCtx = func() *ctx.WSContext { return app.wsCtxPool.Get().(*ctx.WSContext) }
 	app.wsConfig.releaseCtx = app.releaseWSCtx
 	app.ws = NewWS(app.wsConfig)
+}
+
+func (app *App) initAccessLog() {
+	if !app.isAccessLogEnabled {
+		return
+	}
+
+	app.accesslog = accesslog.NewAccessLog(&accesslog.AccessLogConfig{
+		Event:  app.event,
+		Logger: app.Logger,
+	})
 }
 
 func (app *App) initLogger() {
@@ -196,7 +229,25 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 	}
 	app.injectedProviders = injectedProviders
 
-	resolveAndCallHandler := func(f any, c *ctx.HTTPContext) []reflect.Value {
+	nameByPattern := make(map[string]string, len(app.module.HTTPMainHandlers))
+	for _, mh := range app.module.HTTPMainHandlers {
+		nameByPattern[mh.Pattern] = mh.Name
+	}
+
+	resolveAndCallHandler := func(pattern string, f any, c *ctx.HTTPContext) []reflect.Value {
+		if !app.event.HasListeners(trace.EventName) {
+			return invokeHTTPHandlerByProviders(f, injectedProviders, c)
+		}
+
+		start := time.Now()
+		defer func() {
+			app.event.Emit(trace.EventName, trace.Event{
+				ID:       c.GetID(),
+				Stage:    trace.StageHandler,
+				Name:     nameByPattern[pattern],
+				Duration: time.Since(start),
+			})
+		}()
 		return invokeHTTPHandlerByProviders(f, injectedProviders, c)
 	}
 	app.http.resolveAndCallHandler = resolveAndCallHandler
@@ -209,7 +260,8 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 		ef := app.module.HTTPExceptionFilters[i]
 		httpMethod := routing.OperationsMapHTTPMethods[ef.Method]
 		endpoint := routing.MethodRouteVersionToPattern(httpMethod, ef.Route, ef.Version)
-		app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], ef.Handler.(common.HTTPCatch))
+		catchFn := traceHTTPCatch(app.event, ef.Name, ef.Handler.(common.HTTPCatch))
+		app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], catchFn)
 	}
 
 	if app.ws != nil {
@@ -222,6 +274,7 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 	if len(app.globalExceptionFilters) > 0 {
 		for i := len(app.globalExceptionFilters) - 1; i >= 0; i-- {
 			gef := app.globalExceptionFilters[i]
+			name := reflect.TypeOf(gef).String()
 			newGef, err := injectDependencies(gef, "exceptionFilter", injectedProviders)
 			if err != nil {
 				panic(err)
@@ -235,10 +288,11 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 			}
 
 			if isHTTPFilter {
+				tracedHTTPCatch := traceHTTPCatch(app.event, name, httpCatch)
 				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					endpoint := routing.MethodRouteVersionToPattern(httpMethod, h.Route, h.Version)
-					app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], httpCatch)
+					app.http.catchFnsByRoute[endpoint] = append(app.http.catchFnsByRoute[endpoint], tracedHTTPCatch)
 				}
 			}
 
@@ -254,18 +308,19 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 	if len(app.globalMiddlewares) > 0 {
 		for _, gm := range app.globalMiddlewares {
+			name := reflect.TypeOf(gm).String()
 			newGM, err := injectDependencies(gm, "middleware", injectedProviders)
 			if err != nil {
 				panic(err)
 			}
 			gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
-			mw := buildUseMiddleware(gm.Use)
+			mw := buildUseMiddleware(gm.Use, app.event, name)
 			app.http.route.Use(mw)
 		}
 	}
 
 	for _, rm := range app.module.HTTPMiddlewares {
-		mw := buildUseMiddleware(rm.Handler.(common.Use))
+		mw := buildUseMiddleware(rm.Handler.(common.Use), app.event, rm.Name)
 		httpMethod := routing.OperationsMapHTTPMethods[rm.Method]
 		app.http.route.For([]string{httpMethod}, rm.Route, rm.Version)(mw)
 	}
@@ -274,6 +329,7 @@ func (app *App) initMiddlewares(injectedProviders map[string]Provider) {
 func (app *App) initGuards(injectedProviders map[string]Provider) {
 	if len(app.globalGuarders) > 0 {
 		for _, gg := range app.globalGuarders {
+			name := reflect.TypeOf(gg).String()
 			newGG, err := injectDependencies(gg, "guard", injectedProviders)
 			if err != nil {
 				panic(err)
@@ -287,7 +343,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 
 			if isHTTPGuard {
-				mw := common.BuildHTTPGuardMiddleware(httpCanActivate)
+				mw := traceHTTPHandler(app.event, trace.StageGuard, name, common.BuildHTTPGuardMiddleware(httpCanActivate))
 				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
@@ -304,7 +360,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 	}
 
 	for _, mg := range app.module.HTTPGuards {
-		mw := common.BuildHTTPGuardMiddleware(mg.Handler.(common.HTTPCanActivate))
+		mw := traceHTTPHandler(app.event, trace.StageGuard, mg.Name, common.BuildHTTPGuardMiddleware(mg.Handler.(common.HTTPCanActivate)))
 		httpMethod := routing.OperationsMapHTTPMethods[mg.Method]
 		app.http.route.For([]string{httpMethod}, mg.Route, mg.Version)(mw)
 	}
@@ -317,9 +373,34 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 	}
 }
 
+func tagInterceptorName(ev *event.Event, endpoint, name string, h ctx.HTTPHandler) ctx.HTTPHandler {
+	return func(c *ctx.HTTPContext) {
+		h(c)
+		if !ev.HasListeners(trace.EventName) {
+			return
+		}
+		if aggregations, ok := c.Context().Value(WithValueKey(endpoint)).([]*aggregation.Aggregation); ok && len(aggregations) > 0 {
+			aggregations[len(aggregations)-1].Name = name
+		}
+	}
+}
+
 func (app *App) initInterceptors(injectedProviders map[string]Provider) {
+	app.http.emitPostInterceptor = func(c *ctx.HTTPContext, name string, duration time.Duration) {
+		if !app.event.HasListeners(trace.EventName) {
+			return
+		}
+		app.event.Emit(trace.EventName, trace.Event{
+			ID:       c.GetID(),
+			Stage:    trace.StagePostInterceptor,
+			Name:     name,
+			Duration: duration,
+		})
+	}
+
 	if len(app.globalInterceptors) > 0 {
 		for _, gi := range app.globalInterceptors {
+			name := reflect.TypeOf(gi).String()
 			newGI, err := injectDependencies(gi, "interceptor", injectedProviders)
 			if err != nil {
 				panic(err)
@@ -336,7 +417,8 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 				for _, h := range app.module.HTTPMainHandlers {
 					httpMethod := routing.OperationsMapHTTPMethods[h.Method]
 					endpoint := routing.MethodRouteVersionToPattern(httpMethod, h.Route, h.Version)
-					mw := common.BuildHTTPInterceptMiddleware(endpoint, httpIntercept)
+					mw := traceHTTPHandler(app.event, trace.StagePreInterceptor, name, common.BuildHTTPInterceptMiddleware(endpoint, httpIntercept))
+					mw = tagInterceptorName(app.event, endpoint, name, mw)
 					app.http.route.For([]string{httpMethod}, h.Route, h.Version)(mw)
 				}
 			}
@@ -353,7 +435,8 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 	for _, mi := range app.module.HTTPInterceptors {
 		httpMethod := routing.OperationsMapHTTPMethods[mi.Method]
 		endpoint := routing.MethodRouteVersionToPattern(httpMethod, mi.Route, mi.Version)
-		mw := common.BuildHTTPInterceptMiddleware(endpoint, mi.Handler.(common.HTTPIntercept))
+		mw := traceHTTPHandler(app.event, trace.StagePreInterceptor, mi.Name, common.BuildHTTPInterceptMiddleware(endpoint, mi.Handler.(common.HTTPIntercept)))
+		mw = tagInterceptorName(app.event, endpoint, mi.Name, mw)
 		app.http.route.For([]string{httpMethod}, mi.Route, mi.Version)(mw)
 	}
 
@@ -419,6 +502,12 @@ func (app *App) EnableVersioning(v versioning.Versioning) *App {
 
 func (app *App) EnableDevtool() *App {
 	app.isDevtoolEnabled = true
+
+	return app
+}
+
+func (app *App) EnableAccessLog() *App {
+	app.isAccessLogEnabled = true
 
 	return app
 }

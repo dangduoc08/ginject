@@ -8,6 +8,7 @@ type Operator struct {
 }
 
 type Aggregation struct {
+	Name                string
 	IsMainHandlerCalled bool
 	InterceptorData     any
 	mainData            any
