@@ -8,14 +8,22 @@ type Context interface {
 	GetID() string
 }
 
+const requestIDLength = 8
+
 type contextID struct {
 	id string
 }
 
 func (c *contextID) SetID() {
-	if c.id == "" {
-		c.id, _ = crypto.UUID()
+	if c.id != "" {
+		return
 	}
+
+	id, _ := crypto.UUID()
+	if len(id) > requestIDLength {
+		id = id[:requestIDLength]
+	}
+	c.id = id
 }
 
 func (c *contextID) GetID() string {
