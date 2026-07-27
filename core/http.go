@@ -6,6 +6,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
@@ -24,7 +25,8 @@ type HTTP struct {
 	catchFnsByRoute               map[string][]common.HTTPCatch
 	lastWildcardSlashIndexByRoute map[string]int
 
-	resolveAndCallHandler func(f any, c *ctx.HTTPContext) []reflect.Value
+	resolveAndCallHandler func(pattern string, f any, c *ctx.HTTPContext) []reflect.Value
+	emitPostInterceptor   func(c *ctx.HTTPContext, name string, duration time.Duration)
 }
 
 func newHTTP() *HTTP {
@@ -121,7 +123,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 					injectableHandler := http.route.InjectableHandlers[matchedRoute]
 
 					// data return from main handler
-					data := http.resolveAndCallHandler(injectableHandler, c)
+					data := http.resolveAndCallHandler(matchedRoute, injectableHandler, c)
 
 					if aggregations, ok := c.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
 						var aggregatedData any
@@ -146,9 +148,14 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 								}
 
 								aggregation.SetMainData(aggregatedData)
+								start := time.Now()
 								aggregatedData = aggregation.Aggregate()
+								http.emitPostInterceptor(c, aggregation.Name, time.Since(start))
 							} else {
 								isMainHandlerCalled = false
+								for j := i; j >= 0; j-- {
+									http.emitPostInterceptor(c, aggregations[j].Name, 0)
+								}
 								if lastWildcardSlashIndex, ok := http.lastWildcardSlashIndexByRoute[matchedRoute]; ok {
 									var dir any
 

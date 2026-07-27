@@ -28,6 +28,8 @@ func main() {
 		Path: "ws",
 	})
 
+	app.EnableAccessLog()
+
 	// app.
 	// 	EnableVersioning(versioning.Versioning{
 	// 		Type: versioning.HeaderVersion,
