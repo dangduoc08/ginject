@@ -47,14 +47,17 @@ func TestNewHasGlobalExceptionFilter(t *testing.T) {
 	}
 }
 
-func TestGetContextIDFromHeader(t *testing.T) {
+func TestGetContextIDIgnoresRequestIDHeader(t *testing.T) {
 	c := ctx.NewHTTPContext()
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	r.Header.Set(ctx.RequestID, "test-id-123")
 	c.Init(httptest.NewRecorder(), r)
 
-	if c.GetID() != "test-id-123" {
-		t.Error(test.DiffMessage(c.GetID(), "test-id-123", "Init should use X-Request-Id header"))
+	if c.GetID() == "test-id-123" {
+		t.Error(test.DiffMessage(c.GetID(), "<generated UUID, not the header value>", "Init must always generate its own ID and ignore the X-Request-Id header"))
+	}
+	if c.GetID() == "" {
+		t.Error(test.DiffMessage(c.GetID(), "<non-empty UUID>", "Init must still generate an ID when a header is present"))
 	}
 }
 
@@ -141,18 +144,22 @@ func TestServeHTTPSetsRequestIDHeader(t *testing.T) {
 	}
 }
 
-func TestServeHTTPPropagatesRequestID(t *testing.T) {
+func TestServeHTTPSetsGeneratedRequestID(t *testing.T) {
 	app := New()
 	app.Create(ModuleBuilder().Build())
 
-	const fixedID = "fixed-request-id"
+	const clientID = "client-supplied-request-id"
 	r := httptest.NewRequest(http.MethodGet, "/notfound", nil)
-	r.Header.Set(ctx.RequestID, fixedID)
+	r.Header.Set(ctx.RequestID, clientID)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, r)
 
-	if w.Header().Get(ctx.RequestID) != fixedID {
-		t.Error(test.DiffMessage(w.Header().Get(ctx.RequestID), fixedID, "ServeHTTP should echo provided X-Request-Id"))
+	got := w.Header().Get(ctx.RequestID)
+	if got == "" {
+		t.Error(test.DiffMessage(got, "<non-empty UUID>", "ServeHTTP should set a generated request ID on the response"))
+	}
+	if got == clientID {
+		t.Error(test.DiffMessage(got, "<generated UUID, not the client-supplied one>", "ServeHTTP should not echo back a client-supplied X-Request-Id"))
 	}
 }
 
