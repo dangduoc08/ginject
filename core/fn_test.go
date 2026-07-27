@@ -544,7 +544,7 @@ func TestBuildUseMiddleware_NoListener_StillCallsNext(t *testing.T) {
 	c := newHTTPContext()
 	var nextCalled bool
 	c.Next = func() { nextCalled = true }
-	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "Test.Middleware")
+	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "Test.Middleware", trace.TransportHTTP)
 	mw(c)
 	if !nextCalled {
 		t.Error(test.DiffMessage(false, true, "middleware should still call next when no listener is attached"))
@@ -560,13 +560,13 @@ func TestBuildUseMiddleware_EmitsOnlyWhenListenerAttached(t *testing.T) {
 		te := args[0].(trace.Event)
 		got = &te
 	})
-	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "Test.Middleware")
+	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "Test.Middleware", trace.TransportHTTP)
 	mw(c)
 	if got == nil {
 		t.Fatal("expected a trace event to be emitted when a listener is attached")
 	}
-	if got.Stage != trace.StageMiddleware || got.Name != "Test.Middleware" {
-		t.Error(test.DiffMessage([]any{got.Stage, got.Name}, []any{trace.StageMiddleware, "Test.Middleware"}, "buildUseMiddleware emitted event fields"))
+	if got.Stage != trace.StageMiddleware || got.Name != "Test.Middleware" || got.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Name, got.Transport}, []any{trace.StageMiddleware, "Test.Middleware", trace.TransportHTTP}, "buildUseMiddleware emitted event fields"))
 	}
 }
 

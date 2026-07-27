@@ -3,6 +3,7 @@ package core
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
+	"golang.org/x/net/websocket"
 )
 
 type mockLogger struct{}
@@ -605,5 +607,52 @@ func TestTrace_InterceptorNoListener_NoPostEventOverhead(t *testing.T) {
 
 	if w.Body.String() != "ok" {
 		t.Error(test.DiffMessage(w.Body.String(), "ok", "request should complete normally with no trace listener attached"))
+	}
+}
+
+func TestTrace_WSHandshakeEmitsStageCompleteWithHTTPTransport(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var complete *trace.Event
+	var preMiddlewareTransport string
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StageMiddleware:
+			preMiddlewareTransport = te.Transport
+		case trace.StageComplete:
+			d := te
+			complete = &d
+		}
+	})
+
+	app.EnableWS(&WSConfig{Path: "/ws"}, traceMiddleware{})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	conn, err := websocket.Dial(wsURL, "", server.URL)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if preMiddlewareTransport != trace.TransportHTTP {
+		t.Error(test.DiffMessage(preMiddlewareTransport, trace.TransportHTTP, "handshake middleware trace event must report HTTP transport"))
+	}
+	if complete == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a StageComplete trace event for the WS handshake"))
+	}
+	if complete.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage(complete.Transport, trace.TransportHTTP, "WS handshake StageComplete must report HTTP transport, not WS, since the connection has not upgraded yet"))
 	}
 }

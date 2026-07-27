@@ -354,7 +354,7 @@ func BenchmarkBuildUseMiddleware_NoListener(b *testing.B) {
 	ev := event.NewEvent()
 	c := newHTTPContext()
 	c.Next = func() {}
-	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "bench.Middleware")
+	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "bench.Middleware", trace.TransportHTTP)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
@@ -367,7 +367,7 @@ func BenchmarkBuildUseMiddleware_WithListener(b *testing.B) {
 	ev.On(trace.EventName, func(args ...any) {})
 	c := newHTTPContext()
 	c.Next = func() {}
-	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "bench.Middleware")
+	mw := buildUseMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) { next() }, ev, "bench.Middleware", trace.TransportHTTP)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {

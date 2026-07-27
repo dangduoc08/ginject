@@ -7,8 +7,10 @@ import (
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
+	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/wsevent"
 	"golang.org/x/net/websocket"
 )
@@ -20,6 +22,7 @@ type WSConfig struct {
 	globalMiddlewares []common.MiddlewareFn
 	injectedProviders map[string]Provider
 	logger            common.Logger
+	event             *event.Event
 
 	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	newCtx                func() *ctx.WSContext
@@ -31,7 +34,7 @@ type WS struct {
 	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	connmgr               *WSConnmgr
 	path                  string
-	globalMiddlewares     []common.MiddlewareFn
+	globalMiddlewares     []ctx.HTTPHandler
 	injectedProviders     map[string]Provider
 	logger                common.Logger
 	eventMatcher          *wsevent.WSEvent
@@ -51,7 +54,7 @@ func NewWS(cfg *WSConfig) *WS {
 		eventMatcher:          wsevent.NewWSEvent(),
 		connmgr:               NewWSConnmgr(cfg.logger),
 		path:                  path,
-		globalMiddlewares:     resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders),
+		globalMiddlewares:     resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders, cfg.event),
 		injectedProviders:     cfg.injectedProviders,
 		logger:                cfg.logger,
 		newCtx:                cfg.newCtx,
@@ -61,14 +64,16 @@ func NewWS(cfg *WSConfig) *WS {
 	return &ws
 }
 
-func resolveGlobalMiddlewares(middlewares []common.MiddlewareFn, injectedProviders map[string]Provider) []common.MiddlewareFn {
-	resolved := make([]common.MiddlewareFn, len(middlewares))
+func resolveGlobalMiddlewares(middlewares []common.MiddlewareFn, injectedProviders map[string]Provider, ev *event.Event) []ctx.HTTPHandler {
+	resolved := make([]ctx.HTTPHandler, len(middlewares))
 	for i, gm := range middlewares {
+		name := reflect.TypeOf(gm).String()
 		newGM, err := injectDependencies(gm, "middleware", injectedProviders)
 		if err != nil {
 			panic(err)
 		}
-		resolved[i] = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
+		gm = common.Construct(newGM.Interface(), "NewMiddleware").(common.MiddlewareFn)
+		resolved[i] = buildUseMiddleware(gm.Use, ev, name, trace.TransportHTTP)
 	}
 
 	return resolved
@@ -91,7 +96,7 @@ func (ws *WS) handshake(c *ctx.HTTPContext) error {
 	for _, gm := range ws.globalMiddlewares {
 		if isNext {
 			isNext = false
-			gm.Use(c.Request, c.ResponseWriter, c.Next)
+			gm(c)
 		}
 	}
 
