@@ -14,7 +14,7 @@ func BenchmarkParse_Exact(b *testing.B) {
 	}
 }
 
-func BenchmarkParse_SingleSuffix(b *testing.B) {
+func BenchmarkParse_SuffixWildcard(b *testing.B) {
 	for b.Loop() {
 		_ = matcher.Parse("user.*")
 	}
@@ -22,7 +22,7 @@ func BenchmarkParse_SingleSuffix(b *testing.B) {
 
 func BenchmarkParse_Complex(b *testing.B) {
 	for b.Loop() {
-		_ = matcher.Parse("tenant.*.user.>")
+		_ = matcher.Parse("tenant.*.user.*")
 	}
 }
 
@@ -42,7 +42,7 @@ func BenchmarkMatch_Global(b *testing.B) {
 	}
 }
 
-func BenchmarkMatch_SingleSuffix_Hit(b *testing.B) {
+func BenchmarkMatch_SuffixWildcard_OneSegment(b *testing.B) {
 	p := matcher.Parse("user.*")
 	b.ResetTimer()
 	for b.Loop() {
@@ -50,11 +50,19 @@ func BenchmarkMatch_SingleSuffix_Hit(b *testing.B) {
 	}
 }
 
-func BenchmarkMatch_SingleSuffix_Miss(b *testing.B) {
+func BenchmarkMatch_SuffixWildcard_ManySegments(b *testing.B) {
 	p := matcher.Parse("user.*")
 	b.ResetTimer()
 	for b.Loop() {
-		sink = matcher.Match(p, "user.profile.updated")
+		sink = matcher.Match(p, "user.profile.settings.avatar.updated")
+	}
+}
+
+func BenchmarkMatch_SuffixWildcard_Miss(b *testing.B) {
+	p := matcher.Parse("user.*")
+	b.ResetTimer()
+	for b.Loop() {
+		sink = matcher.Match(p, "order.created")
 	}
 }
 
@@ -66,16 +74,16 @@ func BenchmarkMatch_Complex_3Seg(b *testing.B) {
 	}
 }
 
-func BenchmarkMatch_Complex_Multi(b *testing.B) {
-	p := matcher.Parse("tenant.*.user.>")
+func BenchmarkMatch_Complex_MiddleAndTrailing(b *testing.B) {
+	p := matcher.Parse("tenant.*.user.*")
 	b.ResetTimer()
 	for b.Loop() {
 		sink = matcher.Match(p, "tenant.abc.user.profile.updated")
 	}
 }
 
-func BenchmarkMatch_Complex_DeepTopic(b *testing.B) {
-	p := matcher.Parse("a.b.c.d.>")
+func BenchmarkMatch_SuffixWildcard_DeepTopic(b *testing.B) {
+	p := matcher.Parse("a.b.c.d.*")
 	b.ResetTimer()
 	for b.Loop() {
 		sink = matcher.Match(p, "a.b.c.d.e.f.g.h")

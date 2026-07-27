@@ -147,7 +147,7 @@ type MemoryBroker struct {
 	closeMu sync.RWMutex
 	// exactByTopic holds exact-match subscriptions, keyed by topic; each inner map is keyed by subscription ID.
 	exactByTopic map[string]map[string]*subscription
-	// prefixByPrefix holds single-suffix-wildcard subscriptions, keyed by topic prefix; each inner map is keyed by subscription ID.
+	// prefixByPrefix holds suffix-wildcard subscriptions, keyed by topic prefix; each inner map is keyed by subscription ID.
 	prefixByPrefix map[string]map[string]*subscription
 	globalByID     map[string]*subscription
 	complexByTopic map[string]*complexGroup
@@ -203,20 +203,23 @@ func newID() string {
 	return id
 }
 
-func lastDot(s string) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == '.' {
-			return i
+// forEachPrefixOf calls fn once for every dot-terminated prefix of topic,
+// longest first (e.g. "a.b.c" yields "a.b" then "a") so callers that want
+// the most specific suffix-wildcard match can stop at the first hit, and
+// callers that want every overlapping match (fan-out) can visit them all.
+func forEachPrefixOf(topic string, fn func(prefix string)) {
+	for i := len(topic) - 1; i >= 0; i-- {
+		if topic[i] == '.' {
+			fn(topic[:i])
 		}
 	}
-	return -1
 }
 
 func (b *MemoryBroker) removeFromBucket(sub *subscription) {
 	switch sub.pattern.Kind() {
 	case matcher.KindGlobal:
 		delete(b.globalByID, sub.id)
-	case matcher.KindSingleSuffix:
+	case matcher.KindSuffixWildcard:
 		pfx := sub.pattern.SimplePrefix()
 		delete(b.prefixByPrefix[pfx], sub.id)
 		if len(b.prefixByPrefix[pfx]) == 0 {
@@ -320,11 +323,11 @@ func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 	for _, sub := range b.exactByTopic[topic] {
 		addSub(sub)
 	}
-	if dot := lastDot(topic); dot >= 0 {
-		for _, sub := range b.prefixByPrefix[topic[:dot]] {
+	forEachPrefixOf(topic, func(prefix string) {
+		for _, sub := range b.prefixByPrefix[prefix] {
 			addSub(sub)
 		}
-	}
+	})
 	for _, sub := range b.globalByID {
 		addSub(sub)
 	}
@@ -417,7 +420,7 @@ func (b *MemoryBroker) subscribe(topic string, handler MessageHandler, once bool
 	switch pat.Kind() {
 	case matcher.KindGlobal:
 		b.globalByID[sub.id] = sub
-	case matcher.KindSingleSuffix:
+	case matcher.KindSuffixWildcard:
 		pfx := pat.SimplePrefix()
 		if b.prefixByPrefix[pfx] == nil {
 			b.prefixByPrefix[pfx] = make(map[string]*subscription)
@@ -529,7 +532,7 @@ func (b *MemoryBroker) Off(topic string) error {
 	switch pat.Kind() {
 	case matcher.KindGlobal:
 		b.globalByID = make(map[string]*subscription)
-	case matcher.KindSingleSuffix:
+	case matcher.KindSuffixWildcard:
 		delete(b.prefixByPrefix, pat.SimplePrefix())
 	case matcher.KindExact:
 		delete(b.exactByTopic, topic)
@@ -548,7 +551,7 @@ func (b *MemoryBroker) ListenerCount(topic string) int {
 	switch pat.Kind() {
 	case matcher.KindGlobal:
 		return len(b.globalByID)
-	case matcher.KindSingleSuffix:
+	case matcher.KindSuffixWildcard:
 		return len(b.prefixByPrefix[pat.SimplePrefix()])
 	case matcher.KindExact:
 		n := len(b.exactByTopic[topic])

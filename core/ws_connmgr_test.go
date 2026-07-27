@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/dangduoc08/ginject/broker2"
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
 )
@@ -224,10 +224,10 @@ func TestWSConnmgr_TouchUnknownConnIsNoop(t *testing.T) {
 func TestWSConnmgr_UnsubscribeRemovesOnlyMatchingTopic(t *testing.T) {
 	connmgr := NewWSConnmgr(log.NewLog(nil))
 
-	if err := connmgr.Subscribe("conn-1", "topic.a", func(*broker2.Message) {}); err != nil {
+	if err := connmgr.Subscribe("conn-1", "topic.a", func(*broker.Message) {}); err != nil {
 		t.Fatal(err)
 	}
-	if err := connmgr.Subscribe("conn-1", "topic.b", func(*broker2.Message) {}); err != nil {
+	if err := connmgr.Subscribe("conn-1", "topic.b", func(*broker.Message) {}); err != nil {
 		t.Fatal(err)
 	}
 
