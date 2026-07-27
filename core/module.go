@@ -462,6 +462,7 @@ func (m *Module) bindWSGuards(controller Controller, controllerType reflect.Type
 		m.WSGuards = append(m.WSGuards, common.WSLayer{
 			EventName: item.WS.EventName,
 			Handler:   item.WS.Common.Handler,
+			Name:      item.WS.Common.Name,
 		})
 	}
 }
@@ -478,6 +479,7 @@ func (m *Module) bindWSInterceptors(controller Controller, controllerType reflec
 		m.WSInterceptors = append(m.WSInterceptors, common.WSLayer{
 			EventName: item.WS.EventName,
 			Handler:   item.WS.Common.Handler,
+			Name:      item.WS.Common.Name,
 		})
 	}
 }
@@ -494,6 +496,7 @@ func (m *Module) bindWSExceptionFilters(controller Controller, controllerType re
 		m.WSExceptionFilters = append(m.WSExceptionFilters, common.WSLayer{
 			EventName: item.WS.EventName,
 			Handler:   item.WS.Common.Handler,
+			Name:      item.WS.Common.Name,
 		})
 	}
 }

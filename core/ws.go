@@ -4,6 +4,7 @@ import (
 	"errors"
 	stdHTTP "net/http"
 	"reflect"
+	"time"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -40,6 +41,8 @@ type WS struct {
 	eventMatcher          *wsevent.WSEvent
 	newCtx                func() *ctx.WSContext
 	releaseCtx            func(c *ctx.WSContext)
+	emitPostInterceptor   func(c *ctx.WSContext, name string, duration time.Duration)
+	emitComplete          func(c *ctx.WSContext, operation, target string)
 }
 
 func NewWS(cfg *WSConfig) *WS {
