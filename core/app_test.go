@@ -6,10 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
+	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
 )
 
@@ -322,4 +324,279 @@ func TestGlobalGuard_ShapelessGuardPanicsOnCreate(t *testing.T) {
 		}
 	}()
 	app.Create(ModuleBuilder().Controllers(globalGuardController{}).Build())
+}
+
+type traceMiddleware struct{}
+
+func (traceMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) { next() }
+
+type traceGuard struct{}
+
+func (traceGuard) CanActivate(_ *ctx.HTTPContext) bool { return true }
+
+type traceInterceptor struct{}
+
+func (traceInterceptor) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+	return agg.Pipe()
+}
+
+type tracePipelineController struct {
+	common.HTTP
+	common.Middleware
+	common.Guard
+	common.Interceptor
+}
+
+func (c tracePipelineController) NewController() Controller {
+	c.BindMiddleware(traceMiddleware{})
+	c.BindGuard(traceGuard{})
+	c.BindInterceptor(traceInterceptor{})
+	return c
+}
+func (c tracePipelineController) READ_tracepipeline() string { return "ok" }
+
+func TestTrace_EmitsPerStageAndComplete(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var stages []string
+	var complete *trace.Event
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageComplete {
+			d := te
+			complete = &d
+			return
+		}
+		stages = append(stages, te.Stage)
+	})
+
+	app.Create(ModuleBuilder().Controllers(tracePipelineController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/tracepipeline", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	wantStages := map[string]bool{
+		trace.StageMiddleware:     false,
+		trace.StageGuard:          false,
+		trace.StagePreInterceptor: false,
+		trace.StageHandler:        false,
+	}
+	for _, s := range stages {
+		wantStages[s] = true
+	}
+	for s, seen := range wantStages {
+		if !seen {
+			t.Errorf("expected a %q trace event to fire, stages seen: %v", s, stages)
+		}
+	}
+	if complete == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a complete trace event to fire"))
+	}
+	if complete.Code != http.StatusOK {
+		t.Error(test.DiffMessage(complete.Code, http.StatusOK, "complete trace event should carry the final status code"))
+	}
+}
+
+type tracePanicController struct {
+	common.HTTP
+}
+
+func (c tracePanicController) NewController() Controller { return c }
+func (c tracePanicController) READ_tracepanic() string {
+	panic(exception.InternalServerErrorException("boom"))
+}
+
+func TestTrace_ExceptionFilterStageFiresOnPanic(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var sawExceptionFilter bool
+	var complete *trace.Event
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageExceptionFilter {
+			sawExceptionFilter = true
+		}
+		if te.Stage == trace.StageComplete {
+			d := te
+			complete = &d
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(tracePanicController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/tracepanic", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if !sawExceptionFilter {
+		t.Error(test.DiffMessage(false, true, "expected an exceptionFilter trace event to fire for a panicking handler"))
+	}
+	if complete == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a complete trace event to fire even on error"))
+	}
+	if complete.Code != http.StatusInternalServerError {
+		t.Error(test.DiffMessage(complete.Code, http.StatusInternalServerError, "complete trace event should carry the error status code"))
+	}
+}
+
+type multiInterceptorA struct{}
+
+func (multiInterceptorA) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+	return agg.Pipe()
+}
+
+type multiInterceptorB struct{}
+
+func (multiInterceptorB) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+	return agg.Pipe()
+}
+
+type multiInterceptorC struct{}
+
+func (multiInterceptorC) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+	return agg.Pipe()
+}
+
+type multiInterceptorController struct {
+	common.HTTP
+	common.Interceptor
+}
+
+func (c multiInterceptorController) NewController() Controller {
+	c.BindInterceptor(multiInterceptorA{})
+	c.BindInterceptor(multiInterceptorB{})
+	c.BindInterceptor(multiInterceptorC{})
+	return c
+}
+func (c multiInterceptorController) READ_multiintercept() string { return "ok" }
+
+func TestTrace_InterceptorPrePostEventsMatchInCountAndOrder(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var pre []string
+	var post []string
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePreInterceptor:
+			pre = append(pre, te.Name)
+		case trace.StagePostInterceptor:
+			post = append(post, te.Name)
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(multiInterceptorController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/multiintercept", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(pre) != 3 {
+		t.Fatalf("expected 3 pre-interceptor events, got %d: %v", len(pre), pre)
+	}
+	if len(post) != len(pre) {
+		t.Fatalf("expected %d post-interceptor events to match the pre-interceptor count, got %d: %v", len(pre), len(post), post)
+	}
+
+	wantPost := make([]string, len(pre))
+	for i, name := range pre {
+		wantPost[len(pre)-1-i] = name
+	}
+	if post[0] != wantPost[0] || post[1] != wantPost[1] || post[2] != wantPost[2] {
+		t.Error(test.DiffMessage(post, wantPost, "post-interceptor events must fire in reverse execution order of the pre-interceptor events"))
+	}
+}
+
+type shortCircuitInterceptor struct{}
+
+func (shortCircuitInterceptor) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+	return "short-circuited"
+}
+
+type shortCircuitController struct {
+	common.HTTP
+	common.Interceptor
+}
+
+func (c shortCircuitController) NewController() Controller {
+	c.BindInterceptor(multiInterceptorA{})
+	c.BindInterceptor(shortCircuitInterceptor{})
+	c.BindInterceptor(multiInterceptorC{})
+	return c
+}
+func (c shortCircuitController) READ_shortcircuit() string { return "ok" }
+
+func TestTrace_InterceptorPrePostEventsMatchWhenShortCircuited(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var preCount, postCount int
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePreInterceptor:
+			preCount++
+		case trace.StagePostInterceptor:
+			postCount++
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(shortCircuitController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/shortcircuit", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if preCount != 3 {
+		t.Fatalf("expected 3 pre-interceptor events, got %d", preCount)
+	}
+	if postCount != preCount {
+		t.Error(test.DiffMessage(postCount, preCount, "post-interceptor event count must match pre-interceptor event count even when an interceptor short-circuits"))
+	}
+}
+
+func TestTrace_InterceptorNoListener_NoPostEventOverhead(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+	app.Create(ModuleBuilder().Controllers(multiInterceptorController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/multiintercept", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	if w.Body.String() != "ok" {
+		t.Error(test.DiffMessage(w.Body.String(), "ok", "request should complete normally with no trace listener attached"))
+	}
 }

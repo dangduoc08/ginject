@@ -11,12 +11,17 @@ import (
 	"path"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/internal/color"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/trace"
 )
 
 var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
@@ -382,37 +387,44 @@ func getHTTPDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) an
 }
 
 func returnHTTP(c *ctx.HTTPContext, data reflect.Value) {
-	switch data.Type().Kind() {
+	switch data.Kind() {
 	case
 		reflect.Map,
 		reflect.Slice,
 		reflect.Struct,
 		reflect.Interface:
 		c.JSON(data.Interface())
+	case reflect.Bool:
+		c.Text(strconv.FormatBool(data.Bool()))
 	case
-		reflect.Bool,
 		reflect.Int,
 		reflect.Int8,
 		reflect.Int16,
 		reflect.Int32,
-		reflect.Int64,
+		reflect.Int64:
+		c.Text(strconv.FormatInt(data.Int(), 10))
+	case
 		reflect.Uint,
 		reflect.Uint8,
 		reflect.Uint16,
 		reflect.Uint32,
-		reflect.Uint64,
-		reflect.Float32,
-		reflect.Float64,
+		reflect.Uint64:
+		c.Text(strconv.FormatUint(data.Uint(), 10))
+	case reflect.Float32:
+		c.Text(strconv.FormatFloat(data.Float(), 'g', -1, 32))
+	case reflect.Float64:
+		c.Text(strconv.FormatFloat(data.Float(), 'g', -1, 64))
+	case
 		reflect.Complex64,
 		reflect.Complex128:
-		c.Text(fmt.Sprint(data))
+		c.Text(fmt.Sprint(data.Interface()))
 	case
 		reflect.Pointer,
 		reflect.UnsafePointer:
 		c.Text(fmt.Sprint(data.UnsafePointer()))
 	case
 		reflect.String:
-		c.Text(data.Interface().(string))
+		c.Text(data.String())
 	case
 		reflect.Func:
 		c.Text(data.Type().String())
@@ -420,7 +432,7 @@ func returnHTTP(c *ctx.HTTPContext, data reflect.Value) {
 }
 
 func toWSMessage(data reflect.Value) string {
-	switch data.Type().Kind() {
+	switch data.Kind() {
 	case
 		reflect.Map,
 		reflect.Slice,
@@ -428,30 +440,37 @@ func toWSMessage(data reflect.Value) string {
 		reflect.Interface:
 		jsonBuf, _ := json.Marshal(data.Interface())
 		return string(jsonBuf)
+	case reflect.Bool:
+		return strconv.FormatBool(data.Bool())
 	case
-		reflect.Bool,
 		reflect.Int,
 		reflect.Int8,
 		reflect.Int16,
 		reflect.Int32,
-		reflect.Int64,
+		reflect.Int64:
+		return strconv.FormatInt(data.Int(), 10)
+	case
 		reflect.Uint,
 		reflect.Uint8,
 		reflect.Uint16,
 		reflect.Uint32,
-		reflect.Uint64,
-		reflect.Float32,
-		reflect.Float64,
+		reflect.Uint64:
+		return strconv.FormatUint(data.Uint(), 10)
+	case reflect.Float32:
+		return strconv.FormatFloat(data.Float(), 'g', -1, 32)
+	case reflect.Float64:
+		return strconv.FormatFloat(data.Float(), 'g', -1, 64)
+	case
 		reflect.Complex64,
 		reflect.Complex128:
-		return fmt.Sprint(data)
+		return fmt.Sprint(data.Interface())
 	case
 		reflect.Pointer,
 		reflect.UnsafePointer:
 		return fmt.Sprint(data.UnsafePointer())
 	case
 		reflect.String:
-		return data.Interface().(string)
+		return data.String()
 	case
 		reflect.Func:
 		return data.Type().String()
@@ -461,7 +480,7 @@ func toWSMessage(data reflect.Value) string {
 }
 
 func setStatusCode(c *ctx.HTTPContext, statusCode reflect.Value) {
-	switch statusCode.Type().Kind() {
+	switch statusCode.Kind() {
 	case reflect.Int:
 		status := int(statusCode.Int())
 		if http.StatusText(status) != "" {
@@ -546,7 +565,7 @@ func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c 
 	return reflect.ValueOf(f).Call(args)
 }
 
-func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
+func buildUseMiddleware(useFn common.Use, event *event.Event, name string) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -558,6 +577,43 @@ func buildUseMiddleware(useFn common.Use) ctx.HTTPHandler {
 			c.Next()
 		}
 
+		if !event.HasListeners(trace.EventName) {
+			useFn(c.Request, c.ResponseWriter, next)
+			return
+		}
+
+		start := time.Now()
 		useFn(c.Request, c.ResponseWriter, next)
+		event.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageMiddleware, Name: name, Duration: time.Since(start)})
+	}
+}
+
+func traceHTTPHandler(ev *event.Event, stage, name string, h ctx.HTTPHandler) ctx.HTTPHandler {
+	return func(c *ctx.HTTPContext) {
+		if !ev.HasListeners(trace.EventName) {
+			h(c)
+			return
+		}
+
+		start := time.Now()
+		defer func() {
+			ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: stage, Name: name, Duration: time.Since(start)})
+		}()
+		h(c)
+	}
+}
+
+func traceHTTPCatch(ev *event.Event, name string, fn common.HTTPCatch) common.HTTPCatch {
+	return func(c *ctx.HTTPContext, ex *exception.Exception) {
+		if !ev.HasListeners(trace.EventName) {
+			fn(c, ex)
+			return
+		}
+
+		start := time.Now()
+		defer func() {
+			ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageExceptionFilter, Name: name, Duration: time.Since(start)})
+		}()
+		fn(c, ex)
 	}
 }

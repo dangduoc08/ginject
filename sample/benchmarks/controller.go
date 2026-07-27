@@ -1,8 +1,6 @@
 package benchmarks
 
 import (
-	"fmt"
-
 	"github.com/dangduoc08/ginject"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/core"
@@ -33,7 +31,6 @@ func (instance Controller) NewController() core.Controller {
 }
 
 func (instance Controller) READ_ping(query ginject.Query) ginject.Map {
-	fmt.Println("[HTTP] READ_ping triggered")
 
 	if query.Get("error") == "true" {
 		panic(exception.InternalServerErrorException("READ_ping error triggered"))

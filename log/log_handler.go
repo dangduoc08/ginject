@@ -3,13 +3,19 @@ package log
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"reflect"
+	"sort"
 	"strconv"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/dangduoc08/ginject/internal/color"
 )
+
+const branchWidth = 4
 
 type PrettyHandlerOptions struct {
 	TimeFormat string
@@ -28,15 +34,37 @@ const (
 	ansiBlue    = "\x1b[34m"
 	ansiMagenta = "\x1b[35m"
 	ansiCyan    = "\x1b[36m"
+	ansiGray    = "\x1b[90m"
+	ansiYellow  = "\x1b[33m"
 	ansiOrange  = "\033[38;5;208m"
 	ansiTimePfx = "\033[48;5;236m "
 	ansiTimeSfx = " \033[0m"
 	ansiMsgPfx  = ansiCyan + " ["
 	ansiMsgSfx  = "]" + ansiReset + " "
-	ansiStrPfx  = ansiGreen + "\""
-	ansiStrSfx  = "\"" + ansiReset
+	ansiStrPfx  = ansiGreen
+	ansiStrSfx  = ansiReset
 	ansiNull    = ansiMagenta + "null" + ansiReset
 )
+
+type Color string
+
+const (
+	ColorGray   Color = ansiGray
+	ColorGreen  Color = ansiGreen
+	ColorBlue   Color = ansiBlue
+	ColorYellow Color = ansiYellow
+	ColorOrange Color = ansiOrange
+	ColorRed    Color = ansiRed
+)
+
+type Colored struct {
+	Text  string
+	Color Color
+}
+
+func (c Colored) String() string {
+	return c.Text
+}
 
 type PrettyHandler struct {
 	levelColors [5]levelColor
@@ -85,21 +113,30 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 		h.buf.WriteString(ansiMsgSfx)
 	}
 
-	numAttrs := record.NumAttrs()
-	i := 0
+	attrs := make([]slog.Attr, 0, record.NumAttrs())
 	record.Attrs(func(attr slog.Attr) bool {
+		attrs = append(attrs, attr)
+		return true
+	})
+
+	width := 0
+	for _, attr := range attrs {
+		if w := measureAttr("  ", attr); w > width {
+			width = w
+		}
+	}
+
+	for i, attr := range attrs {
 		h.buf.WriteByte('\n')
 
-		if numAttrs == 1 || i == numAttrs-1 {
+		last := len(attrs) == 1 || i == len(attrs)-1
+		if last {
 			h.buf.WriteString("  └── ")
 		} else {
 			h.buf.WriteString("  ├── ")
 		}
 
-		h.buf.WriteString(ansiRed)
-		h.buf.WriteString(attr.Key)
-		h.buf.WriteString(ansiReset)
-		h.buf.WriteByte(' ')
+		h.writeKey(attr.Key, width-2-branchWidth-utf8.RuneCountInString(attr.Key))
 
 		switch attr.Value.Kind() {
 		case slog.KindString:
@@ -126,24 +163,241 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 				h.buf.WriteString("false")
 			}
 			h.buf.WriteString(ansiReset)
+		case slog.KindDuration, slog.KindTime:
+			h.buf.WriteString(ansiGreen)
+			h.buf.WriteString(attr.Value.String())
+			h.buf.WriteString(ansiReset)
 		default:
-			raw := attr.Value.String()
-			if raw == "<nil>" {
+			v := attr.Value.Any()
+			if v == nil {
 				h.buf.WriteString(ansiNull)
+				break
+			}
+
+			rv := dereference(reflect.ValueOf(v))
+			if !rv.IsValid() {
+				h.buf.WriteString(ansiNull)
+				break
+			}
+
+			if isBranchable(rv) {
+				h.writeChildren(indent("  ", last), rv, width)
 			} else {
-				h.buf.WriteString(ansiGreen)
-				h.buf.WriteString(raw)
-				h.buf.WriteString(ansiReset)
+				h.writeScalar(rv)
 			}
 		}
-
-		i++
-		return true
-	})
+	}
 
 	h.buf.WriteByte('\n')
 	_, err := h.writer.Write(h.buf.Bytes())
 	return err
+}
+
+func dereference(rv reflect.Value) reflect.Value {
+	for rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface {
+		if rv.IsNil() {
+			return reflect.Value{}
+		}
+		rv = rv.Elem()
+	}
+	return rv
+}
+
+var (
+	stringerType = reflect.TypeFor[fmt.Stringer]()
+	errorType    = reflect.TypeFor[error]()
+)
+
+func isBranchable(rv reflect.Value) bool {
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
+		t := rv.Type()
+		return !t.Implements(stringerType) && !t.Implements(errorType)
+	default:
+		return false
+	}
+}
+
+func indent(prefix string, parentWasLast bool) string {
+	if parentWasLast {
+		return prefix + "    "
+	}
+	return prefix + "│   "
+}
+
+type kv struct {
+	key string
+	val reflect.Value
+}
+
+func collectChildren(rv reflect.Value) []kv {
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		n := rv.Len()
+		var out []kv
+		for i := range n {
+			elem := dereference(rv.Index(i))
+			if elem.IsValid() && isBranchable(elem) {
+				out = append(out, collectChildren(elem)...)
+			} else {
+				out = append(out, kv{"", rv.Index(i)})
+			}
+		}
+		return out
+	case reflect.Map:
+		keys := rv.MapKeys()
+		sort.Slice(keys, func(a, b int) bool {
+			return fmt.Sprint(keys[a].Interface()) < fmt.Sprint(keys[b].Interface())
+		})
+		out := make([]kv, len(keys))
+		for i, k := range keys {
+			out[i] = kv{fmt.Sprint(k.Interface()), rv.MapIndex(k)}
+		}
+		return out
+	case reflect.Struct:
+		t := rv.Type()
+		var out []kv
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if f.PkgPath != "" {
+				continue
+			}
+			out = append(out, kv{f.Name, rv.Field(i)})
+		}
+		return out
+	}
+	return nil
+}
+
+func attrReflectValue(attr slog.Attr) reflect.Value {
+	switch attr.Value.Kind() {
+	case slog.KindString, slog.KindInt64, slog.KindUint64, slog.KindFloat64, slog.KindBool, slog.KindDuration, slog.KindTime:
+		return reflect.Value{}
+	default:
+		v := attr.Value.Any()
+		if v == nil {
+			return reflect.Value{}
+		}
+		return dereference(reflect.ValueOf(v))
+	}
+}
+
+func measure(prefix, key string, rv reflect.Value) int {
+	width := utf8.RuneCountInString(prefix) + branchWidth + utf8.RuneCountInString(key)
+	rv = dereference(rv)
+	if rv.IsValid() && isBranchable(rv) {
+		childPrefix := indent(prefix, false)
+		for _, c := range collectChildren(rv) {
+			if w := measure(childPrefix, c.key, c.val); w > width {
+				width = w
+			}
+		}
+	}
+	return width
+}
+
+func measureAttr(prefix string, attr slog.Attr) int {
+	width := utf8.RuneCountInString(prefix) + branchWidth + utf8.RuneCountInString(attr.Key)
+	if rv := attrReflectValue(attr); rv.IsValid() && isBranchable(rv) {
+		childPrefix := indent(prefix, false)
+		for _, c := range collectChildren(rv) {
+			if w := measure(childPrefix, c.key, c.val); w > width {
+				width = w
+			}
+		}
+	}
+	return width
+}
+
+func (h *PrettyHandler) writeKey(key string, pad int) {
+	h.buf.WriteString(ansiRed)
+	h.buf.WriteString(key)
+	h.buf.WriteString(ansiReset)
+	for range pad + 1 {
+		h.buf.WriteByte(' ')
+	}
+}
+
+func (h *PrettyHandler) writeChildren(prefix string, rv reflect.Value, width int) {
+	children := collectChildren(rv)
+	for i, c := range children {
+		h.buf.WriteByte('\n')
+		h.writeNode(prefix, c.key, c.val, i == len(children)-1, width)
+	}
+}
+
+func (h *PrettyHandler) writeNode(prefix, key string, rv reflect.Value, last bool, width int) {
+	if last {
+		h.buf.WriteString(prefix)
+		h.buf.WriteString("└── ")
+	} else {
+		h.buf.WriteString(prefix)
+		h.buf.WriteString("├── ")
+	}
+
+	if key != "" {
+		h.writeKey(key, width-utf8.RuneCountInString(prefix)-branchWidth-utf8.RuneCountInString(key))
+	}
+
+	rv = dereference(rv)
+	if !rv.IsValid() {
+		h.buf.WriteString(ansiNull)
+		return
+	}
+
+	if isBranchable(rv) {
+		h.writeChildren(indent(prefix, last), rv, width)
+		return
+	}
+
+	h.writeScalar(rv)
+}
+
+func (h *PrettyHandler) writeScalar(rv reflect.Value) {
+	if c, ok := rv.Interface().(Colored); ok {
+		h.buf.WriteString(string(c.Color))
+		h.buf.WriteString(c.Text)
+		h.buf.WriteString(ansiReset)
+		return
+	}
+
+	if rv.Type().Implements(stringerType) || rv.Type().Implements(errorType) {
+		h.buf.WriteString(ansiGreen)
+		fmt.Fprint(&h.buf, rv.Interface())
+		h.buf.WriteString(ansiReset)
+		return
+	}
+
+	switch rv.Kind() {
+	case reflect.String:
+		h.buf.WriteString(ansiStrPfx)
+		h.buf.WriteString(rv.String())
+		h.buf.WriteString(ansiStrSfx)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		h.buf.WriteString(ansiOrange)
+		h.buf.Write(strconv.AppendInt(h.buf.AvailableBuffer(), rv.Int(), 10))
+		h.buf.WriteString(ansiReset)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		h.buf.WriteString(ansiOrange)
+		h.buf.Write(strconv.AppendUint(h.buf.AvailableBuffer(), rv.Uint(), 10))
+		h.buf.WriteString(ansiReset)
+	case reflect.Float32, reflect.Float64:
+		h.buf.WriteString(ansiOrange)
+		h.buf.Write(strconv.AppendFloat(h.buf.AvailableBuffer(), rv.Float(), 'g', -1, 64))
+		h.buf.WriteString(ansiReset)
+	case reflect.Bool:
+		h.buf.WriteString(ansiBlue)
+		if rv.Bool() {
+			h.buf.WriteString("true")
+		} else {
+			h.buf.WriteString("false")
+		}
+		h.buf.WriteString(ansiReset)
+	default:
+		h.buf.WriteString(ansiGreen)
+		fmt.Fprint(&h.buf, rv.Interface())
+		h.buf.WriteString(ansiReset)
+	}
 }
 
 func NewPrettyHandler(out io.Writer, opts *PrettyHandlerOptions) *PrettyHandler {

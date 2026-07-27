@@ -1,8 +1,6 @@
 package benchmarks
 
 import (
-	"fmt"
-
 	"github.com/dangduoc08/ginject"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -15,8 +13,6 @@ type LogModuleHTTPExceptionFilter struct {
 }
 
 func (instance LogModuleHTTPExceptionFilter) Catch(c ginject.HTTPContext, ex ginject.Exception) {
-	fmt.Println("[Module] Log Module HTTP exception filter")
-
 	if c.Query().Get("error_module_http_ex") == "true" {
 		panic(exception.InternalServerErrorException("LogModuleHTTPExceptionFilter error triggered"))
 	}
