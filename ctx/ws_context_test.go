@@ -19,6 +19,9 @@ func TestWSContext_Init(t *testing.T) {
 	if c.Timestamp.IsZero() {
 		t.Error(test.DiffMessage(c.Timestamp.IsZero(), false, "Init should set Timestamp"))
 	}
+	if c.GetID() == "" {
+		t.Error(test.DiffMessage(c.GetID(), "<non-empty UUID>", "Init should generate an id"))
+	}
 }
 
 func TestWSContext_SetID(t *testing.T) {

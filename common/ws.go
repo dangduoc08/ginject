@@ -15,6 +15,7 @@ var InsertedEvents = make(map[string]string)
 type WSLayer struct {
 	Handler   any
 	EventName string
+	Name      string
 }
 
 type WS struct {

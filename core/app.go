@@ -214,6 +214,19 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.newCtx = func() *ctx.WSContext { return app.wsCtxPool.Get().(*ctx.WSContext) }
 	app.wsConfig.releaseCtx = app.releaseWSCtx
 	app.ws = NewWS(app.wsConfig)
+	app.ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		if !app.event.HasListeners(trace.EventName) {
+			return
+		}
+		app.event.Emit(trace.EventName, trace.Event{
+			ID:        c.GetID(),
+			Stage:     trace.StageComplete,
+			Transport: trace.TransportWS,
+			Operation: operation,
+			Target:    target,
+			Duration:  time.Since(c.Timestamp),
+		})
+	}
 }
 
 func (app *App) initAccessLog() {
@@ -281,7 +294,8 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 	if app.ws != nil {
 		for i := len(app.module.WSExceptionFilters) - 1; i >= 0; i-- {
 			ef := app.module.WSExceptionFilters[i]
-			app.ws.catchFnsByEvent[ef.EventName] = append(app.ws.catchFnsByEvent[ef.EventName], ef.Handler.(common.WSCatch))
+			catchFn := traceWSCatch(app.event, ef.Name, ef.Handler.(common.WSCatch))
+			app.ws.catchFnsByEvent[ef.EventName] = append(app.ws.catchFnsByEvent[ef.EventName], catchFn)
 		}
 	}
 
@@ -311,8 +325,9 @@ func (app *App) initExceptionFilters(injectedProviders map[string]Provider) {
 			}
 
 			if isWSFilter && app.ws != nil {
+				tracedWSCatch := traceWSCatch(app.event, name, wsCatch)
 				for _, h := range app.module.WSMainHandlers {
-					app.ws.catchFnsByEvent[h.EventName] = append(app.ws.catchFnsByEvent[h.EventName], wsCatch)
+					app.ws.catchFnsByEvent[h.EventName] = append(app.ws.catchFnsByEvent[h.EventName], tracedWSCatch)
 				}
 			}
 		}
@@ -365,7 +380,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			}
 
 			if isWSGuard && app.ws != nil {
-				mw := common.BuildWSGuardMiddleware(wsCanActivate)
+				mw := traceWSHandler(app.event, trace.StageGuard, name, common.BuildWSGuardMiddleware(wsCanActivate))
 				for _, h := range app.module.WSMainHandlers {
 					app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
 				}
@@ -381,7 +396,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 
 	if app.ws != nil {
 		for _, mg := range app.module.WSGuards {
-			mw := common.BuildWSGuardMiddleware(mg.Handler.(common.WSCanActivate))
+			mw := traceWSHandler(app.event, trace.StageGuard, mg.Name, common.BuildWSGuardMiddleware(mg.Handler.(common.WSCanActivate)))
 			app.ws.eventMatcher.AddMiddlewares(mg.EventName, mw)
 		}
 	}
@@ -399,6 +414,18 @@ func tagInterceptorName(ev *event.Event, endpoint, name string, h ctx.HTTPHandle
 	}
 }
 
+func tagWSInterceptorName(ev *event.Event, eventName, name string, h ctx.WSHandler) ctx.WSHandler {
+	return func(c *ctx.WSContext) {
+		h(c)
+		if !ev.HasListeners(trace.EventName) {
+			return
+		}
+		if aggregations, ok := c.Context().Value(WithValueKey(eventName)).([]*aggregation.Aggregation); ok && len(aggregations) > 0 {
+			aggregations[len(aggregations)-1].Name = name
+		}
+	}
+}
+
 func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 	app.http.emitPostInterceptor = func(c *ctx.HTTPContext, name string, duration time.Duration) {
 		if !app.event.HasListeners(trace.EventName) {
@@ -410,6 +437,21 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 			Name:     name,
 			Duration: duration,
 		})
+	}
+
+	if app.ws != nil {
+		app.ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {
+			if !app.event.HasListeners(trace.EventName) {
+				return
+			}
+			app.event.Emit(trace.EventName, trace.Event{
+				ID:        c.GetID(),
+				Stage:     trace.StagePostInterceptor,
+				Name:      name,
+				Transport: trace.TransportWS,
+				Duration:  duration,
+			})
+		}
 	}
 
 	if len(app.globalInterceptors) > 0 {
@@ -439,7 +481,8 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 
 			if isWSInterceptor && app.ws != nil {
 				for _, h := range app.module.WSMainHandlers {
-					mw := common.BuildWSInterceptMiddleware(h.EventName, wsIntercept)
+					mw := traceWSHandler(app.event, trace.StagePreInterceptor, name, common.BuildWSInterceptMiddleware(h.EventName, wsIntercept))
+					mw = tagWSInterceptorName(app.event, h.EventName, name, mw)
 					app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
 				}
 			}
@@ -456,7 +499,8 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 
 	if app.ws != nil {
 		for _, mi := range app.module.WSInterceptors {
-			mw := common.BuildWSInterceptMiddleware(mi.EventName, mi.Handler.(common.WSIntercept))
+			mw := traceWSHandler(app.event, trace.StagePreInterceptor, mi.Name, common.BuildWSInterceptMiddleware(mi.EventName, mi.Handler.(common.WSIntercept)))
+			mw = tagWSInterceptorName(app.event, mi.EventName, mi.Name, mw)
 			app.ws.eventMatcher.AddMiddlewares(mi.EventName, mw)
 		}
 	}

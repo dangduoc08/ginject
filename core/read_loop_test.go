@@ -2,15 +2,20 @@ package core
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
 	"golang.org/x/net/websocket"
 
+	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/event"
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/trace"
 )
 
 // newTestWSBare builds a *WS with newCtx/releaseCtx/resolveAndCallHandler
@@ -33,6 +38,8 @@ func newTestWSBare(t testing.TB) *WS {
 	ws.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
 		return invokeWSHandlerByProviders(f, nil, c)
 	}
+	ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {}
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {}
 
 	return ws
 }
@@ -416,5 +423,479 @@ func TestHandleUnsubscribe_RemovesTopicAndAcks(t *testing.T) {
 	}
 	if ws.connmgr.isSubscribed("conn-1", "chat.to.user2") {
 		t.Error(test.DiffMessage(true, false, "handleUnsubscribe should remove the subscription"))
+	}
+}
+
+func TestDispatchWSEvent_GuardEmitsTraceWithWSTransport(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageGuard {
+			d := te
+			got = &d
+		}
+	})
+
+	pattern := "chat.to.*"
+	mw := traceWSHandler(ev, trace.StageGuard, "test.AllowGuard", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return true }))
+	ws.eventMatcher.AddMiddlewares(pattern, mw)
+	ws.eventMatcher.AddInjectableHandler(pattern, func() {})
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got == nil {
+		t.Fatal("expected a guard trace event")
+	}
+	if got.Stage != trace.StageGuard || got.Name != "test.AllowGuard" || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Name, got.Transport}, []any{trace.StageGuard, "test.AllowGuard", trace.TransportWS}, "WS guard trace event fields"))
+	}
+}
+
+func TestDispatchWSEvent_ExceptionFilterEmitsTraceWithWSTransport(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageExceptionFilter {
+			d := te
+			got = &d
+		}
+	})
+
+	pattern := "chat.to.*"
+	ws.eventMatcher.AddInjectableHandler(pattern, func() { panic("boom") })
+	catchFn := traceWSCatch(ev, "test.Filter", func(c *ctx.WSContext, ex *exception.Exception) {
+		c.Send(ctx.Map{"caught": true})
+	})
+	ws.catchFnsByEvent[pattern] = append(ws.catchFnsByEvent[pattern], catchFn)
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got == nil {
+		t.Fatal("expected an exceptionFilter trace event")
+	}
+	if got.Stage != trace.StageExceptionFilter || got.Name != "test.Filter" || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Name, got.Transport}, []any{trace.StageExceptionFilter, "test.Filter", trace.TransportWS}, "WS exceptionFilter trace event fields"))
+	}
+}
+
+func TestDispatchWSEvent_InterceptorPrePostEventsMatchInCountAndOrder(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var pre, post []string
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePreInterceptor:
+			pre = append(pre, te.Name)
+		case trace.StagePostInterceptor:
+			post = append(post, te.Name)
+		}
+	})
+	ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {
+		ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StagePostInterceptor, Name: name, Transport: trace.TransportWS, Duration: duration})
+	}
+
+	pattern := "chat.to.*"
+	pipeIntercept := func(_ *ctx.WSContext, agg *aggregation.Aggregation) any { return agg.Pipe() }
+	for _, name := range []string{"A", "B", "C"} {
+		mw := traceWSHandler(ev, trace.StagePreInterceptor, name, common.BuildWSInterceptMiddleware(pattern, pipeIntercept))
+		mw = tagWSInterceptorName(ev, pattern, name, mw)
+		ws.eventMatcher.AddMiddlewares(pattern, mw)
+	}
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	pre = nil
+	post = nil
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(pre) != 3 {
+		t.Fatalf("expected 3 pre-interceptor events, got %d: %v", len(pre), pre)
+	}
+	if len(post) != 3 {
+		t.Fatalf("expected 3 post-interceptor events, got %d: %v", len(post), post)
+	}
+	wantPost := []string{"C", "B", "A"}
+	for i, want := range wantPost {
+		if post[i] != want {
+			t.Error(test.DiffMessage(post, wantPost, "post-interceptor events must fire in reverse execution order of pre-interceptor"))
+			break
+		}
+	}
+}
+
+func TestDispatchWSEvent_InterceptorPrePostEventsMatchWhenShortCircuited(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var preCount, postCount int
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePreInterceptor:
+			preCount++
+		case trace.StagePostInterceptor:
+			postCount++
+		}
+	})
+	ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {
+		ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StagePostInterceptor, Name: name, Transport: trace.TransportWS, Duration: duration})
+	}
+
+	pattern := "chat.to.*"
+	pipeIntercept := func(_ *ctx.WSContext, agg *aggregation.Aggregation) any { return agg.Pipe() }
+	shortCircuitIntercept := func(_ *ctx.WSContext, agg *aggregation.Aggregation) any { return "short-circuited" }
+
+	for _, spec := range []struct {
+		name string
+		fn   common.WSIntercept
+	}{
+		{"A", pipeIntercept},
+		{"ShortCircuit", shortCircuitIntercept},
+		{"C", pipeIntercept},
+	} {
+		mw := traceWSHandler(ev, trace.StagePreInterceptor, spec.name, common.BuildWSInterceptMiddleware(pattern, spec.fn))
+		mw = tagWSInterceptorName(ev, pattern, spec.name, mw)
+		ws.eventMatcher.AddMiddlewares(pattern, mw)
+	}
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	preCount = 0
+	postCount = 0
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if preCount != 3 {
+		t.Fatalf("expected 3 pre-interceptor events, got %d", preCount)
+	}
+	if postCount != preCount {
+		t.Error(test.DiffMessage(postCount, preCount, "post-interceptor event count must match pre-interceptor count even when an interceptor short-circuits"))
+	}
+}
+
+func TestDispatchWSEvent_EmitsCompleteWithWSTransport(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageComplete {
+			d := te
+			got = &d
+		}
+	})
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		ev.Emit(trace.EventName, trace.Event{
+			ID:        c.GetID(),
+			Stage:     trace.StageComplete,
+			Transport: trace.TransportWS,
+			Operation: operation,
+			Target:    target,
+			Duration:  time.Since(c.Timestamp),
+		})
+	}
+
+	pattern := "chat.to.*"
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	got = nil
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got == nil {
+		t.Fatal("expected a StageComplete trace event for the publish dispatch")
+	}
+	if got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage(got.Transport, trace.TransportWS, "WS dispatch StageComplete must report WS transport"))
+	}
+	if got.Operation != string(TypePublish) {
+		t.Error(test.DiffMessage(got.Operation, string(TypePublish), "StageComplete Operation should be the payload type"))
+	}
+	if got.Target != "chat.to.user2" {
+		t.Error(test.DiffMessage(got.Target, "chat.to.user2", "StageComplete Target should be the concrete topic"))
+	}
+	if got.ID == "" {
+		t.Error(test.DiffMessage(got.ID, "<non-empty>", "StageComplete must carry a non-empty request id"))
+	}
+}
+
+func TestDispatchWSEvent_CompleteIDMatchesGuardEventID(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var guardID, completeID string
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StageGuard:
+			guardID = te.ID
+		case trace.StageComplete:
+			completeID = te.ID
+		}
+	})
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageComplete, Transport: trace.TransportWS, Operation: operation, Target: target})
+	}
+
+	pattern := "chat.to.*"
+	mw := traceWSHandler(ev, trace.StageGuard, "test.AllowGuard", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return true }))
+	ws.eventMatcher.AddMiddlewares(pattern, mw)
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	guardID, completeID = "", ""
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if guardID == "" || completeID == "" {
+		t.Fatalf("expected both a guard event and a complete event, got guardID=%q completeID=%q", guardID, completeID)
+	}
+	if guardID != completeID {
+		t.Error(test.DiffMessage(completeID, guardID, "StageComplete must carry the same id as the guard event from the same dispatch, so accesslog can correlate and flush them together"))
+	}
+}
+
+func TestDispatchWSEvent_CompleteFiresOnGuardDenial(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var completeCount int
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageComplete {
+			completeCount++
+		}
+	})
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageComplete, Transport: trace.TransportWS, Operation: operation, Target: target})
+	}
+
+	pattern := "chat.to.*"
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	ws.eventMatcher.AddMiddlewares(pattern, common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return false }))
+
+	mu.Lock()
+	completeCount = 0
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if completeCount != 1 {
+		t.Error(test.DiffMessage(completeCount, 1, "StageComplete must still fire exactly once when a guard denies the dispatch"))
+	}
+}
+
+func TestDispatchWSEvent_CompleteFiresOnHandlerPanic(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var completeCount int
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageComplete {
+			completeCount++
+		}
+	})
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageComplete, Transport: trace.TransportWS, Operation: operation, Target: target})
+	}
+
+	pattern := "chat.to.*"
+	ws.eventMatcher.AddInjectableHandler(pattern, func() { panic("boom") })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	completeCount = 0
+	mu.Unlock()
+
+	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if completeCount != 1 {
+		t.Error(test.DiffMessage(completeCount, 1, "StageComplete must still fire exactly once when the handler panics"))
+	}
+}
+
+func TestHandleSubscribe_EmitsCompleteWithWSTransport(t *testing.T) {
+	ws := newTestWSBare(t)
+	ev := event.NewEvent()
+	var mu sync.Mutex
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StageComplete {
+			d := te
+			got = &d
+		}
+	})
+	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+		ev.Emit(trace.EventName, trace.Event{
+			ID:        c.GetID(),
+			Stage:     trace.StageComplete,
+			Transport: trace.TransportWS,
+			Operation: operation,
+			Target:    target,
+			Duration:  time.Since(c.Timestamp),
+		})
+	}
+
+	pattern := "chat.to.*"
+	ws.eventMatcher.AddInjectableHandler(pattern, func() string { return "ok" })
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+	_ = recvWSPayload(t, clientConn)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if got == nil {
+		t.Fatal("expected a StageComplete trace event for the subscribe dispatch")
+	}
+	if got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage(got.Transport, trace.TransportWS, "WS dispatch StageComplete must report WS transport"))
+	}
+	if got.Operation != string(TypeSubscribe) {
+		t.Error(test.DiffMessage(got.Operation, string(TypeSubscribe), "StageComplete Operation should be the payload type"))
+	}
+	if got.Target != "chat.to.user2" {
+		t.Error(test.DiffMessage(got.Target, "chat.to.user2", "StageComplete Target should be the concrete topic"))
 	}
 }
