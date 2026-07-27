@@ -4,14 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/dangduoc08/ginject/internal/crypto"
 	"golang.org/x/net/websocket"
 )
 
 type WSContext struct {
 	*websocket.Conn
 
-	id  string
+	contextID
 	ctx context.Context
 
 	Next Next
@@ -73,14 +72,4 @@ func (c *WSContext) Context() context.Context {
 
 func (c *WSContext) SetContext(ctx context.Context) {
 	c.ctx = ctx
-}
-
-func (c *WSContext) SetID() {
-	if c.id == "" {
-		c.id, _ = crypto.UUID()
-	}
-}
-
-func (c *WSContext) GetID() string {
-	return c.id
 }
