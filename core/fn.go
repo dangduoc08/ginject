@@ -565,7 +565,7 @@ func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c 
 	return reflect.ValueOf(f).Call(args)
 }
 
-func buildUseMiddleware(useFn common.Use, event *event.Event, name string) ctx.HTTPHandler {
+func buildUseMiddleware(useFn common.Use, event *event.Event, name, transport string) ctx.HTTPHandler {
 	return func(c *ctx.HTTPContext) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -584,7 +584,7 @@ func buildUseMiddleware(useFn common.Use, event *event.Event, name string) ctx.H
 
 		start := time.Now()
 		useFn(c.Request, c.ResponseWriter, next)
-		event.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageMiddleware, Name: name, Duration: time.Since(start)})
+		event.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageMiddleware, Name: name, Transport: transport, Duration: time.Since(start)})
 	}
 }
 

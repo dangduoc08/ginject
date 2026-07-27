@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/core"
 	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/middlewares/cors"
@@ -8,6 +9,7 @@ import (
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
+	"github.com/dangduoc08/ginject/versioning"
 )
 
 func main() {
@@ -17,25 +19,29 @@ func main() {
 		LogFormat: log.PrettyFormat,
 	})
 
+	mw := []common.MiddlewareFn{
+		cors.CORS{}, helmet.Helmet{}, shared.LogMiddleware{},
+	}
+
 	app.
 		UseLogger(logger).
-		BindGlobalMiddlewares(cors.CORS{}, helmet.Helmet{}, shared.LogMiddleware{}).
+		BindGlobalMiddlewares(mw...).
 		BindGlobalGuards(shared.LogHTTPGuard{}, shared.LogWSGuard{}).
 		BindGlobalInterceptors(shared.LogHTTPInterceptor{}, shared.LogWSInterceptor{}).
 		BindGlobalExceptionFilters(shared.LogHTTPExceptionFilter{}, shared.LogWSExceptionFilter{})
 
 	app.EnableWS(&core.WSConfig{
 		Path: "ws",
-	})
+	}, mw...)
 
 	app.EnableAccessLog()
 
-	// app.
-	// 	EnableVersioning(versioning.Versioning{
-	// 		Type: versioning.HeaderVersion,
-	// 		Key:  confs.ENV.APIVersionName,
-	// 	}).
-	// 	EnableDevtool()
+	app.
+		EnableVersioning(versioning.Versioning{
+			Type: versioning.HeaderVersion,
+			Key:  confs.ENV.APIVersionName,
+		}).
+		EnableDevtool()
 
 	app.Create(
 		core.ModuleBuilder().
