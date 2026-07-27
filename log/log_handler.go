@@ -120,8 +120,14 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 	})
 
 	width := 0
-	for _, attr := range attrs {
-		if w := measureAttr("  ", attr); w > width {
+	var nodes []node
+	for i, attr := range attrs {
+		if rv := attrReflectValue(attr); rv.IsValid() {
+			if nodes == nil {
+				nodes = make([]node, len(attrs))
+			}
+			nodes[i] = buildNode("  ", kv{attr.Key, rv}, &width)
+		} else if w := utf8.RuneCountInString("  ") + branchWidth + utf8.RuneCountInString(attr.Key); w > width {
 			width = w
 		}
 	}
@@ -168,20 +174,18 @@ func (h *PrettyHandler) Handle(_ context.Context, record slog.Record) error {
 			h.buf.WriteString(attr.Value.String())
 			h.buf.WriteString(ansiReset)
 		default:
-			v := attr.Value.Any()
-			if v == nil {
+			var n node
+			if nodes != nil {
+				n = nodes[i]
+			}
+			if !n.val.IsValid() {
 				h.buf.WriteString(ansiNull)
 				break
 			}
 
-			rv := dereference(reflect.ValueOf(v))
-			if !rv.IsValid() {
-				h.buf.WriteString(ansiNull)
-				break
-			}
-
+			rv := dereference(n.val)
 			if isBranchable(rv) {
-				h.writeChildren(indent("  ", last), rv, width)
+				h.writeChildren(indent("  ", last), n.children, width)
 			} else {
 				h.writeScalar(rv)
 			}
@@ -230,6 +234,13 @@ type kv struct {
 	val reflect.Value
 }
 
+func mapKeyString(k reflect.Value) string {
+	if k.Kind() == reflect.String {
+		return k.String()
+	}
+	return fmt.Sprint(k.Interface())
+}
+
 func collectChildren(rv reflect.Value) []kv {
 	switch rv.Kind() {
 	case reflect.Slice, reflect.Array:
@@ -246,13 +257,13 @@ func collectChildren(rv reflect.Value) []kv {
 		return out
 	case reflect.Map:
 		keys := rv.MapKeys()
-		sort.Slice(keys, func(a, b int) bool {
-			return fmt.Sprint(keys[a].Interface()) < fmt.Sprint(keys[b].Interface())
-		})
 		out := make([]kv, len(keys))
 		for i, k := range keys {
-			out[i] = kv{fmt.Sprint(k.Interface()), rv.MapIndex(k)}
+			out[i] = kv{mapKeyString(k), rv.MapIndex(k)}
 		}
+		sort.Slice(out, func(a, b int) bool {
+			return out[a].key < out[b].key
+		})
 		return out
 	case reflect.Struct:
 		t := rv.Type()
@@ -282,31 +293,28 @@ func attrReflectValue(attr slog.Attr) reflect.Value {
 	}
 }
 
-func measure(prefix, key string, rv reflect.Value) int {
-	width := utf8.RuneCountInString(prefix) + branchWidth + utf8.RuneCountInString(key)
-	rv = dereference(rv)
-	if rv.IsValid() && isBranchable(rv) {
-		childPrefix := indent(prefix, false)
-		for _, c := range collectChildren(rv) {
-			if w := measure(childPrefix, c.key, c.val); w > width {
-				width = w
-			}
-		}
-	}
-	return width
+type node struct {
+	kv
+	children []node
 }
 
-func measureAttr(prefix string, attr slog.Attr) int {
-	width := utf8.RuneCountInString(prefix) + branchWidth + utf8.RuneCountInString(attr.Key)
-	if rv := attrReflectValue(attr); rv.IsValid() && isBranchable(rv) {
+func buildNode(prefix string, item kv, width *int) node {
+	w := utf8.RuneCountInString(prefix) + branchWidth + utf8.RuneCountInString(item.key)
+	if w > *width {
+		*width = w
+	}
+
+	n := node{kv: item}
+	rv := dereference(item.val)
+	if rv.IsValid() && isBranchable(rv) {
 		childPrefix := indent(prefix, false)
-		for _, c := range collectChildren(rv) {
-			if w := measure(childPrefix, c.key, c.val); w > width {
-				width = w
-			}
+		kids := collectChildren(rv)
+		n.children = make([]node, len(kids))
+		for i, c := range kids {
+			n.children[i] = buildNode(childPrefix, c, width)
 		}
 	}
-	return width
+	return n
 }
 
 func (h *PrettyHandler) writeKey(key string, pad int) {
@@ -318,15 +326,14 @@ func (h *PrettyHandler) writeKey(key string, pad int) {
 	}
 }
 
-func (h *PrettyHandler) writeChildren(prefix string, rv reflect.Value, width int) {
-	children := collectChildren(rv)
+func (h *PrettyHandler) writeChildren(prefix string, children []node, width int) {
 	for i, c := range children {
 		h.buf.WriteByte('\n')
-		h.writeNode(prefix, c.key, c.val, i == len(children)-1, width)
+		h.writeNode(prefix, c, i == len(children)-1, width)
 	}
 }
 
-func (h *PrettyHandler) writeNode(prefix, key string, rv reflect.Value, last bool, width int) {
+func (h *PrettyHandler) writeNode(prefix string, n node, last bool, width int) {
 	if last {
 		h.buf.WriteString(prefix)
 		h.buf.WriteString("└── ")
@@ -335,18 +342,18 @@ func (h *PrettyHandler) writeNode(prefix, key string, rv reflect.Value, last boo
 		h.buf.WriteString("├── ")
 	}
 
-	if key != "" {
-		h.writeKey(key, width-utf8.RuneCountInString(prefix)-branchWidth-utf8.RuneCountInString(key))
+	if n.key != "" {
+		h.writeKey(n.key, width-utf8.RuneCountInString(prefix)-branchWidth-utf8.RuneCountInString(n.key))
 	}
 
-	rv = dereference(rv)
+	rv := dereference(n.val)
 	if !rv.IsValid() {
 		h.buf.WriteString(ansiNull)
 		return
 	}
 
 	if isBranchable(rv) {
-		h.writeChildren(indent(prefix, last), rv, width)
+		h.writeChildren(indent(prefix, last), n.children, width)
 		return
 	}
 
@@ -354,20 +361,6 @@ func (h *PrettyHandler) writeNode(prefix, key string, rv reflect.Value, last boo
 }
 
 func (h *PrettyHandler) writeScalar(rv reflect.Value) {
-	if c, ok := rv.Interface().(Colored); ok {
-		h.buf.WriteString(string(c.Color))
-		h.buf.WriteString(c.Text)
-		h.buf.WriteString(ansiReset)
-		return
-	}
-
-	if rv.Type().Implements(stringerType) || rv.Type().Implements(errorType) {
-		h.buf.WriteString(ansiGreen)
-		fmt.Fprint(&h.buf, rv.Interface())
-		h.buf.WriteString(ansiReset)
-		return
-	}
-
 	switch rv.Kind() {
 	case reflect.String:
 		h.buf.WriteString(ansiStrPfx)
@@ -394,6 +387,12 @@ func (h *PrettyHandler) writeScalar(rv reflect.Value) {
 		}
 		h.buf.WriteString(ansiReset)
 	default:
+		if c, ok := rv.Interface().(Colored); ok {
+			h.buf.WriteString(string(c.Color))
+			h.buf.WriteString(c.Text)
+			h.buf.WriteString(ansiReset)
+			return
+		}
 		h.buf.WriteString(ansiGreen)
 		fmt.Fprint(&h.buf, rv.Interface())
 		h.buf.WriteString(ansiReset)

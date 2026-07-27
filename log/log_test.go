@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -79,6 +80,58 @@ func TestNewLog_Singleton(t *testing.T) {
 	b := NewLog(&LogOptions{LogFormat: JSONFormat})
 	if a != b {
 		t.Error(test.DiffMessage(b, a, "NewLog must return the same singleton"))
+	}
+}
+
+// logInstance method tests
+
+func newTestLogInstance(level slog.Level) (*logInstance, *bytes.Buffer) {
+	h, buf := newTestHandler(level)
+	return &logInstance{slog: slog.New(h)}, buf
+}
+
+func TestLogInstance_Debug(t *testing.T) {
+	instance, buf := newTestLogInstance(slog.LevelDebug)
+	instance.Debug("debug msg")
+	out := buf.String()
+	if !strings.Contains(out, "DEBUG") || !strings.Contains(out, "debug msg") {
+		t.Error(test.DiffMessage(out, "contains DEBUG and debug msg", "Debug should log at debug level"))
+	}
+}
+
+func TestLogInstance_Info(t *testing.T) {
+	instance, buf := newTestLogInstance(slog.LevelDebug)
+	instance.Info("info msg")
+	out := buf.String()
+	if !strings.Contains(out, "INFO") || !strings.Contains(out, "info msg") {
+		t.Error(test.DiffMessage(out, "contains INFO and info msg", "Info should log at info level"))
+	}
+}
+
+func TestLogInstance_Warn(t *testing.T) {
+	instance, buf := newTestLogInstance(slog.LevelDebug)
+	instance.Warn("warn msg")
+	out := buf.String()
+	if !strings.Contains(out, "WARN") || !strings.Contains(out, "warn msg") {
+		t.Error(test.DiffMessage(out, "contains WARN and warn msg", "Warn should log at warn level"))
+	}
+}
+
+func TestLogInstance_Error(t *testing.T) {
+	instance, buf := newTestLogInstance(slog.LevelDebug)
+	instance.Error("error msg")
+	out := buf.String()
+	if !strings.Contains(out, "ERROR") || !strings.Contains(out, "error msg") {
+		t.Error(test.DiffMessage(out, "contains ERROR and error msg", "Error should log at error level"))
+	}
+}
+
+func TestLogInstance_Debug_ForwardsArgs(t *testing.T) {
+	instance, buf := newTestLogInstance(slog.LevelDebug)
+	instance.Debug("msg", "key", "value")
+	out := buf.String()
+	if !strings.Contains(out, "key") || !strings.Contains(out, "value") {
+		t.Error(test.DiffMessage(out, "contains key and value", "Debug should forward key/value args to the handler"))
 	}
 }
 
@@ -389,4 +442,24 @@ func TestPrettyHandler_Handle_ColoredValue_UsesItsOwnColorNotStringerGreen(t *te
 	if !strings.Contains(out, string(ColorRed)+"10ms (2%)"+ansiReset) {
 		t.Error(test.DiffMessage(out, "contains red-colored \"10ms (2%)\"", "a Colored value should render with its own Color, not the generic Stringer green"))
 	}
+}
+
+func TestPrettyHandler_Handle_ConcurrentCalls_NoDataRace(t *testing.T) {
+	h, _ := newTestHandler(slog.LevelDebug)
+
+	const goroutines = 32
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := range goroutines {
+		go func(i int) {
+			defer wg.Done()
+			r := slog.NewRecord(time.Now(), slog.LevelInfo, "msg", 0)
+			r.AddAttrs(
+				slog.Int("i", i),
+				slog.Any("meta", map[string]int{"a": i, "b": i * 2}),
+			)
+			_ = h.Handle(context.Background(), r)
+		}(i)
+	}
+	wg.Wait()
 }
