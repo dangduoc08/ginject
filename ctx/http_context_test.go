@@ -20,13 +20,16 @@ func TestNewHTTPContext_DefaultCode(t *testing.T) {
 	}
 }
 
-func TestSetID_FromHeader(t *testing.T) {
+func TestSetID_IgnoresRequestIDHeader(t *testing.T) {
 	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(RequestID, "test-request-id")
 	c.Init(httptest.NewRecorder(), r)
-	if c.id != "test-request-id" {
-		t.Error(test.DiffMessage(c.id, "test-request-id", "SetID from header"))
+	if c.id == "test-request-id" {
+		t.Error(test.DiffMessage(c.id, "<generated UUID, not the header value>", "SetID must always generate its own ID and ignore the X-Request-Id header"))
+	}
+	if c.id == "" {
+		t.Error(test.DiffMessage(c.id, "<non-empty UUID>", "SetID must still generate an ID when a header is present"))
 	}
 }
 
@@ -53,10 +56,12 @@ func TestSetID_Idempotent(t *testing.T) {
 func TestGetID(t *testing.T) {
 	c := newTestHTTPContext()
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set(RequestID, "abc-123")
 	c.Init(httptest.NewRecorder(), r)
-	if c.GetID() != "abc-123" {
-		t.Error(test.DiffMessage(c.GetID(), "abc-123", "GetID"))
+	if c.GetID() == "" {
+		t.Error(test.DiffMessage(c.GetID(), "<non-empty UUID>", "GetID"))
+	}
+	if c.GetID() != c.id {
+		t.Error(test.DiffMessage(c.GetID(), c.id, "GetID must return the same ID stored on the context"))
 	}
 }
 

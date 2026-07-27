@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dangduoc08/ginject/internal/crypto"
 	"github.com/dangduoc08/ginject/internal/str"
 )
 
 type HTTPContext struct {
 	*http.Request
 	http.ResponseWriter
+
+	contextID
 
 	dataWriter DataWriter
 
@@ -22,8 +23,6 @@ type HTTPContext struct {
 	param       Param
 	ParamKeys   map[string][]int
 	ParamValues []string
-
-	id string
 
 	Next      Next
 	Code      int
@@ -57,21 +56,6 @@ func (c *HTTPContext) Reset() {
 	c.Next = nil
 	c.ResponseWriter = nil
 	c.Request = nil
-}
-
-func (c *HTTPContext) SetID() {
-	reqID := c.Header().Get(RequestID)
-	if reqID == "" {
-		reqID, _ = crypto.UUID()
-	}
-
-	if c.id == "" {
-		c.id = reqID
-	}
-}
-
-func (c *HTTPContext) GetID() string {
-	return c.id
 }
 
 func (c *HTTPContext) Status(code int) *HTTPContext {
