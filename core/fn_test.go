@@ -539,6 +539,66 @@ func TestTraceHTTPCatch_EmitsOnlyWhenListenerAttached(t *testing.T) {
 	}
 }
 
+func TestTraceWSHandler_NoListener_StillCallsWrapped(t *testing.T) {
+	ev := event.NewEvent()
+	c := ctx.NewWSContext()
+	var called bool
+	h := traceWSHandler(ev, trace.StageGuard, "Test.Guard", func(c *ctx.WSContext) { called = true })
+	h(c)
+	if !called {
+		t.Error(test.DiffMessage(false, true, "wrapped handler should still run when no listener is attached"))
+	}
+}
+
+func TestTraceWSHandler_EmitsOnlyWhenListenerAttached(t *testing.T) {
+	ev := event.NewEvent()
+	c := ctx.NewWSContext()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		got = &te
+	})
+	h := traceWSHandler(ev, trace.StageGuard, "Test.Guard", func(c *ctx.WSContext) {})
+	h(c)
+	if got == nil {
+		t.Fatal("expected a trace event to be emitted when a listener is attached")
+	}
+	if got.Stage != trace.StageGuard || got.Name != "Test.Guard" || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Name, got.Transport}, []any{trace.StageGuard, "Test.Guard", trace.TransportWS}, "traceWSHandler emitted event fields"))
+	}
+}
+
+func TestTraceWSCatch_NoListener_StillCallsWrapped(t *testing.T) {
+	ev := event.NewEvent()
+	c := ctx.NewWSContext()
+	ex := exception.BadRequestException("bad")
+	var called bool
+	fn := traceWSCatch(ev, "Test.Filter", func(c *ctx.WSContext, ex *exception.Exception) { called = true })
+	fn(c, &ex)
+	if !called {
+		t.Error(test.DiffMessage(false, true, "wrapped catch fn should still run when no listener is attached"))
+	}
+}
+
+func TestTraceWSCatch_EmitsOnlyWhenListenerAttached(t *testing.T) {
+	ev := event.NewEvent()
+	c := ctx.NewWSContext()
+	ex := exception.BadRequestException("bad")
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		got = &te
+	})
+	fn := traceWSCatch(ev, "Test.Filter", func(c *ctx.WSContext, ex *exception.Exception) {})
+	fn(c, &ex)
+	if got == nil {
+		t.Fatal("expected a trace event to be emitted when a listener is attached")
+	}
+	if got.Stage != trace.StageExceptionFilter || got.Name != "Test.Filter" || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Name, got.Transport}, []any{trace.StageExceptionFilter, "Test.Filter", trace.TransportWS}, "traceWSCatch emitted event fields"))
+	}
+}
+
 func TestBuildUseMiddleware_NoListener_StillCallsNext(t *testing.T) {
 	ev := event.NewEvent()
 	c := newHTTPContext()

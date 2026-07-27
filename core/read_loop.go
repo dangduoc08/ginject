@@ -2,6 +2,7 @@ package core
 
 import (
 	"io"
+	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/broker2"
@@ -73,6 +74,7 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 		}
 
 		c, ok := runWSMiddlewares(conn, ws, pattern, item, payload)
+		ws.emitComplete(c, string(payload.Type), topic)
 		ws.releaseCtx(c)
 		if !ok {
 			return
@@ -118,7 +120,7 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 
-		if !dispatchWSEvent(conn, ws, pattern, item, payload) {
+		if !dispatchWSEvent(conn, ws, pattern, topic, item, payload) {
 			return
 		}
 
@@ -179,9 +181,12 @@ func runWSMiddlewares(conn *WSConnection, ws *WS, pattern string, item wsevent.W
 	return c, isNext
 }
 
-func dispatchWSEvent(conn *WSConnection, ws *WS, pattern string, item wsevent.WSEventItem, payload WSPayload) (ok bool) {
+func dispatchWSEvent(conn *WSConnection, ws *WS, pattern, topic string, item wsevent.WSEventItem, payload WSPayload) (ok bool) {
 	c, mwOK := runWSMiddlewares(conn, ws, pattern, item, payload)
 	defer ws.releaseCtx(c)
+	defer func() {
+		ws.emitComplete(c, string(payload.Type), topic)
+	}()
 
 	if !mwOK {
 		return false
@@ -204,6 +209,9 @@ func dispatchWSEvent(conn *WSConnection, ws *WS, pattern string, item wsevent.WS
 			agg := aggregations[i]
 
 			if !agg.IsMainHandlerCalled {
+				for j := i; j >= 0; j-- {
+					ws.emitPostInterceptor(c, aggregations[j].Name, 0)
+				}
 				reply(conn, TypeEvent, payload.ID, agg.InterceptorData)
 				return true
 			}
@@ -212,7 +220,9 @@ func dispatchWSEvent(conn *WSConnection, ws *WS, pattern string, item wsevent.WS
 				aggregatedData = data[len(data)-1].Interface()
 			}
 			agg.SetMainData(aggregatedData)
+			start := time.Now()
 			aggregatedData = agg.Aggregate()
+			ws.emitPostInterceptor(c, agg.Name, time.Since(start))
 		}
 
 		reply(conn, TypeEvent, payload.ID, aggregatedData)

@@ -28,6 +28,7 @@ func NewWSContext() *WSContext {
 func (c *WSContext) Init(conn *websocket.Conn) {
 	c.Timestamp = time.Now()
 	c.Conn = conn
+	c.SetID()
 }
 
 func (c *WSContext) Reset() {

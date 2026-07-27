@@ -617,3 +617,33 @@ func traceHTTPCatch(ev *event.Event, name string, fn common.HTTPCatch) common.HT
 		fn(c, ex)
 	}
 }
+
+func traceWSHandler(ev *event.Event, stage, name string, h ctx.WSHandler) ctx.WSHandler {
+	return func(c *ctx.WSContext) {
+		if !ev.HasListeners(trace.EventName) {
+			h(c)
+			return
+		}
+
+		start := time.Now()
+		defer func() {
+			ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: stage, Name: name, Transport: trace.TransportWS, Duration: time.Since(start)})
+		}()
+		h(c)
+	}
+}
+
+func traceWSCatch(ev *event.Event, name string, fn common.WSCatch) common.WSCatch {
+	return func(c *ctx.WSContext, ex *exception.Exception) {
+		if !ev.HasListeners(trace.EventName) {
+			fn(c, ex)
+			return
+		}
+
+		start := time.Now()
+		defer func() {
+			ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StageExceptionFilter, Name: name, Transport: trace.TransportWS, Duration: time.Since(start)})
+		}()
+		fn(c, ex)
+	}
+}
