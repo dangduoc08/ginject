@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker2"
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"golang.org/x/net/websocket"
 )
@@ -30,29 +30,20 @@ func (c *WSConnection) TrySend(payload WSPayload) bool {
 	}
 }
 
-// wsSubscription pairs a topic with the id broker2.Subscribe returned for
-// it. broker2, unlike broker, has no Subscription object to carry this
-// around — Unsubscribe needs both the topic and the id back, so WSConnmgr
-// has to remember the pairing itself.
-type wsSubscription struct {
-	topic string
-	id    uint64
-}
-
 type WSConnmgr struct {
 	mu            sync.RWMutex
 	conns         map[string]*WSConnection
-	subscriptions map[string][]wsSubscription
+	subscriptions map[string][]broker.Subscription
 
-	Broker broker2.Broker
+	Broker broker.Broker
 	logger common.Logger
 }
 
 func NewWSConnmgr(logger common.Logger) *WSConnmgr {
 	return &WSConnmgr{
 		conns:         make(map[string]*WSConnection),
-		subscriptions: make(map[string][]wsSubscription),
-		Broker:        broker2.NewBroker(),
+		subscriptions: make(map[string][]broker.Subscription),
+		Broker:        broker.New(),
 		logger:        logger,
 	}
 }
@@ -85,7 +76,7 @@ func (connmgr *WSConnmgr) Unregister(connID string) {
 	}
 
 	for _, sub := range connmgr.subscriptions[connID] {
-		_ = connmgr.Broker.Unsubscribe(sub.topic, sub.id)
+		_ = connmgr.Broker.Unsubscribe(sub)
 	}
 	delete(connmgr.subscriptions, connID)
 	delete(connmgr.conns, connID)
@@ -108,14 +99,14 @@ func (connmgr *WSConnmgr) touch(connID string) {
 	}
 }
 
-func (connmgr *WSConnmgr) Subscribe(connID, topic string, handler broker2.MessageHandler) error {
-	id, err := connmgr.Broker.Subscribe(topic, handler)
+func (connmgr *WSConnmgr) Subscribe(connID, topic string, handler broker.MessageHandler) error {
+	sub, err := connmgr.Broker.Subscribe(topic, handler)
 	if err != nil {
 		return err
 	}
 
 	connmgr.mu.Lock()
-	connmgr.subscriptions[connID] = append(connmgr.subscriptions[connID], wsSubscription{topic: topic, id: id})
+	connmgr.subscriptions[connID] = append(connmgr.subscriptions[connID], sub)
 	connmgr.mu.Unlock()
 
 	return nil
@@ -126,7 +117,7 @@ func (connmgr *WSConnmgr) isSubscribed(connID, topic string) bool {
 	defer connmgr.mu.RUnlock()
 
 	for _, sub := range connmgr.subscriptions[connID] {
-		if sub.topic == topic {
+		if sub.Topic() == topic {
 			return true
 		}
 	}
@@ -140,11 +131,11 @@ func (connmgr *WSConnmgr) Unsubscribe(connID, topic string) error {
 
 	subs := connmgr.subscriptions[connID]
 	for i, sub := range subs {
-		if sub.topic != topic {
+		if sub.Topic() != topic {
 			continue
 		}
 
-		if err := connmgr.Broker.Unsubscribe(sub.topic, sub.id); err != nil {
+		if err := connmgr.Broker.Unsubscribe(sub); err != nil {
 			return err
 		}
 

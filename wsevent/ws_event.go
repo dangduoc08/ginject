@@ -6,8 +6,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/color"
-	"github.com/dangduoc08/ginject/internal/ds"
-	"github.com/dangduoc08/ginject/internal/str"
+	"github.com/dangduoc08/ginject/matcher"
 )
 
 type WSEventItem struct {
@@ -16,23 +15,42 @@ type WSEventItem struct {
 }
 
 type WSEvent struct {
-	trie                 *ds.Trie
 	wsEventItemByPattern map[string]WSEventItem
+	prefixByPrefix       map[string]string
+	complexPatterns      []matcher.Pattern
+	globalPattern        string
 }
 
 func NewWSEvent() *WSEvent {
 	return &WSEvent{
-		trie:                 ds.NewTrie(),
 		wsEventItemByPattern: make(map[string]WSEventItem),
+		prefixByPrefix:       make(map[string]string),
+	}
+}
+
+func (m *WSEvent) index(pattern string) {
+	pat := matcher.Parse(pattern)
+	switch pat.Kind() {
+	case matcher.KindGlobal:
+		m.globalPattern = pattern
+	case matcher.KindSuffixWildcard:
+		m.prefixByPrefix[pat.SimplePrefix()] = pattern
+	case matcher.KindComplex:
+		m.complexPatterns = append(m.complexPatterns, pat)
 	}
 }
 
 func (m *WSEvent) Add(pattern string, value WSEventItem) {
-	m.trie.Insert(pattern, str.Enclose(pattern, '.'), '.')
+	if _, existed := m.wsEventItemByPattern[pattern]; !existed {
+		m.index(pattern)
+	}
 	m.wsEventItemByPattern[pattern] = value
 }
 
 func (m *WSEvent) AddMiddlewares(pattern string, middlewares ...ctx.WSHandler) {
+	if _, existed := m.wsEventItemByPattern[pattern]; !existed {
+		m.index(pattern)
+	}
 	item := m.wsEventItemByPattern[pattern]
 	item.Middlewares = append(item.Middlewares, middlewares...)
 	m.wsEventItemByPattern[pattern] = item
@@ -52,24 +70,43 @@ func (m *WSEvent) AddInjectableHandler(pattern string, handler any) {
 		))
 	}
 
+	if _, existed := m.wsEventItemByPattern[pattern]; !existed {
+		m.index(pattern)
+	}
 	item := m.wsEventItemByPattern[pattern]
 	item.Handler = handler
 	m.wsEventItemByPattern[pattern] = item
-
-	m.trie.Insert(pattern, str.Enclose(pattern, '.'), '.')
 }
 
-func (m *WSEvent) Match(topic string) (value WSEventItem, pattern string, ok bool) {
-	matchedRaw, wildcardRaw, _ := m.trie.Find(str.Enclose(topic, '.'), '.', false)
-
-	raw := matchedRaw
-	if raw == "" {
-		raw = wildcardRaw
-	}
-	if raw == "" {
-		return
+func (m *WSEvent) Match(topic string) (WSEventItem, string, bool) {
+	if item, ok := m.wsEventItemByPattern[topic]; ok && item.Handler != nil {
+		return item, topic, true
 	}
 
-	v, found := m.wsEventItemByPattern[raw]
-	return v, raw, found
+	for i := len(topic) - 1; i >= 0; i-- {
+		if topic[i] != '.' {
+			continue
+		}
+		if pattern, ok := m.prefixByPrefix[topic[:i]]; ok {
+			if item := m.wsEventItemByPattern[pattern]; item.Handler != nil {
+				return item, pattern, true
+			}
+		}
+	}
+
+	for _, pat := range m.complexPatterns {
+		if matcher.Match(pat, topic) {
+			if item := m.wsEventItemByPattern[pat.Raw()]; item.Handler != nil {
+				return item, pat.Raw(), true
+			}
+		}
+	}
+
+	if m.globalPattern != "" {
+		if item := m.wsEventItemByPattern[m.globalPattern]; item.Handler != nil {
+			return item, m.globalPattern, true
+		}
+	}
+
+	return WSEventItem{}, "", false
 }

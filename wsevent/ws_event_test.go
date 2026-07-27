@@ -31,13 +31,45 @@ func TestWSEvent_MatchWildcardPattern(t *testing.T) {
 
 	value, pattern, ok := r.Match("chat.to.user2")
 	if !ok {
-		t.Fatal(test.DiffMessage(ok, true, "topic should match a single-segment wildcard pattern"))
+		t.Fatal(test.DiffMessage(ok, true, "topic should match a trailing wildcard pattern"))
 	}
 	if value.Handler != "wildcard-handler" {
 		t.Error(test.DiffMessage(value.Handler, "wildcard-handler", "unexpected value for wildcard match"))
 	}
 	if pattern != "chat.to.*" {
 		t.Error(test.DiffMessage(pattern, "chat.to.*", "unexpected matched pattern"))
+	}
+}
+
+// A trailing "*" is greedy: it matches one or more remaining segments, not
+// just exactly one.
+func TestWSEvent_MatchWildcardMultipleSegments(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("chat.to.*", wsevent.WSEventItem{Handler: "wildcard-handler"})
+
+	value, pattern, ok := r.Match("chat.to.user2.thread.5")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "topic should match a trailing wildcard pattern across multiple segments"))
+	}
+	if value.Handler != "wildcard-handler" || pattern != "chat.to.*" {
+		t.Error(test.DiffMessage(value.Handler, "wildcard-handler", "unexpected value/pattern for multi-segment wildcard match"))
+	}
+}
+
+// Two trailing-wildcard patterns registered at different depths ("chat.*"
+// and "chat.to.*") can both be reachable from the same topic; the most
+// specific (longest/deepest) registered prefix must win.
+func TestWSEvent_SuffixWildcard_MostSpecificPrefixWins(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("chat.*", wsevent.WSEventItem{Handler: "shallow-handler"})
+	r.Add("chat.to.*", wsevent.WSEventItem{Handler: "deep-handler"})
+
+	value, pattern, ok := r.Match("chat.to.user2")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "should match"))
+	}
+	if value.Handler != "deep-handler" || pattern != "chat.to.*" {
+		t.Error(test.DiffMessage(value.Handler, "deep-handler", "the deeper/more specific suffix-wildcard prefix should win"))
 	}
 }
 
@@ -190,4 +222,79 @@ func TestWSEvent_AddInjectableHandlerPanicsOnNonFunc(t *testing.T) {
 		}
 	}()
 	wsevent.NewWSEvent().AddInjectableHandler("chat.created", "not a func")
+}
+
+func TestWSEvent_MatchGlobalPattern(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("*", wsevent.WSEventItem{Handler: "global-handler"})
+
+	value, pattern, ok := r.Match("anything.at.all")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "any topic should match a global pattern"))
+	}
+	if value.Handler != "global-handler" || pattern != "*" {
+		t.Error(test.DiffMessage([]any{value.Handler, pattern}, []any{"global-handler", "*"}, "unexpected value/pattern for global match"))
+	}
+}
+
+func TestWSEvent_ExactPreferredOverGlobal(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("*", wsevent.WSEventItem{Handler: "global-handler"})
+	r.Add("chat.created", wsevent.WSEventItem{Handler: "exact-handler"})
+
+	value, pattern, ok := r.Match("chat.created")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "should match"))
+	}
+	if value.Handler != "exact-handler" || pattern != "chat.created" {
+		t.Error(test.DiffMessage(value.Handler, "exact-handler", "exact pattern should win over an overlapping global pattern"))
+	}
+}
+
+func TestWSEvent_SuffixWildcardPreferredOverComplex(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("chat.*.urgent", wsevent.WSEventItem{Handler: "complex-handler"})
+	r.Add("chat.*", wsevent.WSEventItem{Handler: "suffix-handler"})
+
+	value, pattern, ok := r.Match("chat.urgent")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "should match"))
+	}
+	if value.Handler != "suffix-handler" || pattern != "chat.*" {
+		t.Error(test.DiffMessage(value.Handler, "suffix-handler", "a suffix-wildcard pattern should win over an overlapping complex pattern"))
+	}
+}
+
+func TestWSEvent_ComplexPreferredOverGlobal(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	r.Add("*", wsevent.WSEventItem{Handler: "global-handler"})
+	r.Add("chat.*.urgent", wsevent.WSEventItem{Handler: "complex-handler"})
+
+	value, pattern, ok := r.Match("chat.room1.urgent")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "should match"))
+	}
+	if value.Handler != "complex-handler" || pattern != "chat.*.urgent" {
+		t.Error(test.DiffMessage(value.Handler, "complex-handler", "a complex pattern should win over an overlapping global pattern"))
+	}
+}
+
+func TestWSEvent_RepeatedAddOnSamePatternDoesNotDuplicateMatches(t *testing.T) {
+	r := wsevent.NewWSEvent()
+	mw := func(*ctx.WSContext) {}
+	r.AddMiddlewares("chat.*.urgent", mw)
+	r.AddMiddlewares("chat.*.urgent", mw)
+	r.AddInjectableHandler("chat.*.urgent", func() {})
+	r.AddInjectableHandler("chat.*.urgent", func() {})
+
+	value, pattern, ok := r.Match("chat.room1.urgent")
+	if !ok {
+		t.Fatal(test.DiffMessage(ok, true, "should match"))
+	}
+	if pattern != "chat.*.urgent" {
+		t.Error(test.DiffMessage(pattern, "chat.*.urgent", "unexpected matched pattern"))
+	}
+	if len(value.Middlewares) != 2 {
+		t.Error(test.DiffMessage(len(value.Middlewares), 2, "middlewares should accumulate, not duplicate pattern registration"))
+	}
 }
