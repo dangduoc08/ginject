@@ -526,6 +526,140 @@ func TestTrace_ExceptionFilterStageFiresOnPanic(t *testing.T) {
 	}
 }
 
+type tracePanickingPipeDTO struct{}
+
+func (d tracePanickingPipeDTO) Transform(ctx.Query, common.ArgumentMetadata) any {
+	panic(exception.BadRequestException("bad query"))
+}
+
+type tracePipePanicController struct {
+	common.HTTP
+}
+
+func (c tracePipePanicController) NewController() Controller { return c }
+func (c tracePipePanicController) READ_tracepipepanic(tracePanickingPipeDTO) string { return "ok" }
+
+func TestTrace_PipePanicStillEmitsPipeEventAndReachesExceptionFilter(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var pipeEvent *trace.Event
+	var handlerEvent *trace.Event
+	var sawExceptionFilter bool
+	var complete *trace.Event
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePipe:
+			d := te
+			pipeEvent = &d
+		case trace.StageHandler:
+			d := te
+			handlerEvent = &d
+		case trace.StageExceptionFilter:
+			sawExceptionFilter = true
+		case trace.StageComplete:
+			d := te
+			complete = &d
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(tracePipePanicController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/tracepipepanic", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if pipeEvent == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a pipe trace event even though Transform panicked"))
+	}
+	if pipeEvent.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage(pipeEvent.Transport, trace.TransportHTTP, "pipe trace event transport"))
+	}
+	if handlerEvent != nil {
+		t.Error(test.DiffMessage(handlerEvent, "<no handler event>", "no StageHandler event should fire when the panic happened before the handler body ever ran"))
+	}
+	if !sawExceptionFilter {
+		t.Error(test.DiffMessage(false, true, "the pipe's panic should still reach the exception filter"))
+	}
+	if complete == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a complete trace event to fire even when a pipe panics"))
+	}
+	if complete.Code != http.StatusBadRequest {
+		t.Error(test.DiffMessage(complete.Code, http.StatusBadRequest, "the pipe's exception should determine the final status code"))
+	}
+}
+
+type traceHandlerPanicAfterPipeController struct {
+	common.HTTP
+}
+
+func (c traceHandlerPanicAfterPipeController) NewController() Controller { return c }
+func (c traceHandlerPanicAfterPipeController) READ_tracehandlerpanicafterpipe(traceSlowPipeDTO) string {
+	panic(exception.InternalServerErrorException("handler exploded"))
+}
+
+func TestTrace_HandlerPanicAfterSuccessfulPipeStillExcludesPipeDuration(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var pipeEvent, handlerEvent *trace.Event
+	var complete *trace.Event
+
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePipe:
+			d := te
+			pipeEvent = &d
+		case trace.StageHandler:
+			d := te
+			handlerEvent = &d
+		case trace.StageComplete:
+			d := te
+			complete = &d
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(traceHandlerPanicAfterPipeController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/tracehandlerpanicafterpipe", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if pipeEvent == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected the pipe trace event since the pipe itself succeeded"))
+	}
+	if pipeEvent.Duration < traceSlowPipeSleep {
+		t.Error(test.DiffMessage(pipeEvent.Duration, ">= "+traceSlowPipeSleep.String(), "pipe trace event should report the pipe's own execution time"))
+	}
+	if handlerEvent == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a handler trace event since the handler body started executing before it panicked"))
+	}
+	if handlerEvent.Duration >= traceSlowPipeSleep {
+		t.Error(test.DiffMessage(handlerEvent.Duration, "< "+traceSlowPipeSleep.String(), "handler trace duration should still exclude the pipe's execution time even when the handler body itself panics"))
+	}
+	if complete == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a complete trace event to fire"))
+	}
+	if complete.Code != http.StatusInternalServerError {
+		t.Error(test.DiffMessage(complete.Code, http.StatusInternalServerError, "the handler's exception should determine the final status code"))
+	}
+}
+
 type multiInterceptorA struct{}
 
 func (multiInterceptorA) Intercept(_ *ctx.HTTPContext, agg *aggregation.Aggregation) any {

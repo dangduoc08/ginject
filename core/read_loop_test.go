@@ -37,8 +37,9 @@ func newTestWSBare(t testing.TB) *WS {
 	}
 	ev := event.NewEvent()
 	ws.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
-		data, _ := invokeWSHandlerByProviders(f, nil, c, ev)
-		return data
+		var pipeElapsed time.Duration
+		var handlerCalled bool
+		return invokeWSHandlerByProviders(f, nil, c, ev, &pipeElapsed, &handlerCalled)
 	}
 	ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {}
 	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {}
