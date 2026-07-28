@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
@@ -413,6 +414,65 @@ func TestTrace_EmitsPerStageAndComplete(t *testing.T) {
 	}
 	if complete.Code != http.StatusOK {
 		t.Error(test.DiffMessage(complete.Code, http.StatusOK, "complete trace event should carry the final status code"))
+	}
+}
+
+const traceSlowPipeSleep = 30 * time.Millisecond
+
+type traceSlowPipeDTO struct{}
+
+func (d traceSlowPipeDTO) Transform(ctx.Query, common.ArgumentMetadata) any {
+	time.Sleep(traceSlowPipeSleep)
+	return traceSlowPipeDTO{}
+}
+
+type tracePipeController struct {
+	common.HTTP
+}
+
+func (c tracePipeController) NewController() Controller { return c }
+func (c tracePipeController) READ_tracepipe(traceSlowPipeDTO) string { return "ok" }
+
+func TestTrace_PipeStageExcludedFromHandlerDuration(t *testing.T) {
+	resetModuleGlobals()
+	app := New()
+
+	var mu sync.Mutex
+	var pipeEvent, handlerEvent *trace.Event
+	app.event.On(trace.EventName, func(args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		te := args[0].(trace.Event)
+		switch te.Stage {
+		case trace.StagePipe:
+			d := te
+			pipeEvent = &d
+		case trace.StageHandler:
+			d := te
+			handlerEvent = &d
+		}
+	})
+
+	app.Create(ModuleBuilder().Controllers(tracePipeController{}).Build())
+
+	r := httptest.NewRequest(http.MethodGet, "/tracepipe", nil)
+	w := httptest.NewRecorder()
+	app.ServeHTTP(w, r)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if pipeEvent == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a pipe trace event to fire"))
+	}
+	if pipeEvent.Duration < traceSlowPipeSleep {
+		t.Error(test.DiffMessage(pipeEvent.Duration, ">= "+traceSlowPipeSleep.String(), "pipe trace event should report the pipe's own execution time"))
+	}
+	if handlerEvent == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a handler trace event to fire"))
+	}
+	if handlerEvent.Duration >= traceSlowPipeSleep {
+		t.Error(test.DiffMessage(handlerEvent.Duration, "< "+traceSlowPipeSleep.String(), "handler trace duration should exclude the pipe's own execution time"))
 	}
 }
 

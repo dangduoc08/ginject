@@ -35,8 +35,10 @@ func newTestWSBare(t testing.TB) *WS {
 	ws.releaseCtx = func(c *ctx.WSContext) {
 		c.Reset()
 	}
+	ev := event.NewEvent()
 	ws.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
-		return invokeWSHandlerByProviders(f, nil, c)
+		data, _ := invokeWSHandlerByProviders(f, nil, c, ev)
+		return data
 	}
 	ws.emitPostInterceptor = func(c *ctx.WSContext, name string, duration time.Duration) {}
 	ws.emitComplete = func(c *ctx.WSContext, operation, target string) {}
