@@ -620,6 +620,11 @@ func (app *App) Get(p Provider) any {
 }
 
 func (app *App) Listen(port int) error {
+	for _, m := range app.module.collectModules() {
+		if m.Name != "" {
+			app.Logger.Info("InstanceLoader", "module", fmt.Sprintf("%v initialized", m.Name))
+		}
+	}
 
 	// HTTP logs
 	var routeArr []string

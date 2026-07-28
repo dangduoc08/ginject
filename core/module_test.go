@@ -132,6 +132,32 @@ func TestNewModule_DynamicModule_MissingGlobalDependencyPanics(t *testing.T) {
 	root.NewModule()
 }
 
+type mtUnexportedFieldProvider struct {
+	hidden mtLocalProvider //nolint:unused // exists only so reflection finds an unexported field
+}
+
+func (p mtUnexportedFieldProvider) NewProvider() Provider { return p }
+
+func TestNewModule_ProviderInjection_UnexportedFieldPanicsWithoutDeadlockingModuleGlobalMu(t *testing.T) {
+	resetModuleGlobals()
+
+	m := ModuleBuilder().Providers(mtUnexportedFieldProvider{}).Build()
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error(test.DiffMessage(nil, "panic", "a provider with an unexported field should panic during injection"))
+			}
+		}()
+		m.injectProviders()
+	}()
+
+	if !moduleGlobalMu.TryLock() {
+		t.Fatal(test.DiffMessage(false, true, "moduleGlobalMu must not stay locked after injectProviders panics internally"))
+	}
+	moduleGlobalMu.Unlock()
+}
+
 type mtDedupController struct{}
 
 func (c mtDedupController) NewController() Controller { return c }
@@ -807,4 +833,69 @@ func TestNewModule_ConcurrentInvocation_NoDataRace(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// ---------------------------------------------------------------------------
+// collectModules: recursive discovery of nested static and dynamic imports
+// ---------------------------------------------------------------------------
+
+func mtCollectDynamicChild() *Module {
+	return ModuleBuilder().Build()
+}
+
+func TestModule_CollectModules_IncludesNestedStaticAndDynamicImportsAtAnyDepth(t *testing.T) {
+	resetModuleGlobals()
+
+	grandchild := ModuleBuilder().Build()
+	child := ModuleBuilder().Imports(grandchild, mtCollectDynamicChild).Build()
+	root := ModuleBuilder().Imports(child).Build()
+
+	root.NewModule()
+
+	got := root.collectModules()
+	if len(got) != 4 {
+		t.Fatalf("expected 4 modules (root, child, grandchild, dynamic child), got %d", len(got))
+	}
+
+	seen := make(map[*Module]int, len(got))
+	for _, m := range got {
+		seen[m]++
+	}
+	if seen[root] != 1 {
+		t.Error(test.DiffMessage(seen[root], 1, "root should appear exactly once"))
+	}
+	if seen[child] != 1 {
+		t.Error(test.DiffMessage(seen[child], 1, "static child should appear exactly once"))
+	}
+	if seen[grandchild] != 1 {
+		t.Error(test.DiffMessage(seen[grandchild], 1, "nested grandchild (imported by child, not root) should appear exactly once"))
+	}
+
+	dynamicChild, ok := staticModuleByDynamicPtr[reflect.ValueOf(mtCollectDynamicChild).Pointer()]
+	if !ok {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "dynamic child module should have been resolved during NewModule()"))
+	}
+	if seen[dynamicChild] != 1 {
+		t.Error(test.DiffMessage(seen[dynamicChild], 1, "nested dynamic child should appear exactly once"))
+	}
+}
+
+func TestModule_CollectModules_DedupesSharedImport(t *testing.T) {
+	resetModuleGlobals()
+
+	shared := ModuleBuilder().Build()
+	childA := ModuleBuilder().Imports(shared).Build()
+	childB := ModuleBuilder().Imports(shared).Build()
+	root := ModuleBuilder().Imports(childA, childB).Build()
+
+	root.NewModule()
+
+	got := root.collectModules()
+	seen := make(map[*Module]int, len(got))
+	for _, m := range got {
+		seen[m]++
+	}
+	if seen[shared] != 1 {
+		t.Error(test.DiffMessage(seen[shared], 1, "a module imported by two different parents should only be collected once"))
+	}
 }
