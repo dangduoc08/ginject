@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/ctx"
 )
@@ -32,6 +33,8 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		invokeHTTPHandlerByProviders(handler, app.injectedProviders, c, app.event)
+		var pipeElapsed time.Duration
+		var handlerCalled bool
+		invokeHTTPHandlerByProviders(handler, app.injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
 	}
 }
