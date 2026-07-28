@@ -12,6 +12,7 @@ import (
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
+	"github.com/dangduoc08/ginject/log"
 	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
 	"golang.org/x/net/websocket"
@@ -654,5 +655,79 @@ func TestTrace_WSHandshakeEmitsStageCompleteWithHTTPTransport(t *testing.T) {
 	}
 	if complete.Transport != trace.TransportHTTP {
 		t.Error(test.DiffMessage(complete.Transport, trace.TransportHTTP, "WS handshake StageComplete must report HTTP transport, not WS, since the connection has not upgraded yet"))
+	}
+}
+
+type capturingMockLogger struct {
+	mu   sync.Mutex
+	args []any
+}
+
+func (m *capturingMockLogger) capture(args []any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.args = args
+}
+
+func (m *capturingMockLogger) lastArgs() []any {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.args
+}
+
+func (m *capturingMockLogger) Debug(_ string, args ...any) { m.capture(args) }
+func (m *capturingMockLogger) Info(_ string, args ...any)  { m.capture(args) }
+func (m *capturingMockLogger) Warn(_ string, args ...any)  { m.capture(args) }
+func (m *capturingMockLogger) Error(_ string, args ...any) { m.capture(args) }
+func (m *capturingMockLogger) Fatal(_ string, args ...any) { m.capture(args) }
+
+func TestUseLogOptions_SetsLogOptions(t *testing.T) {
+	app := New()
+	opts := &log.LogOptions{MaskFields: []string{"password"}}
+	result := app.UseLogOptions(opts)
+	if app.LogOptions != opts {
+		t.Error(test.DiffMessage(app.LogOptions, opts, "UseLogOptions should set LogOptions"))
+	}
+	if result != app {
+		t.Error(test.DiffMessage(result, app, "UseLogOptions should return *App"))
+	}
+}
+
+func TestInitLogger_CustomLoggerAutomaticallyGetsTagBehavior(t *testing.T) {
+	type secret struct {
+		Value string `log:"value"`
+		skip  string
+	}
+
+	capturing := &capturingMockLogger{}
+	app := New()
+	app.UseLogger(capturing)
+	app.Create(ModuleBuilder().Build())
+
+	app.Logger.Info("test", "s", secret{Value: "visible", skip: "hidden"})
+
+	got, ok := capturing.lastArgs()[1].(map[string]any)
+	if !ok {
+		t.Fatalf("expected the struct to be expanded into a map[string]any, got %T", capturing.lastArgs()[1])
+	}
+	if got["value"] != "visible" {
+		t.Error(test.DiffMessage(got["value"], "visible", "tagged field should be logged under its tag name"))
+	}
+	if _, exists := got["skip"]; exists {
+		t.Error(test.DiffMessage(true, false, "untagged unexported field must not be logged"))
+	}
+}
+
+func TestInitLogger_CustomLoggerAutomaticallyGetsMaskBehavior(t *testing.T) {
+	capturing := &capturingMockLogger{}
+	app := New()
+	app.UseLogger(capturing)
+	app.UseLogOptions(&log.LogOptions{MaskFields: []string{"password"}})
+	app.Create(ModuleBuilder().Build())
+
+	app.Logger.Info("test", "password", "secret")
+
+	if capturing.lastArgs()[1] != "[REDACTED]" {
+		t.Error(test.DiffMessage(capturing.lastArgs()[1], "[REDACTED]", "masking rules from UseLogOptions should apply to a custom Logger automatically"))
 	}
 }
