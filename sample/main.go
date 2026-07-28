@@ -9,7 +9,7 @@ import (
 	"github.com/dangduoc08/ginject/sample/benchmarks"
 	"github.com/dangduoc08/ginject/sample/confs"
 	"github.com/dangduoc08/ginject/sample/shared"
-	"github.com/dangduoc08/ginject/versioning"
+	"github.com/dangduoc08/ginject/sample/shop"
 )
 
 func main() {
@@ -36,16 +36,16 @@ func main() {
 
 	app.EnableAccessLog()
 
-	app.
-		EnableVersioning(versioning.Versioning{
-			Type: versioning.HeaderVersion,
-			Key:  confs.ENV.APIVersionName,
-		}).
-		EnableDevtool()
+	// app.
+	// 	EnableVersioning(versioning.Versioning{
+	// 		Type: versioning.HeaderVersion,
+	// 		Key:  confs.ENV.APIVersionName,
+	// 	}).
+	// 	EnableDevtool()
 
 	app.Create(
 		core.ModuleBuilder().
-			Imports(benchmarks.Module, confs.ConfModule).
+			Imports(benchmarks.Module, shop.Module, confs.ConfModule).
 			Build(),
 	)
 
