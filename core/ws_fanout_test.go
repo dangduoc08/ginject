@@ -135,7 +135,7 @@ func TestHandlePublish_LiteralWildcardTopicDoesNotExpand(t *testing.T) {
 // deterministic tests above, this one is a data-race and stability guard
 // (run with -race).
 func TestWSConnmgr_ConcurrentSubscribeUnsubscribePublish_NoRace(t *testing.T) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	topics := []string{"chat.1", "chat.2", "chat.3", "chat.*"}
 	noop := func(*broker.Message) {}
 
@@ -153,7 +153,7 @@ func TestWSConnmgr_ConcurrentSubscribeUnsubscribePublish_NoRace(t *testing.T) {
 				if err := connmgr.Subscribe(connID, topic, noop); err != nil {
 					t.Errorf("Subscribe: %v", err)
 				}
-				if err := connmgr.Broker.Publish(topic, "x"); err != nil {
+				if err := (*connmgr.Broker).Publish(topic, "x"); err != nil {
 					t.Errorf("Publish: %v", err)
 				}
 				if err := connmgr.Unsubscribe(connID, topic); err != nil {

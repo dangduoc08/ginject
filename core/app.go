@@ -10,6 +10,7 @@ import (
 
 	"github.com/dangduoc08/ginject/accesslog"
 	"github.com/dangduoc08/ginject/aggregation"
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
@@ -46,6 +47,8 @@ type App struct {
 	globalExceptionFilters []common.ExceptionFilterable
 	injectedProviders      map[string]Provider
 
+	broker broker.Broker
+
 	Logger     common.Logger
 	LogOptions *log.LogOptions
 }
@@ -65,6 +68,7 @@ const (
 	wsPayloadKey    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
 	nextKey         = "/func()"
 	redirectKey     = "/func(string)"
+	publisherKey    = "github.com/dangduoc08/ginject/common/common.Publisher"
 )
 
 // knownHTTPDependencyKeys is the set of dependency-type keys the framework
@@ -82,6 +86,7 @@ var knownHTTPDependencyKeys = map[string]int{
 	fileKey:                   1,
 	nextKey:                   1,
 	redirectKey:               1,
+	publisherKey:              1,
 	common.ContextPipeableKey: 1,
 	common.BodyPipeableKey:    1,
 	common.FormPipeableKey:    1,
@@ -99,6 +104,7 @@ var knownWSDependencyKeys = map[string]int{
 	wsConnectionKey:             1,
 	wsPayloadKey:                1,
 	nextKey:                     1,
+	publisherKey:                1,
 	common.WSPayloadPipeableKey: 1,
 }
 
@@ -106,9 +112,10 @@ type WithValueKey = common.WithValueKey
 
 func New() *App {
 	app := &App{
-		http:  newHTTP(),
-		ws:    nil,
-		event: event.NewEvent(),
+		http:   newHTTP(),
+		ws:     nil,
+		event:  event.NewEvent(),
+		broker: broker.NewBroker(),
 		ctxPool: sync.Pool{
 			New: func() any {
 				return ctx.NewHTTPContext()
@@ -120,6 +127,10 @@ func New() *App {
 			},
 		},
 	}
+
+	globalInterfaceByKey.Store(publisherKey, common.Publisher(
+		newPublisher(app.broker),
+	))
 
 	app.BindGlobalExceptionFilters(globalHTTPExceptionFilter{}, globalWSExceptionFilter{})
 
@@ -209,6 +220,7 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.injectedProviders = injectedProviders
 	app.wsConfig.logger = app.Logger
 	app.wsConfig.event = app.event
+	app.wsConfig.broker = &app.broker
 	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
 		return invokeWSHandlerByProviders(f, injectedProviders, c)
 	}
