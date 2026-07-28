@@ -502,11 +502,23 @@ func toUniqueControllers(module *Module, controllers *[]Controller) {
 	*controllers = uniqueControllers
 }
 
-func invokeHTTPHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.HTTPContext) []reflect.Value {
+func invokeHTTPHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.HTTPContext, ev *event.Event) ([]reflect.Value, time.Duration) {
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
+	hasListeners := ev.HasListeners(trace.EventName)
+	var pipeElapsed time.Duration
+
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := knownHTTPDependencyKeys[dynamicArgKey]; ok {
+			if pipeValue.IsValid() && hasListeners {
+				start := time.Now()
+				dep := getHTTPDependency(dynamicArgKey, c, pipeValue)
+				d := time.Since(start)
+				pipeElapsed += d
+				ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StagePipe, Name: pipeValue.Elem().Type().String(), Transport: trace.TransportHTTP, Duration: d})
+				args = append(args, reflect.ValueOf(dep))
+				return
+			}
 			args = append(args, reflect.ValueOf(getHTTPDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
@@ -517,7 +529,7 @@ func invokeHTTPHandlerByProviders(f any, injectedProviders map[string]Provider, 
 		}
 	})
 
-	return reflect.ValueOf(f).Call(args)
+	return reflect.ValueOf(f).Call(args), pipeElapsed
 }
 
 func getWSDependency(k string, c *ctx.WSContext, pipeValue reflect.Value) any {
@@ -544,11 +556,23 @@ func getWSDependency(k string, c *ctx.WSContext, pipeValue reflect.Value) any {
 	return knownWSDependencyKeys
 }
 
-func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.WSContext) []reflect.Value {
+func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c *ctx.WSContext, ev *event.Event) ([]reflect.Value, time.Duration) {
 	fType := reflect.TypeOf(f)
 	args := make([]reflect.Value, 0, fType.NumIn())
+	hasListeners := ev.HasListeners(trace.EventName)
+	var pipeElapsed time.Duration
+
 	getFnArgsByType(fType, injectedProviders, func(dynamicArgKey string, i int, pipeValue reflect.Value) {
 		if _, ok := knownWSDependencyKeys[dynamicArgKey]; ok {
+			if pipeValue.IsValid() && hasListeners {
+				start := time.Now()
+				dep := getWSDependency(dynamicArgKey, c, pipeValue)
+				d := time.Since(start)
+				pipeElapsed += d
+				ev.Emit(trace.EventName, trace.Event{ID: c.GetID(), Stage: trace.StagePipe, Name: pipeValue.Elem().Type().String(), Transport: trace.TransportWS, Duration: d})
+				args = append(args, reflect.ValueOf(dep))
+				return
+			}
 			args = append(args, reflect.ValueOf(getWSDependency(dynamicArgKey, c, pipeValue)))
 		} else {
 			panic(fmt.Errorf(
@@ -559,7 +583,7 @@ func invokeWSHandlerByProviders(f any, injectedProviders map[string]Provider, c 
 		}
 	})
 
-	return reflect.ValueOf(f).Call(args)
+	return reflect.ValueOf(f).Call(args), pipeElapsed
 }
 
 func buildUseMiddleware(useFn common.Use, event *event.Event, name, transport string) ctx.HTTPHandler {

@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -456,6 +458,124 @@ func TestGetFnArgsByType_ConcurrentCallsNoDataRace(t *testing.T) {
 		}
 	}
 	wg.Wait()
+}
+
+type tracedQueryPipeDTO struct{}
+
+func (d tracedQueryPipeDTO) Transform(ctx.Query, common.ArgumentMetadata) any {
+	return tracedQueryPipeDTO{}
+}
+
+type tracedWSPayloadPipeDTO struct{}
+
+func (d tracedWSPayloadPipeDTO) Transform(ctx.WSPayload, common.ArgumentMetadata) any {
+	return tracedWSPayloadPipeDTO{}
+}
+
+func TestInvokeHTTPHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StagePipe {
+			d := te
+			got = &d
+		}
+	})
+
+	c := newHTTPContext()
+	handler := func(tracedQueryPipeDTO) {}
+	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+
+	if got == nil {
+		t.Fatal("expected a pipe trace event for a Pipeable param")
+	}
+	if got.Stage != trace.StagePipe || got.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Transport}, []any{trace.StagePipe, trace.TransportHTTP}, "pipe trace event stage/transport"))
+	}
+	if !strings.Contains(got.Name, "tracedQueryPipeDTO") {
+		t.Error(test.DiffMessage(got.Name, "contains tracedQueryPipeDTO", "pipe trace event name should identify the concrete pipe type"))
+	}
+	if pipeElapsed <= 0 {
+		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeHTTPHandlerByProviders should return the accumulated pipe duration"))
+	}
+}
+
+func TestInvokeHTTPHandlerByProviders_NonPipeableParamDoesNotEmitStagePipe(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		got = &te
+	})
+
+	c := newHTTPContext()
+	handler := func(*ctx.HTTPContext) {}
+	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+
+	if got != nil {
+		t.Error(test.DiffMessage(got.Stage, "<no event>", "a non-Pipeable param must not emit any trace event"))
+	}
+	if pipeElapsed != 0 {
+		t.Error(test.DiffMessage(pipeElapsed, time.Duration(0), "a non-Pipeable param must not contribute to pipe duration"))
+	}
+}
+
+func TestInvokeHTTPHandlerByProviders_NoListeners_SkipsPipeTracing(t *testing.T) {
+	ev := event.NewEvent()
+	c := newHTTPContext()
+	handler := func(tracedQueryPipeDTO) {}
+	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+
+	if pipeElapsed != 0 {
+		t.Error(test.DiffMessage(pipeElapsed, time.Duration(0), "with no trace listeners attached, pipe timing should be skipped entirely"))
+	}
+}
+
+func TestInvokeWSHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StagePipe {
+			d := te
+			got = &d
+		}
+	})
+
+	c := ctx.NewWSContext()
+	handler := func(tracedWSPayloadPipeDTO) {}
+	_, pipeElapsed := invokeWSHandlerByProviders(handler, nil, c, ev)
+
+	if got == nil {
+		t.Fatal("expected a pipe trace event for a WSPayloadPipeable param")
+	}
+	if got.Stage != trace.StagePipe || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Transport}, []any{trace.StagePipe, trace.TransportWS}, "pipe trace event stage/transport"))
+	}
+	if pipeElapsed <= 0 {
+		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeWSHandlerByProviders should return the accumulated pipe duration"))
+	}
+}
+
+func TestInvokeWSHandlerByProviders_NonPipeableParamDoesNotEmitStagePipe(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		got = &te
+	})
+
+	c := ctx.NewWSContext()
+	handler := func(*ctx.WSContext) {}
+	_, pipeElapsed := invokeWSHandlerByProviders(handler, nil, c, ev)
+
+	if got != nil {
+		t.Error(test.DiffMessage(got.Stage, "<no event>", "a non-Pipeable param must not emit any trace event"))
+	}
+	if pipeElapsed != 0 {
+		t.Error(test.DiffMessage(pipeElapsed, time.Duration(0), "a non-Pipeable param must not contribute to pipe duration"))
+	}
 }
 
 func TestIsInjectableHandlerValid(t *testing.T) {
