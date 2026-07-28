@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/dangduoc08/ginject/aggregation"
+	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/core"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
@@ -19,6 +20,7 @@ type (
 	Exception   = *exception.Exception
 	Versioning  = versioning.Versioning
 	FieldLevel  = ctx.FieldLevel
+	Publisher   = common.Publisher
 
 	// decorators
 	HTTPContext = *ctx.HTTPContext

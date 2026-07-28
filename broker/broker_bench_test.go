@@ -8,7 +8,7 @@ import (
 // BenchmarkPublish measures synchronous publish to a single exact-match topic
 // with 1000 subscribers pre-registered.
 func BenchmarkPublish(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
@@ -25,7 +25,7 @@ func BenchmarkPublish(b *testing.B) {
 
 // BenchmarkPublishWildcard measures publish when 100 wildcard subscribers are registered.
 func BenchmarkPublishWildcard(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
@@ -43,7 +43,7 @@ func BenchmarkPublishWildcard(b *testing.B) {
 // BenchmarkPublishMixed measures publish when exact, prefix, and global
 // subscribers are all active simultaneously.
 func BenchmarkPublishMixed(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
@@ -62,7 +62,7 @@ func BenchmarkPublishMixed(b *testing.B) {
 
 // BenchmarkSubscribe measures the cost of subscribe followed by unsubscribe in a tight loop.
 func BenchmarkSubscribe(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
@@ -76,7 +76,7 @@ func BenchmarkSubscribe(b *testing.B) {
 
 // BenchmarkPublishParallel measures throughput under concurrent publish load.
 func BenchmarkPublishParallel(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
@@ -97,7 +97,7 @@ func BenchmarkPublishParallel(b *testing.B) {
 
 // BenchmarkPublishManyTopics measures publish when subscriptions are spread across many topics.
 func BenchmarkPublishManyTopics(b *testing.B) {
-	br := New()
+	br := NewBroker()
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}

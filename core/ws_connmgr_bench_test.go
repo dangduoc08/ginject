@@ -8,7 +8,7 @@ import (
 )
 
 func BenchmarkWSConnmgr_Get(b *testing.B) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	connmgr.conns["conn-1"] = &WSConnection{ID: "conn-1"}
 
 	b.ReportAllocs()
@@ -19,7 +19,7 @@ func BenchmarkWSConnmgr_Get(b *testing.B) {
 }
 
 func BenchmarkWSConnmgr_Touch(b *testing.B) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	connmgr.conns["conn-1"] = &WSConnection{ID: "conn-1"}
 
 	b.ReportAllocs()
@@ -30,7 +30,7 @@ func BenchmarkWSConnmgr_Touch(b *testing.B) {
 }
 
 func BenchmarkWSConnmgr_IsSubscribed(b *testing.B) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	noop := func(*broker.Message) {}
 	for _, topic := range []string{"a", "b", "c"} {
 		if err := connmgr.Subscribe("conn-1", topic, noop); err != nil {

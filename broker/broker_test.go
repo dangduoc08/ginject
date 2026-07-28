@@ -16,7 +16,7 @@ import (
 
 func newBroker(t *testing.T) Broker {
 	t.Helper()
-	b := New()
+	b := NewBroker()
 	t.Cleanup(func() { _ = b.Close() })
 	return b
 }
@@ -359,7 +359,7 @@ func TestClear(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestClose_ReturnErrClosed(t *testing.T) {
-	b := New()
+	b := NewBroker()
 	_ = b.Close()
 
 	if err := b.Publish("t", nil); err != ErrClosed {
@@ -539,7 +539,7 @@ func TestSubscription_IDAndTopic(t *testing.T) {
 
 func TestOnce_ConcurrentPublish_FiresExactlyOnce(t *testing.T) {
 	for attempt := 0; attempt < 200; attempt++ {
-		b := New()
+		b := NewBroker()
 		var count atomic.Int64
 
 		_, _ = b.Once("ev", func(*Message) { count.Add(1) })
@@ -564,7 +564,7 @@ func TestOnce_ConcurrentPublish_FiresExactlyOnce(t *testing.T) {
 
 func TestOnce_ConcurrentPublish_PrefixWildcard_FiresExactlyOnce(t *testing.T) {
 	for attempt := 0; attempt < 200; attempt++ {
-		b := New()
+		b := NewBroker()
 		var count atomic.Int64
 
 		_, _ = b.Once("user.*", func(*Message) { count.Add(1) })
@@ -589,7 +589,7 @@ func TestOnce_ConcurrentPublish_PrefixWildcard_FiresExactlyOnce(t *testing.T) {
 
 func TestOnce_ConcurrentPublish_GlobalWildcard_FiresExactlyOnce(t *testing.T) {
 	for attempt := 0; attempt < 200; attempt++ {
-		b := New()
+		b := NewBroker()
 		var count atomic.Int64
 
 		_, _ = b.Once("*", func(*Message) { count.Add(1) })
@@ -1169,7 +1169,7 @@ func TestHooks_AllFourFire(t *testing.T) {
 
 func TestNewWithConfig_ImplementsBroker(t *testing.T) {
 	// Compile-time interface check: both constructors must satisfy Broker.
-	_ = []Broker{NewWithConfig(Config{}), New()}
+	_ = []Broker{NewWithConfig(Config{}), NewBroker()}
 }
 
 func TestPublishAsync_Close_NoPanic(t *testing.T) {

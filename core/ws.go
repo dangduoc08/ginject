@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/dangduoc08/ginject/broker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/event"
@@ -24,6 +25,7 @@ type WSConfig struct {
 	injectedProviders map[string]Provider
 	logger            common.Logger
 	event             *event.Event
+	broker            *broker.Broker
 
 	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	newCtx                func() *ctx.WSContext
@@ -55,7 +57,7 @@ func NewWS(cfg *WSConfig) *WS {
 		catchFnsByEvent:       make(map[string][]common.WSCatch),
 		resolveAndCallHandler: cfg.resolveAndCallHandler,
 		eventMatcher:          wsevent.NewWSEvent(),
-		connmgr:               NewWSConnmgr(cfg.logger),
+		connmgr:               NewWSConnmgr(cfg.logger, cfg.broker),
 		path:                  path,
 		globalMiddlewares:     resolveGlobalMiddlewares(cfg.globalMiddlewares, cfg.injectedProviders, cfg.event),
 		injectedProviders:     cfg.injectedProviders,

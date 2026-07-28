@@ -143,15 +143,12 @@ type asyncJob struct {
 }
 
 type MemoryBroker struct {
-	mu      sync.RWMutex
-	closeMu sync.RWMutex
-	// exactByTopic holds exact-match subscriptions, keyed by topic; each inner map is keyed by subscription ID.
-	exactByTopic map[string]map[string]*subscription
-	// prefixByPrefix holds suffix-wildcard subscriptions, keyed by topic prefix; each inner map is keyed by subscription ID.
-	prefixByPrefix map[string]map[string]*subscription
-	globalByID     map[string]*subscription
-	complexByTopic map[string]*complexGroup
-	// queueGroupsByTopic holds queue groups keyed by topic; each inner map is keyed by group name.
+	mu                 sync.RWMutex
+	closeMu            sync.RWMutex
+	exactByTopic       map[string]map[string]*subscription
+	prefixByPrefix     map[string]map[string]*subscription
+	globalByID         map[string]*subscription
+	complexByTopic     map[string]*complexGroup
 	queueGroupsByTopic map[string]map[string]*queueGroup
 	closed             atomic.Bool
 	cfg                Config
@@ -160,7 +157,7 @@ type MemoryBroker struct {
 	wg                 sync.WaitGroup
 }
 
-func New() Broker {
+func NewBroker() Broker {
 	workers := runtime.GOMAXPROCS(0)
 	return NewWithConfig(Config{
 		RecoverPanics:  true,
@@ -203,10 +200,6 @@ func newID() string {
 	return id
 }
 
-// forEachPrefixOf calls fn once for every dot-terminated prefix of topic,
-// longest first (e.g. "a.b.c" yields "a.b" then "a") so callers that want
-// the most specific suffix-wildcard match can stop at the first hit, and
-// callers that want every overlapping match (fan-out) can visit them all.
 func forEachPrefixOf(topic string, fn func(prefix string)) {
 	for i := len(topic) - 1; i >= 0; i-- {
 		if topic[i] == '.' {

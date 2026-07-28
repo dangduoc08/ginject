@@ -124,7 +124,7 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 
-		if err := ws.connmgr.Broker.Publish(topic, payload.Message); err != nil {
+		if err := (*ws.connmgr.Broker).Publish(topic, payload.Message); err != nil {
 			replyException(conn, payload.ID, exception.WSInternalErrorException(err.Error()))
 			return
 		}

@@ -35,15 +35,22 @@ type WSConnmgr struct {
 	conns         map[string]*WSConnection
 	subscriptions map[string][]broker.Subscription
 
-	Broker broker.Broker
+	Broker *broker.Broker
 	logger common.Logger
 }
 
-func NewWSConnmgr(logger common.Logger) *WSConnmgr {
+func NewWSConnmgr(logger common.Logger, br *broker.Broker) *WSConnmgr {
+	var b broker.Broker
+	if br != nil {
+		b = *br
+	}
+	if b == nil {
+		b = broker.NewBroker()
+	}
 	return &WSConnmgr{
 		conns:         make(map[string]*WSConnection),
 		subscriptions: make(map[string][]broker.Subscription),
-		Broker:        broker.New(),
+		Broker:        &b,
 		logger:        logger,
 	}
 }
@@ -76,7 +83,7 @@ func (connmgr *WSConnmgr) Unregister(connID string) {
 	}
 
 	for _, sub := range connmgr.subscriptions[connID] {
-		_ = connmgr.Broker.Unsubscribe(sub)
+		_ = (*connmgr.Broker).Unsubscribe(sub)
 	}
 	delete(connmgr.subscriptions, connID)
 	delete(connmgr.conns, connID)
@@ -100,7 +107,7 @@ func (connmgr *WSConnmgr) touch(connID string) {
 }
 
 func (connmgr *WSConnmgr) Subscribe(connID, topic string, handler broker.MessageHandler) error {
-	sub, err := connmgr.Broker.Subscribe(topic, handler)
+	sub, err := (*connmgr.Broker).Subscribe(topic, handler)
 	if err != nil {
 		return err
 	}
@@ -135,7 +142,7 @@ func (connmgr *WSConnmgr) Unsubscribe(connID, topic string) error {
 			continue
 		}
 
-		if err := connmgr.Broker.Unsubscribe(sub); err != nil {
+		if err := (*connmgr.Broker).Unsubscribe(sub); err != nil {
 			return err
 		}
 

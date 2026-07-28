@@ -49,7 +49,7 @@ func TestWSConnection_TrySend_DeliversToClient(t *testing.T) {
 	serverConn, clientConn, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	conn := connmgr.Register("conn-1", serverConn)
 	defer connmgr.Unregister("conn-1")
 
@@ -72,7 +72,7 @@ func TestWSConnection_TrySend_ConcurrentSendsNoRace(t *testing.T) {
 	serverConn, clientConn, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	conn := connmgr.Register("conn-1", serverConn)
 	defer connmgr.Unregister("conn-1")
 
@@ -138,7 +138,7 @@ func TestWSConnection_TrySend_DropsWhenBufferFull(t *testing.T) {
 	serverConn, _, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	// No client-side reads happen in this test, so once the writer goroutine
 	// blocks on its own in-flight websocket.JSON.Send, the buffer fills up
 	// and TrySend must start returning false instead of blocking forever.
@@ -170,7 +170,7 @@ func TestWSConnmgr_UnregisterStopsWriterWithoutPanic(t *testing.T) {
 	serverConn, _, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	conn := connmgr.Register("conn-1", serverConn)
 
 	connmgr.Unregister("conn-1")
@@ -184,7 +184,7 @@ func TestWSConnmgr_Get(t *testing.T) {
 	serverConn, _, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	registered := connmgr.Register("conn-1", serverConn)
 	defer connmgr.Unregister("conn-1")
 
@@ -202,7 +202,7 @@ func TestWSConnmgr_Touch(t *testing.T) {
 	serverConn, _, cleanup := newTestWSConnPair(t)
 	defer cleanup()
 
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	conn := connmgr.Register("conn-1", serverConn)
 	defer connmgr.Unregister("conn-1")
 
@@ -217,12 +217,12 @@ func TestWSConnmgr_Touch(t *testing.T) {
 }
 
 func TestWSConnmgr_TouchUnknownConnIsNoop(t *testing.T) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	connmgr.touch("missing")
 }
 
 func TestWSConnmgr_UnsubscribeRemovesOnlyMatchingTopic(t *testing.T) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 
 	if err := connmgr.Subscribe("conn-1", "topic.a", func(*broker.Message) {}); err != nil {
 		t.Fatal(err)
@@ -244,7 +244,7 @@ func TestWSConnmgr_UnsubscribeRemovesOnlyMatchingTopic(t *testing.T) {
 }
 
 func TestWSConnmgr_UnsubscribeUnknownTopicIsNoop(t *testing.T) {
-	connmgr := NewWSConnmgr(log.NewLog(nil))
+	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	if err := connmgr.Unsubscribe("conn-1", "never-subscribed"); err != nil {
 		t.Error(test.DiffMessage(err, nil, "Unsubscribe on a topic never subscribed to should not error"))
 	}

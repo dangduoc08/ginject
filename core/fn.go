@@ -330,6 +330,9 @@ func getHTTPDependency(k string, c *ctx.HTTPContext, pipeValue reflect.Value) an
 		return c.Next
 	case redirectKey:
 		return c.Redirect
+	case publisherKey:
+		p, _ := globalInterfaceByKey.Load(publisherKey)
+		return p
 	case common.ContextPipeableKey:
 		return pipeValue.
 			Interface().(common.ContextPipeable).
@@ -527,6 +530,9 @@ func getWSDependency(k string, c *ctx.WSContext, pipeValue reflect.Value) any {
 		return c.WSPayload()
 	case nextKey:
 		return c.Next
+	case publisherKey:
+		p, _ := globalInterfaceByKey.Load(publisherKey)
+		return p
 	case common.WSPayloadPipeableKey:
 		return pipeValue.
 			Interface().(common.WSPayloadPipeable).
