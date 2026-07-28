@@ -10,6 +10,7 @@ const (
 	StagePreInterceptor  = "pre_interceptor"
 	StagePostInterceptor = "post_interceptor"
 	StageExceptionFilter = "exception_filter"
+	StagePipe            = "pipe"
 	StageHandler         = "handler"
 	StageComplete        = "complete"
 )

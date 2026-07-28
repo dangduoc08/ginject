@@ -32,6 +32,6 @@ func BenchmarkProvideAndInvoke(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		invokeHTTPHandlerByProviders(handler, app.injectedProviders, c)
+		invokeHTTPHandlerByProviders(handler, app.injectedProviders, c, app.event)
 	}
 }
