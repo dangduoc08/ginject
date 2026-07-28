@@ -256,6 +256,36 @@ func TestTrieRemove_KeepsSharedPrefix(t *testing.T) {
 	}
 }
 
+// Removing a glob-pattern child (a key containing '*' but not the bare "*"
+// catch-all) must also drop it from the fallback scan's candidate list, not
+// just from the Children map — otherwise Find could still attempt to match
+// against a stale, deleted node.
+func TestTrieRemove_PrunesGlobChild(t *testing.T) {
+	tr := NewTrie()
+	tr.Insert("/files/*.html/", "/files/*.html/", '/')
+	tr.Insert("/files/plain/", "/files/plain/", '/')
+
+	matchedRaw, _, _ := tr.Find("/files/id.html/", '/', false)
+	if matchedRaw != "/files/*.html/" {
+		t.Error(test.DiffMessage(matchedRaw, "/files/*.html/", "glob child should match before removal"))
+	}
+
+	ok := tr.Remove("/files/*.html/", '/')
+	if !ok {
+		t.Error(test.DiffMessage(ok, true, "Remove should report success for a previously inserted glob pattern"))
+	}
+
+	matchedRaw, _, _ = tr.Find("/files/id.html/", '/', false)
+	if matchedRaw != "" {
+		t.Error(test.DiffMessage(matchedRaw, "", "removed glob pattern must no longer be reachable via Find"))
+	}
+
+	matchedRaw, _, _ = tr.Find("/files/plain/", '/', false)
+	if matchedRaw != "/files/plain/" {
+		t.Error(test.DiffMessage(matchedRaw, "/files/plain/", "unrelated sibling should still match after glob removal"))
+	}
+}
+
 func TestTrieRemove_NoMatch_ReturnsFalse(t *testing.T) {
 	tr := NewTrie()
 	tr.Insert("/a/b/", "/a/b/", '/')
