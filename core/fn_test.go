@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/dangduoc08/ginject/common"
@@ -428,6 +429,33 @@ func TestGetFnArgsByType_MultipleParamsResolveInOrder(t *testing.T) {
 			t.Error(test.DiffMessage(gotIndexes[i], i, "param index should match its position"))
 		}
 	}
+}
+
+// classifyArgType memoizes its result in a shared sync.Map keyed by
+// reflect.Type, so concurrent first-time classification of the same and
+// different handler signatures must not race or produce inconsistent keys.
+func TestGetFnArgsByType_ConcurrentCallsNoDataRace(t *testing.T) {
+	handlers := []any{
+		func(*ctx.HTTPContext) {},
+		func(fnContextPipeableDTO) {},
+		func(fnBodyPipeableDTO) {},
+		func(*http.Request, http.ResponseWriter) {},
+	}
+	injectedProviders := map[string]Provider{
+		genFieldKey(reflect.TypeOf(fnTestProvider{})): fnTestProvider{Tag: "injected"},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		for _, h := range handlers {
+			wg.Add(1)
+			go func(handler any) {
+				defer wg.Done()
+				getFnArgsByType(reflect.TypeOf(handler), injectedProviders, func(string, int, reflect.Value) {})
+			}(h)
+		}
+	}
+	wg.Wait()
 }
 
 func TestIsInjectableHandlerValid(t *testing.T) {
