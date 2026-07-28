@@ -10,12 +10,22 @@ import (
 type Node map[string]*Trie
 
 type Trie struct {
-	IsEnd    bool
-	Raw      string
-	Children Node
+	IsEnd        bool
+	Raw          string
+	Children     Node
+	globChildren []string
 }
 
 const paramValsInitialCap = 4
+
+func removeGlobChild(globChildren []string, key string) []string {
+	for i, k := range globChildren {
+		if k == key {
+			return append(globChildren[:i], globChildren[i+1:]...)
+		}
+	}
+	return globChildren
+}
 
 func NewTrie() *Trie {
 	return &Trie{
@@ -44,6 +54,9 @@ func (tr *Trie) Insert(raw, insertedStr string, sep byte) *Trie {
 	for seg, next := str.Segment(insertedStr, sep, start); next > -1; seg, next = str.Segment(insertedStr, sep, next) {
 		if node.Children[seg] == nil {
 			node.Children[seg] = NewTrie()
+			if seg != "*" && strings.Contains(seg, "*") {
+				node.globChildren = append(node.globChildren, seg)
+			}
 		}
 
 		if next == len(insertedStr)-1 {
@@ -89,6 +102,7 @@ func (tr *Trie) Remove(removedStr string, sep byte) bool {
 			break
 		}
 		delete(s.parent.Children, s.key)
+		s.parent.globChildren = removeGlobChild(s.parent.globChildren, s.key)
 	}
 
 	return true
@@ -125,7 +139,7 @@ func (tr *Trie) Find(path string, sep byte, supportParams bool) (string, string,
 			} else {
 				isNotMatchAnythings := true
 
-				for route := range node.Children {
+				for _, route := range node.globChildren {
 					if matchWildcard(seg, route) {
 						node = node.Children[route]
 						isNotMatchAnythings = false
