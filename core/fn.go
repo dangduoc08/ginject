@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dangduoc08/ginject/event"
@@ -34,72 +35,62 @@ func getFnArgs(f any, injectedProviders map[string]Provider, cb func(string, int
 	getFnArgsByType(reflect.TypeOf(f), injectedProviders, cb)
 }
 
+type argClassification struct {
+	key        string
+	isPipeable bool
+}
+
+var argClassificationCache sync.Map // reflect.Type -> argClassification
+
+func classifyArgType(argType reflect.Type) argClassification {
+	if cached, ok := argClassificationCache.Load(argType); ok {
+		return cached.(argClassification)
+	}
+
+	argAnyValue := reflect.New(argType).Elem().Interface()
+
+	var classification argClassification
+	switch argAnyValue.(type) {
+	case common.ContextPipeable:
+		classification = argClassification{key: common.ContextPipeableKey, isPipeable: true}
+	case common.BodyPipeable:
+		classification = argClassification{key: common.BodyPipeableKey, isPipeable: true}
+	case common.FormPipeable:
+		classification = argClassification{key: common.FormPipeableKey, isPipeable: true}
+	case common.QueryPipeable:
+		classification = argClassification{key: common.QueryPipeableKey, isPipeable: true}
+	case common.HeaderPipeable:
+		classification = argClassification{key: common.HeaderPipeableKey, isPipeable: true}
+	case common.ParamPipeable:
+		classification = argClassification{key: common.ParamPipeableKey, isPipeable: true}
+	case common.FilePipeable:
+		classification = argClassification{key: common.FilePipeableKey, isPipeable: true}
+	case common.WSPayloadPipeable:
+		classification = argClassification{key: common.WSPayloadPipeableKey, isPipeable: true}
+	default:
+		classification = argClassification{key: argType.PkgPath() + "/" + argType.String()}
+	}
+
+	argClassificationCache.Store(argType, classification)
+	return classification
+}
+
 func getFnArgsByType(injectableFnType reflect.Type, injectedProviders map[string]Provider, cb func(string, int, reflect.Value)) {
 	for i := 0; i < injectableFnType.NumIn(); i++ {
 		argType := injectableFnType.In(i)
-		newArg := reflect.New(argType).Elem()
-		argAnyValue := newArg.Interface()
+		classification := classifyArgType(argType)
 
-		if contextPipeable, isImplContextPipeable := argAnyValue.(common.ContextPipeable); isImplContextPipeable {
-			newArg, err := injectDependencies(contextPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.ContextPipeableKey, i, newArg)
-		} else if bodyPipeable, isImplBodyPipeable := argAnyValue.(common.BodyPipeable); isImplBodyPipeable {
-			newArg, err := injectDependencies(bodyPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.BodyPipeableKey, i, newArg)
-		} else if formPipeable, isImplFormPipeable := argAnyValue.(common.FormPipeable); isImplFormPipeable {
-			newArg, err := injectDependencies(formPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.FormPipeableKey, i, newArg)
-		} else if queryPipeable, isImplQueryPipeable := argAnyValue.(common.QueryPipeable); isImplQueryPipeable {
-			newArg, err := injectDependencies(queryPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.QueryPipeableKey, i, newArg)
-		} else if headerPipeable, isImplHeaderPipeable := argAnyValue.(common.HeaderPipeable); isImplHeaderPipeable {
-			newArg, err := injectDependencies(headerPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.HeaderPipeableKey, i, newArg)
-		} else if paramPipeable, isImplParamPipeable := argAnyValue.(common.ParamPipeable); isImplParamPipeable {
-			newArg, err := injectDependencies(paramPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.ParamPipeableKey, i, newArg)
-		} else if filePipeable, isImplFilePipeable := argAnyValue.(common.FilePipeable); isImplFilePipeable {
-			newArg, err := injectDependencies(filePipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.FilePipeableKey, i, newArg)
-		} else if wsPayloadPipeable, isImplWSPayloadPipeable := argAnyValue.(common.WSPayloadPipeable); isImplWSPayloadPipeable {
-			newArg, err := injectDependencies(wsPayloadPipeable, "pipe", injectedProviders)
-			if err != nil {
-				panic(err)
-			}
-
-			cb(common.WSPayloadPipeableKey, i, newArg)
-		} else {
-			arg := argType.PkgPath() + "/" + argType.String()
-			cb(arg, i, newArg)
+		if !classification.isPipeable {
+			cb(classification.key, i, reflect.Value{})
+			continue
 		}
+
+		newArg, err := injectDependencies(reflect.New(argType).Elem().Interface(), "pipe", injectedProviders)
+		if err != nil {
+			panic(err)
+		}
+
+		cb(classification.key, i, newArg)
 	}
 }
 
