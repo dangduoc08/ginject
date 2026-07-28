@@ -791,3 +791,125 @@ func TestInitLogger_CustomLoggerAutomaticallyGetsMaskBehavior(t *testing.T) {
 		t.Error(test.DiffMessage(capturing.lastArgs()[1], "[REDACTED]", "masking rules from UseLogOptions should apply to a custom Logger automatically"))
 	}
 }
+
+type capturedLogCall struct {
+	msg  string
+	args []any
+}
+
+type allCallsCapturingLogger struct {
+	mu    sync.Mutex
+	calls []capturedLogCall
+}
+
+func (l *allCallsCapturingLogger) capture(msg string, args []any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls = append(l.calls, capturedLogCall{msg: msg, args: args})
+}
+
+func (l *allCallsCapturingLogger) findCall(msg string) *capturedLogCall {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for i := range l.calls {
+		if l.calls[i].msg == msg {
+			return &l.calls[i]
+		}
+	}
+	return nil
+}
+
+func (l *allCallsCapturingLogger) findAllCalls(msg string) []capturedLogCall {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var found []capturedLogCall
+	for _, c := range l.calls {
+		if c.msg == msg {
+			found = append(found, c)
+		}
+	}
+	return found
+}
+
+func (l *allCallsCapturingLogger) Debug(msg string, args ...any) { l.capture(msg, args) }
+func (l *allCallsCapturingLogger) Info(msg string, args ...any)  { l.capture(msg, args) }
+func (l *allCallsCapturingLogger) Warn(msg string, args ...any)  { l.capture(msg, args) }
+func (l *allCallsCapturingLogger) Error(msg string, args ...any) { l.capture(msg, args) }
+func (l *allCallsCapturingLogger) Fatal(msg string, args ...any) { l.capture(msg, args) }
+
+var testListenModule = func() *Module {
+	return ModuleBuilder().Build()
+}
+
+func TestListen_LogsModuleNameWhenResolved(t *testing.T) {
+	logger := &allCallsCapturingLogger{}
+	app := New()
+	app.UseLogger(logger)
+	app.Create(testListenModule())
+
+	if err := app.Listen(-1); err == nil {
+		t.Fatal(test.DiffMessage(nil, "error", "Listen(-1) should fail immediately with an invalid port"))
+	}
+
+	call := logger.findCall("InstanceLoader")
+	if call == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected an InstanceLoader log entry"))
+	}
+	want := []any{"module", "core.testListenModule initialized"}
+	if len(call.args) != 2 || call.args[0] != want[0] || call.args[1] != want[1] {
+		t.Error(test.DiffMessage(call.args, want, "module log args"))
+	}
+}
+
+func TestListen_SkipsModuleLogWhenNameUnresolved(t *testing.T) {
+	logger := &allCallsCapturingLogger{}
+	app := New()
+	app.UseLogger(logger)
+
+	m := ModuleBuilder().Build()
+	m.Name = ""
+	app.Create(m)
+
+	if err := app.Listen(-1); err == nil {
+		t.Fatal(test.DiffMessage(nil, "error", "Listen(-1) should fail immediately with an invalid port"))
+	}
+
+	if call := logger.findCall("InstanceLoader"); call != nil {
+		t.Error(test.DiffMessage(call.msg, "<no InstanceLoader log>", "module log should be skipped when Name is unresolved"))
+	}
+}
+
+var testListenChildModule = func() *Module {
+	return ModuleBuilder().Build()
+}
+
+var testListenParentModule = func() *Module {
+	return ModuleBuilder().Imports(testListenChildModule).Build()
+}
+
+func TestListen_LogsNestedModuleNamesRecursively(t *testing.T) {
+	logger := &allCallsCapturingLogger{}
+	app := New()
+	app.UseLogger(logger)
+	app.Create(testListenParentModule())
+
+	if err := app.Listen(-1); err == nil {
+		t.Fatal(test.DiffMessage(nil, "error", "Listen(-1) should fail immediately with an invalid port"))
+	}
+
+	calls := logger.findAllCalls("InstanceLoader")
+	gotNames := make(map[string]bool, len(calls))
+	for _, c := range calls {
+		gotNames[c.args[1].(string)] = true
+	}
+
+	wantNames := []string{
+		"core.testListenParentModule initialized",
+		"core.testListenChildModule initialized",
+	}
+	for _, name := range wantNames {
+		if !gotNames[name] {
+			t.Error(test.DiffMessage(gotNames, name, "expected nested module name to be logged"))
+		}
+	}
+}

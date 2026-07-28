@@ -40,6 +40,7 @@ var injectableInterfaces = []string{
 
 type Module struct {
 	id       string
+	Name     string
 	prefixes []string
 
 	*sync.Mutex
@@ -96,6 +97,39 @@ func (m *Module) Prefix(prefix string) *Module {
 
 func (m *Module) ID() string {
 	return m.id
+}
+
+func (m *Module) collectModules() []*Module {
+	visited := make(map[*Module]struct{})
+	var result []*Module
+
+	var visit func(mod *Module)
+	visit = func(mod *Module) {
+		if mod == nil {
+			return
+		}
+		if _, ok := visited[mod]; ok {
+			return
+		}
+		visited[mod] = struct{}{}
+		result = append(result, mod)
+
+		for _, staticModule := range mod.staticModules {
+			visit(staticModule)
+		}
+
+		for _, dynamicModule := range mod.dynamicModules {
+			if staticModule, ok := staticModuleByDynamicPtr[reflect.ValueOf(dynamicModule).Pointer()]; ok {
+				visit(staticModule)
+			}
+		}
+	}
+
+	moduleGlobalMu.Lock()
+	visit(m)
+	moduleGlobalMu.Unlock()
+
+	return result
 }
 
 func (m *Module) NewModule() *Module {
@@ -168,24 +202,50 @@ func (m *Module) bootstrapMainModule() {
 	}
 }
 
-func (m *Module) injectStaticModules() {
-	for _, staticModule := range m.staticModules {
-
-		// no need to inject global here since globally static modules
-		// should already be injected from main to make them injectable
-
-		injectModule := staticModule.NewModule()
-		if len(injectModule.providers) > 0 {
-			m.providers = append(injectModule.providers, m.providers...)
-		}
-		if len(injectModule.controllers) > 0 {
-			m.controllers = append(injectModule.controllers, m.controllers...)
-		}
-		toUniqueControllers(m, &m.controllers)
+func prependInjectedModules(m *Module, injectModules []*Module) {
+	if len(injectModules) == 0 {
+		return
 	}
+
+	totalProviders, totalControllers := 0, 0
+	for _, injectModule := range injectModules {
+		totalProviders += len(injectModule.providers)
+		totalControllers += len(injectModule.controllers)
+	}
+
+	if totalProviders > 0 {
+		reordered := make([]Provider, 0, totalProviders+len(m.providers))
+		for i := len(injectModules) - 1; i >= 0; i-- {
+			reordered = append(reordered, injectModules[i].providers...)
+		}
+		m.providers = append(reordered, m.providers...)
+	}
+
+	if totalControllers > 0 {
+		reordered := make([]Controller, 0, totalControllers+len(m.controllers))
+		for i := len(injectModules) - 1; i >= 0; i-- {
+			reordered = append(reordered, injectModules[i].controllers...)
+		}
+		m.controllers = append(reordered, m.controllers...)
+	}
+
+	toUniqueControllers(m, &m.controllers)
+}
+
+func (m *Module) injectStaticModules() {
+	// no need to inject global here since globally static modules
+	// should already be injected from main to make them injectable
+
+	injectModules := make([]*Module, 0, len(m.staticModules))
+	for _, staticModule := range m.staticModules {
+		injectModules = append(injectModules, staticModule.NewModule())
+	}
+
+	prependInjectedModules(m, injectModules)
 }
 
 func (m *Module) injectDynamicModules() {
+	injectModules := make([]*Module, 0, len(m.dynamicModules))
 	for _, dynamicModule := range m.dynamicModules {
 		var staticModule *Module
 
@@ -200,15 +260,10 @@ func (m *Module) injectDynamicModules() {
 		}
 		moduleGlobalMu.Unlock()
 
-		injectModule := staticModule.NewModule()
-		if len(injectModule.providers) > 0 {
-			m.providers = append(injectModule.providers, m.providers...)
-		}
-		if len(injectModule.controllers) > 0 {
-			m.controllers = append(injectModule.controllers, m.controllers...)
-		}
-		toUniqueControllers(m, &m.controllers)
+		injectModules = append(injectModules, staticModule.NewModule())
 	}
+
+	prependInjectedModules(m, injectModules)
 }
 
 func (m *Module) registerControllerPrefixes() {
@@ -229,24 +284,33 @@ func (m *Module) injectProviders() map[string]Provider {
 
 	// sort injected providers at head of provider list
 	// to make it run NewProvider first
+	var hoisted []Provider
 	for _, provider := range m.providers {
 		componentType := reflect.TypeOf(provider)
 
 		for j := 0; j < componentType.NumField(); j++ {
 			componentFieldKey := genFieldKey(componentType.Field(j).Type)
 
-			if injectedProviders[componentFieldKey] != nil {
-				m.providers = append([]Provider{injectedProviders[componentFieldKey]}, m.providers...)
+			if dep := injectedProviders[componentFieldKey]; dep != nil {
+				hoisted = append(hoisted, dep)
 			}
 		}
+	}
+	if len(hoisted) > 0 {
+		reordered := make([]Provider, 0, len(hoisted)+len(m.providers))
+		for i := len(hoisted) - 1; i >= 0; i-- {
+			reordered = append(reordered, hoisted[i])
+		}
+		m.providers = append(reordered, m.providers...)
 	}
 
 	// inject providers into providers
 	moduleGlobalMu.Lock()
+	defer moduleGlobalMu.Unlock()
+
 	for i, provider := range m.providers {
 		newProvider, err := injectDependencies(provider, "provider", injectedProviders)
 		if err != nil {
-			moduleGlobalMu.Unlock()
 			panic(err)
 		}
 
@@ -259,7 +323,6 @@ func (m *Module) injectProviders() map[string]Provider {
 		m.providers[i] = providerSingletonByKey[providerKey]
 		injectedProviders[providerKey] = providerSingletonByKey[providerKey]
 	}
-	moduleGlobalMu.Unlock()
 
 	return injectedProviders
 }
@@ -291,7 +354,8 @@ func (m *Module) bindHTTPController(controller Controller, injectedProviders map
 		return
 	}
 
-	http := reflect.ValueOf(controller).FieldByName(fieldNameByRole["http"]).Interface().(common.HTTP)
+	controllerValue := reflect.ValueOf(controller)
+	http := controllerValue.FieldByName(fieldNameByRole["http"]).Interface().(common.HTTP)
 	controllerPath := controllerType.PkgPath()
 	modulePrefixes := controllerModulePrefixes(controllerType)
 
@@ -299,7 +363,7 @@ func (m *Module) bindHTTPController(controller Controller, injectedProviders map
 		methodName := controllerType.Method(j).Name
 
 		// for main handler
-		handler := reflect.ValueOf(controller).Method(j).Interface()
+		handler := controllerValue.Method(j).Interface()
 		http.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
 	}
 
@@ -423,13 +487,14 @@ func (m *Module) bindWSController(controller Controller, injectedProviders map[s
 		return
 	}
 
-	ws := reflect.ValueOf(controller).FieldByName(fieldNameByRole["ws"]).Interface().(common.WS)
+	controllerValue := reflect.ValueOf(controller)
+	ws := controllerValue.FieldByName(fieldNameByRole["ws"]).Interface().(common.WS)
 
 	for j := 0; j < controllerType.NumMethod(); j++ {
 		methodName := controllerType.Method(j).Name
 
 		// for main handler
-		handler := reflect.ValueOf(controller).Method(j).Interface()
+		handler := controllerValue.Method(j).Interface()
 		ws.AddHandlerToEventMap(methodName, handler)
 	}
 
