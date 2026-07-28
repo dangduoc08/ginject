@@ -27,7 +27,7 @@ func (instance UsersController) NewController() core.Controller {
 //
 //	POST /users
 //	body: { "email": string, "name": string, "password": string }
-func (instance UsersController) CREATE_users(userDTO accountsdto.UserDTO) ginject.Map {
+func (instance UsersController) CREATE_users(q accountsdto.QueryDTO, userDTO accountsdto.UserDTO) ginject.Map {
 	user, err := instance.UserService.Register(userDTO.Email, userDTO.Name, userDTO.Password)
 	if err != nil {
 		panic(err)
