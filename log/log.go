@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/dangduoc08/ginject/common"
 )
 
 type logFormat int
@@ -21,6 +23,7 @@ type LogOptions struct {
 	LogFormat  logFormat
 	TimeFormat string
 	Transports []*LogTransport
+	MaskFields []string
 }
 
 type logInstance struct {
@@ -52,7 +55,7 @@ var levelLabel = map[slog.Level]string{
 	ErrorLevel: labelError,
 	FatalLevel: labelFatal,
 }
-var singleInstance *logInstance
+var singleInstance common.Logger
 var once sync.Once
 
 func loadLogOptions(opts *LogOptions) *LogOptions {
@@ -75,7 +78,7 @@ func loadLogOptions(opts *LogOptions) *LogOptions {
 	return opts
 }
 
-func NewLog(opts *LogOptions) *logInstance {
+func NewLog(opts *LogOptions) common.Logger {
 	once.Do(func() {
 		logOpts := loadLogOptions(opts)
 
@@ -96,28 +99,21 @@ func NewLog(opts *LogOptions) *logInstance {
 			},
 		}
 
+		var handler slog.Handler
 		switch logOpts.LogFormat {
 		case TextFormat:
-			logHandler := slog.NewTextHandler(os.Stdout, &slogOptions)
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
-
+			handler = slog.NewTextHandler(os.Stdout, &slogOptions)
 		case JSONFormat:
-			logHandler := slog.NewJSONHandler(os.Stdout, &slogOptions)
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
-
+			handler = slog.NewJSONHandler(os.Stdout, &slogOptions)
 		default:
-			logHandler := NewPrettyHandler(os.Stdout, &PrettyHandlerOptions{
+			handler = NewPrettyHandler(os.Stdout, &PrettyHandlerOptions{
 				TimeFormat:     logOpts.TimeFormat,
 				HandlerOptions: slogOptions,
 			})
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
 		}
+
+		base := &logInstance{slog: slog.New(handler)}
+		singleInstance = WrapLogger(base, logOpts.MaskFields)
 	})
 
 	return singleInstance

@@ -266,16 +266,7 @@ func collectChildren(rv reflect.Value) []kv {
 		})
 		return out
 	case reflect.Struct:
-		t := rv.Type()
-		var out []kv
-		for i := 0; i < t.NumField(); i++ {
-			f := t.Field(i)
-			if f.PkgPath != "" {
-				continue
-			}
-			out = append(out, kv{f.Name, rv.Field(i)})
-		}
-		return out
+		return taggedFields(rv)
 	}
 	return nil
 }
