@@ -46,7 +46,8 @@ type App struct {
 	globalExceptionFilters []common.ExceptionFilterable
 	injectedProviders      map[string]Provider
 
-	Logger common.Logger
+	Logger     common.Logger
+	LogOptions *log.LogOptions
 }
 
 const (
@@ -242,7 +243,13 @@ func (app *App) initAccessLog() {
 
 func (app *App) initLogger() {
 	if app.Logger == nil {
-		app.Logger = log.NewLog(nil)
+		app.Logger = log.NewLog(app.LogOptions)
+	} else {
+		var maskFields []string
+		if app.LogOptions != nil {
+			maskFields = app.LogOptions.MaskFields
+		}
+		app.Logger = log.WrapLogger(app.Logger, maskFields)
 	}
 	globalInterfaceByKey.Store(injectableInterfaces[0], app.Logger)
 }
@@ -581,6 +588,12 @@ func (app *App) EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App
 func (app *App) UseLogger(logger common.Logger) *App {
 	app.Logger = logger
 	globalInterfaceByKey.Store(injectableInterfaces[0], app.Logger)
+
+	return app
+}
+
+func (app *App) UseLogOptions(opts *log.LogOptions) *App {
+	app.LogOptions = opts
 
 	return app
 }

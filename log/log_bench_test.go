@@ -117,3 +117,58 @@ func BenchmarkNewPrettyHandler(b *testing.B) {
 		})
 	}
 }
+
+type benchTagPerson struct {
+	Age    int    `log:"age"`
+	name   string `log:"name"`
+	School string
+	policy string
+}
+
+type noopLogger struct{}
+
+func (noopLogger) Debug(string, ...any) {}
+func (noopLogger) Info(string, ...any)  {}
+func (noopLogger) Warn(string, ...any)  {}
+func (noopLogger) Error(string, ...any) {}
+func (noopLogger) Fatal(string, ...any) {}
+
+func BenchmarkWrapLogger_Info_TaggedStruct(b *testing.B) {
+	l := WrapLogger(noopLogger{}, nil)
+	p := benchTagPerson{Age: 10, name: "Joh", School: "MIT", policy: "ok"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		l.Info("test", "person", p)
+	}
+}
+
+func BenchmarkWrapLogger_Info_TaggedStruct_WithMaskRule(b *testing.B) {
+	l := WrapLogger(noopLogger{}, []string{"person.name"})
+	p := benchTagPerson{Age: 10, name: "Joh", School: "MIT", policy: "ok"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		l.Info("test", "person", p)
+	}
+}
+
+func BenchmarkWrapLogger_Info_NoStructArgs(b *testing.B) {
+	l := WrapLogger(noopLogger{}, nil)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		l.Info("test", "url", "/api/v1/users", "status", 200)
+	}
+}
+
+func BenchmarkJSONHandler_Handle_NoStructAttrs_Unwrapped(b *testing.B) {
+	h := slog.NewJSONHandler(io.Discard, nil)
+	r := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
+	r.AddAttrs(slog.String("url", "/api/v1/users"), slog.Int("status", 200))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		_ = h.Handle(context.Background(), r)
+	}
+}
