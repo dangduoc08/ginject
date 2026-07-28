@@ -485,7 +485,9 @@ func TestInvokeHTTPHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
 
 	c := newHTTPContext()
 	handler := func(tracedQueryPipeDTO) {}
-	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	invokeHTTPHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
 
 	if got == nil {
 		t.Fatal("expected a pipe trace event for a Pipeable param")
@@ -497,7 +499,10 @@ func TestInvokeHTTPHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
 		t.Error(test.DiffMessage(got.Name, "contains tracedQueryPipeDTO", "pipe trace event name should identify the concrete pipe type"))
 	}
 	if pipeElapsed <= 0 {
-		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeHTTPHandlerByProviders should return the accumulated pipe duration"))
+		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeHTTPHandlerByProviders should accumulate the pipe duration"))
+	}
+	if !handlerCalled {
+		t.Error(test.DiffMessage(false, true, "handlerCalled should be true once the handler body executes"))
 	}
 }
 
@@ -511,7 +516,9 @@ func TestInvokeHTTPHandlerByProviders_NonPipeableParamDoesNotEmitStagePipe(t *te
 
 	c := newHTTPContext()
 	handler := func(*ctx.HTTPContext) {}
-	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	invokeHTTPHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
 
 	if got != nil {
 		t.Error(test.DiffMessage(got.Stage, "<no event>", "a non-Pipeable param must not emit any trace event"))
@@ -525,7 +532,9 @@ func TestInvokeHTTPHandlerByProviders_NoListeners_SkipsPipeTracing(t *testing.T)
 	ev := event.NewEvent()
 	c := newHTTPContext()
 	handler := func(tracedQueryPipeDTO) {}
-	_, pipeElapsed := invokeHTTPHandlerByProviders(handler, nil, c, ev)
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	invokeHTTPHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
 
 	if pipeElapsed != 0 {
 		t.Error(test.DiffMessage(pipeElapsed, time.Duration(0), "with no trace listeners attached, pipe timing should be skipped entirely"))
@@ -545,7 +554,9 @@ func TestInvokeWSHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
 
 	c := ctx.NewWSContext()
 	handler := func(tracedWSPayloadPipeDTO) {}
-	_, pipeElapsed := invokeWSHandlerByProviders(handler, nil, c, ev)
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	invokeWSHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
 
 	if got == nil {
 		t.Fatal("expected a pipe trace event for a WSPayloadPipeable param")
@@ -554,7 +565,10 @@ func TestInvokeWSHandlerByProviders_PipeEmitsStagePipeEvent(t *testing.T) {
 		t.Error(test.DiffMessage([]any{got.Stage, got.Transport}, []any{trace.StagePipe, trace.TransportWS}, "pipe trace event stage/transport"))
 	}
 	if pipeElapsed <= 0 {
-		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeWSHandlerByProviders should return the accumulated pipe duration"))
+		t.Error(test.DiffMessage(pipeElapsed, ">0", "invokeWSHandlerByProviders should accumulate the pipe duration"))
+	}
+	if !handlerCalled {
+		t.Error(test.DiffMessage(false, true, "handlerCalled should be true once the handler body executes"))
 	}
 }
 
@@ -568,13 +582,136 @@ func TestInvokeWSHandlerByProviders_NonPipeableParamDoesNotEmitStagePipe(t *test
 
 	c := ctx.NewWSContext()
 	handler := func(*ctx.WSContext) {}
-	_, pipeElapsed := invokeWSHandlerByProviders(handler, nil, c, ev)
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	invokeWSHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
 
 	if got != nil {
 		t.Error(test.DiffMessage(got.Stage, "<no event>", "a non-Pipeable param must not emit any trace event"))
 	}
 	if pipeElapsed != 0 {
 		t.Error(test.DiffMessage(pipeElapsed, time.Duration(0), "a non-Pipeable param must not contribute to pipe duration"))
+	}
+}
+
+type panickingQueryPipeDTO struct{}
+
+func (d panickingQueryPipeDTO) Transform(ctx.Query, common.ArgumentMetadata) any {
+	time.Sleep(time.Millisecond)
+	panic("boom: query validation failed")
+}
+
+type panickingWSPayloadPipeDTO struct{}
+
+func (d panickingWSPayloadPipeDTO) Transform(ctx.WSPayload, common.ArgumentMetadata) any {
+	time.Sleep(time.Millisecond)
+	panic("boom: payload validation failed")
+}
+
+func TestInvokeHTTPHandlerByProviders_PipePanicStillEmitsStagePipeEvent(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StagePipe {
+			d := te
+			got = &d
+		}
+	})
+
+	c := newHTTPContext()
+	handler := func(panickingQueryPipeDTO) {}
+
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		invokeHTTPHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
+	}()
+
+	if recovered != "boom: query validation failed" {
+		t.Fatal(test.DiffMessage(recovered, "boom: query validation failed", "the pipe's panic must propagate unchanged"))
+	}
+	if got == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a pipe trace event even though Transform panicked"))
+	}
+	if got.Stage != trace.StagePipe || got.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Transport}, []any{trace.StagePipe, trace.TransportHTTP}, "pipe trace event stage/transport"))
+	}
+	if !strings.Contains(got.Name, "panickingQueryPipeDTO") {
+		t.Error(test.DiffMessage(got.Name, "contains panickingQueryPipeDTO", "pipe trace event name should identify the concrete pipe type"))
+	}
+	if got.Duration <= 0 {
+		t.Error(test.DiffMessage(got.Duration, ">0", "pipe trace event should report elapsed time up to the panic"))
+	}
+	if handlerCalled {
+		t.Error(test.DiffMessage(true, false, "handlerCalled must stay false when a pipe panics before the handler body is ever reached"))
+	}
+}
+
+func TestInvokeWSHandlerByProviders_PipePanicStillEmitsStagePipeEvent(t *testing.T) {
+	ev := event.NewEvent()
+	var got *trace.Event
+	ev.On(trace.EventName, func(args ...any) {
+		te := args[0].(trace.Event)
+		if te.Stage == trace.StagePipe {
+			d := te
+			got = &d
+		}
+	})
+
+	c := ctx.NewWSContext()
+	handler := func(panickingWSPayloadPipeDTO) {}
+
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		invokeWSHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
+	}()
+
+	if recovered != "boom: payload validation failed" {
+		t.Fatal(test.DiffMessage(recovered, "boom: payload validation failed", "the pipe's panic must propagate unchanged"))
+	}
+	if got == nil {
+		t.Fatal(test.DiffMessage(nil, "non-nil", "expected a pipe trace event even though Transform panicked"))
+	}
+	if got.Stage != trace.StagePipe || got.Transport != trace.TransportWS {
+		t.Error(test.DiffMessage([]any{got.Stage, got.Transport}, []any{trace.StagePipe, trace.TransportWS}, "pipe trace event stage/transport"))
+	}
+	if got.Duration <= 0 {
+		t.Error(test.DiffMessage(got.Duration, ">0", "pipe trace event should report elapsed time up to the panic"))
+	}
+	if handlerCalled {
+		t.Error(test.DiffMessage(true, false, "handlerCalled must stay false when a pipe panics before the handler body is ever reached"))
+	}
+}
+
+func TestInvokeHTTPHandlerByProviders_HandlerCalledTrueWhenHandlerBodyPanics(t *testing.T) {
+	ev := event.NewEvent()
+	ev.On(trace.EventName, func(args ...any) {})
+
+	c := newHTTPContext()
+	handler := func(tracedQueryPipeDTO) { panic("handler exploded") }
+
+	var pipeElapsed time.Duration
+	var handlerCalled bool
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		invokeHTTPHandlerByProviders(handler, nil, c, ev, &pipeElapsed, &handlerCalled)
+	}()
+
+	if recovered != "handler exploded" {
+		t.Fatal(test.DiffMessage(recovered, "handler exploded", "the handler body's own panic must propagate unchanged"))
+	}
+	if !handlerCalled {
+		t.Error(test.DiffMessage(false, true, "handlerCalled should be true once the handler body starts executing, even if it then panics"))
+	}
+	if pipeElapsed <= 0 {
+		t.Error(test.DiffMessage(pipeElapsed, ">0", "pipeElapsed should still reflect the successfully-completed pipe's duration"))
 	}
 }
 

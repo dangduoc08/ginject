@@ -222,8 +222,9 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.event = app.event
 	app.wsConfig.broker = &app.broker
 	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
-		data, _ := invokeWSHandlerByProviders(f, injectedProviders, c, app.event)
-		return data
+		var pipeElapsed time.Duration
+		var handlerCalled bool
+		return invokeWSHandlerByProviders(f, injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
 	}
 	app.wsConfig.newCtx = func() *ctx.WSContext { return app.wsCtxPool.Get().(*ctx.WSContext) }
 	app.wsConfig.releaseCtx = app.releaseWSCtx
@@ -283,13 +284,18 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 
 	resolveAndCallHandler := func(pattern string, f any, c *ctx.HTTPContext) []reflect.Value {
 		if !app.event.HasListeners(trace.EventName) {
-			data, _ := invokeHTTPHandlerByProviders(f, injectedProviders, c, app.event)
-			return data
+			var pipeElapsed time.Duration
+			var handlerCalled bool
+			return invokeHTTPHandlerByProviders(f, injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
 		}
 
 		start := time.Now()
 		var pipeElapsed time.Duration
+		var handlerCalled bool
 		defer func() {
+			if !handlerCalled {
+				return
+			}
 			app.event.Emit(trace.EventName, trace.Event{
 				ID:       c.GetID(),
 				Stage:    trace.StageHandler,
@@ -297,9 +303,7 @@ func (app *App) initProviders(m *Module) map[string]Provider {
 				Duration: time.Since(start) - pipeElapsed,
 			})
 		}()
-		var data []reflect.Value
-		data, pipeElapsed = invokeHTTPHandlerByProviders(f, injectedProviders, c, app.event)
-		return data
+		return invokeHTTPHandlerByProviders(f, injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
 	}
 	app.http.resolveAndCallHandler = resolveAndCallHandler
 
