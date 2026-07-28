@@ -18,7 +18,7 @@ Production-grade in-memory event broker (pub/sub) for the Ginject framework.
 ```go
 import "github.com/dangduoc08/ginject/broker"
 
-b := broker.New()
+b := broker.NewBroker()
 defer b.Close()
 
 sub, _ := b.Subscribe("user.created", func(m *broker.Message) {
@@ -382,7 +382,7 @@ The `Broker` interface is the only public contract. Swap the implementation with
 
 ```go
 // application code depends only on broker.Broker
-var bus broker.Broker = broker.New()
+var bus broker.Broker = broker.NewBroker()
 
 // later, swap to a distributed broker
 var bus broker.Broker = rbroker.New(redisClient, broker.Config{...})
