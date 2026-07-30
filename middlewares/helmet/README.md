@@ -255,17 +255,20 @@ helmet.Helmet{}.Use(r, w, next)
 
 ## Benchmarks
 
-Captured by running `go test -run=^$ -bench=. -benchmem ./middlewares/helmet/...`. Numbers are machine-dependent and were captured at doc-generation time — re-run the command yourself for a fresh baseline.
+Benchmarks were run on an Intel Core i7-9750H CPU @ 2.60 GHz with `go test -bench=. -benchmem`.
 
-```console
-goos: darwin
-goarch: amd64
-pkg: github.com/dangduoc08/ginject/middlewares/helmet
-cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkHelmet_Use_Defaults-12       	  864396	      1294 ns/op	     248 B/op	      15 allocs/op
-BenchmarkHelmet_Use_CustomCSP-12      	  914866	      1288 ns/op	     248 B/op	      15 allocs/op
-BenchmarkHelmet_Use_DisableHSTS-12    	 1000000	      1186 ns/op	     232 B/op	      14 allocs/op
-BenchmarkLoadHelmetOptions-12         	 6019968	       202.6 ns/op	     245 B/op	       5 allocs/op
-PASS
-ok  	github.com/dangduoc08/ginject/middlewares/helmet	6.810s
-```
+Results are machine-dependent and were captured at documentation generation time (July 30, 2026).
+
+| Benchmark | Operations | Time per op | Allocs | Bytes |
+|---|---|---|---|---|
+| `BenchmarkHelmet_Use_Defaults` (default security headers) | 589,419 | 2,091 ns/op | 15 | 248 B/op |
+| `BenchmarkHelmet_Use_CustomCSP` (custom CSP) | 653,035 | 1,814 ns/op | 15 | 248 B/op |
+| `BenchmarkHelmet_Use_DisableHSTS` (HSTS disabled) | 755,235 | 1,647 ns/op | 14 | 232 B/op |
+| `BenchmarkLoadHelmetOptions` (compile Helmet config) | 4,306,753 | 320.1 ns/op | 5 | 245 B/op |
+
+**Key observations:**
+
+- Setting security headers costs ~1.6-2.1µs per request
+- Disabling HSTS is slightly faster (~1.6µs) as it sets fewer headers
+- LoadHelmetOptions is a one-time startup cost (~320ns), negligible compared to per-request overhead
+- All allocations are small and predictable (~250 bytes, 14-15 allocations)

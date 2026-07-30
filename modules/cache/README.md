@@ -184,9 +184,11 @@ if err != nil {
 
 ### IsGlobal
 
-**Type:** `bool`  
-**Default:** `false`  
-**Required:** `false`
+Type: `bool`
+
+Default: `false`
+
+Required: `false`
 
 When `true`, `CacheService` is available in every module without explicit import.
 
@@ -198,9 +200,11 @@ cache.Register(&cache.CacheModuleOptions{
 
 ### OnInit
 
-**Type:** `func()`  
-**Default:** `nil`  
-**Required:** `false`
+Type: `func()`
+
+Default: `nil`
+
+Required: `false`
 
 Called before the cache module is wired into the DI graph. Use it to pre-populate the cache or validate configuration.
 
@@ -209,6 +213,22 @@ cache.Register(&cache.CacheModuleOptions{
     OnInit: func() {
         fmt.Println("cache module initialising")
     },
+})
+```
+
+### Backend
+
+Type: `Cache`
+
+Default: `memcache.NewMemoryCache()`
+
+Required: `false`
+
+The cache backend implementation. If `nil`, defaults to a new in-memory cache. Implement the `Cache` interface to provide a custom backend (e.g., Redis, Memcached).
+
+```go
+cache.Register(&cache.CacheModuleOptions{
+    Backend: customRedisCache,
 })
 ```
 

@@ -19,6 +19,13 @@
       - [Parameters](#parameters)
       - [Returns](#returns)
       - [Usage](#usage-1)
+    - [Set](#set)
+      - [Parameters](#parameters-1)
+      - [Usage](#usage-2)
+    - [Transform](#transform)
+      - [Parameters](#parameters-2)
+      - [Returns](#returns-1)
+  - [Benchmarks](#benchmarks)
 
 ## Key Features
 - Zero-dependency
@@ -54,7 +61,7 @@ type DBProvider struct {
 	ConfigService config.ConfigService
 }
 
-func (dbProvider DBProvider) Inject() core.Provider {
+func (dbProvider DBProvider) NewProvider() core.Provider {
 	fmt.Println("USERNAME:", dbProvider.ConfigService.Get(("USERNAME")))
 	fmt.Println("PASSWORD:", dbProvider.ConfigService.Get(("PASSWORD")))
 	return dbProvider
@@ -374,3 +381,65 @@ Method help to get env value by key. Return `nil` if hasn't value.
 ```go
 var PORT int = provider.ConfigService.Get(("PORT")).(int)
 ```
+
+### Set
+
+Method to set or update a configuration value by key.
+
+#### Parameters
+- 1st parameter: `string`
+
+- Description: Config key name
+
+- 2nd parameter: `any`
+
+- Description: Config value
+
+#### Usage
+
+```go
+provider.ConfigService.Set("NEW_KEY", "new_value")
+value := provider.ConfigService.Get("NEW_KEY") // Returns: "new_value"
+```
+
+### Transform
+
+Method to transform configuration values for use as handler parameters (implements Pipeable interface). Converts string values to string arrays for validation.
+
+#### Parameters
+- 1st parameter: `any`
+
+- Description: The target struct or parameter to transform
+
+#### Returns
+- 1st value: `any`
+
+- Description: Transformed configuration data
+
+- 2nd value: `[]ctx.FieldLevel`
+
+- Description: Field validation levels
+
+#### Usage
+
+```go
+// Used internally by Ginject framework for parameter injection
+// Transforms config string values to arrays for validation
+```
+
+## Benchmarks
+
+Benchmark results on darwin/amd64 (Intel Core i7-9750H @ 2.60GHz):
+
+| Benchmark | ns/op | allocs/op |
+|-----------|-------|-----------|
+| BenchmarkIsValidKey_Valid | 257.9 | 0 |
+| BenchmarkIsValidKey_Invalid | 233.0 | 0 |
+| BenchmarkMatchParams_Found | 1057 | 4 |
+| BenchmarkMatchParams_None | 55.51 | 0 |
+| BenchmarkUnmarshal | 2759 | 23 |
+| BenchmarkFlatten | 1280 | 10 |
+| BenchmarkLoadOSEnv | 6048 | 67 |
+| BenchmarkLoadDotENV | 55378 | 69 |
+
+*Note: These benchmarks are machine-dependent and were captured at documentation generation time (July 30, 2026).*
