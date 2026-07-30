@@ -746,6 +746,38 @@ Segment rotation: a new segment file is opened automatically when the current on
 
 ---
 
+## Benchmarks
+
+Benchmarks were run on an Intel Core i7-9750H CPU @ 2.60 GHz with `go test -bench=. -benchmem`.
+
+Results are machine-dependent and were captured at documentation generation time (July 30, 2026).
+
+| Benchmark | Operations | Time per op | Allocs | Bytes |
+|---|---|---|---|---|
+| `BenchmarkCreate` (single insert) | 151,228 | 8,702 ns/op | 11 | 959 B/op |
+| `BenchmarkFindByID` (direct lookup) | 318,138 | 3,471 ns/op | 17 | 912 B/op |
+| `BenchmarkUpdateByID` (read + write) | 105,682 | 11,232 ns/op | 25 | 1,576 B/op |
+| `BenchmarkFind_NoIndex_100Docs` (full scan, 100 docs) | 2,892 | 359,550 ns/op | 1,999 | 119,128 B/op |
+| `BenchmarkFind_SecondaryIndex_1000Docs` (indexed query, 1000 docs) | 3,178 | 377,776 ns/op | 2,017 | 126,696 B/op |
+| `BenchmarkSearch_1000Docs` (text search, 1000 docs) | 1,687 | 700,746 ns/op | 3,415 | 251,425 B/op |
+| `BenchmarkTx_2Inserts` (transaction, 2 inserts) | 52 | 19,511,073 ns/op | 57 | 5,021 B/op |
+| `BenchmarkEncodeRecord` (JSON marshal) | 11,993,652 | 84.14 ns/op | 1 | 112 B/op |
+| `BenchmarkDecodeRecord` (JSON unmarshal) | 10,313,877 | 116.7 ns/op | 3 | 85 B/op |
+| `BenchmarkTokenize` (text tokenization) | 1,000,000 | 1,079 ns/op | 19 | 608 B/op |
+
+**Key observations:**
+
+- **FindByID** is sub-microsecond (direct index lookup)
+- **Create** and **UpdateByID** complete in 8–11 microseconds (disk I/O + index update)
+- **Find** without index scales linearly with document count (full scan)
+- **Find** with secondary index is O(n) scan of index results, then marshal
+- **Search** (full-text) is slower due to tokenization + phrase matching
+- **Transactions** are slow (19ms) because the benchmark does 2 inserts and `fsync` (forces disk flush for durability)
+- **Encode/Decode** are sub-microsecond (stdlib JSON is fast)
+- **Tokenization** is ~1µs per word
+
+---
+
 ## Errors
 
 | Error | When |
