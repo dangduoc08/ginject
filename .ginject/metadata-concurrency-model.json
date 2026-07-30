@@ -1,0 +1,129 @@
+{
+  "format": "ai-metadata-v1",
+  "title": "Ginject Concurrency Model",
+  "purpose": "Document thread safety guarantees and race conditions",
+  "http_request_model": {
+    "concurrency_level": "each request is independent",
+    "goroutines_per_request": 1,
+    "shared_mutable_state": "NONE within single request",
+    "thread_safe": true,
+    "synchronization": "implicit (each request gets own context object from pool)"
+  },
+  "websocket_connection_model": {
+    "concurrency_level": "per-connection is single-threaded",
+    "goroutines_per_connection": 2,
+    "goroutine_1": "readLoop (blocks on conn.Receive())",
+    "goroutine_2": "writeLoop (drains send channel)",
+    "message_processing": "sequential (one message at a time)",
+    "thread_safe": true,
+    "synchronization": "channelized (readLoop → handler → broker.Publish → writeLoop via channel)"
+  },
+  "global_shared_state": {
+    "injectedProviders": {
+      "description": "map[string]Provider - provider registry",
+      "access": "read-only after app.Create()",
+      "thread_safe": true,
+      "synchronization": "immutable after initialization"
+    },
+    "routing.Router": {
+      "description": "Trie-based route matching",
+      "access": "read-only after app.Create()",
+      "thread_safe": true,
+      "synchronization": "immutable after initialization"
+    },
+    "sync.Pool (contexts)": {
+      "description": "HTTPContext and WSContext pooling",
+      "access": "concurrent Get/Put",
+      "thread_safe": true,
+      "synchronization": "built-in sync.Pool atomic operations"
+    },
+    "event.Event": {
+      "description": "Event listeners and emitters",
+      "access": "concurrent On/Emit/HasListeners",
+      "thread_safe": true,
+      "synchronization": "internal sync.Map"
+    },
+    "broker.Broker": {
+      "description": "Pub/sub message broker",
+      "access": "concurrent Subscribe/Publish/Unsubscribe",
+      "thread_safe": true,
+      "synchronization": "sync.RWMutex for subscriber list"
+    },
+    "module_state": {
+      "description": "Module configuration and providers",
+      "access": "read-only after app.Create()",
+      "thread_safe": true,
+      "synchronization": "immutable after initialization"
+    }
+  },
+  "not_thread_safe": {
+    "handler_closures": "if handler captures mutable state, not thread-safe",
+    "controller_state": "if controller has mutable fields, not thread-safe",
+    "provider_state": "if provider has mutable fields, not thread-safe",
+    "module_state_during_init": "module is mutable during app.Create(), must not call Create() concurrently"
+  },
+  "concurrency_guarantees": {
+    "http_request": "each request is fully isolated, no race conditions possible",
+    "ws_connection": "each connection is single-threaded, no race conditions within connection",
+    "global_state": "read-only after startup, immutable guarantee",
+    "message_broker": "concurrent-safe pub/sub, all operations atomic",
+    "context_pooling": "sync.Pool handles concurrent Get/Put safely"
+  },
+  "race_condition_scenarios": {
+    "scenario_1": {
+      "name": "Retaining context after request",
+      "description": "Handler stores context reference, reused in next request",
+      "impact": "stale data, wrong request processed",
+      "example": "var lastCtx *ctx.HTTPContext; lastCtx = httpCtx;",
+      "prevention": "never hold onto context after handler returns"
+    },
+    "scenario_2": {
+      "name": "Mutable provider state",
+      "description": "Provider with mutable fields shared across requests",
+      "impact": "concurrent modification, data corruption",
+      "example": "type Service struct { counter int }; counter++ in handler",
+      "prevention": "use sync.Mutex if mutable state needed, or make stateless"
+    },
+    "scenario_3": {
+      "name": "Raw websocket access",
+      "description": "Handler writes directly to conn, fanout also writes",
+      "impact": "concurrent writes to connection, message corruption",
+      "example": "conn.Send() in handler while fanout sends",
+      "prevention": "use Publisher only, never raw conn access"
+    },
+    "scenario_4": {
+      "name": "Module mutation during Create",
+      "description": "Multiple goroutines call app.Create() concurrently",
+      "impact": "module state corruption, undefined behavior",
+      "example": "Create() called from two goroutines simultaneously",
+      "prevention": "Create() must be called exactly once, before any requests"
+    }
+  },
+  "goroutine_limits": {
+    "per_http_request": 1,
+    "per_active_ws_connection": 2,
+    "example_capacity": {
+      "10000_concurrent_http_requests": "10000 goroutines (minimal)",
+      "10000_active_ws_connections": "20000 goroutines",
+      "total": "30000 goroutines",
+      "memory_estimate": "~1.5GB (50KB per goroutine)"
+    }
+  },
+  "memory_safety": {
+    "context_pooling": "reduces allocation pressure",
+    "handler_arg_cache": "reduces reflection overhead",
+    "provider_registry": "built once, reused forever",
+    "message_broker": "lightweight pub/sub (no message buffering except WS send channels)"
+  },
+  "deadlock_risks": {
+    "risk_1": "Middleware calling next() inside lock",
+    "risk_2": "Publisher.Publish() called from inside Publish callback",
+    "risk_3": "Event listener blocking on I/O",
+    "prevention": "keep pipeline stages lock-free and non-blocking"
+  },
+  "cancellation_handling": {
+    "http_requests": "context deadline via SetDeadline()",
+    "ws_connections": "no context.Context, use heartbeat + timeout",
+    "graceful_shutdown": "no built-in support, must implement application-level"
+  }
+}

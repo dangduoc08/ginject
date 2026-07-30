@@ -1,0 +1,270 @@
+{
+  "format": "ai-metadata-v1",
+  "purpose": "Machine-readable API index for Ginject framework",
+  "packages": {
+    "core": {
+      "responsibility": "Application lifecycle, handler invocation, DI container",
+      "public_types": {
+        "App": {
+          "description": "Main application container",
+          "methods": [
+            {
+              "name": "New",
+              "signature": "New() *App",
+              "purpose": "Create new app instance"
+            },
+            {
+              "name": "Create",
+              "signature": "Create(m *Module)",
+              "purpose": "Initialize app with module tree (MUST call once)"
+            },
+            {
+              "name": "Listen",
+              "signature": "Listen(port int)",
+              "purpose": "Start HTTP server on port"
+            },
+            {
+              "name": "ServeHTTP",
+              "signature": "ServeHTTP(w ResponseWriter, r *Request)",
+              "purpose": "HTTP handler (auto-called by Go stdlib)"
+            },
+            {
+              "name": "BindGlobalMiddlewares",
+              "signature": "BindGlobalMiddlewares(fn ...MiddlewareFn)",
+              "purpose": "Register middlewares for all routes"
+            },
+            {
+              "name": "EnableWS",
+              "signature": "EnableWS(config *WSConfig)",
+              "purpose": "Enable WebSocket support"
+            },
+            {
+              "name": "SetMaxBodySize",
+              "signature": "SetMaxBodySize(bytes int64)",
+              "purpose": "Set max HTTP request body size"
+            }
+          ]
+        },
+        "Module": {
+          "description": "Composition root for controllers and providers",
+          "fields": [
+            "providers []Provider",
+            "controllers []Controller",
+            "imports []*Module",
+            "HTTPMainHandlers []HTTPMainHandler",
+            "WSHandlers []WSHandler"
+          ]
+        },
+        "ModuleBuilder": {
+          "description": "Fluent API for building modules",
+          "methods": [
+            "Controllers(...) *ModuleBuilder",
+            "Providers(...) *ModuleBuilder",
+            "Imports(...) *ModuleBuilder",
+            "Export(...) *ModuleBuilder",
+            "IsGlobal(bool) *ModuleBuilder",
+            "Build() *Module"
+          ]
+        },
+        "Provider": {
+          "description": "Any struct implementing NewProvider() Provider",
+          "interface": "type Provider interface { NewProvider() Provider }"
+        }
+      },
+      "initialization_order": [
+        "initLogger",
+        "initProviders",
+        "initWS",
+        "initMiddlewares",
+        "initExceptionFilters",
+        "initGuards",
+        "initInterceptors",
+        "initMainHandlers",
+        "initDevtool",
+        "initAccessLog"
+      ]
+    },
+    "ctx": {
+      "responsibility": "Request context objects and dependency types",
+      "public_types": {
+        "HTTPContext": {
+          "description": "HTTP request context (pooled)",
+          "methods": [
+            "Init(ResponseWriter, *Request)",
+            "InitWithMaxBodySize(ResponseWriter, *Request, int64)",
+            "Status(code int) *HTTPContext",
+            "SetDeadline(duration time.Duration) *HTTPContext",
+            "IsDeadlineExceeded() bool",
+            "Text(data string) void",
+            "JSON(data any) void",
+            "GetID() string"
+          ]
+        },
+        "WSContext": {
+          "description": "WebSocket request context (pooled)",
+          "methods": [
+            "Init(*websocket.Conn)",
+            "WSPayload() *WSPayload",
+            "GetID() string"
+          ]
+        }
+      },
+      "http_dependencies": [
+        "*ctx.HTTPContext",
+        "*http.Request",
+        "http.ResponseWriter",
+        "ctx.Body",
+        "ctx.Query",
+        "ctx.Header",
+        "ctx.Param",
+        "ctx.Form",
+        "ctx.File",
+        "ctx.Next",
+        "ctx.Redirect",
+        "common.Publisher"
+      ],
+      "ws_dependencies": [
+        "*ctx.WSContext",
+        "*websocket.Conn",
+        "ctx.WSPayload",
+        "ctx.Next",
+        "common.Publisher"
+      ]
+    },
+    "common": {
+      "responsibility": "Pipeline interfaces and embedded controller types",
+      "interfaces": {
+        "MiddlewareFn": "func(*http.Request, http.ResponseWriter, ctx.Next)",
+        "Guarder": "interface { CanActivate(*ctx.HTTPContext) bool }",
+        "Interceptable": "interface { Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any }",
+        "ExceptionFilterable": "interface { Catch(*exception.Exception, *ctx.HTTPContext) }",
+        "Logger": "interface { Log(level string, data any); LogStructured(...) }",
+        "Publisher": "interface { Publish(topic string, data any) error }"
+      },
+      "embedded_types": {
+        "REST": "Embed in controller to enable HTTP routing",
+        "WS": "Embed in controller to enable WebSocket routing"
+      }
+    },
+    "routing": {
+      "responsibility": "HTTP routing and path matching",
+      "routing_tokens": {
+        "http_methods": {
+          "READ": "GET",
+          "CREATE": "POST",
+          "UPDATE": "PUT",
+          "MODIFY": "PATCH",
+          "DELETE": "DELETE",
+          "PREFLIGHT": "OPTIONS"
+        },
+        "path_separators": {
+          "BY": "path parameter (`:paramName`)",
+          "AND": "additional path segment",
+          "OF": "sub-resource",
+          "ANY": "wildcard segment",
+          "FILE": "file serving"
+        },
+        "versioning": {
+          "VERSION_X": "API version tag (e.g., VERSION_1, VERSION_2)"
+        }
+      },
+      "examples": {
+        "READ_BY_ID": "GET /:id",
+        "READ_BY_ID_AND_NAME": "GET /:id/:name",
+        "CREATE_OF_COMMENTS": "POST /comments",
+        "DELETE_BY_ID_VERSION_2": "DELETE /v2/:id",
+        "READ_ANY": "GET /*"
+      }
+    },
+    "exception": {
+      "responsibility": "Exception types and error handling",
+      "Exception": {
+        "methods": [
+          "GetCode() int",
+          "GetMessage() string",
+          "GetStatusText() string",
+          "GetStackTrace() string",
+          "SetStackTrace(trace string)"
+        ]
+      },
+      "built_in_exceptions": [
+        "BadRequestException (400)",
+        "UnauthorizedException (401)",
+        "ForbiddenException (403)",
+        "NotFoundException (404)",
+        "ConflictException (409)",
+        "InternalServerErrorException (500)",
+        "RequestTimeoutException (408)",
+        "NotImplementedException (501)",
+        "ServiceUnavailableException (503)"
+      ]
+    },
+    "event": {
+      "responsibility": "Event emission and tracing",
+      "public_types": {
+        "Event": {
+          "methods": [
+            "On(name string, fn func(any)) void",
+            "Emit(name string, data any) void",
+            "HasListeners(name string) bool"
+          ]
+        }
+      }
+    },
+    "trace": {
+      "responsibility": "Request tracing and observability",
+      "trace_stages": [
+        "handshake",
+        "middleware",
+        "guard",
+        "interceptor",
+        "pipe",
+        "handler",
+        "filter",
+        "complete"
+      ],
+      "transports": ["http", "ws"]
+    },
+    "broker": {
+      "responsibility": "Pub/sub message broker for WebSocket fanout",
+      "Broker": {
+        "methods": [
+          "Subscribe(topic string, callback func(any)) void",
+          "Publish(topic string, data any) error",
+          "Unsubscribe(topic string, callback func(any)) void"
+        ]
+      }
+    },
+    "memcache": {
+      "responsibility": "In-memory LFU cache",
+      "MemoryCache": {
+        "methods": [
+          "Get(key string) (any, bool)",
+          "Set(key string, value any) void",
+          "Delete(key string) void",
+          "Clear() void"
+        ]
+      }
+    }
+  },
+  "critical_rules": [
+    "NEVER hold onto context after request completes",
+    "NEVER mutate context after guard stage",
+    "NEVER call provider.NewProvider() manually",
+    "NEVER panic in guard (return bool instead)",
+    "NEVER call next() multiple times in middleware",
+    "NEVER access raw websocket.Conn in handlers (use Publisher)",
+    "NEVER retain pooled objects beyond request lifetime",
+    "Module initialization order is SACRED - do not reorder"
+  ],
+  "common_mistakes": [
+    "Type mismatch between provider and handler parameter",
+    "Circular dependencies causing runtime panics",
+    "Calling next() multiple times in middleware",
+    "Panicking in guard layer",
+    "Retaining context references after request",
+    "Not implementing NewProvider() interface",
+    "Assuming message ordering in WebSocket",
+    "Slow clients causing message drops in WebSocket"
+  ]
+}

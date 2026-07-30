@@ -1,0 +1,193 @@
+{
+  "format": "ai-metadata-v1",
+  "title": "Ginject Performance Characteristics",
+  "purpose": "Document performance bottlenecks and optimization opportunities",
+  "request_latency_breakdown": {
+    "typical_fast_path": {
+      "total_ms": "1-2",
+      "components": [
+        {
+          "stage": "Context pooling (Get)",
+          "time_us": 500,
+          "cost": "allocation + init"
+        },
+        {
+          "stage": "Route matching",
+          "time_us": "10-100",
+          "cost": "trie lookup (O(log n) for wildcards)"
+        },
+        {
+          "stage": "Handler parameter resolution",
+          "time_us": "25-50",
+          "cost": "5-10μs per dependency × parameter count",
+          "parameters_assumed": 5
+        },
+        {
+          "stage": "Global middleware (0-3)",
+          "time_us": "0-60",
+          "cost": "20μs per middleware"
+        },
+        {
+          "stage": "Module middleware (0-2)",
+          "time_us": "0-40",
+          "cost": "20μs per middleware"
+        },
+        {
+          "stage": "Guard (0-2)",
+          "time_us": "0-30",
+          "cost": "10μs per guard"
+        },
+        {
+          "stage": "Interceptor pre (0-2)",
+          "time_us": "0-100",
+          "cost": "50μs per interceptor"
+        },
+        {
+          "stage": "Handler execution",
+          "time_us": "500-1000",
+          "cost": "simple business logic"
+        },
+        {
+          "stage": "Interceptor post (0-2)",
+          "time_us": "0-100",
+          "cost": "50μs per interceptor"
+        },
+        {
+          "stage": "Context pooling (Put)",
+          "time_us": 50,
+          "cost": "Reset() clears all fields"
+        }
+      ]
+    },
+    "exception_path": {
+      "total_ms": "2-5",
+      "additional_cost": "1-3ms",
+      "due_to": "panic recovery + exception filter processing"
+    },
+    "heavy_io_path": {
+      "total_ms": "100+",
+      "bottleneck": "I/O operations (database, network), not framework"
+    }
+  },
+  "dependency_resolution_cost": {
+    "per_dependency": "5-10 μs (reflection overhead)",
+    "with_5_params": "25-50 μs",
+    "with_10_params": "50-100 μs",
+    "optimization": "getFnArgsByType() caches handler signatures"
+  },
+  "routing_performance": {
+    "exact_match": {
+      "complexity": "O(1)",
+      "time": "< 1 μs"
+    },
+    "prefix_wildcard": {
+      "complexity": "O(log n)",
+      "time": "1-10 μs",
+      "example": "GET /:id matches /users/123"
+    },
+    "complex_regex": {
+      "complexity": "O(n) with regex compilation",
+      "time": "10-100 μs",
+      "example": "pattern matching with .* or +?"
+    }
+  },
+  "memory_allocation": {
+    "per_request": {
+      "context_object": "pooled (no allocation)",
+      "handler_params": "25-50 bytes (reflect.Value slice)",
+      "handler_return": "8-64 bytes (depends on return type)",
+      "total": "50-150 bytes allocated per request (minimum)"
+    },
+    "per_exception": {
+      "exception_struct": "80 bytes",
+      "stack_trace_string": "5KB average",
+      "total": "5KB per exception"
+    },
+    "per_websocket_connection": {
+      "ws_context": "2KB",
+      "send_channel_buffer": "32 × 256 bytes = 8KB",
+      "connection_state": "1KB",
+      "total": "15KB per active connection"
+    }
+  },
+  "bottlenecks": {
+    "dependency_resolution": {
+      "issue": "reflection on every injection",
+      "cost": "5-10μs per parameter",
+      "mitigation": "use fewer parameters, cache handler signatures (already done)"
+    },
+    "exception_handling": {
+      "issue": "panic recovery + stack trace capture expensive",
+      "cost": "1-3ms per exception",
+      "mitigation": "avoid exceptions in hot path, use bool returns"
+    },
+    "middleware_chain": {
+      "issue": "many middlewares slow request",
+      "cost": "20μs per middleware",
+      "mitigation": "keep middleware count low (2-3 global max)"
+    },
+    "json_marshaling": {
+      "issue": "JSON encoding/decoding",
+      "cost": "100-1000μs depending on size",
+      "mitigation": "use binary format for high-throughput APIs"
+    },
+    "websocket_fanout": {
+      "issue": "broker iterates all subscribers",
+      "cost": "linear in subscriber count",
+      "mitigation": "use topic patterns to reduce subscribers"
+    }
+  },
+  "optimization_opportunities": {
+    "opportunity_1": {
+      "name": "Pre-allocate handler args slice",
+      "current": "allocated inside invokeHTTPHandlerByProviders",
+      "potential_savings": "10-20% per request"
+    },
+    "opportunity_2": {
+      "name": "Cache route-specific handler chains",
+      "current": "rebuilt during app.Create()",
+      "potential_savings": "route lookup faster (but already fast)"
+    },
+    "opportunity_3": {
+      "name": "Reduce guard/interceptor reflection",
+      "current": "each invocation uses reflection",
+      "potential_savings": "10-30μs per pipeline stage"
+    },
+    "opportunity_4": {
+      "name": "Lazy stack trace capture",
+      "current": "runtime.Stack() called for all panics",
+      "potential_savings": "1-2ms per exception (only capture if listeners)"
+    },
+    "opportunity_5": {
+      "name": "Connection pooling for WS send channels",
+      "current": "fixed 32-message buffer",
+      "potential_savings": "better handling of slow clients"
+    }
+  },
+  "scalability": {
+    "throughput": {
+      "http_requests_per_second": "10K-100K (depends on handler)",
+      "websocket_messages_per_second": "100K-1M (depends on payload size)",
+      "broker_publishes_per_second": "100K-1M"
+    },
+    "connections": {
+      "concurrent_http_requests": "limited by goroutines (2-4MB each)",
+      "active_websocket_connections": "10K-100K per server",
+      "limit_factor": "memory (goroutine stack + send channel buffer)"
+    },
+    "bottleneck": "typically handler I/O, not framework",
+    "framework_overhead": "< 5% for simple handlers"
+  },
+  "optimization_checklist": [
+    "[ ] Profile actual hot paths before optimizing",
+    "[ ] Minimize handler parameters (< 5)",
+    "[ ] Use topic patterns to reduce WS fanout",
+    "[ ] Avoid exceptions in normal flow (use bool returns)",
+    "[ ] Keep global middleware count low (2-3 max)",
+    "[ ] Use binary serialization for high-throughput APIs",
+    "[ ] Implement request timeout (prevent handler hangs)",
+    "[ ] Monitor WebSocket send channel lag",
+    "[ ] Cache expensive computations in providers",
+    "[ ] Batch database operations instead of per-request queries"
+  ]
+}
