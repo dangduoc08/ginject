@@ -1,6 +1,17 @@
-Refactor the code in $ARGUMENTS for clarity and Go idiom compliance. If no argument is given, use the file currently open in the IDE or the most recently discussed file.
+---
+name: refactor
+description: Refactor the code in $ARGUMENTS for clarity and Go idiom compliance. If no argument is given, use the file currently open in the IDE or the most recently discussed file.
+---
 
-**Logic must not change.** Public API (exported names, function signatures) must not change. Only structure, naming, and style are in scope.
+# Mission
+
+Refactor code for clarity and Go idiom compliance.
+
+**Logic must not change.** Public API (exported names, function signatures) must not change.
+
+Only structure, naming, and style are in scope.
+
+---
 
 ## Steps
 
@@ -63,7 +74,11 @@ Refactor the code in $ARGUMENTS for clarity and Go idiom compliance. If no argum
 
 7. **Report** results in **two versions — English first, then Vietnamese** — each containing a table of every change made.
 
-   **English version** format:
+---
+
+## Report Format
+
+**English version** format:
    ```
    ## Refactor Report
 

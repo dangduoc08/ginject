@@ -1,4 +1,15 @@
-Generate (or refresh) `README.md` for the package at $ARGUMENTS. If no argument is given, use the package of the file currently open in the IDE or the package most recently discussed.
+---
+name: doc
+description: Generate (or refresh) `README.md` for the package at $ARGUMENTS. If no argument is given, use the package of the file currently open in the IDE or the package most recently discussed.
+---
+
+# Mission
+
+Generate (or refresh) `README.md` for the target package.
+
+Create comprehensive documentation following the style reference in `modules/config/README.md`.
+
+---
 
 ## Steps
 
@@ -41,6 +52,8 @@ Generate (or refresh) `README.md` for the package at $ARGUMENTS. If no argument 
 
 10. **Verify completeness.**
    Confirm every exported type, field, function, and method found in step 3 is documented in `README.md`. Confirm every field listing states its Go type explicitly. Confirm every test-derived rule from step 5 appears in the file, and that the `## Benchmarks` section (if applicable) is present and shows the captured numbers.
+
+---
 
 ## Rules
 
