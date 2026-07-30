@@ -1,4 +1,15 @@
-Commit staged changes with an auto-generated message. If $ARGUMENTS is provided, use it as the commit message directly.
+---
+name: commit
+description: Commit staged changes with an auto-generated message. If $ARGUMENTS is provided, use it as the commit message directly.
+---
+
+# Mission
+
+Commit staged changes with an auto-generated message.
+
+If $ARGUMENTS is provided, use it as the commit message directly.
+
+---
 
 ## Steps
 
@@ -26,6 +37,8 @@ Commit staged changes with an auto-generated message. If $ARGUMENTS is provided,
    b. Stage only the files in this group: `git add <file1> <file2> ...`
    c. Run: `git commit -m "<message>"`
    d. If the commit fails, stop and report the error.
+
+---
 
 ## Rules
 
