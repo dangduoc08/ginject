@@ -1,4 +1,15 @@
-Inspect the staged changes for correctness, logic integrity, and impact relative to the last commit. Stash unstaged work first so the working tree is clean and the diff is unambiguous.
+---
+name: check-staged
+description: Inspect the staged changes for correctness, logic integrity, and impact relative to the last commit. Stash unstaged work first so the working tree is clean and the diff is unambiguous.
+---
+
+# Mission
+
+Inspect staged changes for correctness, logic integrity, and impact relative to the last commit.
+
+Stash unstaged work first so the working tree is clean and the diff is unambiguous.
+
+---
 
 ## Steps
 
@@ -55,6 +66,58 @@ Inspect the staged changes for correctness, logic integrity, and impact relative
 
 ```
 ---
+## Báo Cáo Tác Động Thay Đổi Staged
+
+**Build:** ✅ pass / ❌ fail  
+**Tests:** ✅ pass / ❌ fail (liệt kê test thất bại nếu có)
+
+### Files thay đổi
+| File | +dòng | -dòng | Phân loại |
+|------|-------|-------|-----------|
+| ...  | ...   | ...   | ...       |
+
+### Phát hiện
+| # | File | Nội dung | Mức độ |
+|---|------|----------|--------|
+| 1 | ...  | ...      | info / warning / critical |
+
+### Kết luận
+**Thay đổi hành vi so với commit cuối:** CÓ / KHÔNG  
+<một hoặc hai câu — mô tả thay đổi về mặt chức năng, hoặc xác nhận không có gì thay đổi>
+```
+
+## Report Format
+
+This skill produces a bilingual report. Format:
+
+```
+## Staged Change Impact Report
+
+**Build:** ✅ pass / ❌ fail  
+**Tests:** ✅ pass / ❌ fail (list failing tests if any)
+
+### Files changed
+| File | +lines | -lines | Category |
+|------|--------|--------|----------|
+| ...  | ...    | ...    | ...      |
+
+### Findings
+| # | File | Finding | Severity |
+|---|------|---------|----------|
+| 1 | ...  | ...     | info / warning / critical |
+
+### Conclusion
+**Behaviour change vs last commit:** YES / NO  
+<one or two sentences — what changed functionally, or confirm nothing changed>
+```
+
+---
+
+## Báo Cáo Định Dạng
+
+Skill này tạo ra một báo cáo hai ngôn ngữ. Định dạng:
+
+```
 ## Báo Cáo Tác Động Thay Đổi Staged
 
 **Build:** ✅ pass / ❌ fail  

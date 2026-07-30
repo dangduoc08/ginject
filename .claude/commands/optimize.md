@@ -1,4 +1,15 @@
-Optimize the code in $ARGUMENTS for performance and correctness. If no argument is given, optimize the file currently open in the IDE or the file most recently discussed.
+---
+name: optimize
+description: Optimize the code in $ARGUMENTS for performance and correctness. If no argument is given, optimize the file currently open in the IDE or the file most recently discussed.
+---
+
+# Mission
+
+Optimize code for performance and correctness.
+
+Allocation reduction and performance gains are the top priority.
+
+---
 
 ## Steps
 
@@ -64,7 +75,11 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    - A separate section for concurrency fixes if any were applied.
    - A separate section for lint fixes if any were applied.
 
-   **English version** format:
+---
+
+## Report Format
+
+**English version** format:
    ```
    ## Optimization Report
 
@@ -94,6 +109,8 @@ Optimize the code in $ARGUMENTS for performance and correctness. If no argument 
    ### Sửa lỗi lint (nếu có)
    | Vấn đề | Cách sửa |
    ```
+
+---
 
 ## Rules
 

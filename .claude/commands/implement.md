@@ -1,4 +1,15 @@
-Implement or upgrade the feature described in $ARGUMENTS. If a file path is given, inspect it first and upgrade the existing implementation. If no argument is given, use the file currently open in the IDE or the most recently discussed file.
+---
+name: implement
+description: Implement or upgrade the feature described in $ARGUMENTS. If a file path is given, inspect it first and upgrade the existing implementation. If no argument is given, use the file currently open in the IDE or the most recently discussed file.
+---
+
+# Mission
+
+Implement or upgrade features with complete security, testing, and documentation.
+
+Always balance correctness, security, and simplicity.
+
+---
 
 ## Steps
 
@@ -71,7 +82,11 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
     - If **no `README.md`** exists in the package → create one covering: purpose, public API (types + method signatures + return semantics), usage examples, and any non-obvious behaviour.
     - If **`README.md` already exists** → update it to reflect the new or changed API: add missing sections, update signatures, add usage examples for new features, remove stale content.
 
-11. **Report** results in **two versions — English first, then Vietnamese** — each containing:
+---
+
+## Report Format
+
+**Report** results in **two versions — English first, then Vietnamese** — each containing:
     - What was implemented or upgraded (one-line summary per item).
     - Security invariants verified.
     - Test cases added (count + categories covered).
@@ -126,6 +141,8 @@ Implement or upgrade the feature described in $ARGUMENTS. If a file path is give
     ### Sửa lỗi lint (nếu có)
     | Vấn đề | Cách sửa |
     ```
+
+---
 
 ## Rules
 
