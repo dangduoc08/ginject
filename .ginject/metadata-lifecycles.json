@@ -1,0 +1,261 @@
+{
+  "format": "ai-metadata-v1",
+  "title": "Ginject Lifecycle State Machines",
+  "purpose": "Document exact state transitions for app, requests, and connections",
+  "application_lifecycle": {
+    "states": ["CREATED", "INITIALIZED", "RUNNING", "STOPPED"],
+    "transitions": [
+      {
+        "from": "START",
+        "to": "CREATED",
+        "action": "app := core.New()",
+        "effects": ["Create App struct", "Initialize sync.Pool", "Setup broker", "Setup event system"]
+      },
+      {
+        "from": "CREATED",
+        "to": "INITIALIZED",
+        "action": "app.Create(module)",
+        "critical": true,
+        "order": [
+          "initLogger",
+          "initProviders (BUILDS injectedProviders map)",
+          "initWS (IF EnableWS called)",
+          "initMiddlewares",
+          "initExceptionFilters",
+          "initGuards",
+          "initInterceptors",
+          "initMainHandlers (BUILDS routing trie)",
+          "initDevtool (IF enabled)",
+          "initAccessLog (IF enabled)"
+        ],
+        "effects": ["All providers registered", "All routes registered", "All middleware/guard/interceptor resolved"]
+      },
+      {
+        "from": "INITIALIZED",
+        "to": "RUNNING",
+        "action": "app.Listen(port)",
+        "effects": ["HTTP server starts", "Listening on :port", "Request handler active"]
+      },
+      {
+        "from": "RUNNING",
+        "to": "STOPPED",
+        "action": "SIGINT or app.Stop() called",
+        "effects": ["Graceful WS shutdown (code 1000)", "HTTP server stops", "Resources cleaned up"]
+      }
+    ],
+    "immutable_after_create": [
+      "injectedProviders map",
+      "routing.Router",
+      "module tree",
+      "provider registry"
+    ],
+    "post_create_behavior": [
+      "app.Create() can be called exactly ONCE",
+      "Calling Create() twice = panic or undefined behavior",
+      "No runtime modification of providers/controllers"
+    ]
+  },
+  "http_request_lifecycle": {
+    "states": ["RECEIVED", "POOLED", "ROUTED", "INJECTED", "PIPELINE", "HANDLED", "FILTERED", "TRACED", "RELEASED"],
+    "transitions": [
+      {
+        "from": "RECEIVED",
+        "to": "POOLED",
+        "stage": "ServeHTTP()",
+        "action": "c := app.ctxPool.Get()",
+        "effects": ["Context object allocated or reused from pool"]
+      },
+      {
+        "from": "POOLED",
+        "to": "INITIALIZED",
+        "stage": "ServeHTTP()",
+        "action": "c.Init(w, r) or c.InitWithMaxBodySize(w, r, limit)",
+        "effects": ["Timestamp set", "Request ID generated", "ResponseWriter/Request set", "Body size limit applied if configured"]
+      },
+      {
+        "from": "INITIALIZED",
+        "to": "ROUTED",
+        "stage": "handleRequest()",
+        "action": "routing.Router.Match(path, method)",
+        "effects": ["RouterItem found or 404", "Handler chain resolved"]
+      },
+      {
+        "from": "ROUTED",
+        "to": "INJECTED",
+        "stage": "Handler invocation",
+        "action": "Reflect on handler parameters + resolve providers",
+        "effects": ["All handler args resolved", "Dependency injection complete"]
+      },
+      {
+        "from": "INJECTED",
+        "to": "PIPELINE",
+        "stage": "Pipeline execution",
+        "action": "Global middleware → Module middleware → Guard → Interceptor pre → Handler → Interceptor post",
+        "effects": ["Each stage executes in order", "Can terminate early (guard returns false)", "Handler panics recovered"]
+      },
+      {
+        "from": "PIPELINE",
+        "to": "HANDLED",
+        "stage": "Handler execution",
+        "action": "handler(args)",
+        "effects": ["Business logic executed", "Return value captured", "Panics recovered"]
+      },
+      {
+        "from": "HANDLED",
+        "to": "FILTERED",
+        "stage": "Exception filter (if panic)",
+        "action": "exception.Filter.Catch(exception, httpCtx)",
+        "effects": ["Exception handled", "Response written"]
+      },
+      {
+        "from": "FILTERED",
+        "to": "TRACED",
+        "stage": "Tracing",
+        "action": "event.Emit(trace.Event) if listeners present",
+        "effects": ["Trace event emitted with timing"]
+      },
+      {
+        "from": "TRACED",
+        "to": "RELEASED",
+        "stage": "Cleanup",
+        "action": "app.releaseCtx(c)",
+        "effects": ["c.Reset() clears all fields", "Context returned to pool for reuse"]
+      }
+    ],
+    "panics_handled": true,
+    "panic_handling_location": "invokeHTTPHandlerByProviders() - only place panics are caught",
+    "context_mutation_rules": {
+      "safe_to_mutate_in": ["Middleware", "Interceptor (pre)", "Handler"],
+      "dangerous_to_mutate_in": ["Guard (semantically wrong)", "Interceptor (post)", "Exception filter"],
+      "never_mutate_after": "Guard stage (guard made decisions based on request state)"
+    }
+  },
+  "websocket_connection_lifecycle": {
+    "states": ["UPGRADE", "HANDSHAKE", "ACCEPTED", "RUNNING", "CLOSED"],
+    "goroutine_structure": {
+      "goroutine_1": "readLoop (per-connection blocking receive)",
+      "goroutine_2": "writeLoop (per-connection send channel drain)"
+    },
+    "transitions": [
+      {
+        "from": "UPGRADE",
+        "to": "HANDSHAKE",
+        "action": "HTTP Upgrade header received",
+        "effects": ["websocket.Handler called", "Handshake function runs"]
+      },
+      {
+        "from": "HANDSHAKE",
+        "to": "ACCEPTED",
+        "action": "Handshake middleware + guards pass",
+        "effects": ["websocket.Conn established", "connID generated (UUID)", "Connection registered in WSConnMgr"]
+      },
+      {
+        "from": "ACCEPTED",
+        "to": "RUNNING",
+        "action": "readLoop() spawned + writeLoop() spawned",
+        "effects": [
+          "readLoop blocks on conn.Receive()",
+          "writeLoop blocks on send channel",
+          "sendChan := make(chan WSPayload, 32) created",
+          "Client can send messages"
+        ]
+      },
+      {
+        "from": "RUNNING",
+        "to": "RUNNING",
+        "action": "Message received by readLoop",
+        "effects": [
+          "JSON unmarshaled to WSPayload",
+          "Topic pattern matching",
+          "Handler lookup",
+          "Same HTTP pipeline (middleware, guard, interceptor, handler)",
+          "Handler can broker.Publish() for fanout",
+          "Response sent to client or fanout"
+        ]
+      },
+      {
+        "from": "RUNNING",
+        "to": "CLOSED",
+        "action": "Client closes connection or error in readLoop",
+        "effects": [
+          "readLoop() exits",
+          "WSConnMgr.Unregister(connID) called",
+          "done channel closed",
+          "writeLoop() detects close and exits",
+          "All broker subscriptions cleaned up",
+          "Connection resources freed"
+        ]
+      }
+    ],
+    "send_channel_semantics": {
+      "buffer_size": 32,
+      "behavior": "non-blocking TrySend()",
+      "overflow": "message DROPPED silently if buffer full",
+      "no_error_notification": "slow client gets no warning"
+    },
+    "context_lifecycle": {
+      "creation": "app.wsCtxPool.Get()",
+      "per_message": "new context for each incoming message",
+      "usage": "passed through pipeline (same as HTTP)",
+      "release": "app.releaseWSCtx(c) after message handled"
+    }
+  },
+  "provider_lifecycle": {
+    "states": ["DECLARED", "DISCOVERED", "REGISTERED", "INJECTED"],
+    "transitions": [
+      {
+        "from": "DECLARED",
+        "to": "DISCOVERED",
+        "stage": "ModuleBuilder",
+        "action": "ModuleBuilder().Providers(MyProvider{})",
+        "effects": ["Provider added to module"]
+      },
+      {
+        "from": "DISCOVERED",
+        "to": "REGISTERED",
+        "stage": "app.Create() → initProviders()",
+        "action": "Walk module tree depth-first",
+        "effects": [
+          "Provider key generated: type.String()",
+          "Added to injectedProviders map",
+          "Provider NOT instantiated yet"
+        ]
+      },
+      {
+        "from": "REGISTERED",
+        "to": "INJECTED",
+        "stage": "Handler invocation",
+        "action": "getHTTPDependency() or getWSDependency() looks up provider",
+        "effects": [
+          "provider.NewProvider() called",
+          "Instance created (or singleton returned)",
+          "Injected into handler parameter",
+          "NewProvider() called EVERY TIME provider is injected"
+        ]
+      }
+    ],
+    "critical_rule": "NewProvider() called per-injection, NOT at startup",
+    "singleton_pattern": "return same instance from NewProvider() for singletons"
+  },
+  "module_initialization_order": {
+    "critical": "Order is SACRED and cannot be changed",
+    "sequence": [
+      "1. initLogger - Setup Logger instance",
+      "2. initProviders - Build injectedProviders map FROM module tree",
+      "3. initWS - Setup WS instance (reads from injectedProviders)",
+      "4. initMiddlewares - Resolve middleware instances",
+      "5. initExceptionFilters - Resolve exception filters",
+      "6. initGuards - Resolve guards",
+      "7. initInterceptors - Resolve interceptors",
+      "8. initMainHandlers - Build routing trie (reads from module tree)",
+      "9. initDevtool - Create devtool snapshot (reads fully-populated state)",
+      "10. initAccessLog - Setup access logging"
+    ],
+    "dependencies": [
+      "Step 2 MUST run before step 3 (builds injectedProviders)",
+      "Step 3 MUST run before steps 4-7 (WS state needed)",
+      "Step 9 MUST run last (needs complete state)"
+    ],
+    "if_reordered": "Uninitialized references, missing state, panic"
+  }
+}
