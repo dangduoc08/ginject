@@ -236,21 +236,24 @@ cors.CORS{AllowOrigin: "https://example.com"}.Use(r, w, next)
 
 ## Benchmarks
 
-Captured by running `go test -run=^$ -bench=. -benchmem ./middlewares/cors/...`. Numbers are machine-dependent and were captured at doc-generation time — re-run the command yourself for a fresh baseline. `BenchmarkCORS_Use_*` give each iteration its own response recorder (like a real request would), so their allocations reflect the true per-request cost; `BenchmarkLoadCORSOptions` is the one-time, per-`NewMiddleware`-call compile step, not a per-request cost.
+Benchmarks were run on an Intel Core i7-9750H CPU @ 2.60 GHz with `go test -bench=. -benchmem`.
 
-```console
-goos: darwin
-goarch: amd64
-pkg: github.com/dangduoc08/ginject/middlewares/cors
-cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
-BenchmarkCORS_Use_StarOrigin-12          	 2834415	       363.1 ns/op	     528 B/op	       5 allocs/op
-BenchmarkCORS_Use_NilOriginDefault-12    	 2751880	       451.0 ns/op	     528 B/op	       5 allocs/op
-BenchmarkCORS_Use_OriginMap-12           	 2331158	       534.0 ns/op	     544 B/op	       6 allocs/op
-BenchmarkCORS_Use_Preflight-12           	  447320	      3278 ns/op	    1216 B/op	      15 allocs/op
-BenchmarkMatchOrigin_Wildcard-12         	320508262	         4.273 ns/op	       0 B/op	       0 allocs/op
-BenchmarkMatchOrigin_Map-12              	58212392	        26.58 ns/op	       0 B/op	       0 allocs/op
-BenchmarkMatchOrigin_Regexp-12           	 1000000	      1123 ns/op	       0 B/op	       0 allocs/op
-BenchmarkLoadCORSOptions-12              	 2898069	       443.4 ns/op	     400 B/op	       4 allocs/op
-PASS
-ok  	github.com/dangduoc08/ginject/middlewares/cors	14.435s
-```
+Results are machine-dependent and were captured at documentation generation time (July 30, 2026).
+
+| Benchmark | Operations | Time per op | Allocs | Bytes |
+|---|---|---|---|---|
+| `BenchmarkCORS_Use_StarOrigin` (wildcard origin) | 3,111,745 | 387.9 ns/op | 5 | 528 B/op |
+| `BenchmarkCORS_Use_NilOriginDefault` (default origin) | 2,899,342 | 388.0 ns/op | 5 | 528 B/op |
+| `BenchmarkCORS_Use_OriginMap` (origin map match) | 2,421,396 | 504.5 ns/op | 6 | 544 B/op |
+| `BenchmarkCORS_Use_Preflight` (OPTIONS request) | 721,314 | 1,768 ns/op | 13 | 1,104 B/op |
+| `BenchmarkMatchOrigin_Wildcard` (origin match, wildcard) | 368,751,504 | 3.175 ns/op | 0 | 0 B/op |
+| `BenchmarkMatchOrigin_Map` (origin match, map lookup) | 93,226,539 | 15.71 ns/op | 0 | 0 B/op |
+| `BenchmarkMatchOrigin_Regexp` (origin match, regexp) | 2,708,229 | 494.6 ns/op | 0 | 0 B/op |
+| `BenchmarkLoadCORSOptions` (compile CORS config) | 2,829,883 | 417.7 ns/op | 4 | 400 B/op |
+
+**Key observations:**
+
+- CORS header injection is sub-microsecond (~400ns) for most cases
+- Preflight (OPTIONS) requests are slower (~1.8µs) due to additional header generation
+- Origin matching costs: wildcard < map < regexp (10× slower for regexp patterns)
+- LoadCORSOptions is a one-time startup cost, not per-request
