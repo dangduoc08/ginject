@@ -52,6 +52,8 @@ type Module struct {
 
 	IsGlobal bool
 	OnInit   func()
+	OnReady  func()
+	OnShutdown func()
 
 	// store HTTP module exception filters
 	HTTPExceptionFilters []common.HTTPLayer
