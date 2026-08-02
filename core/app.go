@@ -1,11 +1,15 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"reflect"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/dangduoc08/ginject/accesslog"
@@ -51,6 +55,10 @@ type App struct {
 
 	Logger     common.Logger
 	LogOptions *log.LogOptions
+
+	readyOnce    sync.Once
+	shutdownOnce sync.Once
+	shutdownChan chan struct{}
 }
 
 const (
@@ -126,6 +134,7 @@ func New() *App {
 				return ctx.NewWSContext()
 			},
 		},
+		shutdownChan: make(chan struct{}),
 	}
 
 	globalInterfaceByKey.Store(publisherKey, common.Publisher(
@@ -196,6 +205,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //     than assuming it's set.
 //  3. initDevtool must run last — it reads the fully-populated
 //     module/route state to build the devtool snapshot.
+//  4. callOnReady must run last after all initialization is complete.
 //
 // Do not reorder these calls without re-checking every init* function for
 // an unguarded app.ws.* access.
@@ -210,6 +220,7 @@ func (app *App) Create(m *Module) {
 	app.initMainHandlers()
 	app.initDevtool()
 	app.initAccessLog()
+	app.callOnReady()
 }
 
 func (app *App) initWS(injectedProviders map[string]Provider) {
@@ -678,7 +689,30 @@ func (app *App) Listen(port int) error {
 
 	logBoostrap(port)
 
-	return server.ListenAndServe()
+	return app.serveWithGracefulShutdown(server)
+}
+
+func (app *App) serveWithGracefulShutdown(server *http.Server) error {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	httpListernErrChan := make(chan error, 1)
+	go func() {
+		httpListernErrChan <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-httpListernErrChan:
+		return err
+	case sig := <-sigChan:
+		app.Logger.Info("ShutdownSignal", "signal", sig.String())
+		app.callOnShutdown()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		return server.Shutdown(ctx)
+	}
 }
 
 func (app *App) initDevtool() {
@@ -698,4 +732,29 @@ func (app *App) initDevtool() {
 		Build()
 
 	go app.devtool.Serve()
+}
+
+func (app *App) callOnReady() {
+	app.readyOnce.Do(func() {
+		for _, m := range app.module.collectModules() {
+			if m.OnReady != nil {
+				m.OnReady()
+			}
+		}
+	})
+}
+
+func (app *App) callOnShutdown() {
+	app.shutdownOnce.Do(func() {
+		for _, m := range app.module.collectModules() {
+			if m.OnShutdown != nil {
+				m.OnShutdown()
+			}
+		}
+		close(app.shutdownChan)
+	})
+}
+
+func (app *App) Stop() {
+	app.callOnShutdown()
 }
