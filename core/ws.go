@@ -66,6 +66,8 @@ func NewWS(cfg *WSConfig) *WS {
 		releaseCtx:            cfg.releaseCtx,
 	}
 
+	ws.connmgr.startDeadConnDetection(15*time.Second, 60*time.Second)
+
 	return &ws
 }
 
@@ -114,9 +116,7 @@ func (ws *WS) handshake(c *ctx.HTTPContext) error {
 
 func (ws *WS) handleRequest(wsConn *websocket.Conn) {
 	defer func() {
-		if err := wsConn.Close(); err != nil {
-			ws.logger.Error("WSConnCloseFailed", "error", err)
-		}
+		_ = wsConn.Close()
 	}()
 
 	connID, err := crypto.UUID()
@@ -136,5 +136,40 @@ func (ws *WS) handleRequest(wsConn *websocket.Conn) {
 	conn := ws.connmgr.Register(connID, wsConn)
 	defer ws.connmgr.Unregister(connID)
 
+	done := make(chan struct{})
+	go pingLoop(wsConn, conn, done, ws.logger)
+
 	readLoop(conn, ws)
+	close(done)
+}
+
+func pingLoop(wsConn *websocket.Conn, conn *WSConnection, done <-chan struct{}, logger common.Logger) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			if wsConn == nil {
+				return
+			}
+
+			if err := wsConn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+				logger.Error("WSSetWriteDeadlineFailed", "error", err)
+				return
+			}
+
+			if err := websocket.JSON.Send(wsConn, WSPayload{Type: TypePing}); err != nil {
+				logger.Error("WSPingSendFailed", "error", err)
+				return
+			}
+
+			if err := wsConn.SetWriteDeadline(time.Time{}); err != nil {
+				logger.Error("WSClearWriteDeadlineFailed", "error", err)
+				return
+			}
+		}
+	}
 }

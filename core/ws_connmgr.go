@@ -152,3 +152,32 @@ func (connmgr *WSConnmgr) Unsubscribe(connID, topic string) error {
 
 	return nil
 }
+
+func (connmgr *WSConnmgr) startDeadConnDetection(interval, timeout time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			now := time.Now()
+			connmgr.mu.RLock()
+			var deadConnIDs []string
+			for id, conn := range connmgr.conns {
+				if now.Sub(conn.LastSeen) > timeout {
+					deadConnIDs = append(deadConnIDs, id)
+				}
+			}
+			connmgr.mu.RUnlock()
+
+			for _, id := range deadConnIDs {
+				connmgr.mu.Lock()
+				if c, ok := connmgr.conns[id]; ok {
+					_ = c.Conn.Close()
+					close(c.done)
+				}
+				connmgr.mu.Unlock()
+				connmgr.Unregister(id)
+			}
+		}
+	}()
+}
