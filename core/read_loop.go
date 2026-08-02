@@ -53,6 +53,8 @@ func readLoop(conn *WSConnection, ws *WS) {
 			handleUnsubscribe(conn, ws.connmgr, payload)
 		case TypePublish:
 			handlePublish(conn, ws, payload)
+		case TypePing:
+			conn.TrySend(WSPayload{Type: TypePong})
 		case TypePong:
 			// liveness only; ws.connmgr.touch above already recorded it.
 		default:
@@ -92,8 +94,6 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 	}
-
-	reply(conn, TypeAck, payload.ID, payload.Topic)
 }
 
 func handleUnsubscribe(conn *WSConnection, connmgr *WSConnmgr, payload WSPayload) {
@@ -103,8 +103,6 @@ func handleUnsubscribe(conn *WSConnection, connmgr *WSConnmgr, payload WSPayload
 			return
 		}
 	}
-
-	reply(conn, TypeAck, payload.ID, payload.Topic)
 }
 
 func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
@@ -129,8 +127,6 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 	}
-
-	reply(conn, TypeAck, payload.ID, payload.Topic)
 }
 
 func runCatchChain(conn *WSConnection, ws *WS, c *ctx.WSContext, pattern string, payloadID string, rec any) {
