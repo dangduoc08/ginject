@@ -31,15 +31,6 @@ func (aggregation *Aggregation) SetMainData(d any) *Aggregation {
 }
 
 // Use on app.go where it need to get error aggregation
-func (aggregation *Aggregation) GetAggregationOperators(oprName string) []Operator {
-	var result []Operator
-	for _, op := range aggregation.operators {
-		if op.Name == oprName {
-			result = append(result, op)
-		}
-	}
-	return result
-}
 
 func (aggregation *Aggregation) setOperators(name string, op AggregationOperator) *Aggregation {
 	aggregation.operators = append(aggregation.operators, Operator{
@@ -57,6 +48,12 @@ func (aggregation *Aggregation) Aggregate() any {
 			aggregation.mainData = operator.Aggregation(aggregation.mainData)
 		case OperatorTap:
 			operator.Aggregation(aggregation.mainData)
+		case OperatorFilter:
+			result := operator.Aggregation(aggregation.mainData)
+			if result == nil {
+				return nil
+			}
+			aggregation.mainData = result
 		}
 	}
 
