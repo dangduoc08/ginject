@@ -499,7 +499,7 @@ func NewHTTPClientModule() *core.Module
 
 ---
 
-## Package: `memcache`
+## Package: `memorycache`
 
 **Responsibility**: In-memory LFU cache
 
