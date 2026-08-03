@@ -134,7 +134,11 @@
     "states": ["UPGRADE", "HANDSHAKE", "ACCEPTED", "RUNNING", "CLOSED"],
     "goroutine_structure": {
       "goroutine_1": "readLoop (per-connection blocking receive)",
-      "goroutine_2": "writeLoop (per-connection send channel drain)"
+      "goroutine_2": "writeLoop (per-connection send channel drain)",
+      "goroutine_3": "pingLoop (per-connection heartbeat, 30s interval)"
+    },
+    "background_goroutines": {
+      "dead_connection_detector": "startDeadConnDetection (global, runs once at app.NewWS, interval 15s, timeout 60s)"
     },
     "transitions": [
       {
@@ -147,46 +151,62 @@
         "from": "HANDSHAKE",
         "to": "ACCEPTED",
         "action": "Handshake middleware + guards pass",
-        "effects": ["websocket.Conn established", "connID generated (UUID)", "Connection registered in WSConnMgr"]
+        "effects": ["websocket.Conn established", "connID generated (UUID)", "Connection registered in WSConnMgr", "LastSeen timestamp set"]
       },
       {
         "from": "ACCEPTED",
         "to": "RUNNING",
-        "action": "readLoop() spawned + writeLoop() spawned",
+        "action": "readLoop() spawned + writeLoop() spawned + pingLoop() spawned",
         "effects": [
           "readLoop blocks on conn.Receive()",
           "writeLoop blocks on send channel",
+          "pingLoop blocks on ticker (30s intervals)",
           "sendChan := make(chan WSPayload, 32) created",
+          "done channel created for shutdown coordination",
           "Client can send messages"
         ]
       },
       {
         "from": "RUNNING",
         "to": "RUNNING",
-        "action": "Message received by readLoop",
+        "action": "Message received by readLoop (subscribe, publish, ping, pong, etc.)",
         "effects": [
           "JSON unmarshaled to WSPayload",
+          "LastSeen timestamp updated",
           "Topic pattern matching",
           "Handler lookup",
           "Same HTTP pipeline (middleware, guard, interceptor, handler)",
-          "Handler can broker.Publish() for fanout",
-          "Response sent to client or fanout"
-        ]
+          "Handler can broker.Publish() for fanout"
+        ],
+        "message_protocol": {
+          "subscribe": "Client → subscribe → Server sends ACK (empty message)",
+          "publish": "Client → publish → Server dispatches event → Server sends ACK",
+          "ping": "Server sends ping (30s) → Client responds with pong",
+          "pong": "Client pong → Server records LastSeen (liveness check)"
+        }
       },
       {
         "from": "RUNNING",
         "to": "CLOSED",
-        "action": "Client closes connection or error in readLoop",
+        "action": "Client closes connection OR error in readLoop OR dead connection detected",
         "effects": [
           "readLoop() exits",
+          "close(done) channel closes",
+          "pingLoop detects <-done close and exits",
           "WSConnMgr.Unregister(connID) called",
-          "done channel closed",
-          "writeLoop() detects close and exits",
+          "writeLoop() detects close on send channel and exits",
           "All broker subscriptions cleaned up",
           "Connection resources freed"
         ]
       }
     ],
+    "dead_connection_detection": {
+      "mechanism": "startDeadConnDetection background goroutine",
+      "interval": "15 seconds",
+      "timeout": "60 seconds (no pong/activity)",
+      "action": "Close connection if LastSeen > 60s old",
+      "implementation": "RWMutex: Read phase to collect dead IDs, Lock phase to cleanup one connection at a time"
+    },
     "send_channel_semantics": {
       "buffer_size": 32,
       "behavior": "non-blocking TrySend()",
@@ -198,6 +218,33 @@
       "per_message": "new context for each incoming message",
       "usage": "passed through pipeline (same as HTTP)",
       "release": "app.releaseWSCtx(c) after message handled"
+    }
+  },
+  "module_lifecycle_hooks": {
+    "hooks": ["OnInit", "OnReady", "OnShutdown"],
+    "timing": {
+      "OnInit": "Called during provider initialization (not yet implemented in public API)",
+      "OnReady": "Called after app.Create() completes and all modules initialized (before app.Listen())",
+      "OnShutdown": "Called when app receives SIGINT/SIGTERM signal or app.Stop() invoked"
+    },
+    "use_cases": {
+      "OnReady": [
+        "Initialize backend resources (Redis, database connections)",
+        "Start background workers",
+        "Verify external service connectivity",
+        "Setup resource pools"
+      ],
+      "OnShutdown": [
+        "Gracefully close backend connections",
+        "Flush pending data",
+        "Stop background workers",
+        "Release resources"
+      ]
+    },
+    "implementation": {
+      "declaration": "Module has OnReady and OnShutdown fields (func())",
+      "example": "module.OnReady = func() { /* ... */ }",
+      "call_order": "OnReady called for each module in tree order, OnShutdown called in reverse order (LIFO)"
     }
   },
   "provider_lifecycle": {
