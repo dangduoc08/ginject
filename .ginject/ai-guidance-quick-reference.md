@@ -256,7 +256,7 @@ Architecture Question
   │   ├─ Create Provider with injected CacheService
   │   ├─ Cache wrapper around database queries
   │   ├─ Invalidate cache on writes
-  │   └─ Use memcache.MemoryCache or external cache
+  │   └─ Use memorycache.MemoryCache or external cache
   │
   ├─ "How do I structure database access?"
   │   ├─ Create Repository Provider (data access)

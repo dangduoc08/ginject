@@ -102,31 +102,39 @@ Connection resources freed
 ```
 readLoop() receives raw message
     ↓
-Unmarshal JSON → WSPayload{Type, Topic, Data, ...}
+Unmarshal JSON → WSPayload{Type, Topic, ID, Message, ...}
     ↓
-Pattern matching: Topic
-    ├─ Exact match → get handler
-    ├─ Suffix wildcard (*) → get handler
-    ├─ Complex regex → get handler
-    ├─ Global fallback → get handler
-    └─ No match → 404 (error response)
+Update LastSeen timestamp (for dead connection detection)
     ↓
-Handler resolution (dependency injection)
-    ↓
-Pipeline execution:
-    ├─ Middleware (same as HTTP)
-    ├─ Guard (same as HTTP, but WS-specific)
-    ├─ Interceptor (pre)
-    ├─ Handler execution
-    ├─ Interceptor (post)
-    └─ Exception filter (if panic)
-    ↓
-Response (if handler returns data)
-    ↓
-handler can call broker.Publish(topic, data)
-    ↓
-Fanout to all subscribers
+Pattern matching: Type
+    ├─ TypeSubscribe → handleSubscribe
+    │   ├─ Match handler for topic
+    │   ├─ Run middleware chain
+    │   ├─ Register broker subscription callback
+    │   └─ reply(conn, TypeAck, ID, "") ← ACK response
+    │
+    ├─ TypePublish → handlePublish
+    │   ├─ Match handler for topic
+    │   ├─ Verify subscription exists
+    │   ├─ Dispatch handler (middleware + pipeline)
+    │   ├─ broker.Publish(topic, Message) for fanout
+    │   └─ reply(conn, TypeAck, ID, "") ← ACK response
+    │
+    ├─ TypeUnsubscribe → handleUnsubscribe
+    │   └─ Unregister broker callback (no ACK)
+    │
+    ├─ TypePing → reply(conn, TypePong, "", "") ← Heartbeat response
+    │
+    ├─ TypePong → Record liveness (no response, LastSeen updated above)
+    │
+    └─ Other types → reply(conn, TypeError, ID, message) ← Error response
 ```
+
+**ACK Protocol (v2.0+, commit ccfaea3)**:
+- Subscribe, Publish carry request `ID`
+- Server responds with `TypeAck` message (same ID, empty message)
+- Enables client-side request/response correlation
+- Not mandatory for application logic, but improves protocol reliability
 
 ### 2.2 Outbound Message Broadcasting
 
@@ -150,44 +158,96 @@ If send channel buffer full (32 messages):
 
 ## 3. WebSocket Payload Structure
 
-### 3.1 WSPayload
+### 3.1 WSPayload (v2.0+)
 
 ```go
 type WSPayload struct {
-    Type    string                 // "publish", "subscribe", "unsubscribe"
-    Topic   string                 // Topic name or pattern
-    Data    any                    // Message data (marshals to/from JSON)
-    Message map[string]interface{} // Auxiliary message fields
+    Type    WSPayloadType  // "subscribe", "publish", "unsubscribe", "ping", "pong", "ack", "event", "error"
+    ID      string         // Request/response correlation ID (v2.0+)
+    Topic   []string       // Topic name(s) - array for batch operations
+    Message any            // Message data (marshals to/from JSON)
+}
+
+type WSPayloadType string
+const (
+    TypeSubscribe   WSPayloadType = "subscribe"
+    TypeUnsubscribe WSPayloadType = "unsubscribe"
+    TypePublish     WSPayloadType = "publish"
+    TypeEvent       WSPayloadType = "event"      // Fanout response
+    TypeAck         WSPayloadType = "ack"        // Confirmation (v2.0+)
+    TypeError       WSPayloadType = "error"
+    TypePing        WSPayloadType = "ping"       // Server heartbeat (v2.0+)
+    TypePong        WSPayloadType = "pong"       // Client response (v2.0+)
+)
+```
+
+**Usage Examples** (v2.0+):
+
+**Subscribe with ID** (client → server):
+```json
+{
+    "type": "subscribe",
+    "id": "req-123",
+    "topic": ["users.*"]
 }
 ```
 
-**Usage Examples**:
+**ACK Response** (server → client, v2.0+):
+```json
+{
+    "type": "ack",
+    "id": "req-123",
+    "message": ""
+}
+```
 
-**Publish (handler sends to others)**:
+**Publish with ID** (client → server):
 ```json
 {
     "type": "publish",
-    "topic": "users.created",
-    "data": {
+    "id": "req-456",
+    "topic": ["users.created"],
+    "message": {
         "id": 123,
         "name": "John"
     }
 }
 ```
 
-**Subscribe (client subscribes to topic)**:
+**Event (fanout response)** (server → client):
 ```json
 {
-    "type": "subscribe",
-    "topic": "users.*"
+    "type": "event",
+    "topic": ["users.created"],
+    "message": {
+        "id": 123,
+        "name": "John"
+    }
 }
 ```
 
-**Unsubscribe**:
+**Ping/Pong Heartbeat** (v2.0+):
 ```json
 {
-    "type": "unsubscribe",
-    "topic": "users.*"
+    "type": "ping"
+}
+```
+Client responds:
+```json
+{
+    "type": "pong"
+}
+```
+
+**Error Response**:
+```json
+{
+    "type": "error",
+    "id": "req-123",
+    "message": {
+        "code": 404,
+        "error": "not found"
+    }
 }
 ```
 
@@ -460,9 +520,65 @@ Resources freed
 
 ---
 
-## 11. Known Limitations & Gotchas
+## 11. Heartbeat & Liveness Detection
 
-### 11.1 Message Drop on Slow Client
+### 11.1 Ping-Pong Heartbeat
+
+**Purpose**: Detect stale connections and keep TCP connection alive
+
+**Mechanism**:
+```
+Server (pingLoop) sends TypePing every 30 seconds
+    ↓
+Client receives TypePing
+    ↓
+Client sends TypePong response
+    ↓
+Server (readLoop) receives TypePong
+    ↓
+Server updates conn.LastSeen timestamp
+```
+
+**Guarantees**:
+- If client stops responding, server detects within 60 seconds
+- No application-level heartbeat needed (framework handles it)
+- Helps NAT/firewall keep TCP connection alive
+
+### 11.2 Dead Connection Detection
+
+**Purpose**: Clean up zombie connections from unresponsive clients
+
+**Mechanism**:
+```
+startDeadConnDetection goroutine (runs every 15 seconds):
+    1. Scan all connections
+    2. Find any with LastSeen > 60 seconds old
+    3. For each dead connection:
+        ├─ Close underlying TCP connection
+        ├─ Unsubscribe from all broker topics
+        ├─ Close done channel
+        └─ Remove from connection map
+```
+
+**Implementation Detail**:
+```
+RWMutex phase 1 (read-locked):
+    └─ Collect IDs of dead connections
+
+Per-connection phase (lock/unlock cycle):
+    └─ Close connection
+    └─ Unsubscribe
+    └─ Clean up maps
+    └─ Unlock, then next connection
+
+Reason: Avoid holding lock during cleanup, prevent lock contention
+```
+
+---
+
+## 12. Known Limitations & Gotchas
+
+### 12.1 Message Drop on Slow Client
 
 ```
 GOTCHA: Send channel buffer is 32 messages
@@ -473,7 +589,7 @@ Client never sees message, no error notification
 
 **Mitigation**: Monitor client lag, implement backpressure
 
-### 11.2 No Message Ordering Guarantee Across Connections
+### 12.2 No Message Ordering Guarantee Across Connections
 
 ```
 GOTCHA: Fanout sends to all subscribers
@@ -482,7 +598,7 @@ Client A might see message before Client B
 (implementation is actually ordered, but not guaranteed)
 ```
 
-### 11.3 Fire-and-Forget Semantics
+### 12.3 Fire-and-Forget Semantics
 
 ```
 GOTCHA: Fanout callbacks are non-blocking
@@ -490,7 +606,7 @@ If fanout callback panics (unlikely), it's silently dropped
 No error handling for individual subscriber failures
 ```
 
-### 11.4 Connection Hijacking
+### 12.4 GOTCHA: Connection Hijacking
 
 ```
 GOTCHA: Raw *websocket.Conn available in handler
@@ -498,13 +614,13 @@ If you read/write directly to conn, you bypass framework
 Can cause message corruption or race conditions
 ```
 
-**Rule**: Don't use raw conn.Send()/Receive() in handlers, use Publisher instead
+**Rule**: Use Publisher, never access raw conn directly
 
 ---
 
-## 12. Performance Considerations
+## 13. Performance Considerations
 
-### 12.1 Goroutine Count
+### 13.1 Goroutine Count
 
 **Per Active Connection**: 2 goroutines (readLoop + writeLoop)
 
@@ -512,7 +628,7 @@ Can cause message corruption or race conditions
 
 **Cost**: ~50KB per goroutine (stack) = 1GB for 20K goroutines
 
-### 12.2 Memory Usage
+### 13.2 Memory Usage
 
 **Per Connection**:
 - WSContext: ~2KB
@@ -522,7 +638,7 @@ Can cause message corruption or race conditions
 
 **Example**: 10,000 connections = 150MB
 
-### 12.3 Message Throughput
+### 13.3 Message Throughput
 
 **Publish throughput**: 100K-1M messages/sec (broker + fanout)
 
@@ -532,17 +648,17 @@ Can cause message corruption or race conditions
 
 ---
 
-## 13. WebSocket Best Practices
+## 14. WebSocket Best Practices
 
-### 13.1 DO
+### 14.1 DO
 
 - ✓ Use Publisher to send messages (async, non-blocking)
 - ✓ Keep handlers short and fast
 - ✓ Use topic patterns for selective delivery
 - ✓ Monitor connection count and memory
-- ✓ Implement heartbeat/ping-pong for stale connections
+- ✓ Implement heartbeat/ping-pong for stale connections (framework does this automatically now)
 
-### 13.2 DON'T
+### 14.2 DON'T
 
 - ✗ Access raw conn.Send()/Receive() in handlers
 - ✗ Hold onto connection reference after handler

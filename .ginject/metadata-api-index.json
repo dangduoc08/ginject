@@ -46,13 +46,15 @@
           ]
         },
         "Module": {
-          "description": "Composition root for controllers and providers",
+          "description": "Composition root for controllers and providers with lifecycle hooks",
           "fields": [
             "providers []Provider",
             "controllers []Controller",
             "imports []*Module",
             "HTTPMainHandlers []HTTPMainHandler",
-            "WSHandlers []WSHandler"
+            "WSHandlers []WSHandler",
+            "OnReady func() - Called after app.Create() completes (v2.0+)",
+            "OnShutdown func() - Called on app shutdown (SIGINT/SIGTERM) (v2.0+)"
           ]
         },
         "ModuleBuilder": {
@@ -235,7 +237,7 @@
         ]
       }
     },
-    "memcache": {
+    "memorycache": {
       "responsibility": "In-memory LFU cache",
       "MemoryCache": {
         "methods": [
