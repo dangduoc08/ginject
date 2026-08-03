@@ -94,6 +94,7 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 	}
+	reply(conn, TypeAck, payload.ID, "")
 }
 
 func handleUnsubscribe(conn *WSConnection, connmgr *WSConnmgr, payload WSPayload) {
@@ -127,6 +128,7 @@ func handlePublish(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 	}
+	reply(conn, TypeAck, payload.ID, "")
 }
 
 func runCatchChain(conn *WSConnection, ws *WS, c *ctx.WSContext, pattern string, payloadID string, rec any) {
