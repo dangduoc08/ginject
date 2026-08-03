@@ -70,7 +70,7 @@ func (p Pattern) Match(topic string) bool {
 		}
 		return len(topic) > len(p.simplePrefix)+1
 	case KindComplex:
-		return matchSegments(p.segments, strings.Split(topic, "."))
+		return p.matchSegments(strings.Split(topic, "."))
 	}
 	return false
 }
@@ -93,4 +93,27 @@ func (p Pattern) IsExact() bool {
 
 func (p Pattern) IsGlobal() bool {
 	return p.kind == KindGlobal
+}
+
+func (p Pattern) matchSegments(topic []string) bool {
+	pi, ti := 0, 0
+	for pi < len(p.segments) {
+		if p.segments[pi] == "*" {
+			if pi == len(p.segments)-1 {
+				return ti < len(topic)
+			}
+			if ti >= len(topic) {
+				return false
+			}
+			pi++
+			ti++
+			continue
+		}
+		if ti >= len(topic) || p.segments[pi] != topic[ti] {
+			return false
+		}
+		pi++
+		ti++
+	}
+	return pi == len(p.segments) && ti == len(topic)
 }
