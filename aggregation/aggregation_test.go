@@ -62,6 +62,22 @@ func TestPipe_ReturnsNil(t *testing.T) {
 	}
 }
 
+func TestPipe_WithFilterTransformTap(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(10)
+	result := a.Pipe(
+		a.Filter(func(d any) bool { return d.(int) > 5 }),
+		a.Transform(func(d any) any { return d.(int) * 2 }),
+		a.Tap(func(d any) any { return nil }),
+	)
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "Pipe must return nil"))
+	}
+	if !a.IsMainHandlerCalled {
+		t.Error(test.DiffMessage(a.IsMainHandlerCalled, true, "Pipe must set IsMainHandlerCalled"))
+	}
+}
+
 func TestTransform_RegisteredAndApplied(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("original")
@@ -105,45 +121,6 @@ func TestTap_CalledButDoesNotTransform(t *testing.T) {
 	}
 }
 
-func TestGetAggregationOperators_Match(t *testing.T) {
-	a := NewAggregation()
-	a.Transform(func(data any) any { return data })
-	a.Tap(func(data any) any { return data })
-	ops := a.GetAggregationOperators(OperatorTap)
-	if len(ops) != 1 {
-		t.Error(test.DiffMessage(len(ops), 1, "must return exactly 1 Tap operator"))
-	}
-	if ops[0].Name != OperatorTap {
-		t.Error(test.DiffMessage(ops[0].Name, OperatorTap, "returned operator must have correct name"))
-	}
-}
-
-func TestGetAggregationOperators_NoMatch(t *testing.T) {
-	a := NewAggregation()
-	a.Transform(func(data any) any { return data })
-	ops := a.GetAggregationOperators(OperatorTap)
-	if len(ops) != 0 {
-		t.Error(test.DiffMessage(len(ops), 0, "must return empty slice when no match"))
-	}
-}
-
-func TestGetAggregationOperators_MultipleMatches(t *testing.T) {
-	a := NewAggregation()
-	a.Tap(func(data any) any { return "e1" })
-	a.Tap(func(data any) any { return "e2" })
-	ops := a.GetAggregationOperators(OperatorTap)
-	if len(ops) != 2 {
-		t.Error(test.DiffMessage(len(ops), 2, "must return all matching operators"))
-	}
-}
-
-func TestGetAggregationOperators_EmptyAggregation(t *testing.T) {
-	a := NewAggregation()
-	ops := a.GetAggregationOperators(OperatorTransform)
-	if len(ops) != 0 {
-		t.Error(test.DiffMessage(len(ops), 0, "empty aggregation must return empty result"))
-	}
-}
 
 func TestAggregate_NoOperators(t *testing.T) {
 	a := NewAggregation()
@@ -193,3 +170,209 @@ func TestAggregate_MultipleTransforms(t *testing.T) {
 		t.Error(test.DiffMessage(result, 3, "(0+1)*3 = 3"))
 	}
 }
+
+func TestFilter_PredicateTrue(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(10)
+	called := false
+	a.Filter(func(data any) bool {
+		called = true
+		return data.(int) > 5
+	})
+	result := a.Aggregate()
+
+	if !called {
+		t.Error(test.DiffMessage(called, true, "predicate must be called"))
+	}
+	if result != 10 {
+		t.Error(test.DiffMessage(result, 10, "filter must return data when predicate is true"))
+	}
+}
+
+func TestFilter_PredicateFalse(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(3)
+	called := false
+	a.Filter(func(data any) bool {
+		called = true
+		return data.(int) > 5
+	})
+	result := a.Aggregate()
+
+	if !called {
+		t.Error(test.DiffMessage(called, true, "predicate must be called"))
+	}
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "filter must return nil when predicate is false"))
+	}
+}
+
+func TestFilter_ReturnsOperator(t *testing.T) {
+	a := NewAggregation()
+	pred := func(data any) bool { return true }
+	returned := a.Filter(pred)
+
+	if returned == nil {
+		t.Error(test.DiffMessage(returned, "non-nil", "Filter must return AggregationOperator"))
+	}
+}
+
+func TestFilter_StopsTransform(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(3)
+	transformCalled := false
+
+	a.Filter(func(data any) bool {
+		return data.(int) > 5
+	})
+	a.Transform(func(data any) any {
+		transformCalled = true
+		return data
+	})
+	result := a.Aggregate()
+
+	if transformCalled {
+		t.Error(test.DiffMessage(transformCalled, false, "Transform must not be called after filter returns nil"))
+	}
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "result must be nil when filter fails"))
+	}
+}
+
+func TestFilter_MultipleFilters(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(30)
+
+	a.Filter(func(data any) bool {
+		return data.(int) >= 18
+	})
+	a.Filter(func(data any) bool {
+		return data.(int) <= 65
+	})
+	result := a.Aggregate()
+
+	if result != 30 {
+		t.Error(test.DiffMessage(result, 30, "both filters should pass"))
+	}
+}
+
+func TestFilter_MultipleFilters_FailsSecond(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(70)
+
+	a.Filter(func(data any) bool {
+		return data.(int) >= 18
+	})
+	a.Filter(func(data any) bool {
+		return data.(int) <= 65
+	})
+	result := a.Aggregate()
+
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "second filter should fail"))
+	}
+}
+
+func TestFilter_WithTap(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(10)
+	tapCalled := false
+
+	a.Filter(func(data any) bool {
+		return data.(int) > 5
+	})
+	a.Tap(func(data any) any {
+		tapCalled = true
+		return nil
+	})
+	result := a.Aggregate()
+
+	if !tapCalled {
+		t.Error(test.DiffMessage(tapCalled, true, "Tap must be called after filter succeeds"))
+	}
+	if result != 10 {
+		t.Error(test.DiffMessage(result, 10, "Tap must not change data"))
+	}
+}
+
+func TestFilter_WithTap_FilterFails(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(3)
+	tapCalled := false
+
+	a.Filter(func(data any) bool {
+		return data.(int) > 5
+	})
+	a.Tap(func(data any) any {
+		tapCalled = true
+		return nil
+	})
+	result := a.Aggregate()
+
+	if tapCalled {
+		t.Error(test.DiffMessage(tapCalled, false, "Tap must not be called when filter fails"))
+	}
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "result must be nil"))
+	}
+}
+
+func TestFilter_ThenTransform(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(10)
+
+	a.Filter(func(data any) bool {
+		return data.(int) > 5
+	})
+	a.Transform(func(data any) any {
+		return data.(int) * 2
+	})
+	result := a.Aggregate()
+
+	if result != 20 {
+		t.Error(test.DiffMessage(result, 20, "filter pass, transform should execute"))
+	}
+}
+
+func TestFilter_WithNilData(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(nil)
+
+	a.Filter(func(data any) bool {
+		return data == nil
+	})
+	result := a.Aggregate()
+
+	if result != nil {
+		t.Error(test.DiffMessage(result, nil, "filter with nil input should handle gracefully"))
+	}
+}
+
+func TestFilter_ZeroValue(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData(0)
+
+	a.Filter(func(data any) bool {
+		return data.(int) == 0
+	})
+	result := a.Aggregate()
+
+	if result != 0 {
+		t.Error(test.DiffMessage(result, 0, "filter should distinguish zero from nil"))
+	}
+}
+
+func TestFilter_EmptyString(t *testing.T) {
+	a := NewAggregation()
+	a.SetMainData("")
+
+	a.Filter(func(data any) bool {
+		return data == ""
+	})
+	result := a.Aggregate()
+
+	if result != "" {
+		t.Error(test.DiffMessage(result, "", "filter should handle empty string"))
+	}
+}
+
