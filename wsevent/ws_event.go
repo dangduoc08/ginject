@@ -6,7 +6,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/color"
-	"github.com/dangduoc08/ginject/matcher"
+	ptrn "github.com/dangduoc08/ginject/pattern"
 )
 
 type WSEventItem struct {
@@ -17,7 +17,7 @@ type WSEventItem struct {
 type WSEvent struct {
 	wsEventItemByPattern map[string]WSEventItem
 	prefixByPrefix       map[string]string
-	complexPatterns      []matcher.Pattern
+	complexPatterns      []ptrn.Pattern
 	globalPattern        string
 }
 
@@ -29,13 +29,13 @@ func NewWSEvent() *WSEvent {
 }
 
 func (m *WSEvent) index(pattern string) {
-	pat := matcher.Parse(pattern)
+	pat := ptrn.NewPattern(pattern)
 	switch pat.Kind() {
-	case matcher.KindGlobal:
+	case ptrn.KindGlobal:
 		m.globalPattern = pattern
-	case matcher.KindSuffixWildcard:
+	case ptrn.KindSuffixWildcard:
 		m.prefixByPrefix[pat.SimplePrefix()] = pattern
-	case matcher.KindComplex:
+	case ptrn.KindComplex:
 		m.complexPatterns = append(m.complexPatterns, pat)
 	}
 }
@@ -95,7 +95,7 @@ func (m *WSEvent) Match(topic string) (WSEventItem, string, bool) {
 	}
 
 	for _, pat := range m.complexPatterns {
-		if matcher.Match(pat, topic) {
+		if pat.Match(topic) {
 			if item := m.wsEventItemByPattern[pat.Raw()]; item.Handler != nil {
 				return item, pat.Raw(), true
 			}

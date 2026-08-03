@@ -15,7 +15,7 @@ const (
 	sweepEvery   = 5 * time.Second
 )
 
-var ErrEmptyKey = errors.New("cache: key must not be empty")
+var ErrEmptyKey = errors.New("memorycache: key must not be empty")
 
 type entry struct {
 	val       []byte
