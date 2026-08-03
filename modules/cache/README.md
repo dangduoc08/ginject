@@ -220,7 +220,7 @@ cache.Register(&cache.CacheModuleOptions{
 
 Type: `Cache`
 
-Default: `memcache.NewMemoryCache()`
+Default: `memorycache.NewMemoryCache()`
 
 Required: `false`
 

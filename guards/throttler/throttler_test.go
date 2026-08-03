@@ -10,7 +10,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/internal/test"
-	"github.com/dangduoc08/ginject/memcache"
+	"github.com/dangduoc08/ginject/memorycache"
 )
 
 type testCache struct {
@@ -388,7 +388,7 @@ func TestThrottler_WorksWithRealMemoryCache(t *testing.T) {
 		TTL:      time.Minute,
 		Strategy: FixedWindow,
 		KeyFunc:  func(*ctx.HTTPContext) string { return "ip" },
-		Backend:  memcache.NewMemoryCache(),
+		Backend:  memorycache.NewMemoryCache(),
 	}
 	for i := 0; i < 3; i++ {
 		res := g.fixedWindow(context.Background(), "ip")

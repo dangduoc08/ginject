@@ -11,7 +11,7 @@ import (
 
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
-	"github.com/dangduoc08/ginject/memcache"
+	"github.com/dangduoc08/ginject/memorycache"
 	"github.com/dangduoc08/ginject/modules/cache"
 )
 
@@ -42,7 +42,7 @@ func (g Throttler) NewGuard() Throttler {
 		g.KeyFunc = defaultThrottlerKeyFunc
 	}
 	if g.Backend == nil {
-		g.Backend = memcache.NewMemoryCache()
+		g.Backend = memorycache.NewMemoryCache()
 	}
 	return g
 }
