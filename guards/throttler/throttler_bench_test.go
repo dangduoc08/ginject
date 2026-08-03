@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/ctx"
-	"github.com/dangduoc08/ginject/memcache"
+	"github.com/dangduoc08/ginject/memorycache"
 )
 
 func benchGuard(strategy Strategy) Throttler {
@@ -17,7 +17,7 @@ func benchGuard(strategy Strategy) Throttler {
 		TTL:      time.Minute,
 		Strategy: strategy,
 		KeyFunc:  func(*ctx.HTTPContext) string { return "benchkey" },
-		Backend:  memcache.NewMemoryCache(),
+		Backend:  memorycache.NewMemoryCache(),
 	}
 }
 
@@ -80,7 +80,7 @@ func BenchmarkGuard_Allow(b *testing.B) {
 		TTL:      time.Minute,
 		Strategy: FixedWindow,
 		KeyFunc:  func(*ctx.HTTPContext) string { return "benchkey" },
-		Backend:  memcache.NewMemoryCache(),
+		Backend:  memorycache.NewMemoryCache(),
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -2,7 +2,7 @@ package cache
 
 import (
 	"github.com/dangduoc08/ginject/core"
-	"github.com/dangduoc08/ginject/memcache"
+	"github.com/dangduoc08/ginject/memorycache"
 )
 
 type CacheOnInitFn = func()
@@ -20,7 +20,7 @@ func Register(opts *CacheModuleOptions) *core.Module {
 
 	backend := opts.Backend
 	if backend == nil {
-		backend = memcache.NewMemoryCache()
+		backend = memorycache.NewMemoryCache()
 	}
 
 	svc := CacheService{
