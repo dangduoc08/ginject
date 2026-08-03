@@ -5,22 +5,22 @@ import (
 	"strings"
 
 	"github.com/dangduoc08/ginject/common"
-	"github.com/dangduoc08/ginject/matcher"
+	"github.com/dangduoc08/ginject/pattern"
 )
 
 const maskPlaceholder = "[REDACTED]"
 
 func WrapLogger(next common.Logger, maskFields []string) common.Logger {
-	rules := make([]matcher.Pattern, len(maskFields))
+	rules := make([]pattern.Pattern, len(maskFields))
 	for i, f := range maskFields {
-		rules[i] = matcher.Parse(f)
+		rules[i] = pattern.NewPattern(f)
 	}
 	return &maskingLogger{next: next, rules: rules}
 }
 
 type maskingLogger struct {
 	next  common.Logger
-	rules []matcher.Pattern
+	rules []pattern.Pattern
 }
 
 func (l *maskingLogger) Debug(msg string, args ...any) { l.next.Debug(msg, l.transform(args)...) }
@@ -137,7 +137,7 @@ func (l *maskingLogger) matchesAny(path string) bool {
 			}
 			continue
 		}
-		if matcher.Match(r, path) {
+		if r.Match(path) {
 			return true
 		}
 	}
