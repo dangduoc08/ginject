@@ -153,8 +153,16 @@ func TestHandlePublish_DeliversAfterSubscribe(t *testing.T) {
 	defer ws.connmgr.Unregister("conn-1")
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+
+	// Drain subscribe ACK
+	subscribeAck := recvWSPayload(t, clientConn)
+	if subscribeAck.Type != TypeAck {
+		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
+	}
+
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
 
+	// Receive broker fan-out event
 	var p WSPayload
 	if err := websocket.JSON.Receive(clientConn, &p); err != nil {
 		t.Fatalf("receive: %v", err)
@@ -165,6 +173,12 @@ func TestHandlePublish_DeliversAfterSubscribe(t *testing.T) {
 	}
 	if len(p.Topic) != 1 || p.Topic[0] != "chat.to.user2" || p.Message != "hi" {
 		t.Error(test.DiffMessage(p, "event chat.to.user2 hi", "unexpected event payload delivered via broker"))
+	}
+
+	// Receive publish ACK
+	ack := recvWSPayload(t, clientConn)
+	if ack.Type != TypeAck {
+		t.Errorf("expected publish ack, got %v", ack.Type)
 	}
 }
 
@@ -181,6 +195,12 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 	defer ws.connmgr.Unregister("conn-1")
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+
+	// Drain subscribe ACK
+	subscribeAck := recvWSPayload(t, clientConn)
+	if subscribeAck.Type != TypeAck {
+		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
+	}
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
 
@@ -248,6 +268,12 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
 
+	// Drain subscribe ACK
+	subscribeAck := recvWSPayload(t, clientConn)
+	if subscribeAck.Type != TypeAck {
+		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
+	}
+
 	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return false }))
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
@@ -281,6 +307,12 @@ func TestDispatchWSEvent_HandlerPanicRepliesErrorAndConnectionSurvives(t *testin
 	defer ws.connmgr.Unregister("conn-1")
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
+
+	// Drain subscribe ACK
+	subscribeAck := recvWSPayload(t, clientConn)
+	if subscribeAck.Type != TypeAck {
+		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
+	}
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
 
@@ -341,6 +373,12 @@ func TestReadLoop_DispatchesSubscribeAndUnsupportedType(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if !ws.connmgr.isSubscribed(conn.ID, "chat.to.user2") {
 		t.Error(test.DiffMessage(false, true, "readLoop should dispatch a subscribe message to handleSubscribe"))
+	}
+
+	// Drain subscribe ACK
+	subscribeAck := recvWSPayload(t, clientConn)
+	if subscribeAck.Type != TypeAck {
+		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
 	}
 
 	if err := websocket.JSON.Send(clientConn, WSPayload{ID: "req-2", Type: "bogus"}); err != nil {

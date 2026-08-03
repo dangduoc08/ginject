@@ -173,10 +173,18 @@ func (connmgr *WSConnmgr) startDeadConnDetection(interval, timeout time.Duration
 				connmgr.mu.Lock()
 				if c, ok := connmgr.conns[id]; ok {
 					_ = c.Conn.Close()
+				}
+
+				for _, sub := range connmgr.subscriptions[id] {
+					_ = (*connmgr.Broker).Unsubscribe(sub)
+				}
+				delete(connmgr.subscriptions, id)
+
+				if c, ok := connmgr.conns[id]; ok {
 					close(c.done)
 				}
+				delete(connmgr.conns, id)
 				connmgr.mu.Unlock()
-				connmgr.Unregister(id)
 			}
 		}
 	}()
