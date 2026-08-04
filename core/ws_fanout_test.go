@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
 )
@@ -137,7 +137,7 @@ func TestHandlePublish_LiteralWildcardTopicDoesNotExpand(t *testing.T) {
 func TestWSConnmgr_ConcurrentSubscribeUnsubscribePublish_NoRace(t *testing.T) {
 	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	topics := []string{"chat.1", "chat.2", "chat.3", "chat.*"}
-	noop := func(*broker.Message) {}
+	noop := func(*memorybroker.Message) {}
 
 	const goroutines = 32
 	const iterations = 50

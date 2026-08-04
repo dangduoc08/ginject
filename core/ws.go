@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/event"
@@ -25,7 +25,7 @@ type WSConfig struct {
 	injectedProviders map[string]Provider
 	logger            common.Logger
 	event             *event.Event
-	broker            *broker.Broker
+	broker            *memorybroker.Broker
 
 	resolveAndCallHandler func(f any, c *ctx.WSContext) []reflect.Value
 	newCtx                func() *ctx.WSContext

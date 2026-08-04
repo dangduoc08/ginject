@@ -14,7 +14,7 @@ import (
 
 	"github.com/dangduoc08/ginject/accesslog"
 	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
@@ -51,7 +51,7 @@ type App struct {
 	globalExceptionFilters []common.ExceptionFilterable
 	injectedProviders      map[string]Provider
 
-	broker broker.Broker
+	broker memorybroker.Broker
 
 	Logger     common.Logger
 	LogOptions *log.LogOptions
@@ -123,7 +123,7 @@ func New() *App {
 		http:   newHTTP(),
 		ws:     nil,
 		event:  event.NewEvent(),
-		broker: broker.NewBroker(),
+		broker: memorybroker.NewMemoryBroker(),
 		ctxPool: sync.Pool{
 			New: func() any {
 				return ctx.NewHTTPContext()
