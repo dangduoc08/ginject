@@ -5,7 +5,7 @@ import "time"
 func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 	b.stats.publishCalls.Add(1)
 
-	if b.cfg.BeforePublish != nil {
+	if b.opt.BeforePublish != nil {
 		b.runBeforePublish(topic, payload)
 	}
 
@@ -63,11 +63,11 @@ func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 	b.stats.messagesSent.Add(uint64(len(handlers)))
 
 	for i, h := range handlers {
-		if b.cfg.BeforeDispatch != nil {
+		if b.opt.BeforeDispatch != nil {
 			b.runBeforeDispatch(msg, i)
 		}
 		b.callHandler(h, msg)
-		if b.cfg.AfterDispatch != nil {
+		if b.opt.AfterDispatch != nil {
 			b.runAfterDispatch(msg, i)
 		}
 	}
@@ -80,7 +80,7 @@ func (b *MemoryBroker) publishInternal(topic string, payload any) error {
 		b.mu.Unlock()
 	}
 
-	if b.cfg.AfterPublish != nil {
+	if b.opt.AfterPublish != nil {
 		b.runAfterPublish(topic, payload, nil)
 	}
 
