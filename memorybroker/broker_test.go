@@ -833,7 +833,7 @@ func TestSubscribeQueue_DistributesFromWorker0(t *testing.T) {
 
 func TestEmptyBucketCleanup_Exact(t *testing.T) {
 	// Use the internal broker type to inspect the maps directly.
-	b := NewWithConfig(Config{RecoverPanics: true}).(*MemoryBroker)
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
 	t.Cleanup(func() { _ = b.Close() })
 
 	_, _ = b.Once("ephemeral.topic", func(*Message) {})
@@ -856,7 +856,7 @@ func TestEmptyBucketCleanup_Exact(t *testing.T) {
 }
 
 func TestEmptyBucketCleanup_Prefix(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: true}).(*MemoryBroker)
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
 	t.Cleanup(func() { _ = b.Close() })
 
 	_, _ = b.Once("order.*", func(*Message) {})
@@ -871,7 +871,7 @@ func TestEmptyBucketCleanup_Prefix(t *testing.T) {
 }
 
 func TestEmptyBucketCleanup_Unsubscribe(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: true}).(*MemoryBroker)
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
 	t.Cleanup(func() { _ = b.Close() })
 
 	sub, _ := b.Subscribe("only.sub", func(*Message) {})
@@ -886,7 +886,7 @@ func TestEmptyBucketCleanup_Unsubscribe(t *testing.T) {
 }
 
 func TestEmptyBucketCleanup_QueueGroup(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: true}).(*MemoryBroker)
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
 	t.Cleanup(func() { _ = b.Close() })
 
 	sub, _ := b.SubscribeQueue("q.topic", "grp", func(*Message) {})
@@ -908,7 +908,7 @@ func TestEmptyBucketCleanup_QueueGroup(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestPanicRecovery_OtherHandlersStillReceive(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: true})
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true})
 	t.Cleanup(func() { _ = b.Close() })
 
 	var after atomic.Int64
@@ -928,7 +928,7 @@ func TestPanicRecovery_OnPanicCalled(t *testing.T) {
 	var panicVal any
 	var mu sync.Mutex
 
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		OnPanic: func(m *Message, r any) {
 			mu.Lock()
@@ -956,7 +956,7 @@ func TestPanicRecovery_OnPanicCalled(t *testing.T) {
 }
 
 func TestPanicRecovery_Disabled(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: false})
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: false})
 	t.Cleanup(func() { _ = b.Close() })
 
 	_, _ = b.Subscribe("boom", func(*Message) { panic("unrecovered") })
@@ -974,7 +974,7 @@ func TestPanicRecovery_Disabled(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestPublishAsync_WorkerPool_DeliversAll(t *testing.T) {
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics:  true,
 		AsyncWorkers:   4,
 		AsyncQueueSize: 200,
@@ -1005,7 +1005,7 @@ func TestPublishAsync_QueueFull_ReturnsError(t *testing.T) {
 	// Use 1 worker and a tiny queue. Fill the queue before the worker can drain.
 	// We block the worker with a channel so the queue stays full.
 	block := make(chan struct{})
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics:  true,
 		AsyncWorkers:   1,
 		AsyncQueueSize: 2,
@@ -1036,7 +1036,7 @@ func TestPublishAsync_QueueFull_ReturnsError(t *testing.T) {
 
 func TestClose_WorkerPool_Drains(t *testing.T) {
 	var count atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics:  true,
 		AsyncWorkers:   2,
 		AsyncQueueSize: 50,
@@ -1065,7 +1065,7 @@ func TestClose_WorkerPool_Drains(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestStats_CountsCorrectly(t *testing.T) {
-	b := NewWithConfig(Config{RecoverPanics: true})
+	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true})
 	t.Cleanup(func() { _ = b.Close() })
 
 	noop := func(*Message) {}
@@ -1109,7 +1109,7 @@ func TestHooks_AllFourFire(t *testing.T) {
 		mu                 sync.Mutex
 	)
 
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		BeforePublish: func(topic string, _ any) {
 			mu.Lock()
@@ -1164,17 +1164,17 @@ func TestHooks_AllFourFire(t *testing.T) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// NewWithConfig: Broker interface satisfied
+// newWithOptions: Broker interface satisfied
 // ────────────────────────────────────────────────────────────────────────────
 
-func TestNewWithConfig_ImplementsBroker(t *testing.T) {
+func TestNewWithOptions_ImplementsBroker(t *testing.T) {
 	// Compile-time interface check: both constructors must satisfy Broker.
-	_ = []Broker{NewWithConfig(Config{}), NewMemoryBroker()}
+	_ = []Broker{newWithOptions(MemoryBrokerOptions{}), NewMemoryBroker()}
 }
 
 func TestPublishAsync_Close_NoPanic(t *testing.T) {
 	for i := 0; i < 2000; i++ {
-		b := NewWithConfig(Config{
+		b := newWithOptions(MemoryBrokerOptions{
 			RecoverPanics:  true,
 			AsyncWorkers:   4,
 			AsyncQueueSize: 8,
@@ -1200,7 +1200,7 @@ func TestPublishAsync_Close_NoPanic(t *testing.T) {
 
 func TestHook_BeforePublish_Panic_DeliveryNotAborted(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		BeforePublish: func(string, any) { panic("before-publish boom") },
 	})
@@ -1216,7 +1216,7 @@ func TestHook_BeforePublish_Panic_DeliveryNotAborted(t *testing.T) {
 
 func TestHook_AfterPublish_Panic_DoesNotCrash(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		AfterPublish:  func(string, any, error) { panic("after-publish boom") },
 	})
@@ -1232,7 +1232,7 @@ func TestHook_AfterPublish_Panic_DoesNotCrash(t *testing.T) {
 
 func TestHook_BeforeDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics:  true,
 		BeforeDispatch: func(*Message, int) { panic("before-dispatch boom") },
 	})
@@ -1250,7 +1250,7 @@ func TestHook_BeforeDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 
 func TestHook_AfterDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		AfterDispatch: func(*Message, int) { panic("after-dispatch boom") },
 	})
@@ -1268,7 +1268,7 @@ func TestHook_AfterDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
 
 func TestHook_OnPanic_Panic_DoesNotCrash(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics: true,
 		OnPanic:       func(*Message, any) { panic("on-panic boom") },
 	})
@@ -1285,7 +1285,7 @@ func TestHook_OnPanic_Panic_DoesNotCrash(t *testing.T) {
 
 func TestHook_AllPanic_AllSubscribersStillReceive(t *testing.T) {
 	var received atomic.Int64
-	b := NewWithConfig(Config{
+	b := newWithOptions(MemoryBrokerOptions{
 		RecoverPanics:  true,
 		BeforePublish:  func(string, any) { panic("bp") },
 		AfterPublish:   func(string, any, error) { panic("ap") },

@@ -1,7 +1,7 @@
 package memorybroker
 
 func (b *MemoryBroker) callHandler(h MessageHandler, msg *Message) {
-	if !b.cfg.RecoverPanics {
+	if !b.opt.RecoverPanics {
 		h(msg)
 		return
 	}
@@ -14,29 +14,29 @@ func (b *MemoryBroker) callHandler(h MessageHandler, msg *Message) {
 }
 
 func (b *MemoryBroker) runOnPanic(msg *Message, r any) {
-	if b.cfg.OnPanic == nil {
+	if b.opt.OnPanic == nil {
 		return
 	}
 	defer func() { _ = recover() }()
-	b.cfg.OnPanic(msg, r)
+	b.opt.OnPanic(msg, r)
 }
 
 func (b *MemoryBroker) runBeforePublish(topic string, payload any) {
 	defer func() { _ = recover() }()
-	b.cfg.BeforePublish(topic, payload)
+	b.opt.BeforePublish(topic, payload)
 }
 
 func (b *MemoryBroker) runAfterPublish(topic string, payload any, err error) {
 	defer func() { _ = recover() }()
-	b.cfg.AfterPublish(topic, payload, err)
+	b.opt.AfterPublish(topic, payload, err)
 }
 
 func (b *MemoryBroker) runBeforeDispatch(msg *Message, i int) {
 	defer func() { _ = recover() }()
-	b.cfg.BeforeDispatch(msg, i)
+	b.opt.BeforeDispatch(msg, i)
 }
 
 func (b *MemoryBroker) runAfterDispatch(msg *Message, i int) {
 	defer func() { _ = recover() }()
-	b.cfg.AfterDispatch(msg, i)
+	b.opt.AfterDispatch(msg, i)
 }

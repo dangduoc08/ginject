@@ -7,25 +7,14 @@ import (
 )
 
 var (
-	ErrClosed          = errors.New("broker: broker is closed")
-	ErrNilHandler      = errors.New("broker: handler must not be nil")
-	ErrEmptyTopic      = errors.New("broker: topic must not be empty")
-	ErrEmptyGroup      = errors.New("broker: group must not be empty")
-	ErrAsyncQueueFull  = errors.New("broker: async queue full")
-	ErrNoAsyncWorkers  = errors.New("broker: PublishAsync requires AsyncWorkers > 0")
-	ErrWildcardInQueue = errors.New("broker: SubscribeQueue requires an exact topic")
+	ErrClosed          = errors.New("memorybroker: broker is closed")
+	ErrNilHandler      = errors.New("memorybroker: handler must not be nil")
+	ErrEmptyTopic      = errors.New("memorybroker: topic must not be empty")
+	ErrEmptyGroup      = errors.New("memorybroker: group must not be empty")
+	ErrAsyncQueueFull  = errors.New("memorybroker: async queue full")
+	ErrNoAsyncWorkers  = errors.New("memorybroker: PublishAsync requires AsyncWorkers > 0")
+	ErrWildcardInQueue = errors.New("memorybroker: SubscribeQueue requires an exact topic")
 )
-
-type Config struct {
-	RecoverPanics  bool
-	OnPanic        func(*Message, any)
-	AsyncWorkers   int
-	AsyncQueueSize int
-	BeforePublish  func(topic string, payload any)
-	AfterPublish   func(topic string, payload any, err error)
-	BeforeDispatch func(msg *Message, handler int)
-	AfterDispatch  func(msg *Message, handler int)
-}
 
 type Message struct {
 	ID        string

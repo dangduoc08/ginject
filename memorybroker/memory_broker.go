@@ -13,6 +13,17 @@ type asyncJob struct {
 	payload any
 }
 
+type MemoryBrokerOptions struct {
+	RecoverPanics  bool
+	OnPanic        func(*Message, any)
+	AsyncWorkers   int
+	AsyncQueueSize int
+	BeforePublish  func(topic string, payload any)
+	AfterPublish   func(topic string, payload any, err error)
+	BeforeDispatch func(msg *Message, handler int)
+	AfterDispatch  func(msg *Message, handler int)
+}
+
 type MemoryBroker struct {
 	mu                 sync.RWMutex
 	closeMu            sync.RWMutex
@@ -22,37 +33,28 @@ type MemoryBroker struct {
 	complexByTopic     map[string]*complexGroup
 	queueGroupsByTopic map[string]map[string]*queueGroup
 	closed             atomic.Bool
-	cfg                Config
+	opt                MemoryBrokerOptions
 	stats              brokerStats
 	asyncCh            chan asyncJob
 	wg                 sync.WaitGroup
 }
 
-func NewMemoryBroker() Broker {
-	workers := runtime.GOMAXPROCS(0)
-	return NewWithConfig(Config{
-		RecoverPanics:  true,
-		AsyncWorkers:   workers,
-		AsyncQueueSize: workers * 64,
-	})
-}
-
-func NewWithConfig(cfg Config) Broker {
+func newWithOptions(opt MemoryBrokerOptions) Broker {
 	b := &MemoryBroker{
 		exactByTopic:       make(map[string]map[string]*subscription),
 		prefixByPrefix:     make(map[string]map[string]*subscription),
 		globalByID:         make(map[string]*subscription),
 		complexByTopic:     make(map[string]*complexGroup),
 		queueGroupsByTopic: make(map[string]map[string]*queueGroup),
-		cfg:                cfg,
+		opt:                opt,
 	}
-	if cfg.AsyncWorkers > 0 {
-		qSize := cfg.AsyncQueueSize
+	if opt.AsyncWorkers > 0 {
+		qSize := opt.AsyncQueueSize
 		if qSize <= 0 {
-			qSize = cfg.AsyncWorkers * 64
+			qSize = opt.AsyncWorkers * 64
 		}
 		b.asyncCh = make(chan asyncJob, qSize)
-		for range cfg.AsyncWorkers {
+		for range opt.AsyncWorkers {
 			b.wg.Add(1)
 			go func() {
 				defer b.wg.Done()
@@ -63,6 +65,15 @@ func NewWithConfig(cfg Config) Broker {
 		}
 	}
 	return b
+}
+
+func NewMemoryBroker() Broker {
+	workers := runtime.GOMAXPROCS(0)
+	return newWithOptions(MemoryBrokerOptions{
+		RecoverPanics:  true,
+		AsyncWorkers:   workers,
+		AsyncQueueSize: workers * 64,
+	})
 }
 
 func (b *MemoryBroker) Publish(topic string, payload any) error {
