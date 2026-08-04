@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"golang.org/x/net/websocket"
 )
@@ -33,23 +33,23 @@ func (c *WSConnection) TrySend(payload WSPayload) bool {
 type WSConnmgr struct {
 	mu            sync.RWMutex
 	conns         map[string]*WSConnection
-	subscriptions map[string][]broker.Subscription
+	subscriptions map[string][]memorybroker.Subscription
 
-	Broker *broker.Broker
+	Broker *memorybroker.Broker
 	logger common.Logger
 }
 
-func NewWSConnmgr(logger common.Logger, br *broker.Broker) *WSConnmgr {
-	var b broker.Broker
+func NewWSConnmgr(logger common.Logger, br *memorybroker.Broker) *WSConnmgr {
+	var b memorybroker.Broker
 	if br != nil {
 		b = *br
 	}
 	if b == nil {
-		b = broker.NewBroker()
+		b = memorybroker.NewMemoryBroker()
 	}
 	return &WSConnmgr{
 		conns:         make(map[string]*WSConnection),
-		subscriptions: make(map[string][]broker.Subscription),
+		subscriptions: make(map[string][]memorybroker.Subscription),
 		Broker:        &b,
 		logger:        logger,
 	}
@@ -106,7 +106,7 @@ func (connmgr *WSConnmgr) touch(connID string) {
 	}
 }
 
-func (connmgr *WSConnmgr) Subscribe(connID, topic string, handler broker.MessageHandler) error {
+func (connmgr *WSConnmgr) Subscribe(connID, topic string, handler memorybroker.MessageHandler) error {
 	sub, err := (*connmgr.Broker).Subscribe(topic, handler)
 	if err != nil {
 		return err

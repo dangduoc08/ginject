@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/log"
 )
 
@@ -31,7 +31,7 @@ func BenchmarkWSConnmgr_Touch(b *testing.B) {
 
 func BenchmarkWSConnmgr_IsSubscribed(b *testing.B) {
 	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
-	noop := func(*broker.Message) {}
+	noop := func(*memorybroker.Message) {}
 	for _, topic := range []string{"a", "b", "c"} {
 		if err := connmgr.Subscribe("conn-1", topic, noop); err != nil {
 			b.Fatal(err)

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/broker"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
@@ -82,7 +82,7 @@ func handleSubscribe(conn *WSConnection, ws *WS, payload WSPayload) {
 			return
 		}
 
-		err := ws.connmgr.Subscribe(conn.ID, topic, func(m *broker.Message) {
+		err := ws.connmgr.Subscribe(conn.ID, topic, func(m *memorybroker.Message) {
 			conn.TrySend(WSPayload{
 				Type:    TypeEvent,
 				Topic:   []string{m.Topic},
