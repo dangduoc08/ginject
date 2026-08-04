@@ -1,12 +1,12 @@
 package core
 
-import "github.com/dangduoc08/ginject/broker"
+import "github.com/dangduoc08/ginject/memorybroker"
 
 type publisher struct {
-	broker broker.Broker
+	broker memorybroker.Broker
 }
 
-func newPublisher(br broker.Broker) *publisher {
+func newPublisher(br memorybroker.Broker) *publisher {
 	return &publisher{broker: br}
 }
 
