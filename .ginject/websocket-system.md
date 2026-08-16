@@ -2,6 +2,8 @@
 
 **Optimization**: Connection lifecycle state machine, pub/sub decision trees, concurrency guarantees.
 
+**Broker Package**: `memorybroker` (in-memory pub/sub for WebSocket fanout, renamed from `broker` in v2.1)
+
 ## 1. WebSocket Connection Lifecycle
 
 ### 1.1 State Machine
@@ -68,7 +70,7 @@ readLoop() — Per-connection goroutine
     ├─ Parses message
     ├─ Matches to handler
     ├─ Invokes handler (same pipeline as HTTP)
-    └─ Handler can broker.Publish()
+    └─ Handler can memorybroker.Publish()
 
 writeLoop() — Per-connection goroutine
     ├─ Drains sendChan
@@ -88,7 +90,7 @@ Unregister(connID)
     ↓
 writeLoop exits
     ↓
-All broker subscriptions cleaned up
+All memorybroker subscriptions cleaned up
     ↓
 Connection resources freed
 ```
@@ -110,18 +112,18 @@ Pattern matching: Type
     ├─ TypeSubscribe → handleSubscribe
     │   ├─ Match handler for topic
     │   ├─ Run middleware chain
-    │   ├─ Register broker subscription callback
+    │   ├─ Register memorybroker subscription callback
     │   └─ reply(conn, TypeAck, ID, "") ← ACK response
     │
     ├─ TypePublish → handlePublish
     │   ├─ Match handler for topic
     │   ├─ Verify subscription exists
     │   ├─ Dispatch handler (middleware + pipeline)
-    │   ├─ broker.Publish(topic, Message) for fanout
+    │   ├─ memorybroker.Publish(topic, Message) for fanout
     │   └─ reply(conn, TypeAck, ID, "") ← ACK response
     │
     ├─ TypeUnsubscribe → handleUnsubscribe
-    │   └─ Unregister broker callback (no ACK)
+    │   └─ Unregister memorybroker callback (no ACK)
     │
     ├─ TypePing → reply(conn, TypePong, "", "") ← Heartbeat response
     │
@@ -139,9 +141,9 @@ Pattern matching: Type
 ### 2.2 Outbound Message Broadcasting
 
 ```
-broker.Publish("users.created", userData)
+memorybroker.Publish("users.created", userData)
     ↓
-Broker looks up subscribers for "users.created"
+Memorybroker looks up subscribers for "users.created"
     ↓
 For each subscriber connection:
     ├─ Get subscription callback (fanout handler)
@@ -333,13 +335,13 @@ Result Topic: "message.created"
 
 ## 6. Subscription & Broadcasting
 
-### 6.1 Broker.Subscribe()
+### 6.1 Memorybroker.Subscribe()
 
 **Purpose**: Register callback for topic pattern
 
 **Pseudo-Code**:
 ```
-broker.Subscribe("users.*", func(data any) {
+memorybroker.Subscribe("users.*", func(data any) {
     // Called for any message matching "users.*"
     // Non-blocking, fire-and-forget
 })
@@ -351,7 +353,7 @@ broker.Subscribe("users.*", func(data any) {
 
 **Generated automatically by framework**:
 ```go
-broker.Subscribe("users.created", func(data any) {
+memorybroker.Subscribe("users.created", func(data any) {
     // conn.TrySend(WSPayload{...})
     // Non-blocking: if buffer full, message drops
 })
@@ -359,7 +361,7 @@ broker.Subscribe("users.created", func(data any) {
 
 **Semantics**:
 - One fanout handler per subscription per connection
-- Called when broker publishes to topic
+- Called when memorybroker publishes to topic
 - Responsible for sending to specific connection
 
 ### 6.3 Send Channel Semantics
@@ -427,7 +429,7 @@ writeLoop() ← 1 goroutine (blocking on send channel)
 
 Handler execution ← Runs in readLoop's goroutine
 
-broker.Publish() ← Calls callbacks (non-blocking TrySend)
+memorybroker.Publish() ← Calls callbacks (non-blocking TrySend)
 ```
 
 **No Race Conditions Within Connection**:
@@ -435,12 +437,12 @@ broker.Publish() ← Calls callbacks (non-blocking TrySend)
 - Handler can safely access connection state
 - Context is not shared with other connections
 
-### 8.2 Global Broker Concurrency
+### 8.2 Global Memorybroker Concurrency
 
 **Thread-Safe**:
-- Broker.Subscribe() — concurrent-safe
-- Broker.Publish() — concurrent-safe
-- Internal: sync.RWMutex for subscriber list
+- Memorybroker.Subscribe() — concurrent-safe (sharded)
+- Memorybroker.Publish() — concurrent-safe (sharded)
+- Internal: 256 shards with sync.RWMutex
 
 **Fanout Callbacks**:
 - Called sequentially (one at a time)
@@ -583,7 +585,7 @@ Reason: Avoid holding lock during cleanup, prevent lock contention
 ```
 GOTCHA: Send channel buffer is 32 messages
 If client reads slowly, buffer fills
-broker.Publish() → TrySend() → buffer full → message DROPPED
+memorybroker.Publish() → TrySend() → buffer full → message DROPPED
 Client never sees message, no error notification
 ```
 
