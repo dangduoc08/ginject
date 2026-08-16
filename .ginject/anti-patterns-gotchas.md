@@ -291,7 +291,7 @@ app.BindGlobalMiddlewares(func(r *http.Request, w http.ResponseWriter, next ctx.
 
 **PROBLEM**:
 ```go
-broker.Publish("users.created", userData)  // Sends to all subscribers
+publisher.Publish("users.created", userData)  // Sends to all subscribers via memorybroker
 // If subscriber's send channel buffer full (32 messages)
 // Message is DROPPED silently
 // No error, no exception, no notification
@@ -351,8 +351,8 @@ func (c ChatController) ON_MESSAGE(publisher common.Publisher) {
 
 **PROBLEM**:
 ```go
-// Broker publishes to 1000 subscribers
-broker.Publish("event", data)
+// Memorybroker publishes to 1000 subscribers
+publisher.Publish("event", data)
 // Different clients might receive in different orders
 // Not guaranteed FIFO across connections
 ```

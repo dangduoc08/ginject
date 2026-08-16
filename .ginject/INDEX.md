@@ -40,6 +40,7 @@
 | Document | Purpose | Audience | Format |
 |----------|---------|----------|--------|
 | [architecture-core-concepts.md](architecture-core-concepts.md) | Core framework concepts, design patterns, lifecycles | All | Markdown |
+| [startup-lifecycle-analysis.md](startup-lifecycle-analysis.md) | Startup sequence, module initialization, race condition analysis | Developers | Markdown |
 | [routing-system.md](routing-system.md) | URL routing, naming conventions, pattern matching | Developers | Markdown |
 | [handler-execution.md](handler-execution.md) | Handler invocation, dependency resolution, parameter injection | Developers | Markdown |
 | [request-pipeline.md](request-pipeline.md) | Request lifecycle, middleware, guards, interceptors, filters | Developers | Markdown |
@@ -106,7 +107,7 @@ package-reference.md (independent API reference)
 ### 4. WebSocket Model
 - NOT streaming — RPC-over-WS with pub/sub
 - Each message = complete request/response cycle
-- Fanout via broker.Publish()
+- Fanout via memorybroker.Publish() or Publisher interface
 
 ### 5. Exception Handling
 - Only exception filters can recover panics

@@ -50,7 +50,7 @@ A complete, machine-optimized knowledge base for the Ginject framework that enab
 | **Files Created** | 15 | Complete set |
 | **Markdown Documents** | 11 | Architecture + guidance |
 | **JSON Metadata Files** | 4 | Machine-readable |
-| **Core Packages Documented** | 20+ | `core`, `ctx`, `common`, `routing`, `exception`, `event`, `trace`, `broker`, `memorycache`, `websocket`, `modules`, etc. |
+| **Core Packages Documented** | 20+ | `core`, `ctx`, `common`, `routing`, `exception`, `event`, `trace`, `memorybroker`, `memorycache`, `websocket`, `modules`, etc. |
 | **Public APIs Documented** | 100+ | All major types and methods |
 | **Architecture Patterns** | 50+ | Design patterns, composition patterns, error handling patterns |
 | **Anti-Patterns Documented** | 20+ | Common mistakes with examples |
