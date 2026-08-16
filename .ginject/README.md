@@ -33,6 +33,7 @@ This directory (`.ginject/`) contains complete AI-friendly documentation of the 
 | File | Purpose | Read If |
 |------|---------|---------|
 | **architecture-core-concepts.md** | Foundation concepts | Want to understand how Ginject works |
+| **startup-lifecycle-analysis.md** | Startup sequence and race conditions | Debugging startup issues or async initialization |
 | **request-pipeline.md** | Request lifecycle and pipeline | Implementing middleware, guards, or filters |
 | **handler-execution.md** | Handler invocation and DI | Need to understand parameter injection |
 | **routing-system.md** | URL routing and naming | Implementing HTTP endpoints |
@@ -214,8 +215,8 @@ Global Middleware → Module Middleware → Guard → Handler → Exception Filt
 ```
 
 ### 4. WebSocket Pub/Sub
-**What**: Topic-based message fanout to all subscribers
-**How**: Broker.Publish() to topic, all subscribed connections receive
+**What**: Topic-based message fanout to all subscribers (via memorybroker)
+**How**: Publisher.Publish() to topic, all subscribed connections receive
 **When**: Handler can publish, or external service publishes
 **Example**:
 ```go
@@ -285,7 +286,7 @@ From [metadata-performance.json](metadata-performance.json):
 **WebSocket Connections**:
 - 2 goroutines per connection (readLoop + writeLoop)
 - Connection single-threaded (no race within connection)
-- Global broker thread-safe (sync.RWMutex)
+- Global memorybroker thread-safe (sharded architecture)
 
 **Global State**:
 - Read-only after app.Create()

@@ -84,7 +84,7 @@ Client sends JSON: { type: "publish", topic: "users.created", message: {...} }
         ↓
 [Same pipeline as HTTP: middleware → guard → interceptor]
         ↓
-[Handler execution → broker.Publish(topic)]
+[Handler execution → memorybroker.Publish(topic)]
         ↓
 [Fanout: all subscribers get conn.TrySend() — non-blocking]
         ↓
@@ -173,7 +173,7 @@ For each parameter in handler(Param1, Param2, ..., ParamN):
       ├─ Creates WS instance
       ├─ Registers WS context factories
       ├─ Sets up event routing
-      └─ Sets up broker callbacks
+      └─ Sets up memorybroker callbacks
    └─ Skipped if EnableWS not called
    
 4. initMiddlewares(injectedProviders)
@@ -266,7 +266,7 @@ For each parameter in handler(Param1, Param2, ..., ParamN):
 6. Client can now send messages
 7. readLoop() reads and dispatches to handlers
 8. Each message creates temporary *ctx.WSContext (pooled)
-9. Handler can broker.Publish() — fanout to all subscribers
+9. Handler can memorybroker.Publish() — fanout to all subscribers
 10. Each subscriber: conn.TrySend() → non-blocking send to channel
 11. writeLoop() drains channel and writes to wire
 12. Connection closes → readLoop exits
@@ -506,7 +506,7 @@ type ExceptionFilterable interface {
 - `routing.Router` — read-only after app.Create()
 - `sync.Pool` for context pooling — handles synchronization
 - `event.Event` — internal sync.Map for listeners
-- `broker.Broker` — concurrent pub/sub with sync.RWMutex
+- `memorybroker.Broker` — concurrent pub/sub with sharded architecture
 
 **Not Thread-Safe (by design)**:
 - Module state (captured at app.Create(), immutable after)

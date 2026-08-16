@@ -227,26 +227,107 @@
       ],
       "transports": ["http", "ws"]
     },
-    "broker": {
-      "responsibility": "Pub/sub message broker for WebSocket fanout",
-      "Broker": {
-        "methods": [
-          "Subscribe(topic string, callback func(any)) void",
-          "Publish(topic string, data any) error",
-          "Unsubscribe(topic string, callback func(any)) void"
-        ]
-      }
+    "memorybroker": {
+      "responsibility": "In-memory pub/sub message broker with async publishing support",
+      "public_types": {
+        "Broker": {
+          "description": "Publisher-subscriber message broker interface",
+          "methods": [
+            "Publish(topic string, payload any) error",
+            "PublishAsync(topic string, payload any) error",
+            "Subscribe(topic string, handler MessageHandler) (Subscription, error)",
+            "Once(topic string, handler MessageHandler) (Subscription, error)",
+            "SubscribeQueue(topic, group string, handler MessageHandler) (Subscription, error)",
+            "Unsubscribe(sub Subscription) error",
+            "Off(topic string) error",
+            "ListenerCount(topic string) int",
+            "Topics() []string",
+            "Clear() error",
+            "Close() error",
+            "Stats() Stats"
+          ]
+        },
+        "Message": {
+          "description": "Published message with metadata",
+          "fields": [
+            "ID string - Unique message ID",
+            "Topic string - Topic name",
+            "Payload any - Message data",
+            "Timestamp time.Time - Publication time",
+            "Metadata map[string]any - Optional metadata"
+          ]
+        },
+        "Subscription": {
+          "description": "Subscription handle for cleanup",
+          "methods": [
+            "ID() string",
+            "Topic() string",
+            "Unsubscribe() error"
+          ]
+        },
+        "MessageHandler": {
+          "description": "func(msg *Message) - Handler invoked on publish"
+        }
+      },
+      "pattern_types": [
+        "Exact: 'user.login' - matches only that topic",
+        "Suffix: 'user.*' - matches 'user.login', 'user.logout', etc.",
+        "Global: '*' - matches all topics",
+        "Complex: 'user.*.profile' - regex-like wildcard matching"
+      ],
+      "key_features": [
+        "Sharded architecture (256 shards) for concurrent access",
+        "Async publishing with worker pool (configurable)",
+        "Queue groups for load-balanced distribution (round-robin)",
+        "Once subscriptions - auto-unsubscribe after first fire",
+        "Panic recovery with configurable callbacks",
+        "Automatic cleanup of expired subscriptions"
+      ]
     },
     "memorycache": {
-      "responsibility": "In-memory LFU cache",
-      "MemoryCache": {
-        "methods": [
-          "Get(key string) (any, bool)",
-          "Set(key string, value any) void",
-          "Delete(key string) void",
-          "Clear() void"
-        ]
-      }
+      "responsibility": "In-memory LFU cache with optional file-based persistence",
+      "public_types": {
+        "MemoryCache": {
+          "description": "In-memory cache with sharded architecture and persistence",
+          "constructors": [
+            "NewMemoryCache() *MemoryCache - Create cache (persistence disabled)",
+            "NewMemoryCacheWithConfig(cfg PersistenceConfig) *MemoryCache - Create with persistence"
+          ],
+          "methods": [
+            "Get(ctx, key string) ([]byte, bool)",
+            "Set(ctx, key string, val []byte, ttl time.Duration) error",
+            "SetNX(ctx, key string, val []byte, ttl time.Duration) (bool, error)",
+            "Delete(ctx, key string) error",
+            "Keys(ctx) []string",
+            "TTL(ctx, key string) (time.Duration, bool)",
+            "Stop() - Flush and close (calls OnShutdown)"
+          ]
+        },
+        "PersistenceConfig": {
+          "description": "Configuration for file-based persistence",
+          "fields": [
+            "Enabled bool - Enable/disable persistence",
+            "FilePath string - Path to persistence file",
+            "FlushInterval time.Duration - Periodic flush interval (0 = manual)"
+          ]
+        }
+      },
+      "persistence_features": [
+        "JSON format for human debuggability",
+        "Atomic writes (temp file → rename)",
+        "Automatic expiration filtering on save/load",
+        "TTL preservation across restarts",
+        "Dirty-state tracking with atomic operations",
+        "Periodic background flushing (configurable)",
+        "Graceful handling of missing/corrupt files"
+      ],
+      "key_characteristics": [
+        "Sharded (256 shards) for concurrent R/W",
+        "LFU eviction on cleanup",
+        "Automatic background sweep every 5s/256 shards",
+        "Thread-safe all operations",
+        "Context-based API (conforms to cache interface)"
+      ]
     }
   },
   "critical_rules": [
