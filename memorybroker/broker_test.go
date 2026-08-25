@@ -1,7 +1,6 @@
 package memorybroker
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,34 +46,9 @@ func TestSubscribeAndPublish(t *testing.T) {
 		if got.Payload != "alice" {
 			t.Error(test.DiffMessage(got.Payload, "alice", "message payload"))
 		}
-		if got.ID == "" {
-			t.Error(test.DiffMessage("", "non-empty UUID", "message ID"))
-		}
 		if got.Timestamp.IsZero() {
 			t.Error(test.DiffMessage(got.Timestamp, "non-zero time", "message timestamp"))
 		}
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Once
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestOnce_FiresExactlyOnce(t *testing.T) {
-	b := newBroker(t)
-
-	var count int
-	_, err := b.Once("ping", func(_ *Message) { count++ })
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_ = b.Publish("ping", nil)
-	_ = b.Publish("ping", nil)
-	_ = b.Publish("ping", nil)
-
-	if count != 1 {
-		t.Error(test.DiffMessage(count, 1, "Once handler should fire exactly once"))
 	}
 }
 
@@ -204,153 +178,119 @@ func TestUnsubscribeViaInterface(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Off
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestOff_RemovesAllHandlersForTopic(t *testing.T) {
+func TestUnsubscribe_Nil_NoError(t *testing.T) {
 	b := newBroker(t)
+	if err := b.Unsubscribe(nil); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe(nil) should be a no-op"))
+	}
+}
+
+func TestUnsubscribe_Nil_AlwaysNoOp_RegardlessOfBrokerState(t *testing.T) {
+	b := NewMemoryBroker()
+	if err := b.Unsubscribe(nil); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe(nil) on an open broker should be nil"))
+	}
+	_ = b.Close()
+	if err := b.Unsubscribe(nil); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe(nil) on a closed broker should still be nil, per Unsubscribe's own unconditional nil-safety rule"))
+	}
+}
+
+type fakeSubscription struct{}
+
+func (fakeSubscription) ID() string         { return "fake" }
+func (fakeSubscription) Topic() string      { return "fake" }
+func (fakeSubscription) Unsubscribe() error { return nil }
+
+func TestUnsubscribe_ForeignType_NoError(t *testing.T) {
+	b := newBroker(t)
+	if err := b.Unsubscribe(fakeSubscription{}); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe with a foreign Subscription implementation should be a no-op"))
+	}
+}
+
+func TestUnsubscribe_CrossBroker_RejectedAndDoesNotRemove(t *testing.T) {
+	bA := newBroker(t)
+	bB := newBroker(t)
 
 	var count int
-	inc := func(_ *Message) { count++ }
-	_, _ = b.Subscribe("click", inc)
-	_, _ = b.Subscribe("click", inc)
-	_, _ = b.Subscribe("click", inc)
-
-	_ = b.Publish("click", nil) // count = 3
-
-	if err := b.Off("click"); err != nil {
+	subA, err := bA.Subscribe("shared.topic", func(_ *Message) { count++ })
+	if err != nil {
 		t.Fatal(err)
 	}
-	_ = b.Publish("click", nil) // should add 0
 
-	if count != 3 {
-		t.Error(test.DiffMessage(count, 3, "Off should remove all handlers; only 3 deliveries expected"))
+	if err := bB.Unsubscribe(subA); err != ErrForeignSubscription {
+		t.Error(test.DiffMessage(err, ErrForeignSubscription, "Unsubscribe with a subscription from a different broker should be rejected"))
 	}
-}
 
-func TestOff_WildcardGlobal(t *testing.T) {
-	b := newBroker(t)
-
-	var count int
-	_, _ = b.Subscribe("*", func(_ *Message) { count++ })
-	_ = b.Publish("x", nil)
-	_ = b.Off("*")
-	_ = b.Publish("x", nil)
-
+	_ = bA.Publish("shared.topic", nil)
 	if count != 1 {
-		t.Error(test.DiffMessage(count, 1, "Off('*') should remove global handler"))
+		t.Error(test.DiffMessage(count, 1, "subA should remain active on its own broker after a rejected cross-broker Unsubscribe"))
 	}
 }
 
-func TestOff_WildcardPrefix(t *testing.T) {
-	b := newBroker(t)
+func TestUnsubscribe_ForeignType_AfterClose_ReturnsErrClosed(t *testing.T) {
+	b := NewMemoryBroker()
+	_ = b.Close()
 
-	var count int
-	_, _ = b.Subscribe("ns.*", func(_ *Message) { count++ })
-	_ = b.Publish("ns.a", nil)
-	_ = b.Off("ns.*")
-	_ = b.Publish("ns.b", nil)
-
-	if count != 1 {
-		t.Error(test.DiffMessage(count, 1, "Off('ns.*') should remove prefix handler"))
+	if err := b.Unsubscribe(fakeSubscription{}); err != ErrClosed {
+		t.Error(test.DiffMessage(err, ErrClosed, "closed check should take precedence over the foreign-type no-op"))
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// ListenerCount
-// ────────────────────────────────────────────────────────────────────────────
+func TestUnsubscribe_CrossBroker_AfterClose_ReturnsErrClosed(t *testing.T) {
+	bA := newBroker(t)
+	bB := NewMemoryBroker()
 
-func TestListenerCount(t *testing.T) {
-	b := newBroker(t)
-
-	noop := func(_ *Message) {}
-	_, _ = b.Subscribe("t", noop)
-	_, _ = b.Subscribe("t", noop)
-	sub3, _ := b.Subscribe("t", noop)
-
-	if n := b.ListenerCount("t"); n != 3 {
-		t.Error(test.DiffMessage(n, 3, "ListenerCount should be 3"))
+	subA, err := bA.Subscribe("shared.topic", func(_ *Message) {})
+	if err != nil {
+		t.Fatal(err)
 	}
+	_ = bB.Close()
 
-	_ = b.Unsubscribe(sub3)
-	if n := b.ListenerCount("t"); n != 2 {
-		t.Error(test.DiffMessage(n, 2, "ListenerCount should be 2 after unsubscribe"))
+	if err := bB.Unsubscribe(subA); err != ErrClosed {
+		t.Error(test.DiffMessage(err, ErrClosed, "closed check should take precedence over the cross-broker rejection"))
 	}
 }
 
-func TestListenerCount_Wildcard(t *testing.T) {
-	b := newBroker(t)
-
-	noop := func(_ *Message) {}
-	_, _ = b.Subscribe("*", noop)
-	_, _ = b.Subscribe("*", noop)
-	_, _ = b.Subscribe("a.*", noop)
-
-	if n := b.ListenerCount("*"); n != 2 {
-		t.Error(test.DiffMessage(n, 2, "ListenerCount('*') should be 2"))
+func TestUnsubscribe_AfterClose_TakesPrecedenceOverValidSub(t *testing.T) {
+	b := NewMemoryBroker()
+	sub, err := b.Subscribe("t", func(_ *Message) {})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if n := b.ListenerCount("a.*"); n != 1 {
-		t.Error(test.DiffMessage(n, 1, "ListenerCount('a.*') should be 1"))
+	_ = b.Close()
+
+	if err := b.Unsubscribe(sub); err != ErrClosed {
+		t.Error(test.DiffMessage(err, ErrClosed, "Unsubscribe of a real subscription after Close should still return ErrClosed"))
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Topics
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestTopics(t *testing.T) {
+func TestUnsubscribe_ComplexTopic_DoubleCall_NoError(t *testing.T) {
 	b := newBroker(t)
-
-	noop := func(_ *Message) {}
-	_, _ = b.Subscribe("alpha", noop)
-	_, _ = b.Subscribe("beta.*", noop)
-	_, _ = b.Subscribe("*", noop)
-
-	topics := b.Topics()
-	sort.Strings(topics)
-
-	want := []string{"*", "alpha", "beta.*"}
-	if len(topics) != len(want) {
-		t.Fatal(test.DiffMessage(topics, want, "Topics() length mismatch"))
+	sub, err := b.Subscribe("tenant.*.user.created", func(*Message) {})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for i, w := range want {
-		if topics[i] != w {
-			t.Error(test.DiffMessage(topics[i], w, "Topics() element mismatch"))
-		}
+	if err := b.Unsubscribe(sub); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Unsubscribe(sub); err != nil {
+		t.Error(test.DiffMessage(err, nil, "double Unsubscribe on an already-emptied complex bucket should be a no-op"))
 	}
 }
 
-func TestTopics_EmptyAfterClear(t *testing.T) {
+func TestUnsubscribe_ExactTopic_DoubleCall_NoError(t *testing.T) {
 	b := newBroker(t)
-
-	_, _ = b.Subscribe("foo", func(_ *Message) {})
-	_ = b.Clear()
-
-	topics := b.Topics()
-	if len(topics) != 0 {
-		t.Error(test.DiffMessage(len(topics), 0, "Topics() should be empty after Clear"))
+	sub, err := b.Subscribe("evt.exact", func(*Message) {})
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Clear
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestClear(t *testing.T) {
-	b := newBroker(t)
-
-	var count int
-	_, _ = b.Subscribe("e1", func(_ *Message) { count++ })
-	_, _ = b.Subscribe("e2", func(_ *Message) { count++ })
-	_, _ = b.Subscribe("*", func(_ *Message) { count++ })
-
-	_ = b.Clear()
-	_ = b.Publish("e1", nil)
-	_ = b.Publish("e2", nil)
-
-	if count != 0 {
-		t.Error(test.DiffMessage(count, 0, "Clear should remove all subscriptions"))
+	if err := b.Unsubscribe(sub); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Unsubscribe(sub); err != nil {
+		t.Error(test.DiffMessage(err, nil, "double Unsubscribe on an already-emptied exact bucket should be a no-op"))
 	}
 }
 
@@ -368,14 +308,189 @@ func TestClose_ReturnErrClosed(t *testing.T) {
 	if _, err := b.Subscribe("t", func(_ *Message) {}); err != ErrClosed {
 		t.Error(test.DiffMessage(err, ErrClosed, "Subscribe after Close should return ErrClosed"))
 	}
+	if err := b.Unsubscribe(nil); err != nil {
+		t.Error(test.DiffMessage(err, nil, "Unsubscribe(nil) is an unconditional no-op, even after Close"))
+	}
 	if err := b.PublishAsync("t", nil); err != ErrClosed {
 		t.Error(test.DiffMessage(err, ErrClosed, "PublishAsync after Close should return ErrClosed"))
 	}
-	if err := b.Off("t"); err != ErrClosed {
-		t.Error(test.DiffMessage(err, ErrClosed, "Off after Close should return ErrClosed"))
+}
+
+func TestClose_Idempotent(t *testing.T) {
+	b := NewMemoryBroker()
+	if err := b.Close(); err != nil {
+		t.Fatal(err)
 	}
-	if err := b.Clear(); err != ErrClosed {
-		t.Error(test.DiffMessage(err, ErrClosed, "Clear after Close should return ErrClosed"))
+	if err := b.Close(); err != nil {
+		t.Error(test.DiffMessage(err, nil, "calling Close twice should not error"))
+	}
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// PublishAsync: fire-and-forget delivery + Close drains in-flight publishes
+// ────────────────────────────────────────────────────────────────────────────
+
+func TestPublishAsync_DeliversAll(t *testing.T) {
+	b := newBroker(t)
+
+	var count atomic.Int64
+	_, _ = b.Subscribe("wp.topic", func(*Message) { count.Add(1) })
+
+	const msgs = 100
+	for i := range msgs {
+		if err := b.PublishAsync("wp.topic", i); err != nil {
+			t.Fatalf("PublishAsync error: %v", err)
+		}
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if count.Load() == msgs {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Errorf("got %d deliveries, want %d", count.Load(), msgs)
+}
+
+func TestPublishAsync_EmptyTopic_ReturnsError(t *testing.T) {
+	b := newBroker(t)
+	if err := b.PublishAsync("", nil); err != ErrEmptyTopic {
+		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in PublishAsync"))
+	}
+}
+
+func TestClose_DrainsInFlightAsyncPublishes(t *testing.T) {
+	var count atomic.Int64
+	b := NewMemoryBroker()
+
+	_, _ = b.Subscribe("drain.topic", func(*Message) {
+		time.Sleep(1 * time.Millisecond)
+		count.Add(1)
+	})
+
+	const msgs = 20
+	for i := range msgs {
+		_ = b.PublishAsync("drain.topic", i)
+	}
+
+	// Close must block until all in-flight async publishes finish.
+	_ = b.Close()
+
+	if count.Load() != msgs {
+		t.Errorf("after Close: delivered %d, want %d — in-flight publishes were not drained", count.Load(), msgs)
+	}
+}
+
+// TestClose_FromWithinPublishHandler_DoesNotDeadlock verifies that Close() is
+// safe to call synchronously from within a handler dispatched by the
+// synchronous Publish() — Publish is not tracked by the WaitGroup, so
+// Close()'s wg.Wait() has nothing of this call's to wait on, and the
+// snapshot-then-unlock-then-execute design means no lock is held during
+// handler execution either.
+func TestClose_FromWithinPublishHandler_DoesNotDeadlock(t *testing.T) {
+	b := NewMemoryBroker()
+	done := make(chan struct{})
+	_, err := b.Subscribe("foo", func(*Message) {
+		_ = b.Close()
+		close(done)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = b.Publish("foo", nil) }()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() called from within a synchronous Publish handler deadlocked unexpectedly")
+	}
+}
+
+// TestClose_FromWithinPublishAsyncHandler_Deadlocks pins a verified, structural
+// limitation: PublishAsync's goroutine calls wg.Done() only after the handler
+// returns, but Close() called from inside that same handler blocks in
+// wg.Wait() until wg.Done() runs — the goroutine is waiting on its own
+// completion. No implementation of "Close waits for every accepted
+// PublishAsync" can support this without either deadlocking or silently
+// excluding the caller's own in-flight publish (a weaker guarantee), so this
+// call pattern is unsupported by contract rather than special-cased in code.
+// If this test ever observes <-done instead of timing out, the limitation
+// has been fixed by design — update this test and the README together.
+func TestClose_FromWithinPublishAsyncHandler_Deadlocks(t *testing.T) {
+	b := NewMemoryBroker()
+	done := make(chan struct{})
+	_, err := b.Subscribe("foo", func(*Message) {
+		_ = b.Close()
+		close(done)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.PublishAsync("foo", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+		t.Fatal("expected Close() called from inside a PublishAsync handler to deadlock via wg self-wait, but it returned")
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// TestClose_DoesNotWaitForConcurrentSyncPublish documents that Close() is
+// only synchronized with in-flight PublishAsync goroutines (via wg) and with
+// its own map mutation (via rwMu) — it does not wait for a synchronous
+// Publish() call running on another goroutine to finish executing handlers.
+func TestClose_DoesNotWaitForConcurrentSyncPublish(t *testing.T) {
+	b := NewMemoryBroker()
+	handlerStarted := make(chan struct{})
+	handlerMayFinish := make(chan struct{})
+	_, err := b.Subscribe("slow", func(*Message) {
+		close(handlerStarted)
+		<-handlerMayFinish
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() { _ = b.Publish("slow", nil) }()
+	<-handlerStarted
+
+	closeDone := make(chan struct{})
+	go func() {
+		_ = b.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() unexpectedly waited for an in-flight synchronous Publish to finish")
+	}
+	close(handlerMayFinish)
+}
+
+func TestPublishAsync_RaceWithClose(t *testing.T) {
+	for i := 0; i < 2000; i++ {
+		b := NewMemoryBroker()
+		_, _ = b.Subscribe("t", func(*Message) {})
+
+		var wg sync.WaitGroup
+		for j := 0; j < 8; j++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = b.PublishAsync("t", nil)
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = b.Close()
+		}()
+		wg.Wait()
 	}
 }
 
@@ -390,11 +505,6 @@ func TestNilHandler_ReturnsError(t *testing.T) {
 	if err != ErrNilHandler {
 		t.Error(test.DiffMessage(err, ErrNilHandler, "nil handler should return ErrNilHandler"))
 	}
-
-	_, err = b.Once("t", nil)
-	if err != ErrNilHandler {
-		t.Error(test.DiffMessage(err, ErrNilHandler, "Once with nil handler should return ErrNilHandler"))
-	}
 }
 
 func TestEmptyTopic_ReturnsError(t *testing.T) {
@@ -404,61 +514,114 @@ func TestEmptyTopic_ReturnsError(t *testing.T) {
 	if _, err := b.Subscribe("", noop); err != ErrEmptyTopic {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Subscribe"))
 	}
-	if _, err := b.Once("", noop); err != ErrEmptyTopic {
-		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Once"))
-	}
 	if err := b.Publish("", nil); err != ErrEmptyTopic {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Publish"))
-	}
-	if err := b.PublishAsync("", nil); err != ErrEmptyTopic {
-		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in PublishAsync"))
 	}
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// PublishAsync
+// Panic recovery
 // ────────────────────────────────────────────────────────────────────────────
 
-func TestPublishAsync_HandlerEventuallyFires(t *testing.T) {
+func TestPanicRecovery_OtherHandlersStillReceive(t *testing.T) {
 	b := newBroker(t)
 
-	var count atomic.Int32
-	_, _ = b.Subscribe("async.topic", func(_ *Message) { count.Add(1) })
+	var after atomic.Int64
+	_, _ = b.Subscribe("panic.topic", func(*Message) { panic("deliberate") })
+	_, _ = b.Subscribe("panic.topic", func(*Message) { after.Add(1) })
+	_, _ = b.Subscribe("panic.topic", func(*Message) { after.Add(1) })
 
-	for i := 0; i < 5; i++ {
-		if err := b.PublishAsync("async.topic", i); err != nil {
-			t.Fatal(err)
-		}
+	_ = b.Publish("panic.topic", nil)
+
+	if n := after.Load(); n != 2 {
+		t.Errorf("handlers after the panicking one: got %d, want 2", n)
+	}
+}
+
+func TestPanicRecovery_PublishAsync_OtherHandlersStillReceive(t *testing.T) {
+	b := newBroker(t)
+
+	var after atomic.Int64
+	_, _ = b.Subscribe("panic.async.topic", func(*Message) { panic("deliberate") })
+	_, _ = b.Subscribe("panic.async.topic", func(*Message) { after.Add(1) })
+	_, _ = b.Subscribe("panic.async.topic", func(*Message) { after.Add(1) })
+
+	if err := b.PublishAsync("panic.async.topic", nil); err != nil {
+		t.Fatal(err)
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if count.Load() == 5 {
+		if after.Load() == 2 {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Error(test.DiffMessage(count.Load(), int32(5), "PublishAsync: all 5 messages should be delivered"))
+	t.Errorf("handlers after the panicking one: got %d, want 2 — a panic in one PublishAsync handler must not stop the others or crash the goroutine", after.Load())
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Once with wildcard
+// Empty bucket cleanup
 // ────────────────────────────────────────────────────────────────────────────
 
-func TestOnce_WithGlobalWildcard(t *testing.T) {
-	b := newBroker(t)
+func TestEmptyBucketCleanup_Exact(t *testing.T) {
+	// Use the internal broker type to inspect the maps directly.
+	b := NewMemoryBroker().(*MemoryBroker)
+	t.Cleanup(func() { _ = b.Close() })
 
-	var count int
-	_, err := b.Once("*", func(_ *Message) { count++ })
-	if err != nil {
-		t.Fatal(err)
+	sub, _ := b.Subscribe("ephemeral.topic", func(*Message) {})
+	_ = b.Unsubscribe(sub)
+
+	b.rwMu.RLock()
+	_, hasBucket := b.exactByTopic["ephemeral.topic"]
+	b.rwMu.RUnlock()
+	if hasBucket {
+		t.Error("empty exact bucket should have been deleted after unsubscribe")
 	}
+}
 
-	_ = b.Publish("a", nil)
-	_ = b.Publish("b", nil)
+func TestEmptyBucketCleanup_Prefix(t *testing.T) {
+	b := NewMemoryBroker().(*MemoryBroker)
+	t.Cleanup(func() { _ = b.Close() })
 
-	if count != 1 {
-		t.Error(test.DiffMessage(count, 1, "Once('*') should fire exactly once across all topics"))
+	sub, _ := b.Subscribe("order.*", func(*Message) {})
+	_ = b.Unsubscribe(sub)
+
+	b.rwMu.RLock()
+	_, hasBucket := b.prefixByPrefix["order"]
+	b.rwMu.RUnlock()
+	if hasBucket {
+		t.Error("empty prefix bucket should have been deleted after unsubscribe")
+	}
+}
+
+func TestEmptyBucketCleanup_Complex(t *testing.T) {
+	b := NewMemoryBroker().(*MemoryBroker)
+	t.Cleanup(func() { _ = b.Close() })
+
+	sub, _ := b.Subscribe("tenant.*.user.created", func(*Message) {})
+	_ = b.Unsubscribe(sub)
+
+	b.rwMu.RLock()
+	_, hasBucket := b.complexByTopic["tenant.*.user.created"]
+	b.rwMu.RUnlock()
+	if hasBucket {
+		t.Error("empty complex bucket should have been deleted after unsubscribe")
+	}
+}
+
+func TestEmptyBucketCleanup_Global(t *testing.T) {
+	b := NewMemoryBroker().(*MemoryBroker)
+	t.Cleanup(func() { _ = b.Close() })
+
+	sub, _ := b.Subscribe("*", func(*Message) {})
+	_ = b.Unsubscribe(sub)
+
+	b.rwMu.RLock()
+	_, stillPresent := b.globalByID[sub.ID()]
+	b.rwMu.RUnlock()
+	if stillPresent {
+		t.Error("global subscription should have been removed from globalByID after unsubscribe")
 	}
 }
 
@@ -513,6 +676,119 @@ func TestConcurrentSubscribeUnsubscribe(t *testing.T) {
 	// If we get here without the race detector firing, we're good.
 }
 
+// TestConcurrentPublishSubscribeUnsubscribeClose stresses Publish, Subscribe,
+// Unsubscribe, and Close all racing against each other on the same broker —
+// the scenario Close's mu-based synchronization with the rest of the API
+// exists to make safe.
+func TestConcurrentPublishSubscribeUnsubscribeClose(t *testing.T) {
+	for attempt := 0; attempt < 20; attempt++ {
+		b := NewMemoryBroker()
+
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					_ = b.Publish("stress", nil)
+				}
+			}()
+		}
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					sub, err := b.Subscribe("stress", func(_ *Message) {})
+					if err == nil {
+						_ = b.Unsubscribe(sub)
+					}
+				}
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = b.Close()
+		}()
+		wg.Wait()
+	}
+}
+
+// TestConcurrentSubscribe_NeverLeaksAfterClose guards against a Subscribe/Close
+// TOCTOU race: Subscribe must not be able to insert a subscription into the
+// broker's maps after Close has committed to closing, even when the two race.
+// Once Close returns, no subscription bucket should remain.
+func TestConcurrentSubscribe_NeverLeaksAfterClose(t *testing.T) {
+	for attempt := 0; attempt < 300; attempt++ {
+		b := NewMemoryBroker().(*MemoryBroker)
+
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = b.Subscribe("race.sub", func(_ *Message) {})
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = b.Close()
+		}()
+		wg.Wait()
+
+		b.rwMu.RLock()
+		leaked := len(b.exactByTopic) + len(b.prefixByPrefix) + len(b.globalByID) + len(b.complexByTopic)
+		b.rwMu.RUnlock()
+		if leaked != 0 {
+			t.Fatalf("attempt %d: %d subscription bucket(s) leaked after Close returned", attempt, leaked)
+		}
+	}
+}
+
+// TestHandlerReentrancy_SubscribeUnsubscribePublishPublishAsync_NoDeadlock
+// verifies a handler can call back into every broker method — except Close,
+// which has its own documented limitation — without deadlocking, confirming
+// no lock is held across handler execution.
+func TestHandlerReentrancy_SubscribeUnsubscribePublishPublishAsync_NoDeadlock(t *testing.T) {
+	b := newBroker(t)
+
+	var innerPublishCount atomic.Int64
+	done := make(chan struct{})
+
+	sub, err := b.Subscribe("reentrant.trigger", func(*Message) {
+		newSub, err := b.Subscribe("reentrant.inner", func(*Message) { innerPublishCount.Add(1) })
+		if err != nil {
+			t.Error(err)
+		}
+		if err := b.Publish("reentrant.inner", nil); err != nil {
+			t.Error(err)
+		}
+		if err := b.PublishAsync("reentrant.inner", nil); err != nil {
+			t.Error(err)
+		}
+		if err := b.Unsubscribe(newSub); err != nil {
+			t.Error(err)
+		}
+		close(done)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = b.Unsubscribe(sub) }()
+
+	if err := b.Publish("reentrant.trigger", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler reentering Subscribe/Publish/PublishAsync/Unsubscribe deadlocked")
+	}
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Subscription fields
 // ────────────────────────────────────────────────────────────────────────────
@@ -537,81 +813,6 @@ func TestSubscription_IDAndTopic(t *testing.T) {
 // Multiple subscribers receive the same message
 // ────────────────────────────────────────────────────────────────────────────
 
-func TestOnce_ConcurrentPublish_FiresExactlyOnce(t *testing.T) {
-	for attempt := 0; attempt < 200; attempt++ {
-		b := NewMemoryBroker()
-		var count atomic.Int64
-
-		_, _ = b.Once("ev", func(*Message) { count.Add(1) })
-
-		var wg sync.WaitGroup
-		for i := 0; i < 50; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_ = b.Publish("ev", nil)
-			}()
-		}
-		wg.Wait()
-		_ = b.Close()
-
-		if n := count.Load(); n != 1 {
-			t.Errorf("attempt %d: once handler fired %d times, want exactly 1", attempt, n)
-			return
-		}
-	}
-}
-
-func TestOnce_ConcurrentPublish_PrefixWildcard_FiresExactlyOnce(t *testing.T) {
-	for attempt := 0; attempt < 200; attempt++ {
-		b := NewMemoryBroker()
-		var count atomic.Int64
-
-		_, _ = b.Once("user.*", func(*Message) { count.Add(1) })
-
-		var wg sync.WaitGroup
-		for i := 0; i < 50; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_ = b.Publish("user.created", nil)
-			}()
-		}
-		wg.Wait()
-		_ = b.Close()
-
-		if n := count.Load(); n != 1 {
-			t.Errorf("attempt %d: once handler fired %d times, want exactly 1", attempt, n)
-			return
-		}
-	}
-}
-
-func TestOnce_ConcurrentPublish_GlobalWildcard_FiresExactlyOnce(t *testing.T) {
-	for attempt := 0; attempt < 200; attempt++ {
-		b := NewMemoryBroker()
-		var count atomic.Int64
-
-		_, _ = b.Once("*", func(*Message) { count.Add(1) })
-
-		var wg sync.WaitGroup
-		for i := 0; i < 50; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_ = b.Publish("anything", nil)
-			}()
-		}
-		wg.Wait()
-		_ = b.Close()
-
-		if n := count.Load(); n != 1 {
-			t.Errorf("attempt %d: once handler fired %d times, want exactly 1", attempt, n)
-			return
-		}
-	}
-}
-
 func TestMultipleSubscribers_SameMessage(t *testing.T) {
 	b := newBroker(t)
 
@@ -633,677 +834,9 @@ func TestMultipleSubscribers_SameMessage(t *testing.T) {
 	}
 }
 
-func TestSubscribeQueue_OnlyOneHandlerReceives(t *testing.T) {
-	b := newBroker(t)
-	var count atomic.Int64
-
-	for i := 0; i < 5; i++ {
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) { count.Add(1) })
-	}
-
-	_ = b.Publish("task", nil)
-
-	if n := count.Load(); n != 1 {
-		t.Error(test.DiffMessage(n, int64(1), "queue: exactly 1 handler should receive per publish"))
-	}
-}
-
-func TestSubscribeQueue_DistributesAcrossWorkers(t *testing.T) {
-	b := newBroker(t)
-	counts := make([]atomic.Int64, 3)
-
-	for i := range counts {
-		i := i
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) { counts[i].Add(1) })
-	}
-
-	const msgs = 30
-	for i := 0; i < msgs; i++ {
-		_ = b.Publish("task", nil)
-	}
-
-	total := int64(0)
-	for i := range counts {
-		n := counts[i].Load()
-		if n == 0 {
-			t.Errorf("worker %d received 0 messages — distribution is not working", i)
-		}
-		total += n
-	}
-	if total != msgs {
-		t.Error(test.DiffMessage(total, int64(msgs), "total deliveries must equal publish count"))
-	}
-}
-
-func TestSubscribeQueue_MultipleGroups_EachGetsOne(t *testing.T) {
-	b := newBroker(t)
-	var groupA, groupB atomic.Int64
-
-	for i := 0; i < 3; i++ {
-		_, _ = b.SubscribeQueue("task", "groupA", func(*Message) { groupA.Add(1) })
-		_, _ = b.SubscribeQueue("task", "groupB", func(*Message) { groupB.Add(1) })
-	}
-
-	_ = b.Publish("task", nil)
-
-	if groupA.Load() != 1 {
-		t.Error(test.DiffMessage(groupA.Load(), int64(1), "groupA should receive exactly 1"))
-	}
-	if groupB.Load() != 1 {
-		t.Error(test.DiffMessage(groupB.Load(), int64(1), "groupB should receive exactly 1"))
-	}
-}
-
-func TestSubscribeQueue_Unsubscribe(t *testing.T) {
-	b := newBroker(t)
-	var count atomic.Int64
-
-	sub, _ := b.SubscribeQueue("task", "workers", func(*Message) { count.Add(1) })
-	_, _ = b.SubscribeQueue("task", "workers", func(*Message) { count.Add(1) })
-
-	_ = sub.Unsubscribe()
-
-	for i := 0; i < 20; i++ {
-		_ = b.Publish("task", nil)
-	}
-
-	if n := count.Load(); n != 20 {
-		t.Error(test.DiffMessage(n, int64(20), "after unsubscribe only 1 worker remains, should still handle all 20"))
-	}
-}
-
-func TestSubscribeQueue_ListenerCount(t *testing.T) {
-	b := newBroker(t)
-	for i := 0; i < 4; i++ {
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) {})
-	}
-	if n := b.ListenerCount("task"); n != 4 {
-		t.Error(test.DiffMessage(n, 4, "ListenerCount should include queue subscribers"))
-	}
-}
-
-func TestSubscribeQueue_EmptyGroup_ReturnsError(t *testing.T) {
-	b := newBroker(t)
-	_, err := b.SubscribeQueue("task", "", func(*Message) {})
-	if err != ErrEmptyGroup {
-		t.Error(test.DiffMessage(err, ErrEmptyGroup, "empty group should return ErrEmptyGroup"))
-	}
-}
-
-func TestSubscribeQueue_Topics_Included(t *testing.T) {
-	b := newBroker(t)
-	_, _ = b.SubscribeQueue("task.process", "workers", func(*Message) {})
-
-	topics := b.Topics()
-	found := false
-	for _, t := range topics {
-		if t == "task.process" {
-			found = true
-		}
-	}
-	if !found {
-		t.Error(test.DiffMessage(topics, []string{"task.process"}, "queue topic should appear in Topics()"))
-	}
-}
-
-func TestSubscribeQueue_ConcurrentPublish(t *testing.T) {
-	b := newBroker(t)
-	var total atomic.Int64
-
-	for i := 0; i < 5; i++ {
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) { total.Add(1) })
-	}
-
-	var wg sync.WaitGroup
-	const msgs = 100
-	for i := 0; i < msgs; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = b.Publish("task", nil)
-		}()
-	}
-	wg.Wait()
-
-	if n := total.Load(); n != msgs {
-		t.Error(test.DiffMessage(n, int64(msgs), "concurrent queue publish: total must equal message count"))
-	}
-}
-
-func TestSubscribeQueue_FanOutAndQueueCoexist(t *testing.T) {
-	b := newBroker(t)
-	var fanOut, queue atomic.Int64
-
-	_, _ = b.Subscribe("task", func(*Message) { fanOut.Add(1) })
-	_, _ = b.Subscribe("task", func(*Message) { fanOut.Add(1) })
-	for i := 0; i < 3; i++ {
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) { queue.Add(1) })
-	}
-
-	_ = b.Publish("task", nil)
-
-	if fanOut.Load() != 2 {
-		t.Error(test.DiffMessage(fanOut.Load(), int64(2), "fan-out subs should all receive"))
-	}
-	if queue.Load() != 1 {
-		t.Error(test.DiffMessage(queue.Load(), int64(1), "queue group should deliver to exactly 1"))
-	}
-}
-
 // ────────────────────────────────────────────────────────────────────────────
-// Fix 1: round-robin starts at index 0
+// Topic pattern kinds
 // ────────────────────────────────────────────────────────────────────────────
-
-func TestSubscribeQueue_DistributesFromWorker0(t *testing.T) {
-	// With the counter seeded to ^uint64(0), the first Add(1) wraps to 0,
-	// so the first message always goes to worker 0.
-	b := newBroker(t)
-	counts := make([]atomic.Int64, 3)
-
-	for i := range counts {
-		i := i
-		_, _ = b.SubscribeQueue("task", "workers", func(*Message) { counts[i].Add(1) })
-	}
-
-	const msgs = 30
-	for range msgs {
-		_ = b.Publish("task", nil)
-	}
-
-	// Every worker must receive at least one message (verified in the
-	// existing TestSubscribeQueue_DistributesAcrossWorkers test). Additionally,
-	// with 30 messages and 3 workers the distribution must be perfectly even.
-	for i := range counts {
-		n := counts[i].Load()
-		if n == 0 {
-			t.Errorf("worker %d received 0 messages — worker 0 is being skipped", i)
-		}
-	}
-	// With 30 msgs and 3 workers the counter wraps evenly: each gets exactly 10.
-	for i := range counts {
-		if counts[i].Load() != 10 {
-			t.Errorf("worker %d: got %d, want 10 (perfect round-robin)", i, counts[i].Load())
-		}
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fix 2: empty bucket cleanup
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestEmptyBucketCleanup_Exact(t *testing.T) {
-	// Use the internal broker type to inspect the maps directly.
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
-	t.Cleanup(func() { _ = b.Close() })
-
-	_, _ = b.Once("ephemeral.topic", func(*Message) {})
-	_ = b.Publish("ephemeral.topic", nil) // fires once-sub → removed
-
-	if len(b.Topics()) != 0 {
-		t.Error(test.DiffMessage(b.Topics(), []string{}, "Topics() should be empty after once-sub fires"))
-	}
-	if n := b.ListenerCount("ephemeral.topic"); n != 0 {
-		t.Error(test.DiffMessage(n, 0, "ListenerCount should be 0 after once-sub fires"))
-	}
-
-	// Verify the map entry itself is gone (no empty bucket).
-	b.mu.RLock()
-	_, hasBucket := b.exactByTopic["ephemeral.topic"]
-	b.mu.RUnlock()
-	if hasBucket {
-		t.Error("empty exact bucket should have been deleted after once-sub cleanup")
-	}
-}
-
-func TestEmptyBucketCleanup_Prefix(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
-	t.Cleanup(func() { _ = b.Close() })
-
-	_, _ = b.Once("order.*", func(*Message) {})
-	_ = b.Publish("order.created", nil)
-
-	b.mu.RLock()
-	_, hasBucket := b.prefixByPrefix["order"]
-	b.mu.RUnlock()
-	if hasBucket {
-		t.Error("empty prefix bucket should have been deleted after once-sub cleanup")
-	}
-}
-
-func TestEmptyBucketCleanup_Unsubscribe(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
-	t.Cleanup(func() { _ = b.Close() })
-
-	sub, _ := b.Subscribe("only.sub", func(*Message) {})
-	_ = b.Unsubscribe(sub)
-
-	b.mu.RLock()
-	_, hasBucket := b.exactByTopic["only.sub"]
-	b.mu.RUnlock()
-	if hasBucket {
-		t.Error("empty exact bucket should have been deleted after unsubscribe")
-	}
-}
-
-func TestEmptyBucketCleanup_QueueGroup(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true}).(*MemoryBroker)
-	t.Cleanup(func() { _ = b.Close() })
-
-	sub, _ := b.SubscribeQueue("q.topic", "grp", func(*Message) {})
-	_ = b.Unsubscribe(sub)
-
-	b.mu.RLock()
-	_, hasTopic := b.queueGroupsByTopic["q.topic"]
-	b.mu.RUnlock()
-	if hasTopic {
-		t.Error("empty queueGroups topic entry should have been deleted after unsubscribe")
-	}
-	if len(b.Topics()) != 0 {
-		t.Errorf("Topics() should be empty, got %v", b.Topics())
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fix 3: panic recovery
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestPanicRecovery_OtherHandlersStillReceive(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true})
-	t.Cleanup(func() { _ = b.Close() })
-
-	var after atomic.Int64
-	_, _ = b.Subscribe("panic.topic", func(*Message) { panic("deliberate") })
-	_, _ = b.Subscribe("panic.topic", func(*Message) { after.Add(1) })
-	_, _ = b.Subscribe("panic.topic", func(*Message) { after.Add(1) })
-
-	_ = b.Publish("panic.topic", nil)
-
-	if n := after.Load(); n != 2 {
-		t.Errorf("handlers after the panicking one: got %d, want 2", n)
-	}
-}
-
-func TestPanicRecovery_OnPanicCalled(t *testing.T) {
-	var panicMsg *Message
-	var panicVal any
-	var mu sync.Mutex
-
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		OnPanic: func(m *Message, r any) {
-			mu.Lock()
-			panicMsg = m
-			panicVal = r
-			mu.Unlock()
-		},
-	})
-	t.Cleanup(func() { _ = b.Close() })
-
-	_, _ = b.Subscribe("oops", func(*Message) { panic("bad handler") })
-	_ = b.Publish("oops", "data")
-
-	mu.Lock()
-	defer mu.Unlock()
-	if panicMsg == nil {
-		t.Fatal("OnPanic was not called")
-	}
-	if panicMsg.Topic != "oops" {
-		t.Errorf("OnPanic: topic = %q, want %q", panicMsg.Topic, "oops")
-	}
-	if panicVal != "bad handler" {
-		t.Errorf("OnPanic: recovered value = %v, want %q", panicVal, "bad handler")
-	}
-}
-
-func TestPanicRecovery_Disabled(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: false})
-	t.Cleanup(func() { _ = b.Close() })
-
-	_, _ = b.Subscribe("boom", func(*Message) { panic("unrecovered") })
-
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("expected panic to propagate when RecoverPanics: false")
-		}
-	}()
-	_ = b.Publish("boom", nil)
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fix 4: bounded async worker pool
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestPublishAsync_WorkerPool_DeliversAll(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics:  true,
-		AsyncWorkers:   4,
-		AsyncQueueSize: 200,
-	})
-	t.Cleanup(func() { _ = b.Close() })
-
-	var count atomic.Int64
-	_, _ = b.Subscribe("wp.topic", func(*Message) { count.Add(1) })
-
-	const msgs = 100
-	for i := range msgs {
-		if err := b.PublishAsync("wp.topic", i); err != nil {
-			t.Fatalf("PublishAsync error: %v", err)
-		}
-	}
-
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if count.Load() == msgs {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Errorf("worker pool: got %d deliveries, want %d", count.Load(), msgs)
-}
-
-func TestPublishAsync_QueueFull_ReturnsError(t *testing.T) {
-	// Use 1 worker and a tiny queue. Fill the queue before the worker can drain.
-	// We block the worker with a channel so the queue stays full.
-	block := make(chan struct{})
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics:  true,
-		AsyncWorkers:   1,
-		AsyncQueueSize: 2,
-	})
-	t.Cleanup(func() { _ = b.Close() })
-
-	_, _ = b.Subscribe("full.topic", func(*Message) {
-		<-block // block all workers
-	})
-
-	// Send one message to block the single worker.
-	_ = b.PublishAsync("full.topic", "block")
-	// Give the worker time to pick up the job and start blocking.
-	time.Sleep(20 * time.Millisecond)
-
-	// Now fill the remaining queue capacity.
-	_ = b.PublishAsync("full.topic", "fill1")
-	_ = b.PublishAsync("full.topic", "fill2")
-
-	// Next send must fail.
-	err := b.PublishAsync("full.topic", "overflow")
-	if err != ErrAsyncQueueFull {
-		t.Errorf("expected ErrAsyncQueueFull, got %v", err)
-	}
-
-	close(block) // unblock workers so Close() can drain
-}
-
-func TestClose_WorkerPool_Drains(t *testing.T) {
-	var count atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics:  true,
-		AsyncWorkers:   2,
-		AsyncQueueSize: 50,
-	})
-
-	_, _ = b.Subscribe("drain.topic", func(*Message) {
-		time.Sleep(1 * time.Millisecond)
-		count.Add(1)
-	})
-
-	const msgs = 20
-	for i := range msgs {
-		_ = b.PublishAsync("drain.topic", i)
-	}
-
-	// Close must block until all enqueued jobs finish.
-	_ = b.Close()
-
-	if count.Load() != msgs {
-		t.Errorf("after Close: delivered %d, want %d — worker pool did not drain", count.Load(), msgs)
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fix 5: broker statistics
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestStats_CountsCorrectly(t *testing.T) {
-	b := newWithOptions(MemoryBrokerOptions{RecoverPanics: true})
-	t.Cleanup(func() { _ = b.Close() })
-
-	noop := func(*Message) {}
-	_, _ = b.Subscribe("s.one", noop)
-	_, _ = b.Subscribe("s.one", noop)
-	_, _ = b.Subscribe("s.*", noop)
-	_, _ = b.SubscribeQueue("s.one", "grp", noop)
-
-	_ = b.Publish("s.one", nil)
-	_ = b.Publish("s.one", nil)
-
-	st := b.Stats()
-
-	// Topics: "s.one" (exact+queue share one topic key), "s.*"
-	if st.Topics != 2 {
-		t.Errorf("Topics: got %d, want 2", st.Topics)
-	}
-	// Subscribers: 2 exact + 1 queue + 1 prefix = 4
-	if st.Subscribers != 4 {
-		t.Errorf("Subscribers: got %d, want 4", st.Subscribers)
-	}
-	if st.PublishCalls != 2 {
-		t.Errorf("PublishCalls: got %d, want 2", st.PublishCalls)
-	}
-	// Each Publish to "s.one" delivers to: 2 exact + 1 prefix + 1 queue = 4
-	if st.MessagesSent != 8 {
-		t.Errorf("MessagesSent: got %d, want 8", st.MessagesSent)
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fix 6: observability hooks
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestHooks_AllFourFire(t *testing.T) {
-	var (
-		beforePublishTopic string
-		afterPublishTopic  string
-		beforeDispatch     []int
-		afterDispatch      []int
-		mu                 sync.Mutex
-	)
-
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		BeforePublish: func(topic string, _ any) {
-			mu.Lock()
-			beforePublishTopic = topic
-			mu.Unlock()
-		},
-		AfterPublish: func(topic string, _ any, _ error) {
-			mu.Lock()
-			afterPublishTopic = topic
-			mu.Unlock()
-		},
-		BeforeDispatch: func(_ *Message, idx int) {
-			mu.Lock()
-			beforeDispatch = append(beforeDispatch, idx)
-			mu.Unlock()
-		},
-		AfterDispatch: func(_ *Message, idx int) {
-			mu.Lock()
-			afterDispatch = append(afterDispatch, idx)
-			mu.Unlock()
-		},
-	})
-	t.Cleanup(func() { _ = b.Close() })
-
-	noop := func(*Message) {}
-	_, _ = b.Subscribe("hook.topic", noop)
-	_, _ = b.Subscribe("hook.topic", noop)
-
-	_ = b.Publish("hook.topic", "x")
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if beforePublishTopic != "hook.topic" {
-		t.Errorf("BeforePublish: topic = %q, want %q", beforePublishTopic, "hook.topic")
-	}
-	if afterPublishTopic != "hook.topic" {
-		t.Errorf("AfterPublish: topic = %q, want %q", afterPublishTopic, "hook.topic")
-	}
-	if len(beforeDispatch) != 2 {
-		t.Errorf("BeforeDispatch called %d times, want 2", len(beforeDispatch))
-	}
-	if len(afterDispatch) != 2 {
-		t.Errorf("AfterDispatch called %d times, want 2", len(afterDispatch))
-	}
-	// Indices should be 0 and 1 in order.
-	for i, idx := range beforeDispatch {
-		if idx != i {
-			t.Errorf("BeforeDispatch[%d] = %d, want %d", i, idx, i)
-		}
-	}
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// newWithOptions: Broker interface satisfied
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestNewWithOptions_ImplementsBroker(t *testing.T) {
-	// Compile-time interface check: both constructors must satisfy Broker.
-	_ = []Broker{newWithOptions(MemoryBrokerOptions{}), NewMemoryBroker()}
-}
-
-func TestPublishAsync_Close_NoPanic(t *testing.T) {
-	for i := 0; i < 2000; i++ {
-		b := newWithOptions(MemoryBrokerOptions{
-			RecoverPanics:  true,
-			AsyncWorkers:   4,
-			AsyncQueueSize: 8,
-		})
-		_, _ = b.Subscribe("t", func(*Message) {})
-
-		var wg sync.WaitGroup
-		for j := 0; j < 8; j++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				_ = b.PublishAsync("t", nil)
-			}()
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = b.Close()
-		}()
-		wg.Wait()
-	}
-}
-
-func TestHook_BeforePublish_Panic_DeliveryNotAborted(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		BeforePublish: func(string, any) { panic("before-publish boom") },
-	})
-	defer func() { _ = b.Close() }()
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 1 {
-		t.Error(test.DiffMessage(received.Load(), int64(1), "BeforePublish panic must not abort delivery"))
-	}
-}
-
-func TestHook_AfterPublish_Panic_DoesNotCrash(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		AfterPublish:  func(string, any, error) { panic("after-publish boom") },
-	})
-	defer func() { _ = b.Close() }()
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 1 {
-		t.Error(test.DiffMessage(received.Load(), int64(1), "AfterPublish panic must not abort delivery"))
-	}
-}
-
-func TestHook_BeforeDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics:  true,
-		BeforeDispatch: func(*Message, int) { panic("before-dispatch boom") },
-	})
-	defer func() { _ = b.Close() }()
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 3 {
-		t.Error(test.DiffMessage(received.Load(), int64(3), "BeforeDispatch panic must not skip subscribers"))
-	}
-}
-
-func TestHook_AfterDispatch_Panic_OtherSubscribersStillReceive(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		AfterDispatch: func(*Message, int) { panic("after-dispatch boom") },
-	})
-	defer func() { _ = b.Close() }()
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 3 {
-		t.Error(test.DiffMessage(received.Load(), int64(3), "AfterDispatch panic must not skip subscribers"))
-	}
-}
-
-func TestHook_OnPanic_Panic_DoesNotCrash(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics: true,
-		OnPanic:       func(*Message, any) { panic("on-panic boom") },
-	})
-	defer func() { _ = b.Close() }()
-	_, _ = b.Subscribe("t", func(*Message) { panic("subscriber boom") })
-	_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 1 {
-		t.Error(test.DiffMessage(received.Load(), int64(1), "OnPanic panic must not crash broker or skip other subscribers"))
-	}
-}
-
-func TestHook_AllPanic_AllSubscribersStillReceive(t *testing.T) {
-	var received atomic.Int64
-	b := newWithOptions(MemoryBrokerOptions{
-		RecoverPanics:  true,
-		BeforePublish:  func(string, any) { panic("bp") },
-		AfterPublish:   func(string, any, error) { panic("ap") },
-		BeforeDispatch: func(*Message, int) { panic("bd") },
-		AfterDispatch:  func(*Message, int) { panic("ad") },
-		OnPanic:        func(*Message, any) { panic("op") },
-	})
-	defer func() { _ = b.Close() }()
-	for i := 0; i < 5; i++ {
-		_, _ = b.Subscribe("t", func(*Message) { received.Add(1) })
-	}
-
-	_ = b.Publish("t", nil)
-
-	if received.Load() != 5 {
-		t.Error(test.DiffMessage(received.Load(), int64(5), "all hooks panicking must not drop any subscriber delivery"))
-	}
-}
 
 func TestSubscribe_SuffixWildcard_MatchesDeepTopics(t *testing.T) {
 	b := newBroker(t)
@@ -1332,6 +865,19 @@ func TestSubscribe_SuffixWildcard_DoesNotMatchParent(t *testing.T) {
 	}
 }
 
+func TestSubscribe_SuffixWildcard_MatchesMultipleLevels(t *testing.T) {
+	b := newBroker(t)
+	var count int
+	_, _ = b.Subscribe("user.*", func(*Message) { count++ })
+
+	_ = b.Publish("user.created", nil)
+	_ = b.Publish("user.profile.updated", nil)
+
+	if count != 2 {
+		t.Error(test.DiffMessage(count, 2, "user.* should now match any depth beyond the prefix, not just one level"))
+	}
+}
+
 func TestSubscribe_Global_MatchesAll(t *testing.T) {
 	b := newBroker(t)
 	var count int
@@ -1343,6 +889,19 @@ func TestSubscribe_Global_MatchesAll(t *testing.T) {
 
 	if count != 3 {
 		t.Error(test.DiffMessage(count, 3, "* alone should match every published topic"))
+	}
+}
+
+func TestSubscribe_BackwardCompat_StarAlias(t *testing.T) {
+	b := newBroker(t)
+	var count int
+	_, _ = b.Subscribe("*", func(*Message) { count++ })
+
+	_ = b.Publish("a.b.c", nil)
+	_ = b.Publish("x", nil)
+
+	if count != 2 {
+		t.Error(test.DiffMessage(count, 2, "* alone should match every topic regardless of depth"))
 	}
 }
 
@@ -1373,53 +932,5 @@ func TestSubscribe_Complex_MiddleAndTrailingWildcard(t *testing.T) {
 
 	if len(received) != 2 {
 		t.Error(test.DiffMessage(len(received), 2, "tenant.*.user.* should match 2 topics"))
-	}
-}
-
-func TestOff_Complex_Pattern(t *testing.T) {
-	b := newBroker(t)
-	var count int
-	_, _ = b.Subscribe("a.*.b.*", func(*Message) { count++ })
-
-	_ = b.Publish("a.x.b.y", nil)
-	_ = b.Off("a.*.b.*")
-	_ = b.Publish("a.x.b.y", nil)
-
-	if count != 1 {
-		t.Error(test.DiffMessage(count, 1, "Off(complex pattern) should remove all its subscribers"))
-	}
-}
-
-func TestSubscribeQueue_Wildcard_ReturnsError(t *testing.T) {
-	b := newBroker(t)
-	_, err := b.SubscribeQueue("user.*", "workers", func(*Message) {})
-	if err != ErrWildcardInQueue {
-		t.Error(test.DiffMessage(err, ErrWildcardInQueue, "wildcard topic in SubscribeQueue should return ErrWildcardInQueue"))
-	}
-}
-
-func TestSubscribe_BackwardCompat_StarAlias(t *testing.T) {
-	b := newBroker(t)
-	var count int
-	_, _ = b.Subscribe("*", func(*Message) { count++ })
-
-	_ = b.Publish("a.b.c", nil)
-	_ = b.Publish("x", nil)
-
-	if count != 2 {
-		t.Error(test.DiffMessage(count, 2, "* alone should match every topic regardless of depth"))
-	}
-}
-
-func TestSubscribe_SuffixWildcard_MatchesMultipleLevels(t *testing.T) {
-	b := newBroker(t)
-	var count int
-	_, _ = b.Subscribe("user.*", func(*Message) { count++ })
-
-	_ = b.Publish("user.created", nil)
-	_ = b.Publish("user.profile.updated", nil)
-
-	if count != 2 {
-		t.Error(test.DiffMessage(count, 2, "user.* should now match any depth beyond the prefix, not just one level"))
 	}
 }
