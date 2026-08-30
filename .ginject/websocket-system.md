@@ -440,9 +440,9 @@ memorybroker.Publish() ← Calls callbacks (non-blocking TrySend)
 ### 8.2 Global Memorybroker Concurrency
 
 **Thread-Safe**:
-- Memorybroker.Subscribe() — concurrent-safe (sharded)
-- Memorybroker.Publish() — concurrent-safe (sharded)
-- Internal: 256 shards with sync.RWMutex
+- Memorybroker.Subscribe() — concurrent-safe
+- Memorybroker.Publish() — concurrent-safe
+- Internal: single sync.RWMutex over 4 maps (exact/prefix/global/complex); no sharding. Handlers are snapshotted into a private slice under the lock, then invoked after unlocking — a fanout callback may safely re-enter Subscribe/Unsubscribe/Publish/PublishAsync without deadlocking
 
 **Fanout Callbacks**:
 - Called sequentially (one at a time)
@@ -642,7 +642,7 @@ Can cause message corruption or race conditions
 
 ### 13.3 Message Throughput
 
-**Publish throughput**: 100K-1M messages/sec (broker + fanout)
+**Publish throughput**: not benchmarked end-to-end (JSON marshal + TCP send dominate at the WS layer, unmeasured here). `memorybroker.Publish` itself is benchmarked in isolation (`memorybroker/broker_bench_test.go`): ~18-24 µs/op fanning out to 1000 exact-topic subscribers, ~2 µs/op to 10 mixed exact+prefix+global subscribers, 0 allocs when a topic has no matching subscriber — see that package's README for current numbers before citing a figure
 
 **Per-connection throughput**: Limited by JSON marshaling/unmarshaling
 

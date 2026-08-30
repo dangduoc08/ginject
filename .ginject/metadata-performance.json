@@ -168,7 +168,7 @@
     "throughput": {
       "http_requests_per_second": "10K-100K (depends on handler)",
       "websocket_messages_per_second": "100K-1M (depends on payload size)",
-      "broker_publishes_per_second": "100K-1M"
+      "broker_publishes_per_second": "not benchmarked end-to-end; memorybroker.Publish itself measured in isolation at ~18-24 microseconds/op fanning out to 1000 exact-topic subscribers, ~2 microseconds/op for 10 mixed exact+prefix+global subscribers (see memorybroker/broker_bench_test.go) — do not cite a messages/sec figure without re-measuring, this field previously stated an unverified 100K-1M"
     },
     "connections": {
       "concurrent_http_requests": "limited by goroutines (2-4MB each)",

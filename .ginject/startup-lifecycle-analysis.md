@@ -186,8 +186,8 @@ moduleTree := core.ModuleBuilder().
 
 ```
 1. Broker created in core.New()
-   ├─ In-memory storage (256 shards)
-   ├─ Worker goroutines started
+   ├─ In-memory storage: 4 maps (exact/prefix/global/complex), single sync.RWMutex, no sharding
+   ├─ No goroutines started eagerly — PublishAsync spawns one goroutine per call, on demand
    └─ Ready for Publish/Subscribe IMMEDIATELY
 
 2. Subscriptions only when WebSocket client connects

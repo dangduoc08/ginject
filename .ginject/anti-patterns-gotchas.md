@@ -489,7 +489,7 @@ func (c UserController) READ() {
 
 ---
 
-### 5.2 GOTCHA: Multiple Exception Filters Fighting
+### 6.2 GOTCHA: Multiple Exception Filters Fighting
 
 **PROBLEM**:
 ```go
@@ -638,4 +638,58 @@ func TestWSHandler(t *testing.T) {
 ```
 
 **Rule**: WS tests need real connections or mocks
+
+---
+
+## 9. Message Broker (`memorybroker`) Gotchas
+
+### 9.1 GOTCHA: Calling Close() Synchronously From a PublishAsync Handler
+
+**VERIFIED** (reproduced deterministically, not speculative — see `memorybroker/broker_test.go`'s `TestClose_FromWithinPublishAsyncHandler_Deadlocks`):
+
+```go
+b.Subscribe("foo", func(*memorybroker.Message) {
+    b.Close()  // DEADLOCKS — never returns
+})
+b.PublishAsync("foo", nil)
+```
+
+**Why It's Wrong**:
+- `PublishAsync`'s goroutine runs `defer wg.Done()` around the call that (transitively) invokes the handler
+- The handler calls `Close()`, which blocks in `wg.Wait()`
+- But `wg.Done()` for *this exact goroutine* only fires after the handler returns — which can't happen until `Close()` returns
+- Same structural class as calling `sync.WaitGroup.Wait()` from inside a goroutine that same `WaitGroup` is tracking — universally caller error in Go, not a bug in the mutex/lock logic (already independently audited and confirmed race-free)
+- Not fixable without either weakening "Close waits for every accepted PublishAsync" or goroutine-local-storage hacks (Go has none by design) — treated as an unsupported call pattern, not special-cased
+
+**RIGHT**:
+```go
+b.Subscribe("foo", func(*memorybroker.Message) {
+    go b.Close()  // fire the close from a different goroutine
+})
+```
+
+**Rule**: Never call `Broker.Close()` synchronously from within a handler dispatched by `PublishAsync`. Calling `Close()` from within a handler dispatched by the *synchronous* `Publish` is safe — `Publish` isn't `WaitGroup`-tracked, and no lock is held during handler execution (see `metadata-concurrency-model.json`'s `deadlock_risks.risk_2`).
+
+### 9.2 GOTCHA: Assuming Close() Waits For Synchronous Publish
+
+**PROBLEM**:
+```go
+go b.Publish("slow", payload)  // handler still running
+b.Close()                      // returns almost immediately — does NOT wait for the handler above
+```
+
+**Why**: `Close()` only synchronizes with in-flight `PublishAsync` goroutines (via `sync.WaitGroup`) and with its own map-clearing (via the broker's `RWMutex`). A synchronous `Publish` call on another goroutine is invisible to `Close()` — this is intentional, not a bug (verified via `TestClose_DoesNotWaitForConcurrentSyncPublish`, race-clean).
+
+**Rule**: If code needs to guarantee no handler is still running after shutdown, don't rely on `Close()` for synchronous `Publish` calls — track them externally (e.g. your own `WaitGroup`) or route that traffic through `PublishAsync` instead.
+
+### 9.3 GOTCHA: Assuming a Foreign Subscription Silently Corrupts State
+
+```go
+subA, _ := brokerA.Subscribe("topic", handler)
+brokerB.Unsubscribe(subA)  // returns ErrForeignSubscription, no-op on both brokers
+```
+
+**Not a bug to guard against defensively** — `Unsubscribe` checks `subscription.broker == receiver` and rejects mismatches with `ErrForeignSubscription` before touching any map. `subA` remains fully active on `brokerA`.
+
+**Rule**: A cross-broker `Unsubscribe` call is safe (rejected with a typed error), but almost always indicates a wiring bug — the caller has the wrong `Broker` reference.
 

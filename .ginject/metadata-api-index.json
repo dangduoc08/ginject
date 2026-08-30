@@ -228,33 +228,28 @@
       "transports": ["http", "ws"]
     },
     "memorybroker": {
-      "responsibility": "In-memory pub/sub message broker with async publishing support",
+      "responsibility": "Lightweight in-process topic-based pub/sub broker (no queue groups, no persistence, no ack/retry)",
       "public_types": {
         "Broker": {
           "description": "Publisher-subscriber message broker interface",
           "methods": [
+            "Subscribe(topic string, handler MessageHandler) (Subscription, error)",
+            "Unsubscribe(sub Subscription) error",
             "Publish(topic string, payload any) error",
             "PublishAsync(topic string, payload any) error",
-            "Subscribe(topic string, handler MessageHandler) (Subscription, error)",
-            "Once(topic string, handler MessageHandler) (Subscription, error)",
-            "SubscribeQueue(topic, group string, handler MessageHandler) (Subscription, error)",
-            "Unsubscribe(sub Subscription) error",
-            "Off(topic string) error",
-            "ListenerCount(topic string) int",
-            "Topics() []string",
-            "Clear() error",
-            "Close() error",
-            "Stats() Stats"
+            "Close() error"
+          ],
+          "removed_in_simplification": [
+            "Once(topic, handler)", "SubscribeQueue(topic, group, handler)",
+            "Off(topic)", "ListenerCount(topic)", "Topics()", "Clear()", "Stats()"
           ]
         },
         "Message": {
-          "description": "Published message with metadata",
+          "description": "Published message (no ID, no Metadata — removed in simplification)",
           "fields": [
-            "ID string - Unique message ID",
             "Topic string - Topic name",
             "Payload any - Message data",
-            "Timestamp time.Time - Publication time",
-            "Metadata map[string]any - Optional metadata"
+            "Timestamp time.Time - captured via time.Now() before dispatch"
           ]
         },
         "Subscription": {
@@ -267,21 +262,25 @@
         },
         "MessageHandler": {
           "description": "func(msg *Message) - Handler invoked on publish"
-        }
+        },
+        "sentinel_errors": [
+          "ErrClosed", "ErrNilHandler", "ErrEmptyTopic", "ErrForeignSubscription"
+        ]
       },
       "pattern_types": [
-        "Exact: 'user.login' - matches only that topic",
-        "Suffix: 'user.*' - matches 'user.login', 'user.logout', etc.",
-        "Global: '*' - matches all topics",
-        "Complex: 'user.*.profile' - regex-like wildcard matching"
+        "Exact: 'user.login' - O(1) map lookup, matches only that topic",
+        "Suffix: 'user.*' - O(1) map lookup by prefix; greedy, matches ANY depth below 'user.', not just one level",
+        "Global: '*' - O(1), matches all topics. '*' is the ONLY wildcard token; '>' is NOT special-cased (verified empirically) - a pattern containing '>' matches only that literal string",
+        "Complex: 'user.*.profile', '*.created' - O(n) scan; segment-wildcard matching, NOT regex"
       ],
       "key_features": [
-        "Sharded architecture (256 shards) for concurrent access",
-        "Async publishing with worker pool (configurable)",
-        "Queue groups for load-balanced distribution (round-robin)",
-        "Once subscriptions - auto-unsubscribe after first fire",
-        "Panic recovery with configurable callbacks",
-        "Automatic cleanup of expired subscriptions"
+        "Single sync.RWMutex over 4 maps (exact/prefix/global/complex) - no sharding",
+        "PublishAsync: one goroutine per call tracked by sync.WaitGroup, no worker pool/bounded queue",
+        "Close(): CompareAndSwap-idempotent, waits for in-flight PublishAsync via WaitGroup, then clears all maps",
+        "Cross-broker Unsubscribe protection via ErrForeignSubscription (checks subscription.broker == receiver)",
+        "Unsubscribe(nil) is always nil, unconditionally, even after Close",
+        "Unconditional panic recovery per handler call (not configurable, no OnPanic hook)",
+        "publishInternal sizes handler slice exactly, skips allocation entirely when nothing matches"
       ]
     },
     "memorycache": {

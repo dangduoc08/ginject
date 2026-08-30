@@ -286,7 +286,7 @@ From [metadata-performance.json](metadata-performance.json):
 **WebSocket Connections**:
 - 2 goroutines per connection (readLoop + writeLoop)
 - Connection single-threaded (no race within connection)
-- Global memorybroker thread-safe (sharded architecture)
+- Global memorybroker thread-safe (single RWMutex, no sharding)
 
 **Global State**:
 - Read-only after app.Create()
@@ -359,7 +359,7 @@ Reference: request-pipeline.md#3-guard-layer (authorization)
 
 ## Maintenance & Updates
 
-**Last Updated**: July 2026  
+**Last Updated**: August 2026 (memorybroker corrections: dropped stale sharding/worker-pool claims, synced to the simplified Subscribe/Unsubscribe/Publish/PublishAsync/Close API)  
 **Coverage**: Ginject pre-v1.0 (6.2/10 production readiness)  
 **Source**: Complete source code analysis + ARCHITECTURE_REVIEW_AND_ROADMAP.md
 

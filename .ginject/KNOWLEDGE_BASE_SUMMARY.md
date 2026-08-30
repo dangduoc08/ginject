@@ -1,10 +1,10 @@
 # Ginject AI Knowledge Base — Update Summary
 
-**Last Updated**: August 3, 2026  
+**Last Updated**: August 28, 2026  
 **Status**: ✅ CURRENT — World-Class AI-Friendly Documentation  
 **Total Lines**: 6,500+ lines of comprehensive documentation  
 **Files Created**: 15 files (11 markdown + 4 JSON)
-**Latest Updates**: Module lifecycle hooks (OnReady, OnShutdown), WebSocket heartbeat & dead connection detection, ACK protocol
+**Latest Updates**: `memorybroker` corrected — removed stale references to `Once`/`SubscribeQueue`/`Off`/`Topics`/`Clear`/`Stats` (dropped from the public API), removed fabricated "256 shards"/"worker pool" claims (it's a single `sync.RWMutex` over 4 maps, no sharding), added `ErrForeignSubscription` and the verified `Close()`-from-`PublishAsync`-handler deadlock anti-pattern
 
 ---
 
