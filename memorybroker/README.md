@@ -31,7 +31,7 @@
 
 ## Key Features
 
-- **Exact, prefix, and complex wildcard patterns** — `user.created`, `user.*`, `user.>`, `tenant.*.user.>`
+- **Exact, prefix, and complex wildcard patterns** — `user.created`, `user.*`, `tenant.*.user.created`, `tenant.*.user.*`
 - **Fan-out delivery** — every matching subscriber receives every publish
 - **Fire-and-forget async publish** — `PublishAsync` delivers on its own goroutine and returns immediately
 - **Panic recovery** — a panicking handler is recovered and does not affect other handlers or the broker
@@ -280,15 +280,14 @@ Patterns are parsed once at subscribe time by the `pattern` package. Publish use
 |---|---|---|---|---|
 | `user.created` | Exact | O(1) map | `user.created` | `user.updated` |
 | `*` | Global | O(1) | every topic | — |
-| `>` | Global | O(1) | every topic | — |
-| `user.*` | Suffix | O(1) | `user.created`, `user.deleted` | `user.profile.updated` |
-| `user.>` | Complex | O(n) | `user.created`, `user.profile.updated` | `user` (no dot) |
-| `tenant.*.user.>` | Complex | O(n) | `tenant.1.user.created`, `tenant.1.user.a.b` | `tenant.1.user` |
+| `user.*` | Suffix | O(1) | `user.created`, `user.profile.updated` (any depth) | `user` (no dot) |
+| `tenant.*.user.created` | Complex | O(n) | `tenant.1.user.created`, `tenant.abc.user.created` | `tenant.1.user.updated` |
+| `tenant.*.user.*` | Complex | O(n) | `tenant.1.user.created`, `tenant.abc.user.profile.updated` | `tenant.1.admin.created` |
 | `*.created` | Complex | O(n) | `user.created`, `order.created` | `a.b.created` |
 
 **Notes:**
 
-- `*` and `>` are equivalent (both match all topics); `*` is supported for backward compatibility
+- `*` is the **only** wildcard token. `>` is not special-cased anywhere in the `pattern` package — a pattern containing `>` (e.g. `user.>`) is parsed as a literal segment and will only match that exact literal topic string, never as a wildcard. Do not use `>`; this table previously claimed `>` was a global-wildcard alias, which was never true of this implementation — verified empirically, not just by reading the code
 - `user.*` matches any depth below `user.` (greedy suffix), not just one level
 - Complex patterns require an `O(patterns)` scan; use exact or suffix when possible
 
