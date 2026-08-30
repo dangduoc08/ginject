@@ -297,7 +297,7 @@ All `metadata-*.json` files contain structured data for AI parsing:
 
 **Knowledge Base Version**: 1.0  
 **Ginject Version**: Pre-v1.0 (production readiness: 6.2/10)  
-**Last Updated**: July 2026  
+**Last Updated**: August 2026 (memorybroker API/architecture corrections)  
 **Coverage**: 20+ packages, 100+ public APIs, complete lifecycle documentation
 
 ---

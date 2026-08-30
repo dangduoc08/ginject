@@ -382,50 +382,58 @@ func WrapLogger(logger Logger, maskFields []string) Logger
 
 ## Package: `memorybroker`
 
-**Responsibility**: In-memory pub/sub message broker with async support
+**Responsibility**: Lightweight in-process topic-based pub/sub broker (no queue groups, no persistence, no ack/retry — see `memorybroker/README.md` for the full spec, kept in sync with this section)
 
 ### Broker Interface
 
 ```go
 type Broker interface {
+    Subscribe(topic string, handler MessageHandler) (Subscription, error)
+    Unsubscribe(sub Subscription) error
     Publish(topic string, payload any) error
     PublishAsync(topic string, payload any) error
-    Subscribe(topic string, handler MessageHandler) (Subscription, error)
-    Once(topic string, handler MessageHandler) (Subscription, error)
-    SubscribeQueue(topic, group string, handler MessageHandler) (Subscription, error)
-    Unsubscribe(sub Subscription) error
-    Off(topic string) error
-    ListenerCount(topic string) int
-    Topics() []string
-    Clear() error
     Close() error
-    Stats() Stats
 }
 
 type Message struct {
-    ID        string         // Unique message ID
-    Topic     string         // Topic name
-    Payload   any            // Message data
-    Timestamp time.Time      // Publication time
-    Metadata  map[string]any // Optional metadata
+    Topic     string    // Topic name
+    Payload   any       // Message data
+    Timestamp time.Time // Captured before dispatch (time.Now())
 }
 
 type MessageHandler func(*Message)
+
+type Subscription interface {
+    ID() string
+    Topic() string
+    Unsubscribe() error
+}
+
+var (
+    ErrClosed              = errors.New("memorybroker: broker is closed")
+    ErrNilHandler          = errors.New("memorybroker: handler must not be nil")
+    ErrEmptyTopic          = errors.New("memorybroker: topic must not be empty")
+    ErrForeignSubscription = errors.New("memorybroker: subscription does not belong to this broker")
+)
 ```
+
+**No `ID`/`Metadata` on `Message`, no `Once`/`SubscribeQueue`/`Off`/`Topics`/`ListenerCount`/`Clear`/`Stats` on `Broker`** — these existed in an earlier, richer design and were deliberately removed for a leaner surface. Do not regenerate them from memory; verify against `memorybroker/broker.go` before citing the API.
 
 ### Pattern Matching
 
-Supports four pattern types:
-- **Exact**: `user.login` - matches only that topic
-- **Suffix Wildcard**: `user.*` - matches all children of `user`
-- **Global**: `*` - matches all topics
-- **Complex**: `user.*.profile` - regex-like matching
+Segment-based matcher (`pattern` package), **not regex** — only a bare `*` per dot-separated segment is special:
+- **Exact**: `user.login` — O(1) map lookup, matches only that literal topic
+- **Suffix Wildcard**: `user.*` — O(1) map lookup by prefix; greedy, matches *any depth* below `user.` (`user.a`, `user.a.b`, ...), not just one level
+- **Global**: `*` — O(1), matches every topic. `*` is the **only** wildcard token — `>` is NOT special-cased anywhere in the `pattern` package (verified empirically); a pattern containing `>` is parsed as a literal segment and matches nothing else. `memorybroker/README.md` previously claimed `>` was an alias for global — that was never true and has been corrected
+- **Complex**: `user.*.profile`, `*.created` — O(n) scan over registered complex patterns; `*` can appear mid-path or more than once
 
-### Subscription Types
+### Delivery Model
 
-1. **Fan-Out**: Every publish triggers handler (standard Subscribe)
-2. **Once**: Handler fires once, auto-unsubscribes (Once method)
-3. **Queue Group**: Multiple subscribers split messages (SubscribeQueue - load-balanced round-robin)
+- **Fan-Out only**: every subscription matching a topic fires on every `Publish`/`PublishAsync` — no `Once`, no queue-group load balancing
+- **`Publish`**: synchronous, dispatches on the caller's goroutine; not tracked by `Close`'s `WaitGroup`
+- **`PublishAsync`**: one goroutine per call (no worker pool, no bounded queue), tracked by an internal `sync.WaitGroup` so `Close` can drain in-flight calls
+- **Snapshot dispatch**: handlers are copied into a private slice under `RLock`, the lock is released, *then* handlers run — a handler may safely call back into `Subscribe`/`Unsubscribe`/`Publish`/`PublishAsync` without deadlocking (verified; see Anti-Patterns for the one exception)
+- **Panic recovery**: unconditional `recover()` around every handler call — one panicking handler never stops the rest or crashes the broker (not configurable, no `OnPanic` hook)
 
 **Usage**:
 ```go
@@ -448,20 +456,16 @@ app.BindWSHandler("users.created", func(pub common.Publisher) {
 
 ### Architecture
 
-- **Sharding**: 256 shards for concurrent R/W
-- **Async Workers**: Configurable worker pool for PublishAsync
-- **Cleanup**: Background sweep every 5s (1 shard/sweep)
-- **Queue Groups**: Round-robin distribution via atomic counter
-- **Panic Recovery**: Configurable panic handling per message
+- **Locking**: one `sync.RWMutex` guards four maps (`exactByTopic`, `prefixByPrefix`, `globalByID`, `complexByTopic`) — no sharding
+- **`Close()`**: `CompareAndSwap`-guarded (idempotent, safe from any goroutine) → `wg.Wait()` for in-flight `PublishAsync` goroutines → clears all four maps. Does **not** wait for a concurrent synchronous `Publish` call (see Concurrency Model)
+- **Cross-broker protection**: `Unsubscribe` checks `subscription.broker == b`, rejecting a `Subscription` from a different `MemoryBroker` with `ErrForeignSubscription`
+- **`Unsubscribe(nil)`**: always `nil`, unconditionally, even on a closed broker — the one exception to "all calls return `ErrClosed` after Close"
 
 ### Key Features
 
-- ✓ Thread-safe concurrent operations
-- ✓ Automatic expiration cleanup
-- ✓ Configurable async workers
-- ✓ Message metadata support
-- ✓ Exception filters in exception handlers
-- ✓ ~50-70% allocation reduction via smart pre-allocation
+- ✓ Thread-safe concurrent Subscribe/Unsubscribe/Publish/PublishAsync/Close (single mutex, race-tested — see `broker_test.go`'s concurrent test suite)
+- ✓ `publishInternal` sizes the handler slice exactly and skips allocation entirely when nothing matches a topic
+- ✓ No sharding, no background sweep, no TTL/expiration — this package holds no state beyond active subscriptions (compare `memorycache`, which does shard and sweep)
 
 ---
 

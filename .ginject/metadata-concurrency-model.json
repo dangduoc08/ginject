@@ -16,7 +16,7 @@
     "goroutine_2": "writeLoop (drains send channel)",
     "message_processing": "sequential (one message at a time)",
     "thread_safe": true,
-    "synchronization": "channelized (readLoop → handler → broker.Publish → writeLoop via channel)"
+    "synchronization": "channelized (readLoop → handler → memorybroker.Publish → writeLoop via channel)"
   },
   "global_shared_state": {
     "injectedProviders": {
@@ -38,16 +38,16 @@
       "synchronization": "built-in sync.Pool atomic operations"
     },
     "event.Event": {
-      "description": "Event listeners and emitters",
-      "access": "concurrent On/Emit/HasListeners",
+      "description": "Event listeners and emitters (Node-style EventEmitter, no topic pattern matching)",
+      "access": "concurrent On/Once/Off/Emit/ListenerCount/HasListeners",
       "thread_safe": true,
-      "synchronization": "internal sync.Map"
+      "synchronization": "single sync.RWMutex over two maps (opts, onceOpts); Emit copies listeners to a private slice before unlocking, then invokes outside the lock"
     },
-    "broker.Broker": {
-      "description": "Pub/sub message broker",
-      "access": "concurrent Subscribe/Publish/Unsubscribe",
+    "memorybroker.Broker": {
+      "description": "Pub/sub message broker (exact/suffix-wildcard/global/complex topic matching)",
+      "access": "concurrent Subscribe/Unsubscribe/Publish/PublishAsync/Close",
       "thread_safe": true,
-      "synchronization": "sync.RWMutex for subscriber list"
+      "synchronization": "single sync.RWMutex over 4 maps, no sharding; PublishAsync additionally coordinates via sync.WaitGroup so Close() can drain in-flight async goroutines before clearing state"
     },
     "module_state": {
       "description": "Module configuration and providers",
@@ -66,7 +66,7 @@
     "http_request": "each request is fully isolated, no race conditions possible",
     "ws_connection": "each connection is single-threaded, no race conditions within connection",
     "global_state": "read-only after startup, immutable guarantee",
-    "message_broker": "concurrent-safe pub/sub, all operations atomic",
+    "message_broker": "concurrent-safe pub/sub via a single RWMutex; not lock-free (RWMutex-guarded, not literally atomic ops)",
     "context_pooling": "sync.Pool handles concurrent Get/Put safely"
   },
   "race_condition_scenarios": {
@@ -117,9 +117,10 @@
   },
   "deadlock_risks": {
     "risk_1": "Middleware calling next() inside lock",
-    "risk_2": "Publisher.Publish() called from inside Publish callback",
+    "risk_2": "memorybroker.Broker.Close() called synchronously from within a handler that was itself dispatched by PublishAsync — self-deadlock, VERIFIED (see anti-patterns-gotchas.md). Close()'s wg.Wait() can never return because wg.Done() for that goroutine only runs after the handler (which is blocked in Close()) returns. NOT a bug in the locking, an inherent property of waiting on your own in-flight WaitGroup entry; documented as unsupported rather than special-cased",
+    "risk_2_note": "Reentrancy is otherwise SAFE and verified by test: a handler calling Subscribe/Unsubscribe/Publish/PublishAsync (including on itself) does not deadlock, because publishInternal releases its RLock before invoking any handler — Close() called from a SYNC Publish handler is also safe (Publish isn't WaitGroup-tracked)",
     "risk_3": "Event listener blocking on I/O",
-    "prevention": "keep pipeline stages lock-free and non-blocking"
+    "prevention": "keep pipeline stages lock-free and non-blocking; never call Close() synchronously from a PublishAsync-dispatched handler"
   },
   "cancellation_handling": {
     "http_requests": "context deadline via SetDeadline()",

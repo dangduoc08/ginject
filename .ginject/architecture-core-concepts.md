@@ -505,8 +505,8 @@ type ExceptionFilterable interface {
 - `injectedProviders map[string]Provider` — read-only after app.Create()
 - `routing.Router` — read-only after app.Create()
 - `sync.Pool` for context pooling — handles synchronization
-- `event.Event` — internal sync.Map for listeners
-- `memorybroker.Broker` — concurrent pub/sub with sharded architecture
+- `event.Event` — single sync.RWMutex over two maps (opts, onceOpts); no sharding
+- `memorybroker.Broker` — single sync.RWMutex over 4 maps (exact/prefix/global/complex); no sharding; PublishAsync tracked via sync.WaitGroup so Close() can drain in-flight goroutines
 
 **Not Thread-Safe (by design)**:
 - Module state (captured at app.Create(), immutable after)
