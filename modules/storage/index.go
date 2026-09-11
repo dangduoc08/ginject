@@ -64,9 +64,9 @@ func (idx *tableIndex) allPrimaryIDs() []string {
 
 // ---- secondary index ----
 
-// updateSecondary removes oldData entries and adds newData entries for id.
-// Pass nil for oldData when there is no previous version.
-func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]any) {
+// updateSecondary replaces id's secondary-index entries with the ones derived
+// from newData. Pass nil newData to only remove.
+func (idx *tableIndex) updateSecondary(id string, newData map[string]any) {
 	if len(idx.indexedFields) == 0 {
 		return
 	}
@@ -79,6 +79,9 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 					if len(set) == 0 {
 						delete(vals, val)
 					}
+				}
+				if len(vals) == 0 {
+					delete(idx.secondaryByField, field)
 				}
 			}
 		}
@@ -110,7 +113,7 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 }
 
 func (idx *tableIndex) removeSecondary(id string) {
-	idx.updateSecondary(id, nil, nil)
+	idx.updateSecondary(id, nil)
 }
 
 // lookupSecondary returns IDs matching field == value.
@@ -136,7 +139,7 @@ func (idx *tableIndex) hasSecondaryField(field string) bool {
 
 // ---- text index ----
 
-func (idx *tableIndex) updateText(id string, oldData, newData map[string]any) {
+func (idx *tableIndex) updateText(id string, newData map[string]any) {
 	if len(idx.searchFields) == 0 {
 		return
 	}
@@ -175,11 +178,14 @@ func (idx *tableIndex) updateText(id string, oldData, newData map[string]any) {
 }
 
 func (idx *tableIndex) removeText(id string) {
-	idx.updateText(id, nil, nil)
+	idx.updateText(id, nil)
 }
 
 // searchText returns IDs that match ALL terms in the query (AND semantics).
 func (idx *tableIndex) searchText(query string) []string {
+	if len(idx.searchFields) == 0 {
+		return nil
+	}
 	terms := tokenize(query)
 	if len(terms) == 0 {
 		return nil
@@ -214,6 +220,26 @@ func (idx *tableIndex) searchText(query string) []string {
 
 // ---- schema ----
 
+func (idx *tableIndex) hasSchema() bool {
+	return len(idx.indexedFields) > 0 || len(idx.searchFields) > 0
+}
+
+func (idx *tableIndex) schemaEquals(indexedFields, searchFields []string) bool {
+	return matchesFieldSet(idx.indexedFields, indexedFields) &&
+		matchesFieldSet(idx.searchFields, searchFields)
+}
+
+func matchesFieldSet(current map[string]bool, fields []string) bool {
+	distinct := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		if !current[f] {
+			return false
+		}
+		distinct[f] = struct{}{}
+	}
+	return len(distinct) == len(current)
+}
+
 func (idx *tableIndex) setSchema(indexedFields, searchFields []string) {
 	idx.indexedFields = make(map[string]bool, len(indexedFields))
 	for _, f := range indexedFields {
@@ -223,6 +249,11 @@ func (idx *tableIndex) setSchema(indexedFields, searchFields []string) {
 	for _, f := range searchFields {
 		idx.searchFields[f] = true
 	}
+
+	idx.secondaryByField = make(map[string]map[string]map[string]bool)
+	idx.fieldValuesByID = make(map[string]map[string]string)
+	idx.idsByTerm = make(map[string]map[string]bool)
+	idx.termsByID = make(map[string][]string)
 }
 
 // ---- helpers ----

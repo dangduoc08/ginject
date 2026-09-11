@@ -117,7 +117,25 @@ defer db.Close()
 
 A schema is optional. Without one, all queries use a full primary-index scan and text search returns nothing. With a schema, equality queries use a secondary index and full-text search uses an inverted index.
 
-**Call `Schema` before the application starts serving requests.** It rebuilds the secondary and text indexes from existing data on every call.
+**Prefer declaring schemas up front.** `storage.Register` accepts a `Schemas` map (and `storage.OpenWithSchemas` does the same for direct use), so each table builds its primary, secondary and text indexes during the single scan it already performs when the engine opens:
+
+```go
+storage.Register(&storage.StoreModuleOptions{
+    Path: dataDir,
+    Schemas: map[string]storage.ModelSchema{
+        "posts": {Fields: []storage.FieldSchema{
+            {Name: "status", Index: true},
+            {Name: "title", Search: true},
+        }},
+    },
+})
+```
+
+Calling `Model.Schema` afterwards with the same fields is then a no-op. Declaring the schema only through `Model.Schema` costs a second full scan of the table — measured at 839ms vs 683ms for 100k documents.
+
+**Call `Schema` before the application starts serving requests.** It rebuilds the secondary and text indexes from existing data whenever the declared field set differs from what is already registered; calling it again with the same fields is a no-op. Changing the field set releases the indexes for fields you dropped, so those fields fall back to a full scan (`Where`) or stop matching (`Search`).
+
+`Schema` panics if the table's engine cannot be opened — it is startup configuration, and leaving a table silently unindexed would surface much later as wrong query results.
 
 ```go
 db.Model("posts").Schema(storage.ModelSchema{
@@ -245,7 +263,7 @@ page := results[0:min(10, len(results))]
 
 ## Transactions
 
-A transaction groups multiple writes across one or more tables into an all-or-nothing operation. Operations are buffered in memory and written atomically to disk when the callback returns `nil`.
+A transaction buffers multiple writes in memory and commits them when the callback returns `nil`. Commit is atomic **per table**: all writes to a single table either all land or none do. Commit is **not** atomic across tables — if a transaction writes to several tables and a later table's write fails (or the process crashes between two tables' commits), the earlier tables' writes are already durable and are not rolled back. A transaction that only touches one table is fully atomic.
 
 ```go
 err := db.Tx(func(tx *storage.Tx) error {
@@ -269,20 +287,20 @@ err := db.Tx(func(tx *storage.Tx) error {
 })
 ```
 
-If the callback returns any error, `Tx` returns that error and no data is written.
+If the callback returns any error before any table has committed, `Tx` returns that error and no data is written. Once at least one table's group has committed, a later error only prevents the *remaining* tables' groups from being written — the earlier ones stay committed. The example above touches `accounts` twice and `transfers` once; if the `transfers` write fails after both `accounts` updates already committed, the balances are debited/credited but the audit row is missing. Keep every write that must succeed or fail together inside a single table, or handle partial-commit recovery yourself (e.g. an idempotent retry keyed by a request ID).
 
 `TxModel` supports `Create`, `UpdateByID`, and `DeleteByID`.
 
 ### What "atomic" means here
 
-When the callback returns `nil`:
+For each table touched by the transaction, when the callback returns `nil`:
 
-1. A `TX_BEGIN` marker is written to the segment.
-2. All buffered records are written in order.
+1. A `TX_BEGIN` marker is written to that table's segment.
+2. All of that table's buffered records are written in order.
 3. A `TX_COMMIT` marker is written and `fsync` is called.
-4. In-memory indexes are updated.
+4. That table's in-memory index is updated.
 
-Steps 1–3 happen under the engine write lock. If the process crashes between step 3 and step 4, the segment already has the full committed transaction. On the next `Open`, the recovery scan finds the `TX_COMMIT` and replays the indexes — no data is lost.
+Steps 1–3 happen under that table's engine write lock, one table at a time — not under one lock spanning every table in the transaction. If the process crashes between step 3 and step 4 for a given table, that table's segment already has the full committed group. On the next `Open`, the recovery scan finds the `TX_COMMIT` and replays the index for that table — no data is lost for tables that reached step 3, but tables not yet reached are simply never written.
 
 ---
 

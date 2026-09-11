@@ -466,6 +466,74 @@ func TestTx_Commit(t *testing.T) {
 	}
 }
 
+func TestTx_IndexesMaintained_InsertUpdateDelete(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "bio", Search: true}},
+	})
+
+	var id string
+	if err := db.Tx(func(tx *Tx) error {
+		doc, err := tx.Model("users").Create(map[string]any{"role": "user", "bio": "writes golang"})
+		if err != nil {
+			return err
+		}
+		id = doc.ID
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	users, _ := m.Find().Where("role", OpEq, "user").Exec()
+	if len(users) != 1 {
+		t.Error(test.DiffMessage(len(users), 1, "tx insert must populate the secondary index"))
+	}
+	hits, _ := m.Search("golang")
+	if len(hits) != 1 {
+		t.Error(test.DiffMessage(len(hits), 1, "tx insert must populate the text index"))
+	}
+
+	if err := db.Tx(func(tx *Tx) error {
+		return tx.Model("users").UpdateByID(id, map[string]any{"role": "admin", "bio": "writes rust"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	stale, _ := m.Find().Where("role", OpEq, "user").Exec()
+	if len(stale) != 0 {
+		t.Error(test.DiffMessage(len(stale), 0, "tx update must drop the old secondary entry"))
+	}
+	admins, _ := m.Find().Where("role", OpEq, "admin").Exec()
+	if len(admins) != 1 {
+		t.Error(test.DiffMessage(len(admins), 1, "tx update must add the new secondary entry"))
+	}
+	staleTerms, _ := m.Search("golang")
+	if len(staleTerms) != 0 {
+		t.Error(test.DiffMessage(len(staleTerms), 0, "tx update must drop the old text terms"))
+	}
+	newTerms, _ := m.Search("rust")
+	if len(newTerms) != 1 {
+		t.Error(test.DiffMessage(len(newTerms), 1, "tx update must add the new text terms"))
+	}
+
+	if err := db.Tx(func(tx *Tx) error {
+		return tx.Model("users").DeleteByID(id)
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	gone, _ := m.Find().Where("role", OpEq, "admin").Exec()
+	if len(gone) != 0 {
+		t.Error(test.DiffMessage(len(gone), 0, "tx delete must drop the secondary entry"))
+	}
+	goneTerms, _ := m.Search("rust")
+	if len(goneTerms) != 0 {
+		t.Error(test.DiffMessage(len(goneTerms), 0, "tx delete must drop the text terms"))
+	}
+}
+
 func TestTx_Rollback_OnError(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -571,6 +639,138 @@ func TestCompact_LiveRecordsPreserved(t *testing.T) {
 		if _, err := m.FindByID(id); err != nil {
 			t.Error(test.DiffMessage(err, nil, "live doc must survive compact"))
 		}
+	}
+}
+
+func TestCompact_SecondaryIndexPreserved_WithSchema(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+	_, _ = m.Create(map[string]any{"role": "admin"})
+	_, _ = m.Create(map[string]any{"role": "user"})
+	doomed, _ := m.Create(map[string]any{"role": "admin"})
+	_ = m.DeleteByID(doomed.ID)
+
+	if err := db.Compact(); err != nil {
+		t.Fatal(err)
+	}
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !eng.idx.hasSecondaryField("role") {
+		t.Error(test.DiffMessage(false, true, "compaction must not discard the registered schema"))
+	}
+	if len(eng.idx.secondaryByField["role"]) == 0 {
+		t.Error(test.DiffMessage(0, 1, "compaction must rebuild the secondary index for a schema that was already registered"))
+	}
+
+	docs, err := m.Find().Where("role", OpEq, "admin").Exec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Error(test.DiffMessage(len(docs), 1, "indexed lookup must return only live documents after compaction"))
+	}
+}
+
+func TestCompact_TextIndexPreserved_WithSchema(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("posts").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "title", Search: true}},
+	})
+	_, _ = m.Create(map[string]any{"title": "golang storage engine"})
+	doomed, _ := m.Create(map[string]any{"title": "golang removed entry"})
+	_ = m.DeleteByID(doomed.ID)
+
+	if err := db.Compact(); err != nil {
+		t.Fatal(err)
+	}
+
+	docs, err := m.Search("golang")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Error(test.DiffMessage(len(docs), 1, "compaction must rebuild the text index for a schema that was already registered"))
+	}
+}
+
+func TestPersistence_PrimaryIndexCompleteAfterReopenWithoutSchema(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "persist")
+	db1, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m1 := db1.Model("users")
+	var ids []string
+	for i := 0; i < 20; i++ {
+		doc, err := m1.Create(map[string]any{"role": "admin", "i": i})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, doc.ID)
+	}
+	_ = db1.Close()
+
+	db2, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db2.Close() }()
+
+	m2 := db2.Model("users")
+	for _, id := range ids {
+		if _, err := m2.FindByID(id); err != nil {
+			t.Fatal(test.DiffMessage(err, nil, "every document must stay in the primary index after a reopen with no schema registered"))
+		}
+	}
+}
+
+func TestPersistence_SecondaryIndexRebuiltBySchemaAfterReopen(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "persist")
+	db1, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m1 := db1.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "bio", Search: true}},
+	})
+	_, _ = m1.Create(map[string]any{"role": "admin", "bio": "builds storage engines"})
+	_, _ = m1.Create(map[string]any{"role": "user", "bio": "writes documentation"})
+	_, _ = m1.Create(map[string]any{"role": "admin", "bio": "reviews storage patches"})
+	_ = db1.Close()
+
+	db2, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db2.Close() }()
+
+	m2 := db2.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "bio", Search: true}},
+	})
+
+	docs, err := m2.Find().Where("role", OpEq, "admin").Exec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 2 {
+		t.Error(test.DiffMessage(len(docs), 2, "Schema must rebuild the secondary index from data loaded by a previous process"))
+	}
+
+	found, err := m2.Search("storage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 2 {
+		t.Error(test.DiffMessage(len(found), 2, "Schema must rebuild the text index from data loaded by a previous process"))
 	}
 }
 
@@ -768,6 +968,198 @@ func TestSecondaryIndex_UpdateRemovesOldEntry(t *testing.T) {
 	}
 }
 
+func TestSchema_ClosedDB_Panics(t *testing.T) {
+	db, cleanup := tempDB(t)
+	cleanup()
+
+	m := db.Model("users")
+	defer func() {
+		rec := recover()
+		if rec == nil {
+			t.Fatal(test.DiffMessage(nil, ErrClosed, "Schema must not silently skip indexing when the engine cannot be opened"))
+		}
+		if err, ok := rec.(error); !ok || err != ErrClosed {
+			t.Error(test.DiffMessage(rec, ErrClosed, "Schema must panic with the underlying engine error"))
+		}
+	}()
+
+	m.Schema(ModelSchema{Fields: []FieldSchema{{Name: "role", Index: true}}})
+}
+
+func TestSchema_IdenticalCall_SkipsRebuild(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+	_, _ = m.Create(map[string]any{"role": "admin"})
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eng.idx.secondaryByField["role"]) == 0 {
+		t.Fatal(test.DiffMessage(0, 1, "first Schema call must build the secondary index"))
+	}
+
+	eng.mu.Lock()
+	eng.idx.secondaryByField = make(map[string]map[string]map[string]bool)
+	eng.mu.Unlock()
+
+	m.Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+
+	if len(eng.idx.secondaryByField) != 0 {
+		t.Error(test.DiffMessage(len(eng.idx.secondaryByField), 0, "an identical Schema call must not re-scan the table"))
+	}
+}
+
+func TestSchema_DuplicateFieldEntries_StillSkipsRebuild(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	dup := ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "role", Index: true}},
+	}
+
+	m := db.Model("users").Schema(dup)
+	_, _ = m.Create(map[string]any{"role": "admin"})
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	eng.mu.Lock()
+	eng.idx.secondaryByField = make(map[string]map[string]map[string]bool)
+	eng.mu.Unlock()
+
+	m.Schema(dup)
+
+	if len(eng.idx.secondaryByField) != 0 {
+		t.Error(test.DiffMessage(len(eng.idx.secondaryByField), 0, "repeated field entries must not defeat the unchanged-schema check"))
+	}
+}
+
+func TestSchema_SameFieldDifferentRole_Rebuilds(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("posts").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "title", Index: true}},
+	})
+	_, _ = m.Create(map[string]any{"title": "golang storage"})
+
+	m.Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "title", Search: true}},
+	})
+
+	found, err := m.Search("golang")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 {
+		t.Error(test.DiffMessage(len(found), 1, "moving a field from Index to Search must rebuild the text index"))
+	}
+
+	eng, err := db.getEngine("posts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := eng.idx.secondaryByField["title"]; ok {
+		t.Error(test.DiffMessage(true, false, "moving a field from Index to Search must release its secondary index"))
+	}
+}
+
+func TestSchema_Change_DropsStaleTextIndex(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("posts").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "bio", Search: true}},
+	})
+	_, _ = m.Create(map[string]any{"bio": "builds storage engines", "role": "admin"})
+
+	found, _ := m.Search("storage")
+	if len(found) != 1 {
+		t.Fatal(test.DiffMessage(len(found), 1, "text index must work while the search field is registered"))
+	}
+
+	m.Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+
+	stale, err := m.Search("storage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stale) != 0 {
+		t.Error(test.DiffMessage(len(stale), 0, "a schema that no longer declares a search field must not keep answering Search from the old text index"))
+	}
+
+	eng, err := db.getEngine("posts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eng.idx.idsByTerm) != 0 || len(eng.idx.termsByID) != 0 {
+		t.Error(test.DiffMessage([]int{len(eng.idx.idsByTerm), len(eng.idx.termsByID)}, []int{0, 0}, "dropping a search field must release its text index"))
+	}
+}
+
+func TestSchema_Change_DropsStaleSecondaryIndex(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+	_, _ = m.Create(map[string]any{"role": "admin", "team": "core"})
+
+	m.Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "team", Index: true}},
+	})
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := eng.idx.secondaryByField["role"]; ok {
+		t.Error(test.DiffMessage(true, false, "dropping an indexed field must release its secondary index"))
+	}
+	if len(eng.idx.secondaryByField["team"]) == 0 {
+		t.Error(test.DiffMessage(0, 1, "the newly indexed field must be populated"))
+	}
+
+	docs, err := m.Find().Where("role", OpEq, "admin").Exec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Error(test.DiffMessage(len(docs), 1, "a no-longer-indexed field must still be queryable by full scan"))
+	}
+}
+
+func TestSecondaryIndex_EmptyFieldBucketReleased(t *testing.T) {
+	db, cleanup := tempDB(t)
+	defer cleanup()
+
+	m := db.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}},
+	})
+	doc, _ := m.Create(map[string]any{"role": "admin"})
+	_ = m.DeleteByID(doc.ID)
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := eng.idx.secondaryByField["role"]; ok {
+		t.Error(test.DiffMessage(true, false, "a field bucket must be released once its last value is gone"))
+	}
+}
+
 func TestTextIndex_DeleteRemovesTerms(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -781,5 +1173,107 @@ func TestTextIndex_DeleteRemovesTerms(t *testing.T) {
 	results, _ := m.Search("golang")
 	if len(results) != 0 {
 		t.Error(test.DiffMessage(len(results), 0, "deleted doc must not appear in search"))
+	}
+}
+
+func TestOpenWithSchemas_BuildsIndexesInOnePass(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "declared")
+
+	db1, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m1 := db1.Model("users").Schema(ModelSchema{
+		Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "bio", Search: true}},
+	})
+	_, _ = m1.Create(map[string]any{"role": "admin", "bio": "builds storage engines"})
+	_, _ = m1.Create(map[string]any{"role": "user", "bio": "writes documentation"})
+	_ = db1.Close()
+
+	schemas := map[string]ModelSchema{
+		"users": {Fields: []FieldSchema{{Name: "role", Index: true}, {Name: "bio", Search: true}}},
+	}
+	db2, err := OpenWithSchemas(dir, schemas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db2.Close() }()
+
+	m2 := db2.Model("users")
+
+	docs, err := m2.Find().Where("role", OpEq, "admin").Exec()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Error(test.DiffMessage(len(docs), 1, "a pre-declared schema must leave the secondary index ready without calling Schema"))
+	}
+
+	found, err := m2.Search("storage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 {
+		t.Error(test.DiffMessage(len(found), 1, "a pre-declared schema must leave the text index ready without calling Schema"))
+	}
+
+	eng, err := db2.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !eng.idx.schemaEquals([]string{"role"}, []string{"bio"}) {
+		t.Error(test.DiffMessage(false, true, "the engine must already carry the declared schema"))
+	}
+
+	eng.mu.Lock()
+	eng.idx.secondaryByField = make(map[string]map[string]map[string]bool)
+	eng.mu.Unlock()
+
+	m2.Schema(schemas["users"])
+
+	if len(eng.idx.secondaryByField) != 0 {
+		t.Error(test.DiffMessage(len(eng.idx.secondaryByField), 0, "calling Schema with the already-declared fields must not trigger a second scan"))
+	}
+}
+
+func TestOpenWithSchemas_NilSchemas_BehavesLikeOpen(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nodeclared")
+
+	db, err := OpenWithSchemas(dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	m := db.Model("users")
+	doc, err := m.Create(map[string]any{"role": "admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.FindByID(doc.ID); err != nil {
+		t.Error(test.DiffMessage(err, nil, "a database opened without declared schemas must still work"))
+	}
+}
+
+func TestOpenWithSchemas_CopiesCallerMap(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "copied")
+
+	schemas := map[string]ModelSchema{
+		"users": {Fields: []FieldSchema{{Name: "role", Index: true}}},
+	}
+	db, err := OpenWithSchemas(dir, schemas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	delete(schemas, "users")
+
+	eng, err := db.getEngine("users")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !eng.idx.hasSecondaryField("role") {
+		t.Error(test.DiffMessage(false, true, "mutating the caller's map after Open must not change the database's schemas"))
 	}
 }

@@ -14,16 +14,31 @@ type DB struct {
 	enginesByTable map[string]*engine
 	modelsByTable  map[string]*Model
 	hooks          *hookSet
-	isClosed         bool
+	schemasByTable map[string]ModelSchema
+	isClosed       bool
 }
 
 // Open opens (or creates) the database rooted at path.
 func Open(path string) (*DB, error) {
+	return OpenWithSchemas(path, nil)
+}
+
+// OpenWithSchemas opens the database and pre-declares each table's schema, so a
+// table builds its primary, secondary and text indexes in the single pass it
+// already makes when the engine opens. Calling Model.Schema afterwards with the
+// same fields is then a no-op instead of a second full scan.
+func OpenWithSchemas(path string, schemasByTable map[string]ModelSchema) (*DB, error) {
+	declared := make(map[string]ModelSchema, len(schemasByTable))
+	for table, schema := range schemasByTable {
+		declared[table] = schema
+	}
+
 	db := &DB{
 		path:           path,
 		enginesByTable: make(map[string]*engine),
 		modelsByTable:  make(map[string]*Model),
 		hooks:          newHookSet(),
+		schemasByTable: declared,
 	}
 	return db, nil
 }
@@ -148,8 +163,12 @@ func (db *DB) getEngine(table string) (*engine, error) {
 		return eng, nil
 	}
 	dir := filepath.Join(db.path, table)
+	var declared *ModelSchema
+	if s, ok := db.schemasByTable[table]; ok {
+		declared = &s
+	}
 	var err error
-	eng, err = openEngine(dir)
+	eng, err = openEngine(dir, declared)
 	if err != nil {
 		return nil, err
 	}

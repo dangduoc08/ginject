@@ -17,12 +17,17 @@ type txOp struct {
 }
 
 // Tx is an in-progress transaction. Obtain one via DB.Tx().
-// All operations are buffered in memory and written atomically to disk on commit.
+// All operations are buffered in memory. On commit, operations are grouped
+// by table and each table's group is written atomically to disk; commit is
+// NOT atomic across tables — if a later table's write fails (or the process
+// crashes between two tables' commits), earlier tables' writes are already
+// durable and are not rolled back. A Tx touching only one table is fully
+// atomic; a Tx touching several tables is atomic per table, not as a whole.
 type Tx struct {
 	db          *DB
 	id          uint64
 	ops         []txOp
-	docsByTable map[string]map[string]Document // table → id → doc (for within-tx reads)
+	docsByTable map[string]map[string]Document
 }
 
 func newTx(db *DB) *Tx {
@@ -176,31 +181,14 @@ func (tx *Tx) commit() error {
 			switch op.r.rtype {
 			case recInsert, recUpdate:
 				op.r.txID = 0
-				var oldData map[string]any
-				if old, ok := eng.idx.getPrimary(op.r.id); ok {
-					if seg := eng.segByID(old.segID); seg != nil {
-						if prev, err := readRecordAt(seg, old); err == nil {
-							oldData, _, _, _ = unmarshalPayload(prev.payload)
-						}
-					}
-				}
 				eng.idx.setPrimary(op.r.id, op.loc)
 				newData, _, _, _ := unmarshalPayload(op.r.payload)
-				eng.idx.updateSecondary(op.r.id, oldData, newData)
-				eng.idx.updateText(op.r.id, oldData, newData)
+				eng.idx.updateSecondary(op.r.id, newData)
+				eng.idx.updateText(op.r.id, newData)
 			case recDelete:
-				var oldData map[string]any
-				if old, ok := eng.idx.getPrimary(op.r.id); ok {
-					if seg := eng.segByID(old.segID); seg != nil {
-						if prev, err := readRecordAt(seg, old); err == nil {
-							oldData, _, _, _ = unmarshalPayload(prev.payload)
-						}
-					}
-				}
 				eng.idx.deletePrimary(op.r.id)
 				eng.idx.removeSecondary(op.r.id)
 				eng.idx.removeText(op.r.id)
-				_ = oldData
 			}
 		}
 

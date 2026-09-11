@@ -7,12 +7,18 @@ type OnInitFn = func()
 // StoreModuleOptions configures the store module.
 type StoreModuleOptions struct {
 	IsGlobal bool
-	Path     string  // directory where data files are stored; required
+	Path     string // directory where data files are stored; required
 	OnInit   OnInitFn
 
 	// DisableGitignore turns off the default behavior of adding Path to the
 	// project's .gitignore (creating the file if it doesn't exist yet).
 	DisableGitignore bool
+
+	// Schemas pre-declares per-table indexing, keyed by table name. Declaring a
+	// schema here lets the table build every index during the scan it already
+	// performs when opening, instead of paying a second full pass in
+	// Model.Schema.
+	Schemas map[string]ModelSchema
 }
 
 // Register creates and returns a configured store module.
@@ -29,7 +35,7 @@ func Register(opts *StoreModuleOptions) *core.Module {
 		ensureGitignoreEntry(opts.Path)
 	}
 
-	db, err := Open(opts.Path)
+	db, err := OpenWithSchemas(opts.Path, opts.Schemas)
 	if err != nil {
 		panic("store: failed to open database: " + err.Error())
 	}

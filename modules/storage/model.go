@@ -75,10 +75,7 @@ func newModel(db *DB, table string) *Model {
 	return &Model{db: db, table: table}
 }
 
-// Schema registers field-level indexing hints and rebuilds secondary/text indexes
-// from existing data. Must be called before requests arrive for accurate queries.
-func (m *Model) Schema(s ModelSchema) *Model {
-	var indexed, search []string
+func splitSchemaFields(s ModelSchema) (indexed, search []string) {
 	for _, f := range s.Fields {
 		if f.Index {
 			indexed = append(indexed, f.Name)
@@ -87,12 +84,30 @@ func (m *Model) Schema(s ModelSchema) *Model {
 			search = append(search, f.Name)
 		}
 	}
+	return indexed, search
+}
+
+// Schema registers field-level indexing hints and rebuilds secondary/text indexes
+// from existing data. Must be called before requests arrive for accurate queries.
+// Panics if the table's engine cannot be opened - Schema is startup
+// configuration, and silently leaving a table unindexed would surface much
+// later as wrong query results.
+//
+// Declaring the same schema through StoreModuleOptions.Schemas avoids this
+// second pass entirely: the engine then builds every index while it is already
+// scanning the table open.
+func (m *Model) Schema(s ModelSchema) *Model {
+	indexed, search := splitSchemaFields(s)
 
 	eng, err := m.db.getEngine(m.table)
 	if err != nil {
-		return m
+		panic(err)
 	}
 	eng.mu.Lock()
+	if eng.idx.schemaEquals(indexed, search) {
+		eng.mu.Unlock()
+		return m
+	}
 	eng.idx.setSchema(indexed, search)
 	// rebuild secondary + text from primary index
 	for id, loc := range eng.idx.locationByID {
@@ -108,8 +123,8 @@ func (m *Model) Schema(s ModelSchema) *Model {
 		if err != nil {
 			continue
 		}
-		eng.idx.updateSecondary(id, nil, data)
-		eng.idx.updateText(id, nil, data)
+		eng.idx.updateSecondary(id, data)
+		eng.idx.updateText(id, data)
 	}
 	eng.mu.Unlock()
 	return m
@@ -147,8 +162,8 @@ func (m *Model) Create(data map[string]any) (Document, error) {
 		return Document{}, err
 	}
 	eng.idx.setPrimary(id, loc)
-	eng.idx.updateSecondary(id, nil, data)
-	eng.idx.updateText(id, nil, data)
+	eng.idx.updateSecondary(id, data)
+	eng.idx.updateText(id, data)
 	eng.mu.Unlock()
 
 	doc := Document{ID: id, Data: data, CreatedAt: now, UpdatedAt: now}
@@ -201,7 +216,7 @@ func (m *Model) UpdateByID(id string, data map[string]any) error {
 		eng.mu.Unlock()
 		return ErrNotFound
 	}
-	// read old doc to preserve createdAt and gather old index data
+	// read old doc to preserve createdAt
 	oldDoc, err := eng.readDoc(id, oldLoc)
 	if err != nil {
 		eng.mu.Unlock()
@@ -226,8 +241,8 @@ func (m *Model) UpdateByID(id string, data map[string]any) error {
 		return err
 	}
 	eng.idx.setPrimary(id, loc)
-	eng.idx.updateSecondary(id, oldDoc.Data, data)
-	eng.idx.updateText(id, oldDoc.Data, data)
+	eng.idx.updateSecondary(id, data)
+	eng.idx.updateText(id, data)
 	eng.mu.Unlock()
 
 	m.db.runHook(m.db.hooks, "post", "update", m.table, id, data)

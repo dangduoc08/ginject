@@ -36,13 +36,16 @@ type engine struct {
 	idx     *tableIndex
 }
 
-func openEngine(dir string) (*engine, error) {
+func openEngine(dir string, schema *ModelSchema) (*engine, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 	e := &engine{dir: dir, idx: newTableIndex()}
 	if err := e.loadSegments(); err != nil {
 		return nil, err
+	}
+	if schema != nil {
+		e.idx.setSchema(splitSchemaFields(*schema))
 	}
 	if err := e.rebuildIndex(); err != nil {
 		return nil, err
@@ -163,6 +166,7 @@ func (e *engine) rebuildIndex() error {
 	}
 
 	// Phase 2: build secondary and text indexes from live records
+	hasSchema := e.idx.hasSchema()
 	for id, loc := range primary {
 		seg := e.segByID(loc.segID)
 		if seg == nil {
@@ -173,11 +177,11 @@ func (e *engine) rebuildIndex() error {
 			continue
 		}
 		e.idx.setPrimary(id, loc)
-		if len(r.payload) > 0 {
+		if hasSchema && len(r.payload) > 0 {
 			data, _, _, err := unmarshalPayload(r.payload)
 			if err == nil {
-				e.idx.updateSecondary(id, nil, data)
-				e.idx.updateText(id, nil, data)
+				e.idx.updateSecondary(id, data)
+				e.idx.updateText(id, data)
 			}
 		}
 	}
@@ -390,7 +394,9 @@ func (e *engine) compact() error {
 	}
 
 	// rebuild index from new segments
+	indexedFields, searchFields := e.idx.indexedFields, e.idx.searchFields
 	e.idx = newTableIndex()
+	e.idx.indexedFields, e.idx.searchFields = indexedFields, searchFields
 	_ = e.rebuildIndex()
 	return nil
 }

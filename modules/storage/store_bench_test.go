@@ -150,3 +150,35 @@ func BenchmarkTokenize(b *testing.B) {
 		_ = tokenize(s)
 	}
 }
+
+func BenchmarkTx_Update(b *testing.B) {
+	db, cleanup := benchDB(b)
+	defer cleanup()
+
+	m := db.Model("users")
+	doc, _ := m.Create(map[string]any{"role": "user", "bio": "writes golang every day"})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = db.Tx(func(tx *Tx) error {
+			return tx.Model("users").UpdateByID(doc.ID, map[string]any{"role": "admin", "bio": "writes rust every day"})
+		})
+	}
+}
+
+func BenchmarkTx_Delete(b *testing.B) {
+	db, cleanup := benchDB(b)
+	defer cleanup()
+
+	m := db.Model("users")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		doc, _ := m.Create(map[string]any{"role": "user", "bio": "writes golang every day"})
+		b.StartTimer()
+		_ = db.Tx(func(tx *Tx) error {
+			return tx.Model("users").DeleteByID(doc.ID)
+		})
+	}
+}
