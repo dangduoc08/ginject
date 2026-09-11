@@ -174,7 +174,15 @@ throttler.Throttler{Strategy: throttler.TokenBucket}
 
 Type: `func(*ctx.HTTPContext) string`
 
-Default: `defaultThrottlerKeyFunc` (extracts IP from `X-Real-IP`, `X-Forwarded-For`, or `RemoteAddr`)
+Default: `remoteAddrThrottlerKeyFunc` (derives the IP from `RemoteAddr` only).
+
+`X-Real-IP` and `X-Forwarded-For` are **not** trusted by default: they are
+client-supplied, so honouring them would let any caller pick a fresh throttle
+bucket per request and bypass the limit completely. Set
+`TrustProxyHeaders: true` when a trusted proxy in front of the app overwrites
+those headers, which switches the default key func to
+`proxyAwareThrottlerKeyFunc` (`X-Real-IP`, then first `X-Forwarded-For` entry,
+then `RemoteAddr`).
 
 Required: `false`
 
@@ -199,13 +207,15 @@ Default: `memorycache.NewMemoryCache()`
 
 Required: `false`
 
-The cache backend used to store request counts. Any implementation of the `cache.Cache` interface works. If nil, a new in-memory cache is created.
+The cache backend used to store request counts. Any implementation of the `cache.Cache` interface works. If nil, a new in-memory cache is created — this default `memorycache.MemoryCache` starts a background sweep goroutine with no way to stop it through the guard, so it lives for the process's lifetime. That's fine for a normal single-instance app. If you build and discard many `App` instances in the same process (e.g. in tests), construct your own `memorycache.NewMemoryCache()`, pass it as `Backend`, and call `.Stop()` on it yourself when done, instead of relying on the nil default.
 
 ```go
 throttler.Throttler{
 	Backend: redisCache, // or any cache.Cache implementation
 }
 ```
+
+If the backend also implements `cache.AtomicMutator` (as `memorycache.MemoryCache` does), the throttler performs its read-modify-write counter update as a single atomic operation, so concurrent requests hitting the same key never lose an update. A backend that only implements `cache.Cache` still works, but its counter update is a separate `Get` then `Set` and can lose updates under concurrent access to the same key — implement `AtomicMutator` on any custom backend (e.g. a Redis client wrapper using `INCR`/`WATCH`/Lua) to get the same guarantee.
 
 ---
 

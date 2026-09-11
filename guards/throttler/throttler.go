@@ -24,11 +24,12 @@ const (
 )
 
 type Throttler struct {
-	Limit    int64
-	TTL      time.Duration
-	Strategy Strategy
-	KeyFunc  func(*ctx.HTTPContext) string
-	Backend  cache.Cache
+	Backend           cache.Cache
+	KeyFunc           func(*ctx.HTTPContext) string
+	Limit             int64
+	TTL               time.Duration
+	Strategy          Strategy
+	TrustProxyHeaders bool
 }
 
 func (g Throttler) NewGuard() Throttler {
@@ -39,7 +40,11 @@ func (g Throttler) NewGuard() Throttler {
 		g.TTL = time.Minute
 	}
 	if g.KeyFunc == nil {
-		g.KeyFunc = defaultThrottlerKeyFunc
+		if g.TrustProxyHeaders {
+			g.KeyFunc = proxyAwareThrottlerKeyFunc
+		} else {
+			g.KeyFunc = remoteAddrThrottlerKeyFunc
+		}
 	}
 	if g.Backend == nil {
 		g.Backend = memorycache.NewMemoryCache()
@@ -64,7 +69,7 @@ func (g Throttler) CanActivate(c *ctx.HTTPContext) bool {
 }
 
 type rateLimitResult struct {
-	isAllowed   bool
+	isAllowed bool
 	limit     int64
 	remaining int64
 	resetAt   int64
@@ -88,20 +93,16 @@ func (g Throttler) fixedWindow(bgCtx context.Context, key string) rateLimitResul
 	windowID := nowSec / windowSec
 	cacheKey := "rl:fw:" + key + ":" + strconv.FormatInt(windowID, 10)
 	resetAt := (windowID + 1) * windowSec
-
-	var count int64 = 1
-	if raw, ok := g.Backend.Get(bgCtx, cacheKey); ok && len(raw) == 8 {
-		count = int64(binary.BigEndian.Uint64(raw)) + 1
-	}
-
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(count))
 	ttlRemaining := max(time.Duration(resetAt-nowSec)*time.Second, time.Second)
-	_ = g.Backend.Set(bgCtx, cacheKey, buf[:], ttlRemaining)
+
+	count, err := incrementCounter(bgCtx, g.Backend, cacheKey, ttlRemaining)
+	if err != nil {
+		count = 1
+	}
 
 	remaining := max(g.Limit-count, 0)
 	return rateLimitResult{
-		isAllowed:   count <= g.Limit,
+		isAllowed: count <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
@@ -126,20 +127,16 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 		prevCount = int64(binary.BigEndian.Uint64(raw))
 	}
 
-	var currCount int64 = 1
-	if raw, ok := g.Backend.Get(bgCtx, currKey); ok && len(raw) == 8 {
-		currCount = int64(binary.BigEndian.Uint64(raw)) + 1
+	currCount, err := incrementCounter(bgCtx, g.Backend, currKey, time.Duration(2*windowSec)*time.Second)
+	if err != nil {
+		currCount = 1
 	}
 
 	weighted := int64(math.Round(float64(prevCount)*(1-ratio))) + currCount
 
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(currCount))
-	_ = g.Backend.Set(bgCtx, currKey, buf[:], time.Duration(2*windowSec)*time.Second)
-
 	remaining := max(g.Limit-weighted, 0)
 	return rateLimitResult{
-		isAllowed:   weighted <= g.Limit,
+		isAllowed: weighted <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
@@ -150,17 +147,36 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResult {
 	cacheKey := "rl:tb:" + key
 	refillRate := float64(g.Limit) / float64(g.TTL.Nanoseconds())
-
 	now := time.Now().UnixNano()
-	var tokens float64
+	setTTL := g.TTL * 2
 
-	if raw, ok := g.Backend.Get(bgCtx, cacheKey); ok && len(raw) == 16 {
+	if am, ok := g.Backend.(cache.AtomicMutator); ok {
+		var result rateLimitResult
+		_, err := am.Mutate(bgCtx, cacheKey, func(old []byte, exists bool) ([]byte, time.Duration) {
+			var encoded []byte
+			result, encoded = computeTokenBucket(old, exists, now, g.Limit, g.TTL, refillRate)
+			return encoded, setTTL
+		})
+		if err == nil {
+			return result
+		}
+	}
+
+	raw, exists := g.Backend.Get(bgCtx, cacheKey)
+	result, encoded := computeTokenBucket(raw, exists, now, g.Limit, g.TTL, refillRate)
+	_ = g.Backend.Set(bgCtx, cacheKey, encoded, setTTL)
+	return result
+}
+
+func computeTokenBucket(raw []byte, exists bool, now int64, limit int64, ttl time.Duration, refillRate float64) (rateLimitResult, []byte) {
+	var tokens float64
+	if exists && len(raw) == 16 {
 		tokens = math.Float64frombits(binary.BigEndian.Uint64(raw[:8]))
 		lastRefill := int64(binary.BigEndian.Uint64(raw[8:]))
 		elapsed := float64(now - lastRefill)
-		tokens = math.Min(float64(g.Limit), tokens+elapsed*refillRate)
+		tokens = math.Min(float64(limit), tokens+elapsed*refillRate)
 	} else {
-		tokens = float64(g.Limit)
+		tokens = float64(limit)
 	}
 
 	isAllowed := tokens >= 1.0
@@ -168,28 +184,71 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 		tokens--
 	}
 
-	var buf [16]byte
-	binary.BigEndian.PutUint64(buf[:8], math.Float64bits(tokens))
-	binary.BigEndian.PutUint64(buf[8:], uint64(now))
-	_ = g.Backend.Set(bgCtx, cacheKey, buf[:], g.TTL*2)
-
 	var resetAt int64
 	if !isAllowed && refillRate > 0 {
 		nsUntilNext := (1.0 - tokens) / refillRate
 		resetAt = time.Unix(0, now+int64(nsUntilNext)).Unix()
 	} else {
-		resetAt = time.Unix(0, now+int64(g.TTL)).Unix()
+		resetAt = time.Unix(0, now+int64(ttl)).Unix()
 	}
 
-	return rateLimitResult{
-		isAllowed:   isAllowed,
-		limit:     g.Limit,
+	result := rateLimitResult{
+		isAllowed: isAllowed,
+		limit:     limit,
 		remaining: int64(math.Floor(tokens)),
 		resetAt:   resetAt,
 	}
+
+	var buf [16]byte
+	binary.BigEndian.PutUint64(buf[:8], math.Float64bits(tokens))
+	binary.BigEndian.PutUint64(buf[8:], uint64(now))
+	return result, buf[:]
 }
 
-func defaultThrottlerKeyFunc(c *ctx.HTTPContext) string {
+func incrementCounter(bgCtx context.Context, backend cache.Cache, key string, ttl time.Duration) (int64, error) {
+	mutate := func(old []byte, exists bool) ([]byte, time.Duration) {
+		var count int64 = 1
+		if exists && len(old) == 8 {
+			count = int64(binary.BigEndian.Uint64(old)) + 1
+		}
+		var buf [8]byte
+		binary.BigEndian.PutUint64(buf[:], uint64(count))
+		return buf[:], ttl
+	}
+
+	if am, ok := backend.(cache.AtomicMutator); ok {
+		newVal, err := am.Mutate(bgCtx, key, mutate)
+		if err == nil {
+			return int64(binary.BigEndian.Uint64(newVal)), nil
+		}
+	}
+
+	var count int64 = 1
+	if raw, ok := backend.Get(bgCtx, key); ok && len(raw) == 8 {
+		count = int64(binary.BigEndian.Uint64(raw)) + 1
+	}
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(count))
+	if err := backend.Set(bgCtx, key, buf[:], ttl); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// remoteAddrThrottlerKeyFunc keys purely off the transport peer address.
+// X-Real-IP and X-Forwarded-For are attacker-controlled unless a trusted proxy
+// overwrites them, so honouring them by default would let any client pick a
+// fresh bucket per request and bypass the limit entirely. Opt in with
+// Throttler.TrustProxyHeaders when a trusted proxy really does set them.
+func remoteAddrThrottlerKeyFunc(c *ctx.HTTPContext) string {
+	host, _, err := net.SplitHostPort(c.RemoteAddr)
+	if err != nil || host == "" {
+		return c.RemoteAddr
+	}
+	return host
+}
+
+func proxyAwareThrottlerKeyFunc(c *ctx.HTTPContext) string {
 	if xrip := c.Request.Header.Get("X-Real-IP"); xrip != "" {
 		return strings.TrimSpace(xrip)
 	}
@@ -199,9 +258,5 @@ func defaultThrottlerKeyFunc(c *ctx.HTTPContext) string {
 		}
 		return strings.TrimSpace(xff)
 	}
-	host, _, err := net.SplitHostPort(c.RemoteAddr)
-	if err != nil || host == "" {
-		return c.RemoteAddr
-	}
-	return host
+	return remoteAddrThrottlerKeyFunc(c)
 }

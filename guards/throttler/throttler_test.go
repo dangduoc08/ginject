@@ -63,6 +63,15 @@ func (tc *testCache) TTL(_ context.Context, _ string) (time.Duration, bool) {
 	return 0, false
 }
 
+func (tc *testCache) Mutate(_ context.Context, key string, fn func(old []byte, exists bool) ([]byte, time.Duration)) ([]byte, error) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	old, exists := tc.items[key]
+	newVal, _ := fn(old, exists)
+	tc.items[key] = append([]byte(nil), newVal...)
+	return tc.items[key], nil
+}
+
 func newGuard(limit int64, ttl time.Duration, strategy Strategy) Throttler {
 	return Throttler{
 		Limit:    limit,
@@ -241,44 +250,78 @@ func TestTokenBucket_ResetAtIsSet(t *testing.T) {
 	}
 }
 
-// --- defaultThrottlerKeyFunc ---
+// --- throttler key funcs ---
 
 func TestDefaultKeyFunc_RemoteAddr(t *testing.T) {
 	c := newCtx("192.168.1.1:1234")
-	if key := defaultThrottlerKeyFunc(c); key != "192.168.1.1" {
+	if key := remoteAddrThrottlerKeyFunc(c); key != "192.168.1.1" {
 		t.Error(test.DiffMessage(key, "192.168.1.1", "must extract IP from RemoteAddr"))
 	}
 }
 
-func TestDefaultKeyFunc_XRealIP(t *testing.T) {
+func TestProxyAwareKeyFunc_XRealIP(t *testing.T) {
 	c := newCtx("10.0.0.1:0")
 	c.Request.Header.Set("X-Real-IP", "203.0.113.1")
-	if key := defaultThrottlerKeyFunc(c); key != "203.0.113.1" {
+	if key := proxyAwareThrottlerKeyFunc(c); key != "203.0.113.1" {
 		t.Error(test.DiffMessage(key, "203.0.113.1", "X-Real-IP must take priority"))
 	}
 }
 
-func TestDefaultKeyFunc_XForwardedFor(t *testing.T) {
+func TestProxyAwareKeyFunc_XForwardedFor(t *testing.T) {
 	c := newCtx("10.0.0.1:0")
 	c.Request.Header.Set("X-Forwarded-For", "203.0.113.2, 10.0.0.1")
-	if key := defaultThrottlerKeyFunc(c); key != "203.0.113.2" {
+	if key := proxyAwareThrottlerKeyFunc(c); key != "203.0.113.2" {
 		t.Error(test.DiffMessage(key, "203.0.113.2", "must use first IP from X-Forwarded-For"))
 	}
 }
 
-func TestDefaultKeyFunc_XRealIPPriority(t *testing.T) {
+func TestProxyAwareKeyFunc_XRealIPPriority(t *testing.T) {
 	c := newCtx("10.0.0.1:0")
 	c.Request.Header.Set("X-Real-IP", "203.0.113.1")
 	c.Request.Header.Set("X-Forwarded-For", "198.51.100.1")
-	if key := defaultThrottlerKeyFunc(c); key != "203.0.113.1" {
+	if key := proxyAwareThrottlerKeyFunc(c); key != "203.0.113.1" {
 		t.Error(test.DiffMessage(key, "203.0.113.1", "X-Real-IP must beat X-Forwarded-For"))
 	}
 }
 
 func TestDefaultKeyFunc_InvalidRemoteAddr(t *testing.T) {
 	c := newCtx("not-an-addr")
-	if key := defaultThrottlerKeyFunc(c); key != "not-an-addr" {
+	if key := remoteAddrThrottlerKeyFunc(c); key != "not-an-addr" {
 		t.Error(test.DiffMessage(key, "not-an-addr", "unparseable RemoteAddr must be returned as-is"))
+	}
+}
+
+func TestNewGuard_DefaultKeyFunc_IgnoresSpoofedProxyHeaders(t *testing.T) {
+	g := Throttler{}.NewGuard()
+
+	c := newCtx("203.0.113.9:1234")
+	c.Request.Header.Set("X-Real-IP", "1.1.1.1")
+	c.Request.Header.Set("X-Forwarded-For", "2.2.2.2")
+
+	if key := g.KeyFunc(c); key != "203.0.113.9" {
+		t.Error(test.DiffMessage(key, "203.0.113.9", "by default a client must not be able to pick its own throttle bucket via proxy headers"))
+	}
+}
+
+func TestNewGuard_TrustProxyHeaders_HonorsProxyHeaders(t *testing.T) {
+	g := Throttler{TrustProxyHeaders: true}.NewGuard()
+
+	c := newCtx("203.0.113.9:1234")
+	c.Request.Header.Set("X-Real-IP", "1.1.1.1")
+
+	if key := g.KeyFunc(c); key != "1.1.1.1" {
+		t.Error(test.DiffMessage(key, "1.1.1.1", "TrustProxyHeaders must opt back into proxy-supplied client IPs"))
+	}
+}
+
+func TestNewGuard_ExplicitKeyFunc_Wins(t *testing.T) {
+	g := Throttler{
+		TrustProxyHeaders: true,
+		KeyFunc:           func(*ctx.HTTPContext) string { return "fixed" },
+	}.NewGuard()
+
+	if key := g.KeyFunc(newCtx("203.0.113.9:1234")); key != "fixed" {
+		t.Error(test.DiffMessage(key, "fixed", "an explicit KeyFunc must not be overridden"))
 	}
 }
 
@@ -339,6 +382,11 @@ func TestFixedWindow_ConcurrentSafe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	res := g.fixedWindow(context.Background(), "ip")
+	if want := g.Limit - 101; res.remaining != want {
+		t.Error(test.DiffMessage(res.remaining, want, "counter must reflect all 100 concurrent increments plus this one, no updates may be lost to the read-modify-write race"))
+	}
 }
 
 func TestTokenBucket_ConcurrentSafe(t *testing.T) {
@@ -352,6 +400,12 @@ func TestTokenBucket_ConcurrentSafe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	res := g.tokenBucket(context.Background(), "ip")
+	want := g.Limit - 101
+	if res.remaining < want-3 || res.remaining > want+3 {
+		t.Error(test.DiffMessage(res.remaining, want, "token count must reflect all 100 concurrent decrements plus this one (within small refill tolerance), no updates may be lost to the read-modify-write race"))
+	}
 }
 
 func TestSlidingWindow_ConcurrentSafe(t *testing.T) {
@@ -365,6 +419,11 @@ func TestSlidingWindow_ConcurrentSafe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	res := g.slidingWindow(context.Background(), "ip")
+	if want := g.Limit - 101; res.remaining != want {
+		t.Error(test.DiffMessage(res.remaining, want, "current-window counter must reflect all 100 concurrent increments plus this one, no updates may be lost to the read-modify-write race"))
+	}
 }
 
 // --- check dispatch ---

@@ -61,7 +61,7 @@ func BenchmarkDefaultKeyFunc_RemoteAddr(b *testing.B) {
 	c := benchCtx()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		defaultThrottlerKeyFunc(c)
+		remoteAddrThrottlerKeyFunc(c)
 	}
 }
 
@@ -70,7 +70,7 @@ func BenchmarkDefaultKeyFunc_XForwardedFor(b *testing.B) {
 	c.Request.Header.Set("X-Forwarded-For", "203.0.113.1, 10.0.0.1")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		defaultThrottlerKeyFunc(c)
+		remoteAddrThrottlerKeyFunc(c)
 	}
 }
 
