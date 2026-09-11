@@ -17,12 +17,27 @@ import (
 
 const maxModuleNameStackDepth = 32
 
+const corePkgFramePrefix = "github.com/dangduoc08/ginject/core."
+
 var moduleNameFileCache sync.Map // file path -> *parsedModuleFile
+
+var moduleNameCandidateCache sync.Map // moduleNameCandidateKey -> moduleNameCandidate
 
 type parsedModuleFile struct {
 	fset *token.FileSet
 	file *ast.File
 	ok   bool
+}
+
+type moduleNameCandidateKey struct {
+	file              string
+	line              int
+	allowFuncLitMatch bool
+}
+
+type moduleNameCandidate struct {
+	varName  string
+	funcName string
 }
 
 type moduleBuilder struct {
@@ -125,8 +140,25 @@ func parseModuleFile(path string) (*token.FileSet, *ast.File, bool) {
 	return p.fset, p.file, p.ok
 }
 
-func isSkippableModuleNameFrame(function string) bool {
-	return strings.HasPrefix(function, "reflect.") || strings.HasPrefix(function, "runtime.")
+func isSkippableModuleNameFrame(function, file string) bool {
+	if strings.HasPrefix(function, "reflect.") || strings.HasPrefix(function, "runtime.") {
+		return true
+	}
+
+	return strings.HasPrefix(function, corePkgFramePrefix) && !strings.HasSuffix(file, "_test.go")
+}
+
+func moduleNameCandidates(fset *token.FileSet, astFile *ast.File, file string, line int, allowFuncLitMatch bool) (string, string) {
+	key := moduleNameCandidateKey{file: file, line: line, allowFuncLitMatch: allowFuncLitMatch}
+	if cached, ok := moduleNameCandidateCache.Load(key); ok {
+		c := cached.(moduleNameCandidate)
+		return c.varName, c.funcName
+	}
+
+	varName, funcName := moduleNameCandidatesAtLine(fset, astFile, line, allowFuncLitMatch)
+	moduleNameCandidateCache.Store(key, moduleNameCandidate{varName: varName, funcName: funcName})
+
+	return varName, funcName
 }
 
 func moduleNameCandidatesAtLine(fset *token.FileSet, astFile *ast.File, line int, allowFuncLitMatch bool) (varName, funcName string) {
@@ -180,9 +212,9 @@ func resolveModuleName() string {
 	for {
 		frame, more := frames.Next()
 
-		if !isSkippableModuleNameFrame(frame.Function) {
+		if !isSkippableModuleNameFrame(frame.Function, frame.File) {
 			if fset, astFile, ok := parseModuleFile(frame.File); ok {
-				varName, funcName := moduleNameCandidatesAtLine(fset, astFile, frame.Line, isInnermost)
+				varName, funcName := moduleNameCandidates(fset, astFile, frame.File, frame.Line, isInnermost)
 				if varName != "" {
 					return astFile.Name.Name + "." + varName
 				}

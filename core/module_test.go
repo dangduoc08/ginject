@@ -1,11 +1,13 @@
 package core
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
 	"github.com/dangduoc08/ginject/common"
@@ -15,7 +17,7 @@ import (
 )
 
 // NewModule leans on package-level state (mainModulePtr, globalProviderByKey,
-// providerSingletonByKey, staticModuleByDynamicPtr, globalPrefixesByController) that persists
+// providerSlotByKey, staticModuleByDynamicPtr, globalPrefixesByController) that persists
 // across the whole test binary, plus common.InsertedRoutes/InsertedEvents.
 // Every test below must start from a clean slate or it will observe leftover
 // state from whichever test happened to run first in the package.
@@ -25,7 +27,7 @@ func resetModuleGlobals() {
 	staticModuleByDynamicPtr = make(map[uintptr]*Module)
 	globalPrefixesByController = make(map[string][]string)
 	globalProviderByKey = sync.Map{}
-	providerSingletonByKey = make(map[string]Provider)
+	providerSlotByKey = make(map[string]*providerSlot)
 	common.InsertedRoutes = make(map[string]string)
 	common.InsertedEvents = make(map[string]string)
 }
@@ -65,6 +67,136 @@ func TestNewModule_ProviderHoisting_DependencyConstructedBeforeDependent(t *test
 
 	if len(mtConstructOrder) != 2 || mtConstructOrder[0] != "A" || mtConstructOrder[1] != "B" {
 		t.Error(test.DiffMessage(mtConstructOrder, []string{"A", "B"}, "a provider's dependency must construct before the dependent, regardless of declaration order"))
+	}
+}
+
+var mtChainLog []string
+
+type mtChainC struct{ Built bool }
+
+func (p mtChainC) NewProvider() Provider {
+	p.Built = true
+	mtChainLog = append(mtChainLog, "C")
+	return p
+}
+
+type mtChainB struct {
+	C     mtChainC
+	Built bool
+}
+
+func (p mtChainB) NewProvider() Provider {
+	p.Built = true
+	mtChainLog = append(mtChainLog, fmt.Sprintf("B(C.Built=%v)", p.C.Built))
+	return p
+}
+
+type mtChainA struct {
+	B     mtChainB
+	Built bool
+}
+
+func (p mtChainA) NewProvider() Provider {
+	p.Built = true
+	mtChainLog = append(mtChainLog, fmt.Sprintf("A(B.Built=%v,B.C.Built=%v)", p.B.Built, p.B.C.Built))
+	return p
+}
+
+func TestNewModule_ProviderHoisting_TransitiveChainConstructsDeepestFirst(t *testing.T) {
+	resetModuleGlobals()
+	mtChainLog = nil
+
+	m := ModuleBuilder().
+		Providers(mtChainA{}, mtChainB{}, mtChainC{}).
+		Build()
+
+	m.NewModule()
+
+	want := []string{"C", "B(C.Built=true)", "A(B.Built=true,B.C.Built=true)"}
+	if len(mtChainLog) != len(want) {
+		t.Fatal(test.DiffMessage(mtChainLog, want, "each provider in a 3-deep chain must construct exactly once, deepest first"))
+	}
+	for i := range want {
+		if mtChainLog[i] != want[i] {
+			t.Error(test.DiffMessage(mtChainLog, want, "a provider must receive the constructed instance of its transitive dependencies"))
+		}
+	}
+}
+
+func TestNewModule_ProviderHoisting_LeavesNoDuplicateProviders(t *testing.T) {
+	resetModuleGlobals()
+	mtChainLog = nil
+
+	m := ModuleBuilder().
+		Providers(mtChainA{}, mtChainB{}, mtChainC{}).
+		Build()
+
+	built := m.NewModule()
+
+	seen := make(map[reflect.Type]int, len(built.providers))
+	for _, provider := range built.providers {
+		seen[reflect.TypeOf(provider)]++
+	}
+
+	for providerType, count := range seen {
+		if count != 1 {
+			t.Error(test.DiffMessage(count, 1, fmt.Sprintf("provider '%v' must appear exactly once in module providers", providerType)))
+		}
+	}
+
+	if len(built.providers) != 3 {
+		t.Error(test.DiffMessage(len(built.providers), 3, "hoisting must not grow the provider list"))
+	}
+}
+
+var mtSharedLog []string
+var mtSharedDepCount int
+
+type mtSharedDep struct{ Built bool }
+
+func (p mtSharedDep) NewProvider() Provider {
+	p.Built = true
+	mtSharedDepCount++
+	return p
+}
+
+type mtSharedDependentX struct{ Dep mtSharedDep }
+
+func (p mtSharedDependentX) NewProvider() Provider {
+	mtSharedLog = append(mtSharedLog, fmt.Sprintf("X(Dep.Built=%v)", p.Dep.Built))
+	return p
+}
+
+type mtSharedDependentY struct{ Dep mtSharedDep }
+
+func (p mtSharedDependentY) NewProvider() Provider {
+	mtSharedLog = append(mtSharedLog, fmt.Sprintf("Y(Dep.Built=%v)", p.Dep.Built))
+	return p
+}
+
+func TestNewModule_ProviderHoisting_SharedDependencyConstructedOnceAndInjectedBuilt(t *testing.T) {
+	resetModuleGlobals()
+	mtSharedLog = nil
+	mtSharedDepCount = 0
+
+	m := ModuleBuilder().
+		Providers(mtSharedDependentX{}, mtSharedDependentY{}, mtSharedDep{}).
+		Build()
+
+	m.NewModule()
+
+	if mtSharedDepCount != 1 {
+		t.Error(test.DiffMessage(mtSharedDepCount, 1, "a provider depended on by two providers must construct exactly once"))
+	}
+
+	want := []string{"X(Dep.Built=true)", "Y(Dep.Built=true)"}
+	if len(mtSharedLog) != len(want) {
+		t.Fatal(test.DiffMessage(mtSharedLog, want, "each dependent must construct exactly once"))
+	}
+	for i := range want {
+		if mtSharedLog[i] != want[i] {
+			t.Error(test.DiffMessage(mtSharedLog, want, "every dependent must receive the constructed shared dependency"))
+		}
 	}
 }
 
@@ -130,6 +262,39 @@ func TestNewModule_DynamicModule_MissingGlobalDependencyPanics(t *testing.T) {
 
 	root := ModuleBuilder().Imports(mtDynamicModuleNeedingProvider).Build()
 	root.NewModule()
+}
+
+func mtCircularModuleA() *Module {
+	return ModuleBuilder().Imports(mtCircularModuleB).Build()
+}
+
+func mtCircularModuleB() *Module {
+	return ModuleBuilder().Imports(mtCircularModuleA).Build()
+}
+
+func TestNewModule_CircularDynamicImport_PanicsInsteadOfDeadlocking(t *testing.T) {
+	resetModuleGlobals()
+
+	root := ModuleBuilder().Imports(mtCircularModuleA).Build()
+
+	done := make(chan any, 1)
+	go func() {
+		defer func() { done <- recover() }()
+		root.NewModule()
+	}()
+
+	select {
+	case rec := <-done:
+		if rec == nil {
+			t.Fatal(test.DiffMessage(nil, "panic", "a circular dynamic module import must panic instead of building successfully"))
+		}
+		msg, ok := rec.(string)
+		if !ok || !strings.Contains(msg, "circular import") {
+			t.Error(test.DiffMessage(rec, "panic mentioning 'circular import'", "panic message must clearly explain the cycle"))
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("NewModule deadlocked on a circular dynamic module import instead of panicking")
+	}
 }
 
 type mtUnexportedFieldProvider struct {
@@ -800,7 +965,7 @@ func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing
 
 // ---------------------------------------------------------------------------
 // concurrency: NewModule mutates package-level state (mainModulePtr,
-// globalProviderByKey, providerSingletonByKey, staticModuleByDynamicPtr,
+// globalProviderByKey, providerSlotByKey, staticModuleByDynamicPtr,
 // globalPrefixesByController) on top of the per-Module mutex, so two independent module
 // trees built and initialized concurrently (e.g. two apps in the same test
 // binary) must not corrupt that shared state.

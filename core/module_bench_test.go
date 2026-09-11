@@ -639,7 +639,32 @@ func BenchmarkInjectStaticModules(b *testing.B) {
 		root := ModuleBuilder().Imports(makeBenchStaticSubmodules(n)...).Build()
 		b.StartTimer()
 
-		root.injectStaticModules()
+		root.injectStaticModules(make(map[*Module]struct{}))
+	}
+}
+
+type benchSharedInfraProvider struct{}
+
+func (p benchSharedInfraProvider) NewProvider() Provider { return p }
+
+func makeBenchDiamondSubmodules(n int, shared *Module) []any {
+	imports := make([]any, n)
+	for i := range imports {
+		imports[i] = ModuleBuilder().Imports(shared).Providers(benchStaticSubProvider{}).Build()
+	}
+	return imports
+}
+
+func BenchmarkNewModule_DiamondSharedImport(b *testing.B) {
+	const n = 100
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		resetModuleGlobals()
+		shared := ModuleBuilder().Providers(benchSharedInfraProvider{}).Build()
+		root := ModuleBuilder().Imports(makeBenchDiamondSubmodules(n, shared)...).Build()
+		b.StartTimer()
+
+		root.NewModule()
 	}
 }
 

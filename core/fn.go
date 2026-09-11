@@ -27,6 +27,8 @@ import (
 
 var pkgFromControllerKeyReg = regexp.MustCompile(`\[.*?\]`)
 
+var fieldKeyCache sync.Map
+
 func isDynamicModule(moduleType string) bool {
 	return strings.HasPrefix(moduleType, "func(") && strings.HasSuffix(moduleType, "*core.Module")
 }
@@ -129,7 +131,14 @@ func getPkgFromControllerKey(k string) string {
 }
 
 func genFieldKey(t reflect.Type) string {
-	return t.PkgPath() + "/" + t.String()
+	if cached, ok := fieldKeyCache.Load(t); ok {
+		return cached.(string)
+	}
+
+	key := t.PkgPath() + "/" + t.String()
+	fieldKeyCache.Store(t, key)
+
+	return key
 }
 
 // snapshotGlobalProviders copies the current contents of globalProviderByKey

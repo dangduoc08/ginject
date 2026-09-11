@@ -25,7 +25,13 @@ var globalPrefixesByController = make(map[string][]string)
 // would otherwise have to be taken on the hot request path.
 var globalProviderByKey sync.Map  // map[string]Provider
 var globalInterfaceByKey sync.Map // map[string]any
-var providerSingletonByKey map[string]Provider = make(map[string]Provider)
+
+type providerSlot struct {
+	value Provider
+	once  sync.Once
+}
+
+var providerSlotByKey = make(map[string]*providerSlot)
 var fieldNameByRole = map[string]string{
 	"http":            "HTTP",
 	"guard":           "Guard",
@@ -50,9 +56,9 @@ type Module struct {
 	providers      []Provider
 	controllers    []Controller
 
-	IsGlobal bool
-	OnInit   func()
-	OnReady  func()
+	IsGlobal   bool
+	OnInit     func()
+	OnReady    func()
 	OnShutdown func()
 
 	// store HTTP module exception filters
@@ -135,6 +141,23 @@ func (m *Module) collectModules() []*Module {
 }
 
 func (m *Module) NewModule() *Module {
+	return m.newModule(make(map[*Module]struct{}))
+}
+
+func (m *Module) label() string {
+	if m.Name != "" {
+		return m.Name
+	}
+	return m.id
+}
+
+func (m *Module) newModule(path map[*Module]struct{}) *Module {
+	if _, inProgress := path[m]; inProgress {
+		panic(color.FmtRed("invalid module: circular import detected involving '%s'", m.label()))
+	}
+	path[m] = struct{}{}
+	defer delete(path, m)
+
 	m.Lock()
 	defer m.Unlock()
 
@@ -148,8 +171,8 @@ func (m *Module) NewModule() *Module {
 	}
 
 	m.bootstrapMainModule()
-	m.injectStaticModules()
-	m.injectDynamicModules()
+	m.injectStaticModules(path)
+	m.injectDynamicModules(path)
 	m.registerControllerPrefixes()
 
 	injectedProviders := m.injectProviders()
@@ -209,20 +232,30 @@ func prependInjectedModules(m *Module, injectModules []*Module) {
 		return
 	}
 
-	totalProviders, totalControllers := 0, 0
+	seenProviders := make(map[reflect.Type]struct{}, len(m.providers))
+	for _, provider := range m.providers {
+		seenProviders[reflect.TypeOf(provider)] = struct{}{}
+	}
+
+	var dedupedProviders []Provider
+	for i := len(injectModules) - 1; i >= 0; i-- {
+		for _, provider := range injectModules[i].providers {
+			t := reflect.TypeOf(provider)
+			if _, ok := seenProviders[t]; ok {
+				continue
+			}
+			seenProviders[t] = struct{}{}
+			dedupedProviders = append(dedupedProviders, provider)
+		}
+	}
+	if len(dedupedProviders) > 0 {
+		m.providers = append(dedupedProviders, m.providers...)
+	}
+
+	totalControllers := 0
 	for _, injectModule := range injectModules {
-		totalProviders += len(injectModule.providers)
 		totalControllers += len(injectModule.controllers)
 	}
-
-	if totalProviders > 0 {
-		reordered := make([]Provider, 0, totalProviders+len(m.providers))
-		for i := len(injectModules) - 1; i >= 0; i-- {
-			reordered = append(reordered, injectModules[i].providers...)
-		}
-		m.providers = append(reordered, m.providers...)
-	}
-
 	if totalControllers > 0 {
 		reordered := make([]Controller, 0, totalControllers+len(m.controllers))
 		for i := len(injectModules) - 1; i >= 0; i-- {
@@ -234,19 +267,19 @@ func prependInjectedModules(m *Module, injectModules []*Module) {
 	toUniqueControllers(m, &m.controllers)
 }
 
-func (m *Module) injectStaticModules() {
+func (m *Module) injectStaticModules(path map[*Module]struct{}) {
 	// no need to inject global here since globally static modules
 	// should already be injected from main to make them injectable
 
 	injectModules := make([]*Module, 0, len(m.staticModules))
 	for _, staticModule := range m.staticModules {
-		injectModules = append(injectModules, staticModule.NewModule())
+		injectModules = append(injectModules, staticModule.newModule(path))
 	}
 
 	prependInjectedModules(m, injectModules)
 }
 
-func (m *Module) injectDynamicModules() {
+func (m *Module) injectDynamicModules(path map[*Module]struct{}) {
 	injectModules := make([]*Module, 0, len(m.dynamicModules))
 	for _, dynamicModule := range m.dynamicModules {
 		var staticModule *Module
@@ -262,7 +295,7 @@ func (m *Module) injectDynamicModules() {
 		}
 		moduleGlobalMu.Unlock()
 
-		injectModules = append(injectModules, staticModule.NewModule())
+		injectModules = append(injectModules, staticModule.newModule(path))
 	}
 
 	prependInjectedModules(m, injectModules)
@@ -299,17 +332,29 @@ func (m *Module) injectProviders() map[string]Provider {
 		}
 	}
 	if len(hoisted) > 0 {
-		reordered := make([]Provider, 0, len(hoisted)+len(m.providers))
+		hoistedTypes := make(map[reflect.Type]struct{}, len(hoisted))
+		reordered := make([]Provider, 0, len(m.providers))
+
 		for i := len(hoisted) - 1; i >= 0; i-- {
+			hoistedType := reflect.TypeOf(hoisted[i])
+			if _, ok := hoistedTypes[hoistedType]; ok {
+				continue
+			}
+			hoistedTypes[hoistedType] = struct{}{}
 			reordered = append(reordered, hoisted[i])
 		}
-		m.providers = append(reordered, m.providers...)
+
+		for _, provider := range m.providers {
+			if _, ok := hoistedTypes[reflect.TypeOf(provider)]; ok {
+				continue
+			}
+			reordered = append(reordered, provider)
+		}
+
+		m.providers = reordered
 	}
 
 	// inject providers into providers
-	moduleGlobalMu.Lock()
-	defer moduleGlobalMu.Unlock()
-
 	for i, provider := range m.providers {
 		newProvider, err := injectDependencies(provider, "provider", injectedProviders)
 		if err != nil {
@@ -318,21 +363,29 @@ func (m *Module) injectProviders() map[string]Provider {
 
 		providerKey := genProviderKey(provider)
 
-		if providerSingletonByKey[providerKey] == nil {
-			providerSingletonByKey[providerKey] = newProvider.Interface().(Provider).NewProvider()
+		moduleGlobalMu.Lock()
+		slot, ok := providerSlotByKey[providerKey]
+		if !ok {
+			slot = &providerSlot{}
+			providerSlotByKey[providerKey] = slot
+		}
+		moduleGlobalMu.Unlock()
+
+		slot.once.Do(func() {
+			slot.value = newProvider.Interface().(Provider).NewProvider()
+		})
+		if slot.value == nil {
+			panic(color.FmtRed("dependency injection: provider '%s' failed to initialize", providerKey))
 		}
 
-		m.providers[i] = providerSingletonByKey[providerKey]
-		injectedProviders[providerKey] = providerSingletonByKey[providerKey]
+		m.providers[i] = slot.value
+		injectedProviders[providerKey] = slot.value
 	}
 
 	return injectedProviders
 }
 
 func (m *Module) injectControllers(injectedProviders map[string]Provider) {
-	moduleGlobalMu.Lock()
-	defer moduleGlobalMu.Unlock()
-
 	for i, controller := range m.controllers {
 		newController, err := injectDependencies(controller, "controller", injectedProviders)
 		if err != nil {
@@ -347,6 +400,8 @@ func (m *Module) injectControllers(injectedProviders map[string]Provider) {
 }
 
 func controllerModulePrefixes(controllerType reflect.Type) []string {
+	moduleGlobalMu.Lock()
+	defer moduleGlobalMu.Unlock()
 	return globalPrefixesByController[genFieldKey(controllerType)]
 }
 
