@@ -196,3 +196,116 @@ func TestWrapLogger_ConcurrentMaskingCallsNoDataRace(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+type maskCollectionUser struct {
+	Name     string `log:"name"`
+	Password string `log:"password"`
+}
+
+type maskUntaggedUser struct {
+	Name     string
+	Password string
+}
+
+func TestWrapLogger_SliceOfStructs_MasksEachElement(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	l.Info("test", "users", []maskCollectionUser{
+		{Name: "duoc", Password: "secret-1"},
+		{Name: "alice", Password: "secret-2"},
+	})
+
+	elems, ok := cap.args()[1].([]any)
+	if !ok {
+		t.Fatal(test.DiffMessage(cap.args()[1], "[]any", "a slice of structs must be walked, not handed to the sink untouched"))
+	}
+	if len(elems) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(elems))
+	}
+	for i, elem := range elems {
+		got := elem.(map[string]any)
+		if got["password"] != maskPlaceholder {
+			t.Error(test.DiffMessage(got["password"], maskPlaceholder, "logging a collection must not bypass masking"))
+		}
+		if got["name"] == maskPlaceholder {
+			t.Errorf("element %d: unrelated fields must stay readable", i)
+		}
+		_ = i
+	}
+}
+
+func TestWrapLogger_ArrayOfStructs_MasksEachElement(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	l.Info("test", "users", [1]maskCollectionUser{{Name: "duoc", Password: "secret"}})
+
+	elems := cap.args()[1].([]any)
+	if got := elems[0].(map[string]any); got["password"] != maskPlaceholder {
+		t.Error(test.DiffMessage(got["password"], maskPlaceholder, "a fixed-size array must be walked like a slice"))
+	}
+}
+
+func TestWrapLogger_SliceNestedInMap_MasksEachElement(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	l.Info("test", "payload", map[string]any{
+		"users": []maskCollectionUser{{Name: "duoc", Password: "secret"}},
+	})
+
+	payload := cap.args()[1].(map[string]any)
+	elems := payload["users"].([]any)
+	if got := elems[0].(map[string]any); got["password"] != maskPlaceholder {
+		t.Error(test.DiffMessage(got["password"], maskPlaceholder, "a collection reached through a map must still be walked"))
+	}
+}
+
+func TestWrapLogger_ByteSlice_LeftAsIs(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	payload := []byte("hello")
+	l.Info("test", "body", payload)
+
+	if got, ok := cap.args()[1].([]byte); !ok || string(got) != "hello" {
+		t.Error(test.DiffMessage(cap.args()[1], payload, "a byte slice must not be exploded into a list of numbers by the element walk"))
+	}
+}
+
+func TestWrapLogger_StringSlice_LeftAsIs(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	l.Info("test", "tags", []string{"a", "b"})
+
+	if _, ok := cap.args()[1].([]string); !ok {
+		t.Error(test.DiffMessage(cap.args()[1], []string{"a", "b"}, "a scalar slice needs no walk and must keep its concrete type"))
+	}
+}
+
+func TestWrapLogger_SliceMatchingRule_MaskedWholesale(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"users"})
+	l.Info("test", "users", []maskCollectionUser{{Name: "duoc", Password: "secret"}})
+
+	if cap.args()[1] != maskPlaceholder {
+		t.Error(test.DiffMessage(cap.args()[1], maskPlaceholder, "a rule naming the collection itself must mask the whole value"))
+	}
+}
+
+func TestWrapLogger_UntaggedStructField_NeedsMatchingCaseRule(t *testing.T) {
+	cap := &capturingLogger{}
+	l := WrapLogger(cap, []string{"password"})
+	l.Info("test", "users", []maskUntaggedUser{{Name: "duoc", Password: "secret"}})
+
+	got := cap.args()[1].([]any)[0].(map[string]any)
+	if got["Password"] != "secret" {
+		t.Error(test.DiffMessage(got["Password"], "secret", "rule matching is case-sensitive: a lowercase rule does not reach an untagged Go field name"))
+	}
+
+	cap2 := &capturingLogger{}
+	l2 := WrapLogger(cap2, []string{"Password"})
+	l2.Info("test", "users", []maskUntaggedUser{{Name: "duoc", Password: "secret"}})
+
+	got2 := cap2.args()[1].([]any)[0].(map[string]any)
+	if got2["Password"] != maskPlaceholder {
+		t.Error(test.DiffMessage(got2["Password"], maskPlaceholder, "a rule matching the exported field name must mask an untagged field"))
+	}
+}

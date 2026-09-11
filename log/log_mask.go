@@ -98,6 +98,14 @@ func (l *maskingLogger) resolveReflect(path string, rv reflect.Value) any {
 		return out
 	}
 
+	if k := rv.Kind(); (k == reflect.Slice || k == reflect.Array) && elemCanHoldSecrets(rv.Type().Elem()) && rv.Len() > 0 {
+		out := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			out[i] = l.resolveReflect(path, rv.Index(i))
+		}
+		return out
+	}
+
 	if rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String {
 		keys := rv.MapKeys()
 		if len(keys) == 0 {
@@ -118,6 +126,19 @@ func (l *maskingLogger) resolveReflect(path string, rv reflect.Value) any {
 		return maskPlaceholder
 	}
 	return rv.Interface()
+}
+
+// elemCanHoldSecrets keeps byte slices, string slices and other scalar
+// collections out of the element walk, so masking never turns []byte into a
+// list of numbers.
+func elemCanHoldSecrets(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Struct, reflect.Map, reflect.Interface,
+		reflect.Pointer, reflect.Slice, reflect.Array:
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *maskingLogger) matchesExact(path string) bool {
