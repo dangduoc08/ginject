@@ -1,12 +1,28 @@
 package memorybroker
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/dangduoc08/ginject/internal/color"
 	ptrn "github.com/dangduoc08/ginject/pattern"
 )
+
+type PanicHandler func(topic string, recovered any)
+
+type Option func(*MemoryBroker)
+
+// WithPanicHandler replaces the default stderr report for panics escaping a
+// subscriber. Handlers stay isolated either way.
+func WithPanicHandler(fn PanicHandler) Option {
+	return func(b *MemoryBroker) {
+		b.onPanic = fn
+	}
+}
 
 type MemoryBroker struct {
 	rwMu           sync.RWMutex
@@ -14,17 +30,25 @@ type MemoryBroker struct {
 	prefixByPrefix map[string]map[string]*subscription
 	globalByID     map[string]*subscription
 	complexByTopic map[string]*complexGroup
+	onPanic        PanicHandler
+	nPrefixSubs    int
 	closed         atomic.Bool
 	wg             sync.WaitGroup
 }
 
-func NewMemoryBroker() Broker {
-	return &MemoryBroker{
+func NewMemoryBroker(opts ...Option) Broker {
+	b := &MemoryBroker{
 		exactByTopic:   make(map[string]map[string]*subscription),
 		prefixByPrefix: make(map[string]map[string]*subscription),
 		globalByID:     make(map[string]*subscription),
 		complexByTopic: make(map[string]*complexGroup),
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(b)
+		}
+	}
+	return b
 }
 
 func (b *MemoryBroker) Publish(topic string, payload any) error {
@@ -88,20 +112,27 @@ func (b *MemoryBroker) Subscribe(topic string, handler MessageHandler) (Subscrip
 		b.globalByID[sub.id] = sub
 	case ptrn.KindSuffixWildcard:
 		pfx := pat.SimplePrefix()
-		if b.prefixByPrefix[pfx] == nil {
-			b.prefixByPrefix[pfx] = make(map[string]*subscription)
+		bucket := b.prefixByPrefix[pfx]
+		if bucket == nil {
+			bucket = make(map[string]*subscription)
+			b.prefixByPrefix[pfx] = bucket
 		}
-		b.prefixByPrefix[pfx][sub.id] = sub
+		bucket[sub.id] = sub
+		b.nPrefixSubs++
 	case ptrn.KindExact:
-		if b.exactByTopic[topic] == nil {
-			b.exactByTopic[topic] = make(map[string]*subscription)
+		bucket := b.exactByTopic[topic]
+		if bucket == nil {
+			bucket = make(map[string]*subscription)
+			b.exactByTopic[topic] = bucket
 		}
-		b.exactByTopic[topic][sub.id] = sub
+		bucket[sub.id] = sub
 	case ptrn.KindComplex:
-		if b.complexByTopic[topic] == nil {
-			b.complexByTopic[topic] = &complexGroup{pattern: pat, subsByID: make(map[string]*subscription)}
+		cg := b.complexByTopic[topic]
+		if cg == nil {
+			cg = &complexGroup{pattern: pat, subsByID: make(map[string]*subscription)}
+			b.complexByTopic[topic] = cg
 		}
-		b.complexByTopic[topic].subsByID[sub.id] = sub
+		cg.subsByID[sub.id] = sub
 	}
 	b.rwMu.Unlock()
 
@@ -148,59 +179,80 @@ func (b *MemoryBroker) Close() error {
 	b.prefixByPrefix = make(map[string]map[string]*subscription)
 	b.globalByID = make(map[string]*subscription)
 	b.complexByTopic = make(map[string]*complexGroup)
+	b.nPrefixSubs = 0
 	b.rwMu.Unlock()
 	return nil
 }
 
 func (b *MemoryBroker) callHandler(h MessageHandler, msg *Message) {
-	defer func() { _ = recover() }()
+	defer func() {
+		if rec := recover(); rec != nil {
+			b.reportPanic(msg.Topic, rec)
+		}
+	}()
 	h(msg)
 }
 
-func (b *MemoryBroker) publishInternal(topic string, payload any) error {
-	now := time.Now()
+func (b *MemoryBroker) reportPanic(topic string, rec any) {
+	defer func() { _ = recover() }()
 
-	b.rwMu.RLock()
-	total := len(b.exactByTopic[topic]) + len(b.globalByID)
-	forEachPrefixOf(topic, func(prefix string) {
-		total += len(b.prefixByPrefix[prefix])
-	})
-	var matchedComplex []*complexGroup
-	for _, cg := range b.complexByTopic {
-		if cg.pattern.Match(topic) {
-			matchedComplex = append(matchedComplex, cg)
-			total += len(cg.subsByID)
-		}
+	if b.onPanic != nil {
+		b.onPanic(topic, rec)
+		return
 	}
 
-	if total == 0 {
+	fmt.Fprintln(os.Stderr, color.FmtRed("memorybroker: subscriber panic recovered on topic '%v': %v", topic, rec))
+}
+
+func (b *MemoryBroker) publishInternal(topic string, payload any) error {
+	b.rwMu.RLock()
+
+	exact := b.exactByTopic[topic]
+	nDirect := len(exact) + len(b.globalByID)
+	hasPrefix := len(b.prefixByPrefix) > 0
+	hasComplex := len(b.complexByTopic) > 0
+
+	if nDirect == 0 && !hasPrefix && !hasComplex {
 		b.rwMu.RUnlock()
 		return nil
 	}
 
-	handlers := make([]MessageHandler, 0, total)
-	for _, sub := range b.exactByTopic[topic] {
+	var handlers []MessageHandler
+	if total := nDirect + b.nPrefixSubs; total > 0 {
+		handlers = make([]MessageHandler, 0, total)
+	}
+	for _, sub := range exact {
 		handlers = append(handlers, sub.handler)
 	}
-	forEachPrefixOf(topic, func(prefix string) {
-		for _, sub := range b.prefixByPrefix[prefix] {
-			handlers = append(handlers, sub.handler)
-		}
-	})
 	for _, sub := range b.globalByID {
 		handlers = append(handlers, sub.handler)
 	}
-	for _, cg := range matchedComplex {
-		for _, sub := range cg.subsByID {
-			handlers = append(handlers, sub.handler)
+	if hasPrefix {
+		for i := strings.LastIndexByte(topic, '.'); i >= 0; i = strings.LastIndexByte(topic[:i], '.') {
+			for _, sub := range b.prefixByPrefix[topic[:i]] {
+				handlers = append(handlers, sub.handler)
+			}
+		}
+	}
+	if hasComplex {
+		for _, cg := range b.complexByTopic {
+			if cg.pattern.Match(topic) {
+				for _, sub := range cg.subsByID {
+					handlers = append(handlers, sub.handler)
+				}
+			}
 		}
 	}
 	b.rwMu.RUnlock()
 
+	if len(handlers) == 0 {
+		return nil
+	}
+
 	msg := &Message{
 		Topic:     topic,
 		Payload:   payload,
-		Timestamp: now,
+		Timestamp: time.Now(),
 	}
 	for _, h := range handlers {
 		b.callHandler(h, msg)
@@ -215,13 +267,18 @@ func (b *MemoryBroker) removeFromBucket(sub *subscription) {
 		delete(b.globalByID, sub.id)
 	case ptrn.KindSuffixWildcard:
 		pfx := sub.pattern.SimplePrefix()
-		delete(b.prefixByPrefix[pfx], sub.id)
-		if len(b.prefixByPrefix[pfx]) == 0 {
+		bucket := b.prefixByPrefix[pfx]
+		if _, ok := bucket[sub.id]; ok {
+			delete(bucket, sub.id)
+			b.nPrefixSubs--
+		}
+		if len(bucket) == 0 {
 			delete(b.prefixByPrefix, pfx)
 		}
 	case ptrn.KindExact:
-		delete(b.exactByTopic[sub.topic], sub.id)
-		if len(b.exactByTopic[sub.topic]) == 0 {
+		bucket := b.exactByTopic[sub.topic]
+		delete(bucket, sub.id)
+		if len(bucket) == 0 {
 			delete(b.exactByTopic, sub.topic)
 		}
 	case ptrn.KindComplex:

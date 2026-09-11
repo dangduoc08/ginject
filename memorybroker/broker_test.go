@@ -934,3 +934,105 @@ func TestSubscribe_Complex_MiddleAndTrailingWildcard(t *testing.T) {
 		t.Error(test.DiffMessage(len(received), 2, "tenant.*.user.* should match 2 topics"))
 	}
 }
+
+func TestCallHandler_PanickingSubscriber_IsIsolatedAndReported(t *testing.T) {
+	var mu sync.Mutex
+	var gotTopic string
+	var gotRecovered any
+
+	b := NewMemoryBroker(WithPanicHandler(func(topic string, recovered any) {
+		mu.Lock()
+		gotTopic = topic
+		gotRecovered = recovered
+		mu.Unlock()
+	}))
+	defer func() { _ = b.Close() }()
+
+	var survivorCalls int
+	if _, err := b.Subscribe("boom", func(*Message) {
+		panic("subscriber exploded")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.Subscribe("boom", func(*Message) {
+		survivorCalls++
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := b.Publish("boom", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if survivorCalls != 1 {
+		t.Error(test.DiffMessage(survivorCalls, 1, "a panicking subscriber must not stop the other subscribers"))
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotTopic != "boom" {
+		t.Error(test.DiffMessage(gotTopic, "boom", "the panic report must name the topic"))
+	}
+	if gotRecovered != "subscriber exploded" {
+		t.Error(test.DiffMessage(gotRecovered, "subscriber exploded", "the panic report must carry the recovered value"))
+	}
+}
+
+func TestCallHandler_PanicHandlerThatPanics_DoesNotEscape(t *testing.T) {
+	b := NewMemoryBroker(WithPanicHandler(func(string, any) {
+		panic("reporter exploded too")
+	}))
+	defer func() { _ = b.Close() }()
+
+	if _, err := b.Subscribe("boom", func(*Message) { panic("subscriber exploded") }); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := b.Publish("boom", nil); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewMemoryBroker_NilOption_Ignored(t *testing.T) {
+	b := NewMemoryBroker(nil)
+	defer func() { _ = b.Close() }()
+
+	if err := b.Publish("t", nil); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestPublish_SuffixWildcardMatchesEveryDotPrefix(t *testing.T) {
+	cases := []struct {
+		pattern string
+		topic   string
+		want    bool
+	}{
+		{"a.*", "a.b.c.d", true},
+		{"a.b.*", "a.b.c.d", true},
+		{"a.b.c.*", "a.b.c.d", true},
+		{"a.b.c.d.*", "a.b.c.d", false},
+		{"a.*", "a", false},
+		{"a.*", "ax.b", false},
+		{"trailing.*", "trailing.", true},
+		{"a.*", "a..b", true},
+	}
+
+	for _, c := range cases {
+		b := NewMemoryBroker()
+
+		var fired atomic.Int64
+		if _, err := b.Subscribe(c.pattern, func(*Message) { fired.Add(1) }); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.Publish(c.topic, nil); err != nil {
+			t.Fatal(err)
+		}
+		_ = b.Close()
+
+		got := fired.Load() == 1
+		if got != c.want {
+			t.Error(test.DiffMessage(got, c.want, "pattern "+c.pattern+" against topic "+c.topic))
+		}
+	}
+}

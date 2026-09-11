@@ -175,13 +175,68 @@ func BenchmarkPublishManyTopics(b *testing.B) {
 	defer func() { _ = br.Close() }()
 
 	noop := func(_ *Message) {}
+	topics := make([]string, 1000)
 	for i := 0; i < 1000; i++ {
-		_, _ = br.Subscribe(fmt.Sprintf("topic.%d", i), noop)
+		topics[i] = fmt.Sprintf("topic.%d", i)
+		_, _ = br.Subscribe(topics[i], noop)
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_ = br.Publish(fmt.Sprintf("topic.%d", i%1000), i)
+		_ = br.Publish(topics[i%1000], i)
+	}
+}
+
+// BenchmarkPublishDeepTopic measures a topic with many segments, where the
+// prefix walk over every "." dominates.
+func BenchmarkPublishDeepTopic(b *testing.B) {
+	br := NewMemoryBroker()
+	defer func() { _ = br.Close() }()
+
+	noop := func(_ *Message) {}
+	topic := "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p"
+	_, _ = br.Subscribe(topic, noop)
+	_, _ = br.Subscribe("a.b.c.*", noop)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = br.Publish(topic, i)
+	}
+}
+
+// BenchmarkPublishDeepTopicNoPrefixSubs measures the same deep topic when no
+// suffix-wildcard subscription exists, so the prefix walk is pure waste.
+func BenchmarkPublishDeepTopicNoPrefixSubs(b *testing.B) {
+	br := NewMemoryBroker()
+	defer func() { _ = br.Close() }()
+
+	topic := "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p"
+	_, _ = br.Subscribe(topic, func(_ *Message) {})
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = br.Publish(topic, i)
+	}
+}
+
+// BenchmarkPublishManyComplexPatterns measures publish when many complex
+// patterns must each be pattern-matched against the topic.
+func BenchmarkPublishManyComplexPatterns(b *testing.B) {
+	br := NewMemoryBroker()
+	defer func() { _ = br.Close() }()
+
+	noop := func(_ *Message) {}
+	for i := 0; i < 100; i++ {
+		_, _ = br.Subscribe(fmt.Sprintf("tenant.*.user.%d", i), noop)
+	}
+	_, _ = br.Subscribe("tenant.*.user.created", noop)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = br.Publish("tenant.abc.user.created", i)
 	}
 }

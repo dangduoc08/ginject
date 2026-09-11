@@ -12,11 +12,3 @@ func newID() string {
 	}
 	return id
 }
-
-func forEachPrefixOf(topic string, fn func(prefix string)) {
-	for i := len(topic) - 1; i >= 0; i-- {
-		if topic[i] == '.' {
-			fn(topic[:i])
-		}
-	}
-}
