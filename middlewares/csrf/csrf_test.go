@@ -1,6 +1,7 @@
 package csrf
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,8 @@ import (
 )
 
 func noop() {}
+
+var tls13ConnectionState = tlsStateForTest()
 
 func newCSRFContext(method, token, cookieToken string) (*ctx.HTTPContext, *httptest.ResponseRecorder) {
 	body := ""
@@ -393,4 +396,66 @@ func TestCSRF_ConcurrentStateChanging(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func csrfIssuedCookie(t *testing.T, c CSRF, tls bool) *http.Cookie {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if tls {
+		req.TLS = &tls13ConnectionState
+	}
+	rec := httptest.NewRecorder()
+
+	c.NewMiddleware().Use(req, rec, noop)
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected exactly one Set-Cookie, got %d", len(cookies))
+	}
+	return cookies[0]
+}
+
+func TestCSRF_Cookie_DefaultsToSameSiteLax(t *testing.T) {
+	cookie := csrfIssuedCookie(t, CSRF{}, false)
+
+	if cookie.SameSite != http.SameSiteLaxMode {
+		t.Error(test.DiffMessage(cookie.SameSite, http.SameSiteLaxMode, "the CSRF cookie must default to SameSite=Lax so it is not attached to cross-site POSTs"))
+	}
+	if cookie.Path != "/" {
+		t.Error(test.DiffMessage(cookie.Path, "/", "cookie path default"))
+	}
+	if cookie.HttpOnly {
+		t.Error(test.DiffMessage(cookie.HttpOnly, false, "double-submit requires the cookie to be readable by JS"))
+	}
+}
+
+func TestCSRF_Cookie_SecureOverTLS(t *testing.T) {
+	if cookie := csrfIssuedCookie(t, CSRF{}, true); !cookie.Secure {
+		t.Error(test.DiffMessage(false, true, "a request over TLS must get a Secure CSRF cookie"))
+	}
+	if cookie := csrfIssuedCookie(t, CSRF{}, false); cookie.Secure {
+		t.Error(test.DiffMessage(true, false, "a plain-HTTP request must not get a Secure cookie, which the browser would then drop"))
+	}
+}
+
+func TestCSRF_Cookie_SecureForcedBehindProxy(t *testing.T) {
+	if cookie := csrfIssuedCookie(t, CSRF{Secure: true}, false); !cookie.Secure {
+		t.Error(test.DiffMessage(false, true, "Secure: true must force the attribute on for TLS-terminating proxies"))
+	}
+}
+
+func TestCSRF_Cookie_HonorsExplicitSameSiteAndPath(t *testing.T) {
+	cookie := csrfIssuedCookie(t, CSRF{SameSite: http.SameSiteStrictMode, CookiePath: "/app"}, false)
+
+	if cookie.SameSite != http.SameSiteStrictMode {
+		t.Error(test.DiffMessage(cookie.SameSite, http.SameSiteStrictMode, "an explicit SameSite must win over the default"))
+	}
+	if cookie.Path != "/app" {
+		t.Error(test.DiffMessage(cookie.Path, "/app", "an explicit CookiePath must win over the default"))
+	}
+}
+
+func tlsStateForTest() tls.ConnectionState {
+	return tls.ConnectionState{Version: tls.VersionTLS13, HandshakeComplete: true}
 }

@@ -17,6 +17,7 @@ const (
 	csrfDefaultCookieName  = "_csrf"
 	csrfDefaultHeaderName  = "X-CSRF-Token"
 	csrfDefaultContextKey  = "csrf_token"
+	csrfDefaultCookiePath  = "/"
 	csrfAltHeader          = "X-XSRF-TOKEN"
 	csrfFormField          = "_csrf"
 )
@@ -32,13 +33,26 @@ type CSRF struct {
 	CookieName  string // default "_csrf"
 	HeaderName  string // default "X-CSRF-Token"
 	ContextKey  string // default "csrf_token"; token is stored in request context under this key
+	CookiePath  string // default "/"
+
+	// SameSite defaults to http.SameSiteLaxMode. Lax keeps the cookie off
+	// cross-site POSTs while still surviving top-level navigation.
+	SameSite http.SameSite
+
+	// Secure forces the Secure attribute on. It is set automatically for
+	// requests that arrived over TLS, so this is only needed behind a proxy
+	// that terminates TLS upstream.
+	Secure bool
 }
 
 type csrfOptions struct {
 	tokenLength int
 	cookieName  string
 	headerName  string
+	cookiePath  string
 	contextKey  any
+	sameSite    http.SameSite
+	secure      bool
 }
 
 type compiledCSRF struct {
@@ -71,6 +85,20 @@ func loadCSRFOptions(c *CSRF) *csrfOptions {
 	if opts.contextKey == "" {
 		opts.contextKey = csrfDefaultContextKey
 	}
+
+	opts.cookiePath = c.CookiePath
+	if opts.cookiePath == "" {
+		opts.cookiePath = csrfDefaultCookiePath
+	}
+
+	// The zero value of http.SameSite is 0, which is not SameSiteDefaultMode (1)
+	// and makes SetCookie omit the attribute entirely.
+	opts.sameSite = c.SameSite
+	if opts.sameSite == 0 {
+		opts.sameSite = http.SameSiteLaxMode
+	}
+
+	opts.secure = c.Secure
 
 	return opts
 }
@@ -105,8 +133,10 @@ func (m compiledCSRF) Use(r *http.Request, w http.ResponseWriter, next ctx.Next)
 		http.SetCookie(w, &http.Cookie{
 			Name:     opts.cookieName,
 			Value:    token,
-			Path:     "/",
+			Path:     opts.cookiePath,
 			HttpOnly: false,
+			Secure:   opts.secure || r.TLS != nil,
+			SameSite: opts.sameSite,
 		})
 		cookieToken = token
 	}
