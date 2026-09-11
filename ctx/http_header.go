@@ -2,6 +2,7 @@ package ctx
 
 import (
 	"net/textproto"
+	"reflect"
 )
 
 // header keys
@@ -43,5 +44,6 @@ func (h Header) Has(k string) bool {
 }
 
 func (h Header) Bind(s any) (any, []FieldLevel) {
-	return BindStrArr(h, &[]FieldLevel{}, s)
+	fls := make([]FieldLevel, 0, reflect.TypeOf(s).NumField())
+	return BindStrArr(h, &fls, s)
 }

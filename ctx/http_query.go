@@ -1,5 +1,7 @@
 package ctx
 
+import "reflect"
+
 type Query map[string][]string
 
 func (c *HTTPContext) Query() Query {
@@ -37,5 +39,6 @@ func (q Query) Has(k string) bool {
 }
 
 func (q Query) Bind(s any) (any, []FieldLevel) {
-	return BindStrArr(q, &[]FieldLevel{}, s)
+	fls := make([]FieldLevel, 0, reflect.TypeOf(s).NumField())
+	return BindStrArr(q, &fls, s)
 }
