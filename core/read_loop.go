@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/exception"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/wsevent"
 	"golang.org/x/net/websocket"
 )
@@ -28,10 +28,10 @@ const (
 )
 
 type WSPayload struct {
+	Message any           `json:"message"`
 	Type    WSPayloadType `json:"type"`
 	ID      string        `json:"id"`
 	Topic   []string      `json:"topic,omitempty"`
-	Message any           `json:"message"`
 }
 
 func readLoop(conn *WSConnection, ws *WS) {
