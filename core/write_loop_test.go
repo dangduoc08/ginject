@@ -14,7 +14,7 @@ func TestWriteLoop_SendsPayloadToConn(t *testing.T) {
 
 	send := make(chan WSPayload, 1)
 	done := make(chan struct{})
-	go writeLoop(serverConn, send, done, log.NewLog(nil))
+	go writeLoop(serverConn, send, done, DefaultWSWriteTimeout, log.NewLog(nil))
 
 	send <- WSPayload{Type: TypeEvent, Message: "hi"}
 	got := recvWSPayload(t, clientConn)
@@ -35,7 +35,7 @@ func TestWriteLoop_StopsOnDone(t *testing.T) {
 
 	finished := make(chan struct{})
 	go func() {
-		writeLoop(serverConn, send, done, log.NewLog(nil))
+		writeLoop(serverConn, send, done, DefaultWSWriteTimeout, log.NewLog(nil))
 		close(finished)
 	}()
 
@@ -59,7 +59,7 @@ func TestWriteLoop_StopsOnSendError(t *testing.T) {
 
 	finished := make(chan struct{})
 	go func() {
-		writeLoop(serverConn, send, done, log.NewLog(nil))
+		writeLoop(serverConn, send, done, DefaultWSWriteTimeout, log.NewLog(nil))
 		close(finished)
 	}()
 

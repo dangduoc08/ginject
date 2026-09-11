@@ -14,17 +14,19 @@ import (
 
 	"github.com/dangduoc08/ginject/accesslog"
 	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
 	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
 	"golang.org/x/net/websocket"
 )
+
+const DefaultMaxRequestBodyBytes = 10 << 20 // ~ 10 MB
 
 type App struct {
 	http      *HTTP
@@ -55,6 +57,8 @@ type App struct {
 
 	Logger     common.Logger
 	LogOptions *log.LogOptions
+
+	maxRequestBodyBytes int64
 
 	readyOnce    sync.Once
 	shutdownOnce sync.Once
@@ -134,7 +138,8 @@ func New() *App {
 				return ctx.NewWSContext()
 			},
 		},
-		shutdownChan: make(chan struct{}),
+		shutdownChan:        make(chan struct{}),
+		maxRequestBodyBytes: DefaultMaxRequestBodyBytes,
 	}
 
 	globalInterfaceByKey.Store(publisherKey, common.Publisher(
@@ -147,6 +152,10 @@ func New() *App {
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil && app.maxRequestBodyBytes > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, app.maxRequestBodyBytes)
+	}
+
 	c := app.ctxPool.Get().(*ctx.HTTPContext)
 	c.Init(w, r)
 
@@ -232,6 +241,7 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.logger = app.Logger
 	app.wsConfig.event = app.event
 	app.wsConfig.broker = &app.broker
+	app.wsConfig.shutdownChan = app.shutdownChan
 	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
 		var pipeElapsed time.Duration
 		var handlerCalled bool
@@ -609,6 +619,12 @@ func (app *App) EnableAccessLog() *App {
 	return app
 }
 
+func (app *App) SetMaxRequestBodySize(n int64) *App {
+	app.maxRequestBodyBytes = n
+
+	return app
+}
+
 func (app *App) EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App {
 	app.isWSEnabled = true
 	cfg.globalMiddlewares = middlewares
@@ -731,7 +747,7 @@ func (app *App) initDevtool() {
 		AddHTTPMainHandlers(app.module.HTTPMainHandlers).
 		Build()
 
-	go app.devtool.Serve()
+	app.Logger.Warn("DevtoolNotServed", "reason", "the devtool gRPC transport is not implemented yet; the snapshot is built but nothing is exposed")
 }
 
 func (app *App) callOnReady() {

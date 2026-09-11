@@ -16,19 +16,11 @@ func (devtool *Devtool) GetConfiguration(context.Context, *GetConfigurationReque
 	}, nil
 }
 
-func (devtool *Devtool) Serve() {
-	// lis, err := net.Listen("tcp", ":50051")
-	// if err != nil {
-	// 	log.Fatalf("failed to listen: %v", err)
-	// }
+// Serve is not implemented: the gRPC transport was never wired up, so the
+// devtool snapshot is built but never exposed. It blocks until ctx is done so a
+// future implementation inherits a shutdown path instead of leaking a goroutine.
+func (devtool *Devtool) Serve(ctx context.Context) error {
+	<-ctx.Done()
 
-	// s := grpc.NewServer()
-
-	// RegisterDevtoolServiceServer(s, devtool)
-
-	// fmt.Println("Server is running on port 50051...")
-	// if err := s.Serve(lis); err != nil {
-	// 	log.Fatalf("failed to serve: %v", err)
-	// }
-
+	return ctx.Err()
 }

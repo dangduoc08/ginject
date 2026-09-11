@@ -3,6 +3,7 @@ package core
 import (
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -164,6 +165,81 @@ func TestServeHTTPSetsGeneratedRequestID(t *testing.T) {
 	}
 	if got == clientID {
 		t.Error(test.DiffMessage(got, "<generated UUID, not the client-supplied one>", "ServeHTTP should not echo back a client-supplied X-Request-Id"))
+	}
+}
+
+type bodyLimitController struct{ common.HTTP }
+
+func (c bodyLimitController) NewController() Controller { return c }
+
+func (c bodyLimitController) CREATE(body ctx.Body) any {
+	return ctx.Map{"got": body["k"]}
+}
+
+func newBodyLimitApp(t *testing.T, limit int64) *App {
+	t.Helper()
+	resetModuleGlobals()
+
+	app := New()
+	app.SetMaxRequestBodySize(limit)
+	app.Create(ModuleBuilder().Controllers(bodyLimitController{}).Build())
+
+	return app
+}
+
+func TestNew_AppliesDefaultBodyLimit(t *testing.T) {
+	resetModuleGlobals()
+
+	app := New()
+	if app.maxRequestBodyBytes != DefaultMaxRequestBodyBytes {
+		t.Error(test.DiffMessage(app.maxRequestBodyBytes, DefaultMaxRequestBodyBytes, "a new app must cap request bodies by default, not read them unbounded"))
+	}
+}
+
+func TestServeHTTPBodyOverLimit_Returns413(t *testing.T) {
+	app := newBodyLimitApp(t, 64)
+
+	payload := `{"k":"` + strings.Repeat("a", 4096) + `"}`
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Error(test.DiffMessage(w.Code, http.StatusRequestEntityTooLarge, "a body past the configured cap must be rejected with 413, not buffered"))
+	}
+}
+
+func TestServeHTTPBodyWithinLimit_Succeeds(t *testing.T) {
+	app := newBodyLimitApp(t, 1<<20)
+
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"k":"ok"}`))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Fatal(test.DiffMessage(w.Code, http.StatusCreated, "a body within the cap must be served normally"))
+	}
+	if !strings.Contains(w.Body.String(), `"ok"`) {
+		t.Error(test.DiffMessage(w.Body.String(), `"ok"`, "the handler must still receive the parsed body"))
+	}
+}
+
+func TestSetMaxRequestBodySize_ZeroDisablesCap(t *testing.T) {
+	app := newBodyLimitApp(t, 0)
+
+	payload := `{"k":"` + strings.Repeat("a", 4096) + `"}`
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.ServeHTTP(w, r)
+
+	if w.Code != http.StatusCreated {
+		t.Error(test.DiffMessage(w.Code, http.StatusCreated, "an explicitly disabled cap must not reject large bodies"))
 	}
 }
 
@@ -430,7 +506,7 @@ type tracePipeController struct {
 	common.HTTP
 }
 
-func (c tracePipeController) NewController() Controller { return c }
+func (c tracePipeController) NewController() Controller              { return c }
 func (c tracePipeController) READ_tracepipe(traceSlowPipeDTO) string { return "ok" }
 
 func TestTrace_PipeStageExcludedFromHandlerDuration(t *testing.T) {
@@ -536,7 +612,7 @@ type tracePipePanicController struct {
 	common.HTTP
 }
 
-func (c tracePipePanicController) NewController() Controller { return c }
+func (c tracePipePanicController) NewController() Controller                        { return c }
 func (c tracePipePanicController) READ_tracepipepanic(tracePanickingPipeDTO) string { return "ok" }
 
 func TestTrace_PipePanicStillEmitsPipeEventAndReachesExceptionFilter(t *testing.T) {
@@ -1046,4 +1122,29 @@ func TestListen_LogsNestedModuleNamesRecursively(t *testing.T) {
 			t.Error(test.DiffMessage(gotNames, name, "expected nested module name to be logged"))
 		}
 	}
+}
+
+func TestInitDevtool_DoesNotSpawnAServerGoroutine(t *testing.T) {
+	resetModuleGlobals()
+
+	before := runtime.NumGoroutine()
+
+	app := New()
+	app.EnableDevtool()
+	app.Create(ModuleBuilder().Build())
+
+	if app.devtool == nil {
+		t.Fatal("EnableDevtool must still build the devtool snapshot")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before+1 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Errorf("devtool must not leave a goroutine behind while its transport is unimplemented: %d before, %d after",
+		before, runtime.NumGoroutine())
 }

@@ -2,9 +2,13 @@ package ctx
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
+	"net/http"
+	"reflect"
 	"strings"
 
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/slice"
 )
 
@@ -24,6 +28,10 @@ func (c *HTTPContext) Body() Body {
 	if strings.Contains(contentType, applicationJSON) {
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				panic(exception.RequestEntityTooLargeException(err.Error()))
+			}
 			panic(err)
 		}
 		err = json.Unmarshal(body, &c.body)
@@ -98,5 +106,6 @@ func (b Body) Has(k string) bool {
 }
 
 func (b Body) Bind(s any) (any, []FieldLevel) {
-	return BindStruct(b, &[]FieldLevel{}, s, "", "")
+	fls := make([]FieldLevel, 0, reflect.TypeOf(s).NumField())
+	return BindStruct(b, &fls, s, "", "")
 }

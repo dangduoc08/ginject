@@ -4,21 +4,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"golang.org/x/net/websocket"
 )
 
-const sendBufferSize = 32
+const (
+	sendBufferSize = 32
+
+	DefaultWSMaxConnections  = 10000
+	DefaultWSMaxPayloadBytes = 1 << 20
+	DefaultWSWriteTimeout    = 10 * time.Second
+)
 
 type WSConnection struct {
-	ID        string
-	Conn      *websocket.Conn
 	CreatedAt time.Time
 	LastSeen  time.Time
-
-	send chan WSPayload
-	done chan struct{}
+	Conn      *websocket.Conn
+	send      chan WSPayload
+	done      chan struct{}
+	ID        string
 }
 
 func (c *WSConnection) TrySend(payload WSPayload) bool {
@@ -31,12 +36,13 @@ func (c *WSConnection) TrySend(payload WSPayload) bool {
 }
 
 type WSConnmgr struct {
-	mu            sync.RWMutex
+	logger        common.Logger
 	conns         map[string]*WSConnection
 	subscriptions map[string][]memorybroker.Subscription
-
-	Broker *memorybroker.Broker
-	logger common.Logger
+	Broker        *memorybroker.Broker
+	maxConns      int
+	writeTimeout  time.Duration
+	mu            sync.RWMutex
 }
 
 func NewWSConnmgr(logger common.Logger, br *memorybroker.Broker) *WSConnmgr {
@@ -52,12 +58,21 @@ func NewWSConnmgr(logger common.Logger, br *memorybroker.Broker) *WSConnmgr {
 		subscriptions: make(map[string][]memorybroker.Subscription),
 		Broker:        &b,
 		logger:        logger,
+		maxConns:      DefaultWSMaxConnections,
+		writeTimeout:  DefaultWSWriteTimeout,
 	}
 }
 
 func (connmgr *WSConnmgr) Register(connID string, wsConn *websocket.Conn) *WSConnection {
 	connmgr.mu.Lock()
 	defer connmgr.mu.Unlock()
+
+	if _, exists := connmgr.conns[connID]; exists {
+		return nil
+	}
+	if connmgr.maxConns > 0 && len(connmgr.conns) >= connmgr.maxConns {
+		return nil
+	}
 
 	c := &WSConnection{
 		ID:        connID,
@@ -69,24 +84,25 @@ func (connmgr *WSConnmgr) Register(connID string, wsConn *websocket.Conn) *WSCon
 	}
 	connmgr.conns[connID] = c
 
-	go writeLoop(wsConn, c.send, c.done, connmgr.logger)
+	go writeLoop(wsConn, c.send, c.done, connmgr.writeTimeout, connmgr.logger)
 
 	return c
 }
 
 func (connmgr *WSConnmgr) Unregister(connID string) {
 	connmgr.mu.Lock()
-	defer connmgr.mu.Unlock()
-
-	if c, ok := connmgr.conns[connID]; ok {
-		close(c.done)
-	}
-
-	for _, sub := range connmgr.subscriptions[connID] {
-		_ = (*connmgr.Broker).Unsubscribe(sub)
-	}
+	c, ok := connmgr.conns[connID]
+	subs := connmgr.subscriptions[connID]
 	delete(connmgr.subscriptions, connID)
 	delete(connmgr.conns, connID)
+	if ok {
+		close(c.done)
+	}
+	connmgr.mu.Unlock()
+
+	for _, sub := range subs {
+		_ = (*connmgr.Broker).Unsubscribe(sub)
+	}
 }
 
 func (connmgr *WSConnmgr) Get(connID string) (*WSConnection, bool) {
@@ -95,6 +111,13 @@ func (connmgr *WSConnmgr) Get(connID string) (*WSConnection, bool) {
 
 	c, ok := connmgr.conns[connID]
 	return c, ok
+}
+
+func (connmgr *WSConnmgr) Count() int {
+	connmgr.mu.RLock()
+	defer connmgr.mu.RUnlock()
+
+	return len(connmgr.conns)
 }
 
 func (connmgr *WSConnmgr) touch(connID string) {
@@ -133,59 +156,83 @@ func (connmgr *WSConnmgr) isSubscribed(connID, topic string) bool {
 }
 
 func (connmgr *WSConnmgr) Unsubscribe(connID, topic string) error {
-	connmgr.mu.Lock()
-	defer connmgr.mu.Unlock()
-
-	subs := connmgr.subscriptions[connID]
-	for i, sub := range subs {
-		if sub.Topic() != topic {
-			continue
+	connmgr.mu.RLock()
+	var target memorybroker.Subscription
+	found := false
+	for _, sub := range connmgr.subscriptions[connID] {
+		if sub.Topic() == topic {
+			target = sub
+			found = true
+			break
 		}
+	}
+	connmgr.mu.RUnlock()
 
-		if err := (*connmgr.Broker).Unsubscribe(sub); err != nil {
-			return err
-		}
-
-		connmgr.subscriptions[connID] = append(subs[:i], subs[i+1:]...)
+	if !found {
 		return nil
 	}
+
+	if err := (*connmgr.Broker).Unsubscribe(target); err != nil {
+		return err
+	}
+
+	connmgr.mu.Lock()
+	subs := connmgr.subscriptions[connID]
+	for i, sub := range subs {
+		if sub.Topic() == topic {
+			connmgr.subscriptions[connID] = append(subs[:i], subs[i+1:]...)
+			break
+		}
+	}
+	connmgr.mu.Unlock()
 
 	return nil
 }
 
-func (connmgr *WSConnmgr) startDeadConnDetection(interval, timeout time.Duration) {
+func (connmgr *WSConnmgr) startDeadConnDetection(interval, timeout time.Duration, done <-chan struct{}) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		for range ticker.C {
-			now := time.Now()
-			connmgr.mu.RLock()
-			var deadConnIDs []string
-			for id, conn := range connmgr.conns {
-				if now.Sub(conn.LastSeen) > timeout {
-					deadConnIDs = append(deadConnIDs, id)
-				}
-			}
-			connmgr.mu.RUnlock()
-
-			for _, id := range deadConnIDs {
-				connmgr.mu.Lock()
-				if c, ok := connmgr.conns[id]; ok {
-					_ = c.Conn.Close()
-				}
-
-				for _, sub := range connmgr.subscriptions[id] {
-					_ = (*connmgr.Broker).Unsubscribe(sub)
-				}
-				delete(connmgr.subscriptions, id)
-
-				if c, ok := connmgr.conns[id]; ok {
-					close(c.done)
-				}
-				delete(connmgr.conns, id)
-				connmgr.mu.Unlock()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				connmgr.reapDeadConns(timeout)
 			}
 		}
 	}()
+}
+
+func (connmgr *WSConnmgr) reapDeadConns(timeout time.Duration) {
+	now := time.Now()
+
+	connmgr.mu.RLock()
+	var deadConnIDs []string
+	for id, conn := range connmgr.conns {
+		if now.Sub(conn.LastSeen) > timeout {
+			deadConnIDs = append(deadConnIDs, id)
+		}
+	}
+	connmgr.mu.RUnlock()
+
+	for _, id := range deadConnIDs {
+		connmgr.mu.Lock()
+		c, ok := connmgr.conns[id]
+		if !ok {
+			connmgr.mu.Unlock()
+			continue
+		}
+		subs := connmgr.subscriptions[id]
+		delete(connmgr.subscriptions, id)
+		delete(connmgr.conns, id)
+		close(c.done)
+		connmgr.mu.Unlock()
+
+		_ = c.Conn.Close()
+		for _, sub := range subs {
+			_ = (*connmgr.Broker).Unsubscribe(sub)
+		}
+	}
 }
