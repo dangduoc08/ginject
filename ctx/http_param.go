@@ -1,5 +1,7 @@
 package ctx
 
+import "reflect"
+
 type Param map[string][]string
 
 func (c *HTTPContext) Param() Param {
@@ -46,5 +48,6 @@ func (p Param) Has(k string) bool {
 }
 
 func (p Param) Bind(s any) (any, []FieldLevel) {
-	return BindStrArr(p, &[]FieldLevel{}, s)
+	fls := make([]FieldLevel, 0, reflect.TypeOf(s).NumField())
+	return BindStrArr(p, &fls, s)
 }
