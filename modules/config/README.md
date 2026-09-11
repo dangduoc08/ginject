@@ -386,6 +386,8 @@ var PORT int = provider.ConfigService.Get(("PORT")).(int)
 
 Method to set or update a configuration value by key.
 
+`ConfigService.Config` is a plain `map[string]any` with no internal locking (a `Provider` struct's fields must all be exported for the DI container to populate them, which rules out adding a private mutex field). Calling `Set` concurrently with `Get`/`Transform`, or `Set` from multiple goroutines at once, is a data race. Only call `Set` during bootstrap (e.g. inside a config `Hook`) before the app starts serving requests; treat it as read-only once `Listen` is running.
+
 #### Parameters
 - 1st parameter: `string`
 
