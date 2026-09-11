@@ -27,16 +27,24 @@ type App struct {
 |--------|---------|------------|
 | `New() *App` | Create app instance | Before Create() |
 | `Create(m *Module)` | Initialize app with module tree | Once at startup |
-| `Listen(port int)` | Start HTTP server | Run app |
+| `Listen(port int) error` | Log routes, then serve with graceful SIGINT/SIGTERM shutdown (30s drain) | Run app |
+| `Stop()` | Trigger the shutdown path (module `OnShutdown`, once) | Programmatic shutdown |
+| `Get(p Provider) any` | Resolve a constructed provider | After Create() |
+| `UseLogger(common.Logger) *App` | Install logger (wrapped with `MaskFields` masking) | Before Create() |
 | `ServeHTTP(w, r)` | HTTP request handler | Auto-called by Go |
 | `BindGlobalMiddlewares(fn ...)` | Register global middleware | Before Create() |
 | `BindGlobalGuards(fn ...)` | Register global guards | Before Create() |
 | `BindGlobalInterceptors(fn ...)` | Register global interceptors | Before Create() |
 | `BindGlobalExceptionFilters(fn ...)` | Register global exception filters | Before Create() |
-| `EnableWS()` | Enable WebSocket support | Before Create() |
-| `EnableDevtool()` | Enable development tools | Before Create() |
+| `EnableWS(cfg *WSConfig, mw ...MiddlewareFn) *App` | Enable WebSocket; middlewares run in the handshake and can reject the upgrade | Before Create() |
+| `EnableVersioning(versioning.Versioning) *App` | Enable route versioning | Before Create() |
+| `EnableDevtool() *App` | Build the devtool snapshot. **Transport is not implemented** — logs `DevtoolNotServed` | Before Create() |
 | `EnableAccessLog()` | Enable access logging | Before Create() |
-| `SetMaxBodySize(bytes)` | Set max request body size | Before Create() |
+| `SetMaxRequestBodySize(n int64) *App` | Cap request bodies; `0` disables. Default `DefaultMaxRequestBodyBytes` = 10 MB | Before Create() |
+
+**Constants**: `DefaultMaxRequestBodyBytes` (10 MB), `DefaultWSMaxConnections` (10000), `DefaultWSMaxPayloadBytes` (1 MB), `DefaultWSWriteTimeout` (10s). See [security-limits-and-defaults.md](security-limits-and-defaults.md).
+
+> Earlier revisions of this file listed `SetMaxBodySize(bytes)`. No such method ever existed; the real name is `SetMaxRequestBodySize`.
 
 ### Module
 
@@ -58,22 +66,21 @@ type Module struct {
 
 ### ModuleBuilder
 
-```go
-type ModuleBuilder struct {
-    // Internal fields
-}
-```
-
-**Methods** (all return *ModuleBuilder for chaining):
+The builder type is **unexported** (`*moduleBuilder`); obtain one from `core.ModuleBuilder()`. Exactly four methods exist:
 
 | Method | Purpose |
 |--------|---------|
-| `Controllers(...Controller) *ModuleBuilder` | Register controllers |
-| `Providers(...Provider) *ModuleBuilder` | Register providers |
-| `Imports(...*Module) *ModuleBuilder` | Import modules |
-| `Export(...string) *ModuleBuilder` | Export provider names |
-| `IsGlobal(bool) *ModuleBuilder` | Make module global |
-| `Build() *Module` | Build module instance |
+| `Imports(modules ...any) *moduleBuilder` | Import `*Module` values or `func(...) *core.Module` factories |
+| `Providers(providers ...Provider) *moduleBuilder` | Register providers |
+| `Controllers(controllers ...Controller) *moduleBuilder` | Register controllers |
+| `Build() *Module` | Build the module |
+
+> Earlier revisions listed `Export(...string)` and `IsGlobal(bool)` builder methods. **Neither exists.** `IsGlobal` is a field on `*Module`, set after `Build()`:
+> ```go
+> m := core.ModuleBuilder().Providers(Svc{}).Build()
+> m.IsGlobal = true
+> ```
+> There is no export mechanism — a module's providers flow to its parent automatically via `prependInjectedModules`.
 
 ### Provider
 
@@ -384,6 +391,15 @@ func WrapLogger(logger Logger, maskFields []string) Logger
 
 **Responsibility**: Lightweight in-process topic-based pub/sub broker (no queue groups, no persistence, no ack/retry — see `memorybroker/README.md` for the full spec, kept in sync with this section)
 
+### Constructor & Options
+
+```go
+func NewMemoryBroker(opts ...Option) Broker
+func WithPanicHandler(fn PanicHandler) Option   // fn(topic string, recovered any)
+```
+
+Subscriber panics are recovered per-handler by `callHandler` so one bad handler cannot break the publish loop. Default reports to stderr; `WithPanicHandler` routes it to your logger/metrics. A panic inside the handler is itself recovered.
+
 ### Broker Interface
 
 ```go
@@ -548,24 +564,39 @@ func NewConfigModule(envPath string) *core.Module
 ### Cache Module
 
 ```go
-func NewCacheModule() *core.Module
+func Register(opts *CacheModuleOptions) *core.Module
+
+type CacheModuleOptions struct {
+    IsGlobal   bool
+    OnInit     CacheOnInitFn
+    Backend    Cache   // supply your own; otherwise a memorycache is created
+    MaxEntries int     // caps the default backend; 0 = memorycache.DefaultMaxEntries, negative = unlimited
+}
 ```
 
-**Provides**: `CacheService` (in-memory LFU cache)
+**Provides**: `CacheService`, backed by `memorycache` (TTL + sampled eviction — **not** LFU).
+
+**Lifecycle**: when `Register` creates the backend it wires `module.OnShutdown = backend.Stop`, so the sweeper goroutine is stopped. A caller-supplied `Backend` is left for the caller to stop.
+
+> Earlier revisions listed `NewCacheModule()`. No such function exists.
 
 ### HTTPClient Module
 
 ```go
-func NewHTTPClientModule() *core.Module
+func Register(opts *HTTPClientModuleOptions) *core.Module
 ```
 
-**Provides**: `HTTPClientService` (wraps http.Client)
+**Provides**: `ClientService` (wraps `http.Client`).
+
+> Earlier revisions listed `NewHTTPClientModule()`. No such function exists.
 
 ---
 
 ## Package: `memorycache`
 
-**Responsibility**: In-memory LFU cache with optional file-based persistence
+**Responsibility**: Sharded in-memory **TTL** cache with a bounded entry count.
+
+Not LFU — there is no access-frequency tracking anywhere in the package. Eviction prefers expired entries, then the sampled entry closest to expiry (`evictSampleSize` = 8).
 
 ### MemoryCache
 
@@ -574,9 +605,12 @@ type MemoryCache struct {
     // Internal sharded storage, background sweep
 }
 
-// Constructors
-func NewMemoryCache() *MemoryCache
-func NewMemoryCacheWithConfig(cfg PersistenceConfig) *MemoryCache
+// Constructor (variadic options)
+func NewMemoryCache(opts ...Option) *MemoryCache
+func WithMaxEntries(n int) Option   // total cap across shards; 0 or less = unlimited
+
+// Defaults
+const DefaultMaxEntries = 100_000
 
 // Operations (context-based API)
 func (m *MemoryCache) Get(ctx context.Context, key string) ([]byte, bool)
@@ -585,59 +619,39 @@ func (m *MemoryCache) SetNX(ctx context.Context, key string, val []byte, ttl tim
 func (m *MemoryCache) Delete(ctx context.Context, key string) error
 func (m *MemoryCache) Keys(ctx context.Context) []string
 func (m *MemoryCache) TTL(ctx context.Context, key string) (time.Duration, bool)
-func (m *MemoryCache) Stop()  // Shutdown hook - flushes persistence
+func (m *MemoryCache) Mutate(ctx context.Context, key string, fn func(old []byte, exists bool) (newVal []byte, ttl time.Duration)) ([]byte, error)
+func (m *MemoryCache) Stop()  // stops the sweeper goroutine; idempotent (sync.Once)
 ```
 
-### Persistence Configuration
+**Sharding**: 256 shards, one `sync.RWMutex` each, keyed by `hashKey(key)&shardMask` — unrelated keys do not contend.
 
-```go
-type PersistenceConfig struct {
-    Enabled       bool          // Enable/disable
-    FilePath      string        // JSON file path
-    FlushInterval time.Duration // Periodic flush (0 = manual)
-}
+**`Stop()` does not flush anything** — it closes the done channel and waits for the sweeper. Earlier revisions described it as flushing persistence.
 
-func DefaultPersistenceConfig() PersistenceConfig  // Returns disabled config
-```
-
-### Persistence Features
-
-- **Transparent**: Automatic save/restore, no API changes
-- **Atomic Writes**: Temp file → rename pattern (crash-safe)
-- **Expiration**: Expired entries filtered on save and load
-- **TTL Preservation**: Remaining TTL recalculated on restore
-- **Dirty Tracking**: Efficient periodic flushing
-- **Format**: JSON (human-readable, debuggable)
-- **Error Resilient**: Handles missing/corrupt files gracefully
+**`Mutate`** is the atomic read-modify-write path (`modules/cache.AtomicMutator`); it holds the shard lock across `fn`, so `fn` must not block.
 
 ### Architecture
 
-- **Sharding**: 256 shards (concurrent R/W)
-- **Eviction**: LFU on cleanup (every 128 writes/shard)
-- **Sweep**: Background every 5s/256 shards
-- **Thread-Safe**: All operations protected
-- **Pooling**: N/A (values are bytes, not pooled)
+- **Sharding**: 256 shards, one `sync.RWMutex` each
+- **Eviction**: bounded by `DefaultMaxEntries` (100k) via `admitLocked` on every write; prefers expired entries, then the sampled entry closest to expiry (`evictSampleSize` = 8). Replacing an existing key never evicts
+- **Opportunistic cleanup**: `evictLocked` runs every `cleanupEvery` (128) writes per shard, batch `cleanupBatch` (64)
+- **Sweep**: background goroutine, one shard per tick, full cycle every 5s
+- **Thread-safe**: per-shard locking; `Stop()` idempotent via `sync.Once`
 
 ### Usage
 
 ```go
-// Without persistence (default)
-cache := memorycache.NewMemoryCache()
+cache := memorycache.NewMemoryCache()                          // bounded at DefaultMaxEntries
+cache := memorycache.NewMemoryCache(memorycache.WithMaxEntries(0))  // unlimited
+defer cache.Stop()
 
-// With persistence
-cfg := memorycache.PersistenceConfig{
-    Enabled:       true,
-    FilePath:      "/data/cache.json",
-    FlushInterval: 30 * time.Second,
-}
-cache := memorycache.NewMemoryCacheWithConfig(cfg)
-defer cache.Stop()  // Flush on shutdown
-
-// Operations
-cache.Set(ctx, "key", []byte("value"), 1*time.Hour)
+cache.Set(ctx, "key", []byte("value"), time.Hour)
 val, ok := cache.Get(ctx, "key")
 cache.Delete(ctx, "key")
 ```
+
+> **There is no persistence.** Earlier revisions of this file documented a `PersistenceConfig` type, `NewMemoryCacheWithConfig`, atomic temp-file writes, dirty tracking and JSON snapshots. None of it exists, and `git log -S PersistenceConfig` shows it never did. The cache is memory-only and loses everything on restart.
+>
+> Those revisions also described eviction as **LFU**. There is no access-frequency tracking in the package.
 
 ---
 
@@ -678,4 +692,26 @@ func Match(topic, pattern string) bool
 - `accesslog/` — Access logging
 - `data/` — Internal data structures
 - `versioning/` — Version management
+
+---
+
+## Packages Not Detailed Above
+
+Each has a README in its own directory; this table exists so an agent knows the package is there and what its security-relevant surface is. Do not duplicate their docs here — link to them.
+
+| Package | Responsibility | Security-relevant surface |
+|---|---|---|
+| `modules/storage` | Embedded append-only document DB (segments, primary/secondary/text indexes, transactions, compaction) | `StoreModuleOptions.Schemas` / `OpenWithSchemas` pre-declare schemas so one scan builds every index. `Model.Schema` **panics** if the engine cannot be opened. See `modules/storage/README.md` |
+| `modules/config` | `.env` loader with typed struct binding | Errors name the key only, never the value |
+| `modules/httpclient` | `http.Client` wrapper with retries | Retry buffers `rawBody` so a retried request is not sent empty; `BodyStream` is closed between attempts; failed downloads remove the partial file |
+| `middlewares/cors` | CORS for HTTP **and** WS upgrades | Wildcard origin + `IsAllowCredentials` **panics** at config time. `compiledCORS.Use` gates WS upgrades via `matchOrigin`. See `middlewares/cors/README.md` |
+| `middlewares/csrf` | Double-submit CSRF | `SameSite=Lax` + auto-`Secure` over TLS; `HttpOnly` is deliberately **false** |
+| `middlewares/helmet` | Security headers | Strict CSP, COEP/COOP/CORP, `no-referrer`, HSTS by default |
+| `guards/throttler` | Rate limiting | Keys off `RemoteAddr` only; `TrustProxyHeaders` opts into `X-Real-IP`/`X-Forwarded-For`. See `guards/throttler/README.md` |
+| `pattern` | Topic pattern matching for broker/WS events | `*` is the **only** wildcard. Trailing `*` matches one or more remaining segments; mid-pattern `*` matches exactly one. `>` is a literal, never a wildcard |
+| `versioning` | Route version resolution (header/URI strategies) | — |
+| `accesslog` | Subscribes to trace events, logs per-stage timings | Logs method/route/duration only — no headers, no bodies |
+| `devtool` | Builds a route/pipeline snapshot | **Transport not implemented.** `Serve(ctx) error` blocks until ctx is done. Still pulls `grpc` + `protobuf` into `go.mod` for code that does not run |
+
+Full caps and defaults: [security-limits-and-defaults.md](security-limits-and-defaults.md).
 

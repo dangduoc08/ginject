@@ -4,6 +4,19 @@
 
 **Broker Package**: `memorybroker` (in-memory pub/sub for WebSocket fanout, renamed from `broker` in v2.1)
 
+## 0. Transport Limits (read first)
+
+| `WSConfig` field | Default constant | Value | Effect |
+|---|---|---|---|
+| `MaxConnections` | `DefaultWSMaxConnections` | 10000 | `Register` returns **nil** past the cap or on duplicate `connID`; `handleRequest` closes the socket and returns |
+| `MaxPayloadBytes` | `DefaultWSMaxPayloadBytes` | 1 MB | Set on `wsConn.MaxPayloadBytes`. `x/net` would otherwise default to 32 MB |
+| `WriteTimeout` | `DefaultWSWriteTimeout` | 10 s | Deadline before every `Send`; a write error closes the conn to force teardown |
+| `AllowedOrigins` | — | nil | When non-empty, `handshake` rejects unlisted `Origin` with `errWSOriginRejected`. Absent `Origin` is allowed |
+
+`0` keeps the default for the first three. Full rationale and opt-outs: [security-limits-and-defaults.md](security-limits-and-defaults.md).
+
+**`Register` may return nil** — every caller must nil-check. This is deliberate: refusing a duplicate `connID` rather than replacing it stops a client that can influence `connID` from evicting someone else's connection.
+
 ## 1. WebSocket Connection Lifecycle
 
 ### 1.1 State Machine
@@ -367,12 +380,18 @@ memorybroker.Subscribe("users.created", func(data any) {
 ### 6.3 Send Channel Semantics
 
 **Per-Connection Buffer**:
-- Size: 32 messages (fixed)
-- Behavior: Non-blocking TrySend()
+- Size: 32 messages (fixed, `sendBufferSize`)
+- Behavior: Non-blocking `TrySend()`
 - Overflow: Messages DROPPED silently
 - No backpressure mechanism
 
-**Implication**: Slow clients can miss messages
+**Implication**: Slow clients can miss messages.
+
+**Write-side bounds** (these are what stop a slow client becoming a leak):
+- `WSConfig.WriteTimeout` (default 10s) sets a deadline before every `websocket.JSON.Send`. Without it a peer that never reads blocks `Send` forever, and `close(done)` cannot free the goroutine because it is blocked inside `Send`, not in its `select`.
+- A write error closes the underlying conn. That unblocks `readLoop`, which lets `handleRequest` run its deferred `Unregister`. Without it a half-broken connection stays registered and silently drops every outbound message — and the dead-conn reaper never reaps it, because `touch()` only fires on **read**, so a peer that keeps sending keeps `LastSeen` fresh.
+
+See [security-limits-and-defaults.md](security-limits-and-defaults.md) for every cap and its opt-out.
 
 ---
 
@@ -422,15 +441,18 @@ func (c ChatController) ON_MESSAGE_CREATED(data TransformedData) {
 
 ### 8.1 Per-Connection Concurrency
 
-**Single-Threaded Per Connection**:
+**3 goroutines per connection** (2 spawned + the handler's own):
 ```
-readLoop() ← 1 goroutine (blocking on receive)
-writeLoop() ← 1 goroutine (blocking on send channel)
+readLoop()  ← runs INLINE on the goroutine websocket.Handler gave handleRequest (NOT spawned)
+writeLoop() ← spawned by WSConnmgr.Register; drains the 32-slot send channel
+pingLoop()  ← spawned by handleRequest; 30s ticker
 
-Handler execution ← Runs in readLoop's goroutine
+Handler execution ← runs in readLoop's goroutine
 
-memorybroker.Publish() ← Calls callbacks (non-blocking TrySend)
+memorybroker.Publish() ← calls callbacks (non-blocking TrySend)
 ```
+
+Total WS goroutines are bounded at ~3 x `WSConfig.MaxConnections` (default 10000).
 
 **No Race Conditions Within Connection**:
 - Only one message processed at a time
@@ -443,6 +465,7 @@ memorybroker.Publish() ← Calls callbacks (non-blocking TrySend)
 - Memorybroker.Subscribe() — concurrent-safe
 - Memorybroker.Publish() — concurrent-safe
 - Internal: single sync.RWMutex over 4 maps (exact/prefix/global/complex); no sharding. Handlers are snapshotted into a private slice under the lock, then invoked after unlocking — a fanout callback may safely re-enter Subscribe/Unsubscribe/Publish/PublishAsync without deadlocking
+- Subscriber panics are recovered per-handler by `callHandler` and reported (default: stderr; override with `NewMemoryBroker(WithPanicHandler(fn))`). One bad fanout callback cannot kill the publish loop
 
 **Fanout Callbacks**:
 - Called sequentially (one at a time)

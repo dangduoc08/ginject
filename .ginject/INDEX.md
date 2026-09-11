@@ -61,7 +61,8 @@
 
 | Document | Purpose | Audience | Format |
 |----------|---------|----------|--------|
-| [anti-patterns-gotchas.md](anti-patterns-gotchas.md) | Common mistakes, anti-patterns, what NOT to do | All | Markdown |
+| [security-limits-and-defaults.md](security-limits-and-defaults.md) | Every resource cap and security default, what it closes, how to opt out | All | Markdown |
+| [anti-patterns-gotchas.md](anti-patterns-gotchas.md) | Common mistakes, anti-patterns, what NOT to do, plus verified non-gotchas | All | Markdown |
 | [ai-guidance-quick-reference.md](ai-guidance-quick-reference.md) | Decision trees for common scenarios | AI Agents | Markdown |
 
 ---
@@ -297,7 +298,7 @@ All `metadata-*.json` files contain structured data for AI parsing:
 
 **Knowledge Base Version**: 1.0  
 **Ginject Version**: Pre-v1.0 (production readiness: 6.2/10)  
-**Last Updated**: August 2026 (memorybroker API/architecture corrections)  
+**Last Updated**: September 2026 (security hardening pass: resource caps + defaults documented in security-limits-and-defaults.md; removed phantom APIs — SetMaxBodySize, ModuleBuilder.Export/IsGlobal, NewCacheModule, NewHTTPClientModule, NewMemoryCacheWithConfig and the entire PersistenceConfig feature, none of which ever existed; corrected memorycache from "LFU" to TTL+sampled; WS goroutine count 2 -> 3)  
 **Coverage**: 20+ packages, 100+ public APIs, complete lifecycle documentation
 
 ---

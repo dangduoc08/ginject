@@ -143,7 +143,6 @@ ModuleBuilder().
 - `Controllers(...Controller) ModuleBuilder` — Register HTTP/WS handlers
 - `Providers(...Provider) ModuleBuilder` — Register business logic
 - `Imports(...*Module) ModuleBuilder` — Import other modules
-- `Export(...string) ModuleBuilder` — Export provider names globally
 - `Build() *Module` — Create module instance
 
 ### 3.2 Module Chaining

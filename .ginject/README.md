@@ -359,7 +359,7 @@ Reference: request-pipeline.md#3-guard-layer (authorization)
 
 ## Maintenance & Updates
 
-**Last Updated**: August 2026 (memorybroker corrections: dropped stale sharding/worker-pool claims, synced to the simplified Subscribe/Unsubscribe/Publish/PublishAsync/Close API)  
+**Last Updated**: September 2026 (security hardening pass; phantom-API purge — see INDEX.md for the list; memorycache corrected from "LFU with persistence" to TTL + sampled eviction, memory-only)  
 **Coverage**: Ginject pre-v1.0 (6.2/10 production readiness)  
 **Source**: Complete source code analysis + ARCHITECTURE_REVIEW_AND_ROADMAP.md
 

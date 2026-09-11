@@ -11,12 +11,16 @@
   },
   "websocket_connection_model": {
     "concurrency_level": "per-connection is single-threaded",
-    "goroutines_per_connection": 2,
-    "goroutine_1": "readLoop (blocks on conn.Receive())",
-    "goroutine_2": "writeLoop (drains send channel)",
+    "goroutines_per_connection": 3,
+    "goroutine_1": "readLoop - runs INLINE on the goroutine websocket.Handler supplied, not spawned",
+    "goroutine_2": "writeLoop (spawned by WSConnmgr.Register; drains send channel, 32-slot buffer)",
     "message_processing": "sequential (one message at a time)",
     "thread_safe": true,
-    "synchronization": "channelized (readLoop → handler → memorybroker.Publish → writeLoop via channel)"
+    "synchronization": "channelized (readLoop → handler → memorybroker.Publish → writeLoop via channel)",
+    "goroutine_3": "pingLoop (spawned by handleRequest; 30s ticker)",
+    "connection_cap": "WSConfig.MaxConnections, default DefaultWSMaxConnections=10000. Register returns nil past the cap or on duplicate connID; handleRequest then closes the socket and returns",
+    "write_deadline": "WSConfig.WriteTimeout, default DefaultWSWriteTimeout=10s, applied before every websocket.JSON.Send. Without it a stalled peer pins writeLoop forever - close(done) cannot free it because the goroutine blocks inside Send, not in its select",
+    "write_failure_teardown": "writeLoop closes the underlying conn on write error, which unblocks readLoop and lets handleRequest run its deferred Unregister. Without this a half-broken conn stays registered and silently drops every outbound message, and the dead-conn reaper never reaps it because touch() only fires on READ"
   },
   "global_shared_state": {
     "injectedProviders": {
@@ -41,19 +45,36 @@
       "description": "Event listeners and emitters (Node-style EventEmitter, no topic pattern matching)",
       "access": "concurrent On/Once/Off/Emit/ListenerCount/HasListeners",
       "thread_safe": true,
-      "synchronization": "single sync.RWMutex over two maps (opts, onceOpts); Emit copies listeners to a private slice before unlocking, then invokes outside the lock"
+      "synchronization": "one sync.RWMutex over two maps (opts, onceOpts). Emit takes only RLock on the common path (no once-listener registered for that event) and snapshots listeners before releasing; it escalates to Lock only to consume once-listeners. Listeners are always invoked AFTER the lock is released, so re-entrant On/Off/Emit from a listener cannot deadlock"
     },
     "memorybroker.Broker": {
       "description": "Pub/sub message broker (exact/suffix-wildcard/global/complex topic matching)",
       "access": "concurrent Subscribe/Unsubscribe/Publish/PublishAsync/Close",
       "thread_safe": true,
-      "synchronization": "single sync.RWMutex over 4 maps, no sharding; PublishAsync additionally coordinates via sync.WaitGroup so Close() can drain in-flight async goroutines before clearing state"
+      "synchronization": "single sync.RWMutex over 4 maps, no sharding; PublishAsync additionally coordinates via sync.WaitGroup so Close() can drain in-flight async goroutines before clearing state",
+      "panic_isolation": "callHandler recovers any panic escaping a subscriber. Default reports to stderr; override with NewMemoryBroker(WithPanicHandler(fn)). A panic inside the panic handler is itself recovered"
     },
     "module_state": {
       "description": "Module configuration and providers",
       "access": "read-only after app.Create()",
       "thread_safe": true,
       "synchronization": "immutable after initialization"
+    },
+    "memorycache.MemoryCache": {
+      "description": "Sharded TTL cache, 256 shards, one sync.RWMutex per shard",
+      "access": "concurrent Get/Set/SetNX/Mutate/Delete/Keys/TTL",
+      "thread_safe": true,
+      "synchronization": "per-shard RWMutex keyed by hashKey(key)&shardMask, so unrelated keys do not contend",
+      "background_goroutine": "sweep() - one per instance, round-robins one shard per tick; stopped by Stop(), which is idempotent via sync.Once",
+      "ownership": "modules/cache.Register wires module.OnShutdown = backend.Stop ONLY when it created the backend. A caller-supplied Backend is the caller's to stop",
+      "bounded": "WithMaxEntries, default DefaultMaxEntries=100_000 total across shards; 0 or less means unlimited"
+    },
+    "common.singletons": {
+      "description": "map[string]any caching one constructed instance per component type, process-global and NOT namespaced per App",
+      "access": "common.Construct - exported, so reachable from user code",
+      "thread_safe": true,
+      "synchronization": "package-level sync.Mutex (singletonsMu)",
+      "warning": "the mutex is held across objConstructor.Call(nil), i.e. across USER code. sync.Mutex is not reentrant, so a constructor that itself calls Construct self-deadlocks - VERIFIED by probe. Not reachable through framework paths today because every Construct call site sits in bootstrap wiring, not inside a constructor"
     }
   },
   "not_thread_safe": {
@@ -64,7 +85,7 @@
   },
   "concurrency_guarantees": {
     "http_request": "each request is fully isolated, no race conditions possible",
-    "ws_connection": "each connection is single-threaded, no race conditions within connection",
+    "ws_connection": "each connection processes messages sequentially (readLoop is the only reader); writes are serialized through the per-connection send channel",
     "global_state": "read-only after startup, immutable guarantee",
     "message_broker": "concurrent-safe pub/sub via a single RWMutex; not lock-free (RWMutex-guarded, not literally atomic ops)",
     "context_pooling": "sync.Pool handles concurrent Get/Put safely"
@@ -101,30 +122,35 @@
   },
   "goroutine_limits": {
     "per_http_request": 1,
-    "per_active_ws_connection": 2,
+    "per_active_ws_connection": 3,
     "example_capacity": {
       "10000_concurrent_http_requests": "10000 goroutines (minimal)",
-      "10000_active_ws_connections": "20000 goroutines",
-      "total": "30000 goroutines",
-      "memory_estimate": "~1.5GB (50KB per goroutine)"
-    }
+      "10000_active_ws_connections": "30000 goroutines (3 per connection)",
+      "total": "40000 goroutines",
+      "memory_estimate": "~2GB at 50KB per goroutine",
+      "note": "before WSConfig.MaxConnections existed this was unbounded; the cap is what makes the estimate an actual ceiling"
+    },
+    "ws_connection_cap": "bounded by WSConfig.MaxConnections (default 10000), so WS goroutines are bounded at roughly 3 x MaxConnections"
   },
   "memory_safety": {
     "context_pooling": "reduces allocation pressure",
     "handler_arg_cache": "reduces reflection overhead",
     "provider_registry": "built once, reused forever",
-    "message_broker": "lightweight pub/sub (no message buffering except WS send channels)"
+    "message_broker": "lightweight pub/sub (no message buffering except WS send channels)",
+    "cache_bounded": "memorycache is capped by default (DefaultMaxEntries=100_000); eviction prefers expired entries, then the sampled entry closest to expiry",
+    "request_body_bounded": "App caps request bodies at DefaultMaxRequestBodyBytes=10MB via http.MaxBytesReader in ServeHTTP; SetMaxRequestBodySize(0) disables"
   },
   "deadlock_risks": {
     "risk_1": "Middleware calling next() inside lock",
     "risk_2": "memorybroker.Broker.Close() called synchronously from within a handler that was itself dispatched by PublishAsync — self-deadlock, VERIFIED (see anti-patterns-gotchas.md). Close()'s wg.Wait() can never return because wg.Done() for that goroutine only runs after the handler (which is blocked in Close()) returns. NOT a bug in the locking, an inherent property of waiting on your own in-flight WaitGroup entry; documented as unsupported rather than special-cased",
     "risk_2_note": "Reentrancy is otherwise SAFE and verified by test: a handler calling Subscribe/Unsubscribe/Publish/PublishAsync (including on itself) does not deadlock, because publishInternal releases its RLock before invoking any handler — Close() called from a SYNC Publish handler is also safe (Publish isn't WaitGroup-tracked)",
     "risk_3": "Event listener blocking on I/O",
-    "prevention": "keep pipeline stages lock-free and non-blocking; never call Close() synchronously from a PublishAsync-dispatched handler"
+    "prevention": "keep pipeline stages lock-free and non-blocking; never call Close() synchronously from a PublishAsync-dispatched handler; never hold a lock across a user-supplied callback",
+    "risk_4": "common.Construct holds singletonsMu across the user constructor it invokes. A constructor that calls Construct again self-deadlocks (sync.Mutex is not reentrant) - VERIFIED by probe, currently unreachable via framework paths. Safer shape: release the lock before invoking the constructor and re-check the map before storing"
   },
   "cancellation_handling": {
     "http_requests": "context deadline via SetDeadline()",
     "ws_connections": "no context.Context, use heartbeat + timeout",
-    "graceful_shutdown": "no built-in support, must implement application-level"
+    "graceful_shutdown": "built in: serveWithGracefulShutdown traps SIGINT/SIGTERM, runs callOnShutdown (module OnShutdown hooks, once via sync.Once), then server.Shutdown with a 30s context timeout. app.Stop() triggers the same path"
   }
 }

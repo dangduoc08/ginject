@@ -303,20 +303,16 @@ publisher.Publish("users.created", userData)  // Sends to all subscribers via me
 - New messages drop silently
 - Client has no way to know
 
-**Mitigation**:
-```go
-// Monitor connection lag
-// Implement backpressure
-// Implement message queue with persistence
-// Implement client heartbeat + timeout
+**What the framework already does** (do not re-implement):
+- `pingLoop` sends a heartbeat every 30s; `startDeadConnDetection` reaps connections idle for 60s.
+- `WSConfig.WriteTimeout` (default 10s) bounds each `Send`, so a stalled peer cannot pin `writeLoop`.
+- A write failure closes the socket, which unblocks `readLoop` and triggers the deferred `Unregister`.
 
-// In readLoop:
-if channelFull {
-    closeConnection(1008, "send buffer overflow")
-}
-```
+**What is still on you**: the 32-slot buffer still drops silently when full, and nothing notifies the client. If you need delivery guarantees, add an application-level ack or a persistent queue.
 
-**Rule**: Be aware that slow subscribers miss messages
+**Why the reaper alone is not enough**: `touch()` only runs on **read**. A peer that keeps sending while never reading keeps `LastSeen` fresh forever, so the reaper never fires — the write deadline is what actually breaks that case.
+
+**Rule**: Be aware that slow subscribers miss messages; rely on the write deadline, not the reaper, to bound a half-broken connection.
 
 ---
 
@@ -692,4 +688,81 @@ brokerB.Unsubscribe(subA)  // returns ErrForeignSubscription, no-op on both brok
 **Not a bug to guard against defensively** — `Unsubscribe` checks `subscription.broker == receiver` and rejects mismatches with `ErrForeignSubscription` before touching any map. `subA` remains fully active on `brokerA`.
 
 **Rule**: A cross-broker `Unsubscribe` call is safe (rejected with a typed error), but almost always indicates a wiring bug — the caller has the wrong `Broker` reference.
+
+---
+
+### 9.4 GOTCHA: Assuming a Subscriber Panic Is Swallowed
+
+```go
+b.Subscribe("topic", func(m *Message) { panic("boom") })
+b.Publish("topic", nil)   // other subscribers still run; the panic is REPORTED, not silent
+```
+
+`callHandler` recovers any panic escaping a subscriber so one bad handler cannot take down the publish loop or the process. It is **not** silent: the default reports to stderr. Override with `NewMemoryBroker(WithPanicHandler(fn))` to route it to your logger or metrics.
+
+A panic *inside* your `PanicHandler` is itself recovered, so a broken reporter cannot escalate.
+
+**Rule**: Do not add your own `recover()` inside a subscriber to "make sure" it is isolated — it already is. Use `WithPanicHandler` to observe.
+
+---
+
+## 10. `common.Construct` Gotchas
+
+### 10.1 GOTCHA: Nested Construct Deadlocks
+
+```go
+func (g MyGuard) NewGuard() any {
+    return common.Construct(Inner{}, "NewThing")  // DEADLOCK
+}
+```
+
+`Construct` holds the package-level `singletonsMu` **across** the user constructor it invokes via reflection. `sync.Mutex` is not reentrant, so a constructor that calls `Construct` again blocks forever — the app hangs at startup with no output. VERIFIED by probe.
+
+Not reachable through framework paths today: every `Construct` call site is in bootstrap wiring (`app.init*`, `common.InjectProvidersInto*`), never inside a constructor.
+
+**Rule**: Never call `common.Construct` from inside a `NewProvider`/`NewGuard`/`NewMiddleware`/`NewInterceptor`/`NewExceptionFilter`. Construct dependencies by letting DI inject them.
+
+### 10.2 GOTCHA: `singletons` Is Process-Global, Not Per-App
+
+The cache is keyed only by `reflect.Type.String()`. Two `App` instances in one process **share** constructed singletons, and the type name carries no app identity.
+
+**Rule**: Do not rely on per-app isolation of constructed components. In tests, reset global state (see 8.1).
+
+---
+
+## 11. Logging & Masking Gotchas
+
+### 11.1 GOTCHA: Mask Rule Case Does Not Match the Field
+
+```go
+log.LogOptions{MaskFields: []string{"password"}}
+
+type User struct { Password string }   // NOT masked — key is "Password"
+type User struct { Password string `log:"password"` }  // masked
+```
+
+Matching is case-sensitive and an untagged field is keyed by its exported Go name.
+
+**Rule**: Tag fields you intend to mask (`log:"password"`), or write rules in matching case. Prefer the tag — it survives renames of the rule list.
+
+### 11.2 GOTCHA: Assuming Scalar Slices Get Expanded
+
+Collections **are** walked (slice/array of struct, map, interface, pointer, slice, array), but scalar slices like `[]byte` and `[]string` are deliberately left as their concrete type — `elemCanHoldSecrets` gates the walk so masking never turns `[]byte` into a list of numbers.
+
+**Rule**: Do not remove that gate to "be thorough"; it is what keeps log output readable.
+
+---
+
+## 12. Non-Gotchas — Verified Safe, Do Not "Fix"
+
+Things that look like bugs, were checked against the implementation, and are correct. Each wasted an investigation once.
+
+| Looks wrong | Reality |
+|---|---|
+| Multipart temp files never get `RemoveAll()`'d | `net/http`'s `finishRequest` calls `req.MultipartForm.RemoveAll()` after the handler returns (server.go, and h2_bundle.go for HTTP/2). Verified in stdlib source. |
+| `Router.Match` cleans the path but guards might see the raw one | `Match` returns the **whole composed handler chain** for the pattern. One `path.Clean`, one lookup, no second resolution — so no guard/handler path-normalisation mismatch is possible. |
+| `Trie.Find` can return a partial-prefix match | `Insert` sets `Raw` only on the terminal node, so an intermediate node yields `""` and the router lookup misses. |
+| Trailing `*` in a topic pattern matches only one segment | It matches one **or more** remaining segments, consistently in both `KindSuffixWildcard` and `matchSegments`. `>` is **not** a wildcard — it parses as a literal. |
+| Unchecked type assertions on the request path will panic | All are either type-safe by construction (caches written and read by the same code, `sync.Pool` with a typed `New`, pipeables pre-classified) or bootstrap-time fail-fast per the panic convention. |
+| `defer` inside pipeline loops accumulates | Every one sits inside its own closure/function, not the loop body. |
 

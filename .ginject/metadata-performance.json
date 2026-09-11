@@ -135,6 +135,16 @@
       "issue": "broker iterates all subscribers",
       "cost": "linear in subscriber count",
       "mitigation": "use topic patterns to reduce subscribers"
+    },
+    "bootstrap_module_name_resolution": {
+      "issue": "go/parser invoked at runtime to name modules for logs",
+      "cost": "~64% of framework bootstrap before the fix; ~100us per module before memoisation",
+      "mitigation": "frame skipping + (file,line) memoisation applied; consider resolving Name lazily in Listen instead"
+    },
+    "nested_module_di": {
+      "issue": "providers copied upward, so each module re-resolves the accumulated set",
+      "cost": "O(P^2) for deep import chains; 18.0ms for a 200-deep chain",
+      "mitigation": "hoisting dedup applied; a shared provider registry would be needed for O(P+D)"
     }
   },
   "optimization_opportunities": {
@@ -145,8 +155,9 @@
     },
     "opportunity_2": {
       "name": "Cache route-specific handler chains",
-      "current": "rebuilt during app.Create()",
-      "potential_savings": "route lookup faster (but already fast)"
+      "current": "already composed per route pattern at app.Create; Router.Match returns the whole handler chain in one lookup",
+      "potential_savings": "route lookup faster (but already fast)",
+      "status": "DONE - not an opportunity"
     },
     "opportunity_3": {
       "name": "Reduce guard/interceptor reflection",
@@ -159,9 +170,14 @@
       "potential_savings": "1-2ms per exception (only capture if listeners)"
     },
     "opportunity_5": {
-      "name": "Connection pooling for WS send channels",
-      "current": "fixed 32-message buffer",
-      "potential_savings": "better handling of slow clients"
+      "name": "Slow-client handling on WS writes",
+      "current": "32-message buffer plus a write deadline (WSConfig.WriteTimeout, default 10s); write failure closes the conn to force teardown",
+      "status": "DONE - a stalled peer no longer pins the write goroutine"
+    },
+    "opportunity_6": {
+      "name": "Lazy Module.Name resolution",
+      "current": "resolved eagerly in Build(), used only by Listen's InstanceLoader log",
+      "potential_savings": "the remaining ~0.4ms of cold-start parse cost, and it would also stop silently yielding \"\" in -trimpath builds"
     }
   },
   "scalability": {
@@ -189,5 +205,48 @@
     "[ ] Monitor WebSocket send channel lag",
     "[ ] Cache expensive computations in providers",
     "[ ] Batch database operations instead of per-request queries"
-  ]
+  ],
+  "measurement_environment": "Intel i7-9750H @ 2.60GHz, darwin/amd64, go1.25.5. All figures below are measured, not estimated; figures elsewhere in this file that read as ranges are estimates.",
+  "bootstrap_performance": {
+    "root_cause_of_the_slow_sample": {
+      "symptom": "sample bootstrap took 7.72s",
+      "attribution": "99.94% of it was ONE call: catalog.StoreService.NewProvider -> categories().Schema(), loading and indexing 195MB of stale seed data left in sample/data/shop/categories",
+      "framework_share": "4.1ms, i.e. 0.053%",
+      "lesson": "separate external-IO time from framework time before optimising anything. Module discovery, DI and reflection were NOT the cause"
+    },
+    "module_name_resolution": {
+      "what": "moduleBuilder.Build -> resolveModuleName walks the call stack and runs go/parser on each frame file, only to produce Module.Name for the InstanceLoader log line",
+      "measured": "2.81ms of the 4.00ms framework bootstrap = 64%. 14 .go files parsed, 2.59ms of that in parser.ParseFile",
+      "pprof": "moduleNameCandidatesAtLine 38.98% cum, of which go/token.FileSet.Position alone 32.20% (two Position calls per declaration, per frame, per Build)",
+      "natural_experiment": "building with -trimpath makes every parse fail: App.Create drops 4.00ms -> 1.62ms and every Module.Name becomes empty",
+      "production_caveat": "source is read by absolute compile-time path, so in a container or a -trimpath binary resolution silently yields \"\" and Listen logs no InstanceLoader lines at all",
+      "fixes_applied": [
+        "skip frames in package core except _test.go files (core never declares a user module)",
+        "memoize the AST scan by (file, line, allowFuncLitMatch)",
+        "cache genFieldKey by reflect.Type"
+      ],
+      "result": "App.Create 4.00ms -> ~2.0ms; 200 flat modules 20.18ms -> 0.80ms (25x); Build() for 200 modules 19.78ms -> 0.53ms"
+    },
+    "di_resolution_complexity": {
+      "flat_imports": "O(N). injectDependencies calls = 2N. Doubling N multiplies time by 1.96-1.98",
+      "nested_imports": "O(P^2), measured exactly: injectDependencies calls = N^2 (N=10 -> 100, N=50 -> 2500, N=200 -> 40000). Doubling N multiplies time by 3.55 -> 3.70 -> 3.95",
+      "mechanism": "prependInjectedModules copies a child module's providers UP into its parent, so a module at depth j holds N-j providers and every module re-runs injectDependencies over its whole accumulated list",
+      "hoisting_fix": "the hoisting block prepended duplicates without dropping the originals, so root.providers held 2N-1 entries for N providers. Deduped: chain of 200 went 31.5ms -> 18.0ms and root.providers 399 -> 200",
+      "still_open": "complexity is still O(P^2); only a shared provider registry instead of upward copying would make it O(P+D). Irrelevant at sample scale (9 modules, 6 providers = 941us)"
+    }
+  },
+  "measured_baselines": {
+    "http_request_path": "2926 ns/op, 1204 B/op, 27 allocs/op (BenchmarkServeHTTP)",
+    "event_emit_contention": {
+      "before": "70ns at 1 CPU -> 105ns at 4 -> 134ns at 12. Getting SLOWER with more cores is the signature of lock contention: Emit took the write lock even when no once-listener existed",
+      "after": "69ns at 1 CPU -> 68ns at 4 -> 50ns at 12. RLock fast path, positive scaling, 2.7x at 12 cores",
+      "why_it_matters": "with EnableAccessLog the trace path emits several events per request, so every request serialized on that one lock"
+    },
+    "storage_table_load": {
+      "problem": "rebuildIndex phase 2 read and json.Unmarshal every document even with no schema registered, where updateSecondary/updateText return immediately. At 100k docs that was 466ms of pure waste out of 840ms",
+      "fix_1": "guard the payload decode on idx.hasSchema(): 100k docs 1.424s -> 1.107s (-22%)",
+      "fix_2": "OpenWithSchemas / StoreModuleOptions.Schemas pre-declare the schema so one pass builds primary+secondary+text: 839ms -> 683ms (-19%). Measured, smaller than a naive 2-pass-to-1-pass estimate because the surviving pass is the expensive one"
+    },
+    "storage_tx_commit": "~18-21ms/op for BenchmarkTx_2Inserts / Update / Delete alike. Entirely fsync-bound: the numbers do not move with the amount of work, so index bookkeeping inside a Tx is not worth optimising"
+  }
 }

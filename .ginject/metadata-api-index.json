@@ -11,66 +11,182 @@
             {
               "name": "New",
               "signature": "New() *App",
-              "purpose": "Create new app instance"
+              "purpose": "Create new app instance; request body cap defaults to DefaultMaxRequestBodyBytes"
             },
             {
               "name": "Create",
               "signature": "Create(m *Module)",
-              "purpose": "Initialize app with module tree (MUST call once)"
+              "purpose": "Initialize app with module tree (MUST call exactly once, before Listen)"
             },
             {
               "name": "Listen",
-              "signature": "Listen(port int)",
-              "purpose": "Start HTTP server on port"
+              "signature": "Listen(port int) error",
+              "purpose": "Log routes, then serve with graceful SIGINT/SIGTERM shutdown (30s drain)"
+            },
+            {
+              "name": "Stop",
+              "signature": "Stop()",
+              "purpose": "Trigger the shutdown path (module OnShutdown hooks, once)"
             },
             {
               "name": "ServeHTTP",
-              "signature": "ServeHTTP(w ResponseWriter, r *Request)",
-              "purpose": "HTTP handler (auto-called by Go stdlib)"
+              "signature": "ServeHTTP(w http.ResponseWriter, r *http.Request)",
+              "purpose": "HTTP entry point; wraps r.Body in http.MaxBytesReader when the cap is > 0"
+            },
+            {
+              "name": "Get",
+              "signature": "Get(p Provider) any",
+              "purpose": "Resolve a constructed provider after Create"
+            },
+            {
+              "name": "UseLogger",
+              "signature": "UseLogger(logger common.Logger) *App",
+              "purpose": "Install a logger; wrapped with field masking from LogOptions.MaskFields"
             },
             {
               "name": "BindGlobalMiddlewares",
-              "signature": "BindGlobalMiddlewares(fn ...MiddlewareFn)",
+              "signature": "BindGlobalMiddlewares(middlewares ...common.MiddlewareFn) *App",
               "purpose": "Register middlewares for all routes"
             },
             {
-              "name": "EnableWS",
-              "signature": "EnableWS(config *WSConfig)",
-              "purpose": "Enable WebSocket support"
+              "name": "BindGlobalGuards",
+              "signature": "BindGlobalGuards(guarders ...common.Guarder) *App",
+              "purpose": "Register guards for all routes"
             },
             {
-              "name": "SetMaxBodySize",
-              "signature": "SetMaxBodySize(bytes int64)",
-              "purpose": "Set max HTTP request body size"
+              "name": "BindGlobalInterceptors",
+              "signature": "BindGlobalInterceptors(interceptors ...common.Interceptable) *App",
+              "purpose": "Register interceptors for all routes"
+            },
+            {
+              "name": "BindGlobalExceptionFilters",
+              "signature": "BindGlobalExceptionFilters(filters ...common.ExceptionFilterable) *App",
+              "purpose": "Register exception filters for all routes"
+            },
+            {
+              "name": "EnableWS",
+              "signature": "EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App",
+              "purpose": "Enable WebSocket; middlewares run in the handshake and can reject the upgrade"
+            },
+            {
+              "name": "EnableVersioning",
+              "signature": "EnableVersioning(v versioning.Versioning) *App",
+              "purpose": "Enable route versioning"
+            },
+            {
+              "name": "EnableAccessLog",
+              "signature": "EnableAccessLog() *App",
+              "purpose": "Subscribe the access logger to trace events"
+            },
+            {
+              "name": "EnableDevtool",
+              "signature": "EnableDevtool() *App",
+              "purpose": "Build the devtool snapshot. Transport is NOT implemented; logs WSNotServed-style warning DevtoolNotServed"
+            },
+            {
+              "name": "SetMaxRequestBodySize",
+              "signature": "SetMaxRequestBodySize(n int64) *App",
+              "purpose": "Cap request bodies. 0 or less disables. NOTE: earlier versions of this index listed a SetMaxBodySize method that never existed"
             }
           ]
         },
         "Module": {
-          "description": "Composition root for controllers and providers with lifecycle hooks",
-          "fields": [
-            "providers []Provider",
-            "controllers []Controller",
-            "imports []*Module",
-            "HTTPMainHandlers []HTTPMainHandler",
-            "WSHandlers []WSHandler",
-            "OnReady func() - Called after app.Create() completes (v2.0+)",
-            "OnShutdown func() - Called on app shutdown (SIGINT/SIGTERM) (v2.0+)"
-          ]
+          "description": "Composition root for controllers and providers, with lifecycle hooks",
+          "exported_fields": [
+            "Name string            // resolved by resolveModuleName at Build(); empty in -trimpath builds",
+            "IsGlobal bool          // promote this module's providers to the global registry",
+            "OnInit func()          // runs DURING graph construction, BEFORE children and providers exist",
+            "OnReady func()         // runs at the end of app.Create, after everything is wired",
+            "OnShutdown func()      // runs on SIGINT/SIGTERM or app.Stop(), once via sync.Once",
+            "HTTPMainHandlers, HTTPMiddlewares, HTTPGuards, HTTPInterceptors, HTTPExceptionFilters []common.HTTPLayer",
+            "WSMainHandlers, WSGuards, WSInterceptors, WSExceptionFilters []common.WSLayer"
+          ],
+          "unexported_fields": "id, prefixes, singleInstance, staticModules []*Module, dynamicModules []any, providers, controllers",
+          "methods": [
+            "ID() string",
+            "Prefix(prefix string) *Module",
+            "NewModule() *Module"
+          ],
+          "correction": "earlier versions listed \"imports []*Module\", \"WSHandlers []WSHandler\" and \"HTTPMainHandlers []HTTPMainHandler\". Real names: staticModules/dynamicModules, WSMainHandlers []common.WSLayer, HTTPMainHandlers []common.HTTPLayer"
         },
         "ModuleBuilder": {
-          "description": "Fluent API for building modules",
+          "description": "Fluent builder returned by core.ModuleBuilder(). Unexported type (*moduleBuilder) - only these four methods exist",
           "methods": [
-            "Controllers(...) *ModuleBuilder",
-            "Providers(...) *ModuleBuilder",
-            "Imports(...) *ModuleBuilder",
-            "Export(...) *ModuleBuilder",
-            "IsGlobal(bool) *ModuleBuilder",
+            "Imports(modules ...any) *moduleBuilder  // *Module or func(...) *core.Module",
+            "Providers(providers ...Provider) *moduleBuilder",
+            "Controllers(controllers ...Controller) *moduleBuilder",
             "Build() *Module"
-          ]
+          ],
+          "correction": "earlier versions of this index listed Export(...) and IsGlobal(bool) builder methods. Neither exists. IsGlobal is a FIELD on *Module, set after Build(): m := ...Build(); m.IsGlobal = true"
         },
         "Provider": {
           "description": "Any struct implementing NewProvider() Provider",
           "interface": "type Provider interface { NewProvider() Provider }"
+        },
+        "WSConfig": {
+          "description": "WebSocket transport configuration passed to App.EnableWS",
+          "fields": [
+            {
+              "name": "Path",
+              "type": "string",
+              "purpose": "Upgrade path, default \"ws\""
+            },
+            {
+              "name": "MaxConnections",
+              "type": "int",
+              "purpose": "Concurrent connection cap; 0 uses DefaultWSMaxConnections (10000)"
+            },
+            {
+              "name": "MaxPayloadBytes",
+              "type": "int",
+              "purpose": "Per-frame cap; 0 uses DefaultWSMaxPayloadBytes (1MB). x/net default would be 32MB"
+            },
+            {
+              "name": "WriteTimeout",
+              "type": "time.Duration",
+              "purpose": "Per-Send deadline; 0 uses DefaultWSWriteTimeout (10s)"
+            },
+            {
+              "name": "AllowedOrigins",
+              "type": "[]string",
+              "purpose": "When non-empty, handshake rejects unlisted Origin. Absent Origin is allowed (non-browser client). Trailing / trimmed"
+            }
+          ]
+        },
+        "WSConnmgr": {
+          "description": "Per-app WebSocket connection registry and broker bridge",
+          "methods": [
+            {
+              "name": "Register",
+              "signature": "Register(connID string, wsConn *websocket.Conn) *WSConnection",
+              "purpose": "Add connection and start its write pump. Returns nil past MaxConnections or on duplicate connID - callers MUST nil-check and close the socket"
+            },
+            {
+              "name": "Unregister",
+              "signature": "Unregister(connID string)",
+              "purpose": "Close done, drop subscriptions, unsubscribe from broker. Safe to call twice"
+            },
+            {
+              "name": "Get",
+              "signature": "Get(connID string) (*WSConnection, bool)",
+              "purpose": "Look up a live connection"
+            },
+            {
+              "name": "Count",
+              "signature": "Count() int",
+              "purpose": "Live connection count"
+            },
+            {
+              "name": "Subscribe",
+              "signature": "Subscribe(connID, topic string, handler memorybroker.MessageHandler) error",
+              "purpose": "Subscribe a connection to a topic"
+            },
+            {
+              "name": "Unsubscribe",
+              "signature": "Unsubscribe(connID, topic string) error",
+              "purpose": "Remove one topic subscription"
+            }
+          ]
         }
       },
       "initialization_order": [
@@ -84,6 +200,28 @@
         "initMainHandlers",
         "initDevtool",
         "initAccessLog"
+      ],
+      "constants": [
+        {
+          "name": "DefaultMaxRequestBodyBytes",
+          "value": "10 << 20",
+          "purpose": "Default HTTP request body cap"
+        },
+        {
+          "name": "DefaultWSMaxConnections",
+          "value": "10000",
+          "purpose": "Default WS connection cap"
+        },
+        {
+          "name": "DefaultWSMaxPayloadBytes",
+          "value": "1 << 20",
+          "purpose": "Default WS frame cap"
+        },
+        {
+          "name": "DefaultWSWriteTimeout",
+          "value": "10 * time.Second",
+          "purpose": "Default WS write deadline"
+        }
       ]
     },
     "ctx": {
@@ -225,7 +363,10 @@
         "filter",
         "complete"
       ],
-      "transports": ["http", "ws"]
+      "transports": [
+        "http",
+        "ws"
+      ]
     },
     "memorybroker": {
       "responsibility": "Lightweight in-process topic-based pub/sub broker (no queue groups, no persistence, no ack/retry)",
@@ -240,8 +381,13 @@
             "Close() error"
           ],
           "removed_in_simplification": [
-            "Once(topic, handler)", "SubscribeQueue(topic, group, handler)",
-            "Off(topic)", "ListenerCount(topic)", "Topics()", "Clear()", "Stats()"
+            "Once(topic, handler)",
+            "SubscribeQueue(topic, group, handler)",
+            "Off(topic)",
+            "ListenerCount(topic)",
+            "Topics()",
+            "Clear()",
+            "Stats()"
           ]
         },
         "Message": {
@@ -264,7 +410,10 @@
           "description": "func(msg *Message) - Handler invoked on publish"
         },
         "sentinel_errors": [
-          "ErrClosed", "ErrNilHandler", "ErrEmptyTopic", "ErrForeignSubscription"
+          "ErrClosed",
+          "ErrNilHandler",
+          "ErrEmptyTopic",
+          "ErrForeignSubscription"
         ]
       },
       "pattern_types": [
@@ -281,16 +430,37 @@
         "Unsubscribe(nil) is always nil, unconditionally, even after Close",
         "Unconditional panic recovery per handler call (not configurable, no OnPanic hook)",
         "publishInternal sizes handler slice exactly, skips allocation entirely when nothing matches"
-      ]
+      ],
+      "options": [
+        {
+          "name": "WithPanicHandler",
+          "signature": "WithPanicHandler(fn PanicHandler) Option",
+          "purpose": "Observe panics escaping a subscriber. Default reports to stderr; handlers are isolated either way"
+        }
+      ],
+      "types_added": [
+        {
+          "name": "PanicHandler",
+          "signature": "func(topic string, recovered any)"
+        },
+        {
+          "name": "Option",
+          "signature": "func(*MemoryBroker)"
+        }
+      ],
+      "constructor": {
+        "name": "NewMemoryBroker",
+        "signature": "NewMemoryBroker(opts ...Option) Broker",
+        "purpose": "Variadic options; existing no-arg calls unchanged"
+      }
     },
     "memorycache": {
-      "responsibility": "In-memory LFU cache with optional file-based persistence",
+      "responsibility": "Sharded in-memory TTL cache with a bounded entry count. Memory-only - no persistence.",
       "public_types": {
         "MemoryCache": {
           "description": "In-memory cache with sharded architecture and persistence",
           "constructors": [
-            "NewMemoryCache() *MemoryCache - Create cache (persistence disabled)",
-            "NewMemoryCacheWithConfig(cfg PersistenceConfig) *MemoryCache - Create with persistence"
+            "NewMemoryCache() *MemoryCache - Create cache (persistence disabled)"
           ],
           "methods": [
             "Get(ctx, key string) ([]byte, bool)",
@@ -301,32 +471,36 @@
             "TTL(ctx, key string) (time.Duration, bool)",
             "Stop() - Flush and close (calls OnShutdown)"
           ]
-        },
-        "PersistenceConfig": {
-          "description": "Configuration for file-based persistence",
-          "fields": [
-            "Enabled bool - Enable/disable persistence",
-            "FilePath string - Path to persistence file",
-            "FlushInterval time.Duration - Periodic flush interval (0 = manual)"
-          ]
         }
       },
-      "persistence_features": [
-        "JSON format for human debuggability",
-        "Atomic writes (temp file → rename)",
-        "Automatic expiration filtering on save/load",
-        "TTL preservation across restarts",
-        "Dirty-state tracking with atomic operations",
-        "Periodic background flushing (configurable)",
-        "Graceful handling of missing/corrupt files"
-      ],
       "key_characteristics": [
         "Sharded (256 shards) for concurrent R/W",
-        "LFU eviction on cleanup",
         "Automatic background sweep every 5s/256 shards",
         "Thread-safe all operations",
         "Context-based API (conforms to cache interface)"
-      ]
+      ],
+      "options": [
+        {
+          "name": "WithMaxEntries",
+          "signature": "WithMaxEntries(n int) Option",
+          "purpose": "Total entry cap across shards; 0 or less means unlimited"
+        }
+      ],
+      "constructor": {
+        "name": "NewMemoryCache",
+        "signature": "NewMemoryCache(opts ...Option) *MemoryCache",
+        "purpose": "Variadic options; defaults to DefaultMaxEntries=100_000"
+      },
+      "constants": [
+        {
+          "name": "DefaultMaxEntries",
+          "value": "100_000",
+          "purpose": "Default total entry cap"
+        }
+      ],
+      "lifecycle": "Stop() halts the sweeper and is idempotent (sync.Once). modules/cache.Register wires it to module.OnShutdown only for a backend it created.",
+      "no_persistence": "memory-only. PersistenceConfig / NewMemoryCacheWithConfig were documented by earlier revisions of this index but never existed in the code (verified with git log -S). Eviction is TTL + sampled, not LFU.",
+      "eviction": "TTL-based: expired entries first, then the sampled entry closest to expiry (evictSampleSize=8). NOT LFU - no access-frequency tracking exists."
     }
   },
   "critical_rules": [

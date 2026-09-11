@@ -65,7 +65,7 @@ All types are re-exported from the root `ginject` package (`aliases.go`).
 ### Built-in Modules (`modules/`)
 
 - `modules/config`: `.env` file loader with typed struct binding. Register as global module, inject `ConfigService` to read values.
-- `modules/cache`: in-memory LFU cache implementation.
+- `modules/cache`: cache module. Default backend is `memorycache` — a sharded **TTL** cache (256 shards) with a bounded entry count (`DefaultMaxEntries` = 100k) and sampled eviction. It is **not** LFU; there is no access-frequency tracking.
 
 ### WebSocket
 
