@@ -13,3 +13,7 @@ type Cache interface {
 	Keys(ctx context.Context) []string
 	TTL(ctx context.Context, key string) (time.Duration, bool)
 }
+
+type AtomicMutator interface {
+	Mutate(ctx context.Context, key string, fn func(old []byte, exists bool) (newVal []byte, ttl time.Duration)) ([]byte, error)
+}
