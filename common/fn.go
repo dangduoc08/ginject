@@ -4,9 +4,11 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 // to ensure constructor only run once
+var singletonsMu sync.Mutex
 var singletons = make(map[string]any)
 
 func GetFuncName(handler any) string {
@@ -186,6 +188,9 @@ func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 }
 
 func Construct(obj any, constructor string) any {
+	singletonsMu.Lock()
+	defer singletonsMu.Unlock()
+
 	newObjValue := reflect.ValueOf(obj)
 	key := newObjValue.Type().String()
 	if newObj, ok := singletons[key]; ok {
