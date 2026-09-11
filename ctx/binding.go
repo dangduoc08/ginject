@@ -35,13 +35,13 @@ func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, par
 
 	for i := 0; i < structureType.NumField(); i++ {
 		structField := structureType.Field(i)
-		setValueToStructField := setValueToStructField(i)
 
 		if !token.IsExported(structField.Name) {
 			continue
 		}
 
 		if ft := fieldTags[i]; ft.ok {
+			setValueToStructField := setValueToStructField(i)
 			bindedField := ft.field
 			if bindedValue, ok := d[bindedField]; ok {
 				ns := ""
