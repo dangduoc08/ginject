@@ -3,15 +3,15 @@ package ctx
 import "reflect"
 
 type FieldLevel struct {
+	val       any
+	typ       reflect.Type
 	tag       string
 	nestedTag string
 	ns        string
 	field     string
 	index     int
-	val       any
-	isVal     bool
 	kind      reflect.Kind
-	typ       reflect.Type
+	isVal     bool
 }
 
 func (fl *FieldLevel) Tag() string {

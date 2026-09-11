@@ -10,15 +10,15 @@ import (
 )
 
 type WSEventItem struct {
-	Middlewares []ctx.WSHandler
 	Handler     any
+	Middlewares []ctx.WSHandler
 }
 
 type WSEvent struct {
 	wsEventItemByPattern map[string]WSEventItem
 	prefixByPrefix       map[string]string
-	complexPatterns      []ptrn.Pattern
 	globalPattern        string
+	complexPatterns      []ptrn.Pattern
 }
 
 func NewWSEvent() *WSEvent {

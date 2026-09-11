@@ -3,16 +3,16 @@ package aggregation
 type AggregationOperator = func(any) any
 
 type Operator struct {
-	Name        string
 	Aggregation AggregationOperator
+	Name        string
 }
 
 type Aggregation struct {
-	Name                string
-	IsMainHandlerCalled bool
 	InterceptorData     any
 	mainData            any
+	Name                string
 	operators           []Operator
+	IsMainHandlerCalled bool
 }
 
 func NewAggregation() *Aggregation {
