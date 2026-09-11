@@ -17,12 +17,12 @@ func BindFile(f File, s any) (map[string][]*DataFile, any) {
 
 	for i := 0; i < structureType.NumField(); i++ {
 		structField := structureType.Field(i)
-		setValueToStructField := setValueToStructField(i)
 		if !token.IsExported(structField.Name) {
 			continue
 		}
 
 		if ft := fieldTags[i]; ft.ok {
+			setValueToStructField := setValueToStructField(i)
 			bindedIndex, bindedField := ft.index, ft.field
 			if bindedValue, ok := f[bindedField]; ok {
 				switch structField.Type.Kind() {

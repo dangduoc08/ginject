@@ -57,13 +57,13 @@ func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLe
 
 	for i := 0; i < structureType.NumField(); i++ {
 		structField := structureType.Field(i)
-		setValueToStructField := setValueToStructField(i)
 
 		if !token.IsExported(structField.Name) {
 			continue
 		}
 
 		if ft := fieldTags[i]; ft.ok {
+			setValueToStructField := setValueToStructField(i)
 			bindedIndex, bindedField := ft.index, ft.field
 			if bindedValues, ok := d[bindedField]; ok {
 				fl := FieldLevel{
