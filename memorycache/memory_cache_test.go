@@ -2,6 +2,9 @@ package memorycache
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -294,4 +297,184 @@ func TestMemoryCache_NilValue(t *testing.T) {
 	if len(got) != 0 {
 		t.Error(test.DiffMessage(got, []byte(nil), "Get nil value"))
 	}
+}
+
+func TestMemoryCache_Mutate_NewKey(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	got, err := mc.Mutate(context.Background(), "counter", func(old []byte, exists bool) ([]byte, time.Duration) {
+		if exists {
+			t.Error(test.DiffMessage(exists, false, "a missing key must report exists=false"))
+		}
+		if old != nil {
+			t.Error(test.DiffMessage(old, nil, "a missing key must pass nil old value"))
+		}
+		return []byte("1"), 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "1" {
+		t.Error(test.DiffMessage(string(got), "1", "Mutate must return the stored value"))
+	}
+
+	stored, ok := mc.Get(context.Background(), "counter")
+	if !ok || string(stored) != "1" {
+		t.Error(test.DiffMessage(string(stored), "1", "Mutate must persist the new value"))
+	}
+}
+
+func TestMemoryCache_Mutate_ExistingKey(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	if err := mc.Set(context.Background(), "k", []byte("old"), 0); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := mc.Mutate(context.Background(), "k", func(old []byte, exists bool) ([]byte, time.Duration) {
+		if !exists {
+			t.Error(test.DiffMessage(exists, true, "an existing key must report exists=true"))
+		}
+		if string(old) != "old" {
+			t.Error(test.DiffMessage(string(old), "old", "Mutate must pass the current value"))
+		}
+		return []byte("new"), 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, _ := mc.Get(context.Background(), "k")
+	if string(got) != "new" {
+		t.Error(test.DiffMessage(string(got), "new", "Mutate must overwrite the value"))
+	}
+}
+
+func TestMemoryCache_Mutate_ExpiredTreatedAsMissing(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	if err := mc.Set(context.Background(), "k", []byte("stale"), time.Nanosecond); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+
+	_, err := mc.Mutate(context.Background(), "k", func(old []byte, exists bool) ([]byte, time.Duration) {
+		if exists {
+			t.Error(test.DiffMessage(exists, false, "an expired entry must be reported as missing"))
+		}
+		return []byte("fresh"), 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMemoryCache_Mutate_ReturnedSliceIsACopy(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	got, err := mc.Mutate(context.Background(), "k", func([]byte, bool) ([]byte, time.Duration) {
+		return []byte("value"), 0
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got[0] = 'X'
+	stored, _ := mc.Get(context.Background(), "k")
+	if string(stored) != "value" {
+		t.Error(test.DiffMessage(string(stored), "value", "mutating the returned slice must not corrupt the stored entry"))
+	}
+}
+
+func TestMemoryCache_Mutate_EmptyKey(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	if _, err := mc.Mutate(context.Background(), "", func([]byte, bool) ([]byte, time.Duration) {
+		t.Error("fn must not run for an empty key")
+		return nil, 0
+	}); err != ErrEmptyKey {
+		t.Error(test.DiffMessage(err, ErrEmptyKey, "an empty key must be rejected"))
+	}
+}
+
+func TestMemoryCache_ConcurrentMixedOperations(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	const workers = 16
+	const iterations = 300
+
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			ctx := context.Background()
+			for i := 0; i < iterations; i++ {
+				key := fmt.Sprintf("k-%d-%d", w, i%20)
+				_ = mc.Set(ctx, key, []byte("v"), time.Minute)
+				mc.Get(ctx, key)
+				_, _ = mc.SetNX(ctx, key+"-nx", []byte("v"), time.Minute)
+				_, _ = mc.Mutate(ctx, key+"-m", func(old []byte, _ bool) ([]byte, time.Duration) {
+					return append(append([]byte{}, old...), 'x'), time.Minute
+				})
+				mc.TTL(ctx, key)
+				_ = mc.Delete(ctx, key)
+			}
+		}(w)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			_ = mc.Keys(context.Background())
+		}
+	}()
+
+	wg.Wait()
+}
+
+func TestHashKey_DistributesAcrossShards(t *testing.T) {
+	const keys = numShards * 40
+
+	counts := map[uint64]int{}
+	for i := 0; i < keys; i++ {
+		counts[hashKey("tenant:acme:user:session:"+strconv.Itoa(i))&shardMask]++
+	}
+
+	maxCount := 0
+	for _, c := range counts {
+		if c > maxCount {
+			maxCount = c
+		}
+	}
+	empty := numShards - len(counts)
+
+	if empty > numShards/10 {
+		t.Error(test.DiffMessage(empty, 0, "too many shards received no key; the hash is not spreading keys"))
+	}
+	if maxCount > 40*6 {
+		t.Error(test.DiffMessage(maxCount, 40, "one shard absorbed far more keys than its fair share"))
+	}
+}
+
+func TestHashKey_Deterministic(t *testing.T) {
+	const key = "tenant:acme:user:session:42"
+
+	first := hashKey(key)
+	for i := 0; i < 100; i++ {
+		if got := hashKey(key); got != first {
+			t.Fatal(test.DiffMessage(got, first, "hashKey must be stable for the same key within a process"))
+		}
+	}
+}
+
+func TestHashKey_EmptyKeyDoesNotPanic(t *testing.T) {
+	_ = hashKey("")
 }

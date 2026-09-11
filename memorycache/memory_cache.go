@@ -8,11 +8,13 @@ import (
 )
 
 const (
-	numShards    = 256
-	shardMask    = numShards - 1
-	cleanupEvery = 128
-	cleanupBatch = 64
-	sweepEvery   = 5 * time.Second
+	numShards         = 256
+	shardMask         = numShards - 1
+	cleanupEvery      = 128
+	cleanupBatch      = 64
+	sweepEvery        = 5 * time.Second
+	DefaultMaxEntries = 100_000
+	evictSampleSize   = 8
 )
 
 var ErrEmptyKey = errors.New("memorycache: key must not be empty")
@@ -39,6 +41,40 @@ type shard struct {
 	writes       int
 }
 
+func (s *shard) admitLocked(now int64, key string, limit int) {
+	if limit <= 0 || len(s.entriesByKey) < limit {
+		return
+	}
+	if _, exists := s.entriesByKey[key]; exists {
+		return
+	}
+
+	victim, found := "", false
+	var victimDeadline int64
+	n := 0
+	for k, e := range s.entriesByKey {
+		if e.expired(now) {
+			delete(s.entriesByKey, k)
+			if len(s.entriesByKey) < limit {
+				return
+			}
+			continue
+		}
+		switch {
+		case !found:
+			victim, victimDeadline, found = k, e.expiresAt, true
+		case e.expiresAt != 0 && (victimDeadline == 0 || e.expiresAt < victimDeadline):
+			victim, victimDeadline = k, e.expiresAt
+		}
+		if n++; n >= evictSampleSize {
+			break
+		}
+	}
+	if found {
+		delete(s.entriesByKey, victim)
+	}
+}
+
 func (s *shard) evictLocked(now int64, limit int) {
 	n := 0
 	for k, e := range s.entriesByKey {
@@ -51,24 +87,54 @@ func (s *shard) evictLocked(now int64, limit int) {
 	}
 }
 
-type MemoryCache struct {
-	shards [numShards]*shard
-	done   chan struct{}
-	wg     sync.WaitGroup
+type Option func(*MemoryCache)
+
+func WithMaxEntries(n int) Option {
+	return func(mc *MemoryCache) {
+		mc.maxEntries = n
+	}
 }
 
-func NewMemoryCache() *MemoryCache {
-	mc := &MemoryCache{done: make(chan struct{})}
+type MemoryCache struct {
+	shards     [numShards]*shard
+	done       chan struct{}
+	maxEntries int
+	shardLimit int
+	stopOnce   sync.Once
+	wg         sync.WaitGroup
+}
+
+func NewMemoryCache(opts ...Option) *MemoryCache {
+	mc := &MemoryCache{done: make(chan struct{}), maxEntries: DefaultMaxEntries}
 	for i := range mc.shards {
 		mc.shards[i] = &shard{entriesByKey: make(map[string]entry)}
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(mc)
+		}
+	}
+	mc.shardLimit = shardLimitFor(mc.maxEntries)
 	mc.wg.Add(1)
 	go mc.sweep()
 	return mc
 }
 
+func shardLimitFor(maxEntries int) int {
+	if maxEntries <= 0 {
+		return 0
+	}
+	limit := (maxEntries + numShards - 1) / numShards
+	if limit < 1 {
+		limit = 1
+	}
+	return limit
+}
+
 func (mc *MemoryCache) Stop() {
-	close(mc.done)
+	mc.stopOnce.Do(func() {
+		close(mc.done)
+	})
 	mc.wg.Wait()
 }
 
@@ -135,6 +201,7 @@ func (mc *MemoryCache) Set(_ context.Context, key string, val []byte, ttl time.D
 
 	s := mc.shardOf(key)
 	s.mu.Lock()
+	s.admitLocked(now, key, mc.shardLimit)
 	s.entriesByKey[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
 	s.writes++
 	if s.writes >= cleanupEvery {
@@ -159,6 +226,7 @@ func (mc *MemoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 	}
 	stored := make([]byte, len(val))
 	copy(stored, val)
+	s.admitLocked(now, key, mc.shardLimit)
 	s.entriesByKey[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
 	s.writes++
 	if s.writes >= cleanupEvery {
@@ -167,6 +235,44 @@ func (mc *MemoryCache) SetNX(_ context.Context, key string, val []byte, ttl time
 	}
 	s.mu.Unlock()
 	return true, nil
+}
+
+func (mc *MemoryCache) Mutate(_ context.Context, key string, fn func(old []byte, exists bool) (newVal []byte, ttl time.Duration)) ([]byte, error) {
+	if key == "" {
+		return nil, ErrEmptyKey
+	}
+	now := time.Now().UnixNano()
+	s := mc.shardOf(key)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	e, exists := s.entriesByKey[key]
+	if exists && e.expired(now) {
+		exists = false
+	}
+
+	var old []byte
+	if exists {
+		old = make([]byte, len(e.val))
+		copy(old, e.val)
+	}
+
+	newVal, ttl := fn(old, exists)
+
+	stored := make([]byte, len(newVal))
+	copy(stored, newVal)
+	s.admitLocked(now, key, mc.shardLimit)
+	s.entriesByKey[key] = entry{val: stored, expiresAt: deadline(now, ttl)}
+	s.writes++
+	if s.writes >= cleanupEvery {
+		s.writes = 0
+		s.evictLocked(now, cleanupBatch)
+	}
+
+	out := make([]byte, len(stored))
+	copy(out, stored)
+	return out, nil
 }
 
 func (mc *MemoryCache) Delete(_ context.Context, key string) error {
@@ -182,7 +288,14 @@ func (mc *MemoryCache) Delete(_ context.Context, key string) error {
 
 func (mc *MemoryCache) Keys(_ context.Context) []string {
 	now := time.Now().UnixNano()
-	keys := make([]string, 0, 64)
+
+	total := 0
+	for _, s := range mc.shards {
+		s.mu.RLock()
+		total += len(s.entriesByKey)
+		s.mu.RUnlock()
+	}
+	keys := make([]string, 0, total)
 	for _, s := range mc.shards {
 		s.mu.RLock()
 		for k, e := range s.entriesByKey {

@@ -11,6 +11,11 @@ type CacheModuleOptions struct {
 	IsGlobal bool
 	OnInit   CacheOnInitFn
 	Backend  Cache
+
+	// MaxEntries caps the default in-memory backend. 0 uses
+	// memorycache.DefaultMaxEntries; negative means unlimited. Ignored when
+	// Backend is supplied.
+	MaxEntries int
 }
 
 func Register(opts *CacheModuleOptions) *core.Module {
@@ -19,8 +24,14 @@ func Register(opts *CacheModuleOptions) *core.Module {
 	}
 
 	backend := opts.Backend
+	var ownedBackend *memorycache.MemoryCache
 	if backend == nil {
-		backend = memorycache.NewMemoryCache()
+		var cacheOpts []memorycache.Option
+		if opts.MaxEntries != 0 {
+			cacheOpts = append(cacheOpts, memorycache.WithMaxEntries(opts.MaxEntries))
+		}
+		ownedBackend = memorycache.NewMemoryCache(cacheOpts...)
+		backend = ownedBackend
 	}
 
 	svc := CacheService{
@@ -33,5 +44,9 @@ func Register(opts *CacheModuleOptions) *core.Module {
 
 	module.IsGlobal = opts.IsGlobal
 	module.OnInit = opts.OnInit
+	if ownedBackend != nil {
+		module.OnShutdown = ownedBackend.Stop
+	}
+
 	return module
 }
