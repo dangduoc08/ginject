@@ -1,6 +1,7 @@
 package ctx
 
 import (
+	"reflect"
 	"strings"
 )
 
@@ -60,5 +61,6 @@ func (f Form) Has(k string) bool {
 }
 
 func (f Form) Bind(s any) (any, []FieldLevel) {
-	return BindStrArr(f, &[]FieldLevel{}, s)
+	fls := make([]FieldLevel, 0, reflect.TypeOf(s).NumField())
+	return BindStrArr(f, &fls, s)
 }
