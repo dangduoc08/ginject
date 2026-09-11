@@ -17,13 +17,13 @@ type fileHandler interface {
 
 type DataFile struct {
 	*multipart.FileHeader
-	Index    int
-	Size     int64
-	Total    int
 	Key      string
 	Filename string
 	Type     string
 	Dest     string
+	Index    int
+	Size     int64
+	Total    int
 }
 
 type File map[string][]*multipart.FileHeader
@@ -38,6 +38,19 @@ func (c *HTTPContext) File() File {
 	}
 
 	return c.file
+}
+
+// storeDataFile closes the opened part even when Store panics. Panicking with
+// an exception is this framework's error idiom, so the deferred close is what
+// keeps a rejected upload from leaking the file handle.
+func storeDataFile(handler fileHandler, dataFile *DataFile) {
+	src, err := dataFile.Open()
+	if err != nil {
+		panic(exception.BadRequestException(err.Error()))
+	}
+	defer func() { _ = src.Close() }()
+
+	handler.Store(dataFile, src)
 }
 
 func (files File) Bind(s any) any {
@@ -61,12 +74,7 @@ func (files File) Bind(s any) any {
 	if fileHandler, ok := s.(fileHandler); ok {
 		for _, dataFileArr := range filteredFile {
 			for _, dataFile := range dataFileArr {
-				src, err := dataFile.Open()
-				if err != nil {
-					panic(exception.BadRequestException(err.Error()))
-				}
-				fileHandler.Store(dataFile, src)
-				_ = src.Close()
+				storeDataFile(fileHandler, dataFile)
 			}
 		}
 	}

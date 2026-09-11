@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
@@ -168,5 +169,50 @@ func TestFile_BindInvokesHandler(t *testing.T) {
 	c.File().Bind(fileHandlerDTO{})
 	if storedContent != "hello-bytes" {
 		t.Error(test.DiffMessage(storedContent, "hello-bytes", "Bind should invoke the handler's Store with the file content"))
+	}
+}
+
+type panickingStoreDTO struct {
+	Avatar *DataFile `bind:"avatar"`
+}
+
+var panickingStoreSrc multipart.File
+
+func (panickingStoreDTO) Store(f *DataFile, src multipart.File) {
+	panickingStoreSrc = src
+	panic(exception.BadRequestException("rejected by Store"))
+}
+
+func TestFileBind_StorePanics_ClosesOpenedPart(t *testing.T) {
+	buf, contentType := buildMultipartFileBody(t, "avatar", "photo.png", "hello-bytes")
+
+	c := newTestHTTPContext()
+	c.Request = httptest.NewRequest("POST", "/", buf)
+	c.Request.Header.Set("Content-Type", contentType)
+
+	// maxMemory=1 forces the part onto disk, so Open returns a real *os.File
+	// whose Close is observable. In-memory parts have a no-op Close.
+	if err := c.ParseMultipartForm(1); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.MultipartForm.RemoveAll() }()
+
+	panickingStoreSrc = nil
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("Store must be allowed to panic — that is this framework's error idiom")
+			}
+		}()
+		c.File().Bind(panickingStoreDTO{})
+	}()
+
+	if panickingStoreSrc == nil {
+		t.Fatal("Store was never reached")
+	}
+
+	if _, err := panickingStoreSrc.Read(make([]byte, 1)); err == nil {
+		t.Error(test.DiffMessage(nil, "error", "the opened part must be closed even when Store panics, otherwise a rejected upload leaks its file handle"))
 	}
 }
