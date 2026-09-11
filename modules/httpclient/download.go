@@ -70,7 +70,18 @@ func saveToFile(r io.Reader, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
-	_, err = io.Copy(f, r)
-	return err
+
+	_, copyErr := io.Copy(f, r)
+	closeErr := f.Close()
+
+	if copyErr != nil {
+		_ = os.Remove(dst)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(dst)
+		return closeErr
+	}
+
+	return nil
 }

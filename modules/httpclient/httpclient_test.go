@@ -344,6 +344,116 @@ func TestRetry_PerRequest(t *testing.T) {
 	}
 }
 
+func TestRetry_RawBodyReplayedOnRetry(t *testing.T) {
+	var mu sync.Mutex
+	var receivedBodies []string
+	var attempt int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		receivedBodies = append(receivedBodies, string(body))
+		mu.Unlock()
+		if atomic.AddInt32(&attempt, 1) < 3 {
+			w.WriteHeader(500)
+			return
+		}
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv)
+	c.SetValidateStatus(func(code int) bool { return code < 500 })
+
+	const payload = "raw-body-payload"
+	_, err := c.Post("/").Body(io.NopCloser(strings.NewReader(payload))).Retry(2).RetryBackoff(1*time.Millisecond, 5*time.Millisecond).Send()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(receivedBodies) != 3 {
+		t.Fatalf("expected 3 attempts, got %d", len(receivedBodies))
+	}
+	for i, b := range receivedBodies {
+		if b != payload {
+			t.Errorf("attempt %d: server received body %q, want %q (raw .Body(io.Reader) must be replayed on retry, not sent empty)", i, b, payload)
+		}
+	}
+}
+
+type trackingBody struct {
+	io.Reader
+	closed *int32
+}
+
+func (t *trackingBody) Close() error {
+	atomic.AddInt32(t.closed, 1)
+	return nil
+}
+
+type trackingRoundTripper struct {
+	inner        http.RoundTripper
+	closedCounts []*int32
+	mu           sync.Mutex
+}
+
+func (rt *trackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := rt.inner.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+	counter := new(int32)
+	rt.mu.Lock()
+	rt.closedCounts = append(rt.closedCounts, counter)
+	rt.mu.Unlock()
+	resp.Body = &trackingBody{Reader: resp.Body, closed: counter}
+	return resp, nil
+}
+
+func TestRetry_StreamResponseClosedOnDiscardedAttempt(t *testing.T) {
+	var attempt int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempt, 1)
+		if n < 3 {
+			w.WriteHeader(500)
+			_, _ = io.WriteString(w, "fail")
+			return
+		}
+		_, _ = io.WriteString(w, "ok")
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv)
+	c.SetRetry(3)
+	c.SetRetryBackoff(1*time.Millisecond, 5*time.Millisecond)
+	c.SetValidateStatus(func(code int) bool { return code < 500 })
+
+	rt := &trackingRoundTripper{inner: c.underlying.Transport}
+	c.underlying.Transport = rt
+
+	resp, err := c.Get("/").Stream().Send()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.BodyStream.Close() }()
+	if _, err := io.Copy(io.Discard, resp.BodyStream); err != nil {
+		t.Fatal(err)
+	}
+
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if len(rt.closedCounts) != 3 {
+		t.Fatalf("expected 3 attempts, got %d", len(rt.closedCounts))
+	}
+	for i := 0; i < len(rt.closedCounts)-1; i++ {
+		if got := atomic.LoadInt32(rt.closedCounts[i]); got != 1 {
+			t.Errorf("attempt %d: discarded stream body close count = %d, want 1 (must be closed before retrying, or the connection leaks)", i, got)
+		}
+	}
+}
+
 // --- validate status ---
 
 func TestValidateStatus_DefaultRejects4xx(t *testing.T) {
@@ -507,6 +617,35 @@ func TestDownloadWithProgress(t *testing.T) {
 	}
 	if lastPct == 0 {
 		t.Error("expected non-zero progress percent")
+	}
+}
+
+type flakyReader struct {
+	err  error
+	data []byte
+	sent bool
+}
+
+func (f *flakyReader) Read(p []byte) (int, error) {
+	if !f.sent {
+		f.sent = true
+		n := copy(p, f.data)
+		return n, nil
+	}
+	return 0, f.err
+}
+
+func TestSaveToFile_CleansUpPartialFileOnCopyError(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "partial.bin")
+	wantErr := errors.New("network dropped")
+	r := &flakyReader{data: []byte("partial-data"), err: wantErr}
+
+	err := saveToFile(r, dst)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("saveToFile error = %v, want %v", err, wantErr)
+	}
+	if _, statErr := os.Stat(dst); !os.IsNotExist(statErr) {
+		t.Error("saveToFile must remove the partially-written destination file on copy error, but it still exists")
 	}
 }
 

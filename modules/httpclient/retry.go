@@ -26,6 +26,9 @@ func (rc retryConfig) execute(fn func() (*Response, error)) (*Response, error) {
 		if !defaultRetryCondition(resp, err) || attempt == rc.count {
 			break
 		}
+		if resp != nil && resp.BodyStream != nil {
+			_ = resp.BodyStream.Close()
+		}
 		if wait > 0 {
 			time.Sleep(wait)
 			wait *= 2

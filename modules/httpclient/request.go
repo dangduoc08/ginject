@@ -238,10 +238,27 @@ func (rb *requestBuilder) buildBody() (io.Reader, string, error) {
 	}
 
 	if rb.rawBody != nil {
+		if rb.willRetry() {
+			data, err := io.ReadAll(rb.rawBody)
+			if err != nil {
+				return nil, "", fmt.Errorf("httpclient: buffering body for retry support: %w", err)
+			}
+			rb.bodyBytes = data
+			return bytes.NewReader(data), rb.contentType, nil
+		}
 		return rb.rawBody, rb.contentType, nil
 	}
 
 	return nil, "", nil
+}
+
+func (rb *requestBuilder) willRetry() bool {
+	if rb.retryCount > 0 {
+		return true
+	}
+	rb.client.mu.RLock()
+	defer rb.client.mu.RUnlock()
+	return rb.client.retryCount > 0
 }
 
 func (rb *requestBuilder) buildRequest(ctx context.Context) (*http.Request, error) {
