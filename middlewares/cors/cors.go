@@ -9,6 +9,7 @@ import (
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
+	"github.com/dangduoc08/ginject/internal/color"
 )
 
 const defaultMaxAge = 5 * time.Second
@@ -86,20 +87,14 @@ func normalizeAllowOrigin(allowOrigin any) any {
 	}
 }
 
-func shouldVaryOrigin(allowOrigin any, allowCredentials bool) bool {
+func shouldVaryOrigin(allowOrigin any) bool {
 	_, isWildcard := allowOrigin.(string)
-	return !isWildcard || allowCredentials
+	return !isWildcard
 }
 
-func matchOrigin(allowOrigin any, requestOrigin string, allowCredentials bool) (string, bool) {
+func matchOrigin(allowOrigin any, requestOrigin string) (string, bool) {
 	switch ao := allowOrigin.(type) {
-	case string: // always "*" after normalization
-		if allowCredentials {
-			if requestOrigin == "" || requestOrigin == "null" {
-				return "", false
-			}
-			return requestOrigin, true
-		}
+	case string: // always "*" after normalization; never paired with credentials
 		return "*", true
 	case map[string]bool:
 		if ao[normalizeOrigin(requestOrigin)] {
@@ -164,8 +159,8 @@ func mergeVary(header http.Header, addition string) {
 	header.Set("Vary", strings.Join(merged, ", "))
 }
 
-func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin any, allowCredentials, shouldVaryOrigin bool) bool {
-	if value, matched := matchOrigin(allowOrigin, requestOrigin, allowCredentials); matched {
+func configureAllowOrigin(header http.Header, requestOrigin string, allowOrigin any, shouldVaryOrigin bool) bool {
+	if value, matched := matchOrigin(allowOrigin, requestOrigin); matched {
 		header.Set("Access-Control-Allow-Origin", value)
 	}
 	return shouldVaryOrigin
@@ -205,7 +200,15 @@ func loadCORSOptions(cors *CORS) *corsOptions {
 	opts.allowMethods = strings.Join(allowMethods, ", ")
 
 	opts.allowOrigin = normalizeAllowOrigin(cors.AllowOrigin)
-	opts.shouldVaryOrigin = shouldVaryOrigin(opts.allowOrigin, opts.isAllowCredentials)
+	if _, isWildcard := opts.allowOrigin.(string); isWildcard && opts.isAllowCredentials {
+		panic(color.FmtRed(
+			"invalid cors: a wildcard AllowOrigin cannot be combined with IsAllowCredentials. " +
+				"Browsers reject '*' on credentialed requests, and echoing the request origin back " +
+				"instead would grant every site credentialed access to authenticated responses. " +
+				"Enumerate the trusted origins explicitly: AllowOrigin: []string{...} or *regexp.Regexp.",
+		))
+	}
+	opts.shouldVaryOrigin = shouldVaryOrigin(opts.allowOrigin)
 
 	switch v := cors.AllowHeaders.(type) {
 	case string:
@@ -239,7 +242,7 @@ func (m compiledCORS) Use(r *http.Request, w http.ResponseWriter, next ctx.Next)
 	}
 
 	if isWebSocketUpgrade(r) {
-		if _, matched := matchOrigin(opts.allowOrigin, requestOrigin, opts.isAllowCredentials); matched {
+		if _, matched := matchOrigin(opts.allowOrigin, requestOrigin); matched {
 			next()
 		}
 		return
@@ -248,7 +251,7 @@ func (m compiledCORS) Use(r *http.Request, w http.ResponseWriter, next ctx.Next)
 	header := w.Header()
 
 	var vary string
-	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.isAllowCredentials, opts.shouldVaryOrigin) {
+	if configureAllowOrigin(header, requestOrigin, opts.allowOrigin, opts.shouldVaryOrigin) {
 		vary = appendVary(vary, "Origin")
 	}
 	if opts.exposeHeaders != "" {

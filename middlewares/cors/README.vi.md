@@ -24,7 +24,7 @@
 - Tự động thêm header `Vary: Origin` mỗi khi response phụ thuộc vào origin của request, kể cả khi origin đó bị từ chối (để cache không bao giờ trả nhầm response CORS cho origin khác)
 - `Vary` được merge vào, chứ không ghi đè, giá trị mà middleware khác đã đặt trước đó, có loại trùng không phân biệt hoa thường
 - Dấu `/` ở cuối được loại bỏ nhất quán cho mọi kiểu `AllowOrigin` (`string`, `[]string`) trước khi so sánh
-- Xử lý credentials đúng chuẩn: echo lại origin của request thay vì `*` khi `IsAllowCredentials` được đặt
+- Credentials chỉ được cấp cho những origin bạn liệt kê tường minh: kết hợp `IsAllowCredentials` với `AllowOrigin` wildcard sẽ bị từ chối ngay lúc cấu hình, thay vì âm thầm echo lại origin của người gọi
 - Chặn origin `null` khi credentials được bật
 - Short-circuit cho preflight: trả về status đã cấu hình mà không gọi `next`, trừ khi `IsPreflightContinue` được đặt
 - Toàn bộ việc parse/join/chuẩn hóa chỉ diễn ra một lần, trong `NewMiddleware`; xử lý mỗi request không cấp phát thêm cho phần cấu hình
@@ -137,10 +137,19 @@ Default: `false`
 
 Required: `false`
 
-Đặt `Access-Control-Allow-Credentials: true`. Khi kết hợp với `AllowOrigin: "*"`, origin thật của request sẽ được echo lại thay vì `*`.
+Đặt `Access-Control-Allow-Credentials: true`, và echo lại origin khớp vào `Access-Control-Allow-Origin`.
+
+**Bắt buộc đi kèm danh sách origin tường minh.** `AllowOrigin` wildcard — dù viết `"*"` hay để trống (mặc định thành `"*"`) — sẽ **panic ngay lúc cấu hình** khi `IsAllowCredentials` được đặt. Browser từ chối `*` trên request có credentials, và việc echo lại origin để lách điều đó sẽ trao cho mọi website trên Internet quyền truy cập có credentials vào response đã xác thực.
 
 ```go
+// panic: wildcard origin + credentials
 cors.CORS{IsAllowCredentials: true}
+
+// đúng
+cors.CORS{
+	AllowOrigin:        []string{"https://app.example.com"},
+	IsAllowCredentials: true,
+}
 ```
 
 ### IsPreflightContinue
@@ -203,7 +212,8 @@ app.BindGlobalMiddlewares(mw)
 - `Vary: Origin` được đặt bất cứ khi nào `AllowOrigin` khác wildcard `"*"` đơn thuần không kèm credentials — kể cả khi origin của request này bị từ chối, vì response vẫn phụ thuộc vào origin đối với các caller khác (`TestCORS_Use_VaryForSpecificStringOrigin`, `TestCORS_Use_VaryOriginSetEvenWhenOriginIsBlocked`, `TestCORS_Use_NoVaryForWildcard`).
 - Các token của `Vary` được merge vào giá trị mà middleware khác đã đặt trước đó (không bao giờ ghi đè) và được loại trùng không phân biệt hoa thường (`TestCORS_Use_VaryMergesWithExistingHeader`, `TestCORS_Use_VaryNoDuplicateWhenAlreadyPresent`).
 - `IsAllowCredentials` đặt `Access-Control-Allow-Credentials: true` (`TestCORS_Use_Credentials`).
-- `AllowOrigin` wildcard kết hợp với `IsAllowCredentials` sẽ echo lại origin của request thay vì `*` và đặt `Vary: Origin`, ngoại trừ khi origin của request là `"null"`, trường hợp này không bao giờ được echo lại (`TestCORS_Use_CredentialsWithWildcardEchosOrigin`, `TestCORS_Use_NullOriginWithCredentialsBlocked`).
+- `AllowOrigin` wildcard kết hợp với `IsAllowCredentials` sẽ panic ngay lúc cấu hình, kể cả khi `AllowOrigin` để trống (`TestCORS_WildcardWithCredentials_PanicsAtConfigTime`, `TestLoadCORSOptions_WildcardWithCredentials_Panics`).
+- Với `AllowOrigin` liệt kê tường minh cộng `IsAllowCredentials`, origin `"null"` hoặc rỗng không bao giờ khớp (`TestCORS_Use_NullOriginWithCredentialsBlocked`, `TestMatchOrigin_EnumeratedWithCredentials_RejectsNullAndEmpty`).
 - `AllowOrigin` wildcard không có `IsAllowCredentials` vẫn đặt `Access-Control-Allow-Origin: *` ngay cả khi origin của request là `"null"` (`TestCORS_Use_NullOriginWildcardNoCredentials`).
 - `Access-Control-Allow-Methods`, `Access-Control-Max-Age`, và `Access-Control-Allow-Headers` chỉ được đặt cho request `OPTIONS` (preflight), không bao giờ cho các method khác (`TestCORS_Use_PreflightOnlyHeaders`).
 - Một danh sách `AllowMethods` tùy chỉnh được phản ánh trong `Access-Control-Allow-Methods` khi preflight (`TestCORS_Use_CustomAllowMethodsOnPreflight`).

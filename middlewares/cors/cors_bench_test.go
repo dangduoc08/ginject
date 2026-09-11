@@ -55,7 +55,7 @@ func BenchmarkMatchOrigin_Wildcard(b *testing.B) {
 	opts := loadCORSOptions(&CORS{})
 	b.ResetTimer()
 	for range b.N {
-		_, _ = matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials)
+		_, _ = matchOrigin(opts.allowOrigin, "https://example.com")
 	}
 }
 
@@ -63,7 +63,7 @@ func BenchmarkMatchOrigin_Map(b *testing.B) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://example.com", "https://foo.com"}})
 	b.ResetTimer()
 	for range b.N {
-		_, _ = matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials)
+		_, _ = matchOrigin(opts.allowOrigin, "https://example.com")
 	}
 }
 
@@ -71,7 +71,7 @@ func BenchmarkMatchOrigin_Regexp(b *testing.B) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.example\.com$`)})
 	b.ResetTimer()
 	for range b.N {
-		_, _ = matchOrigin(opts.allowOrigin, "https://sub.example.com", opts.isAllowCredentials)
+		_, _ = matchOrigin(opts.allowOrigin, "https://sub.example.com")
 	}
 }
 
