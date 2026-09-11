@@ -98,10 +98,27 @@ func (e *Event) RemoveAllListeners(eventName string) {
 }
 
 func (e *Event) Emit(eventName string, args ...any) {
+	e.mu.RLock()
+	hasOnce := len(e.onceOpts[eventName]) > 0
+	var listeners []func(args ...any)
+	if !hasOnce {
+		if src := e.opts[eventName]; len(src) > 0 {
+			listeners = make([]func(args ...any), len(src))
+			copy(listeners, src)
+		}
+	}
+	e.mu.RUnlock()
+
+	if !hasOnce {
+		for _, l := range listeners {
+			callEventListenerSafe(l, args)
+		}
+		return
+	}
+
 	e.mu.Lock()
 
 	src := e.opts[eventName]
-	var listeners []func(args ...any)
 	if len(src) > 0 {
 		listeners = make([]func(args ...any), len(src))
 		copy(listeners, src)

@@ -44,3 +44,27 @@ func BenchmarkEvent_ListenerCount(b *testing.B) {
 		e.ListenerCount("x")
 	}
 }
+
+func BenchmarkEmit_Parallel_NoOnceListeners(b *testing.B) {
+	e := NewEvent()
+	e.On("trace", func(args ...any) {})
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			e.Emit("trace", 1)
+		}
+	})
+}
+
+func BenchmarkHasListeners_Parallel(b *testing.B) {
+	e := NewEvent()
+	e.On("trace", func(args ...any) {})
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			e.HasListeners("trace")
+		}
+	})
+}

@@ -54,6 +54,75 @@ func TestEvent_Off(t *testing.T) {
 	}
 }
 
+func TestEvent_OnceFiresExactlyOnce_UnderConcurrentEmit(t *testing.T) {
+	for round := 0; round < 200; round++ {
+		e := NewEvent()
+
+		var onceCalls atomic.Int64
+		var onCalls atomic.Int64
+
+		e.On("evt", func(args ...any) { onCalls.Add(1) })
+		e.Once("evt", func(args ...any) { onceCalls.Add(1) })
+
+		const emitters = 8
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := 0; i < emitters; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				e.Emit("evt")
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		if got := onceCalls.Load(); got != 1 {
+			t.Fatalf("round %d: a Once listener must fire exactly once across concurrent Emit, fired %d times", round, got)
+		}
+		if got := onCalls.Load(); got != emitters {
+			t.Fatalf("round %d: every Emit must reach the persistent listener, got %d want %d", round, got, emitters)
+		}
+	}
+}
+
+func TestEvent_OnceRegisteredConcurrentlyWithEmit_NeverFiresTwice(t *testing.T) {
+	for round := 0; round < 200; round++ {
+		e := NewEvent()
+
+		var onceCalls atomic.Int64
+		e.On("evt", func(args ...any) {})
+
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			e.Once("evt", func(args ...any) { onceCalls.Add(1) })
+		}()
+
+		for i := 0; i < 4; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				e.Emit("evt")
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		e.Emit("evt")
+
+		if got := onceCalls.Load(); got > 1 {
+			t.Fatalf("round %d: a Once listener must never fire more than once, fired %d times", round, got)
+		}
+	}
+}
+
 func TestEvent_OffOnceListener(t *testing.T) {
 	e := NewEvent()
 	var n int32
