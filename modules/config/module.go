@@ -121,7 +121,7 @@ func Register(opts *ConfigModuleOptions) *core.Module {
 	}
 
 	mergeIntoOSENV(osENVMap, configOptions.IsOverride, envs...)
-	configService := ConfigService{osENVMap}
+	configService := ConfigService{Config: osENVMap}
 
 	if len(configOptions.Hooks) > 0 {
 		for _, hookFn := range configOptions.Hooks {
