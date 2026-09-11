@@ -6,15 +6,30 @@ import (
 )
 
 func withCharset(length int, charset string) string {
-	b := make([]byte, length)
-	if _, err := cryptoRand.Read(b); err != nil {
-		panic(err)
-	}
 	n := len(charset)
-	for i, rb := range b {
-		b[i] = charset[int(rb)%n]
+	limit := 256 - (256 % n)
+
+	out := make([]byte, length)
+	buf := make([]byte, length)
+	filled := 0
+
+	for filled < length {
+		if _, err := cryptoRand.Read(buf); err != nil {
+			panic(err)
+		}
+		for _, rb := range buf {
+			if int(rb) >= limit {
+				continue
+			}
+			out[filled] = charset[int(rb)%n]
+			filled++
+			if filled == length {
+				break
+			}
+		}
 	}
-	return string(b)
+
+	return string(out)
 }
 
 func Random(length int) string {
