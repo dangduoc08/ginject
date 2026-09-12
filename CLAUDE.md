@@ -53,7 +53,7 @@ Interfaces to implement:
 
 ### Handler Injection
 
-Handler method parameters are injected by type — declare them in the handler signature and the framework resolves them from the request context. Types available: `*ctx.HTTPContext`, `*http.Request`, `http.ResponseWriter`, `ctx.Body`, `ctx.Query`, `ctx.Param`, `ctx.Header`, `ctx.Form`, `ctx.File`, `ctx.Next`, `ctx.Redirect`, `ctx.WSPayload`.
+Handler method parameters are injected by type — declare them in the handler signature and the framework resolves them from the request context. Types available: `*ctx.HTTPContext`, `*http.Request`, `http.ResponseWriter`, `ctx.Body`, `ctx.Query`, `ctx.Param`, `ctx.Header`, `ctx.Form`, `ctx.File`, `ctx.Next`, `ctx.Redirect`, `ctx.WSPayload`, `ctx.WSTopic`, `common.Publisher`.
 
 All types are re-exported from the root `ginject` package (`aliases.go`).
 
@@ -69,7 +69,21 @@ All types are re-exported from the root `ginject` package (`aliases.go`).
 
 ### WebSocket
 
-Controllers embed `common.WS` instead of `common.REST`. Method names map to event names. The framework handles the `websocket.Conn` lifecycle; handlers receive `ctx.WSPayload` for incoming events.
+Controllers embed `common.WS` instead of `common.REST`. Method names map to event names (`SUBSCRIBE_chat_PERSON_ANY` → `chat.person.*`). The framework handles the `websocket.Conn` lifecycle.
+
+Four phases, each with its own pipeline:
+
+- **Handshake** — an HTTP Upgrade, so it runs the HTTP middleware chain: everything from `BindGlobalMiddlewares` plus anything passed to `EnableWS(cfg, ...)`. No Guard, no Interceptor. A middleware that doesn't call `next()` rejects the upgrade. `initMiddlewares` must run before `initWS` in `Create()` for this inheritance to work.
+- **Subscribe / Unsubscribe** — Guards only. Interceptors are deliberately skipped: their post phase can never run outside a publish, so running the pre phase would leave them half-executed.
+- **Publish** — Guard → Interceptor → Pipe → Handler → ExceptionFilter.
+
+`ctx.WSContext` carries `ConnID()`, `Topic()`, `Pattern()` and `Operation()`, so a Guard can authorize per-topic and per-tenant; without them a guard sees only the message body.
+
+Wire protocol distinguishes two outbound frames: `TypeResponse` is a handler's return value going back to the **publisher** (tagged with the request ID and topic); `TypeEvent` is a broker fan-out going to **subscribers** (tagged with the concrete topic plus the `Pattern` the connection subscribed with, so a `chat.*` client can route a `chat.123` event). Subscribe/unsubscribe/publish all ack with `[]WSTopicResult` — one entry per requested topic, so a mixed batch reports each outcome rather than aborting at the first failure.
+
+Fan-out goes through `memorybroker.Broker`, which is in-process by default. `App.UseBroker` / `WSConfig.Broker` swaps in a distributed implementation without touching the WS layer — but no distributed broker ships yet, so treat fan-out as single-instance.
+
+The TypeScript client lives in the sibling repo `ginject-sdk` (`src/ginject-ws.ts`); its wire contract must stay in sync with `core/read_loop.go`.
 
 ### Bootstrap-time Error Convention
 

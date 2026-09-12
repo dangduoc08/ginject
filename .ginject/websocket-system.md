@@ -24,9 +24,9 @@
 ```
 [INIT]
   ↓
-[HANDSHAKE] — Middleware chain runs
-  ├─ Guard checks if handshake allowed
-  └─ Can set initial context
+[HANDSHAKE] — HTTP middleware chain runs (global + WS-specific)
+  ├─ A middleware that does not call next() rejects the upgrade
+  └─ Context set on the request survives into the connection
   ↓
 [ACCEPTED] — websocket.Conn established
   ├─ connID generated (UUID)
@@ -56,14 +56,22 @@ Server receives upgrade request
 ```
 app.ws.upgrade(w, r, websocket.Server{
     Handshake: func(wsCfg, r) error {
-        // Middleware chain runs here
-        // Guard can reject: return error
-        // Interceptor can setup context
+        // Origin allowlist, then the HTTP middleware chain:
+        //   1. everything bound with app.BindGlobalMiddlewares
+        //   2. everything passed to app.EnableWS(cfg, ...)
+        // A middleware that does not call next() rejects the upgrade.
+        // There is NO Guard and NO Interceptor at handshake time —
+        // those run per subscribe/unsubscribe/publish instead.
         return nil  // Accept connection
     },
     Handler: websocket.Handler(app.ws.handleRequest),
 })
 ```
+
+Both success and failure emit a `StageComplete` trace event with
+`Operation: "handshake"`, `Status: ok|rejected|failed` and the real HTTP
+status code — including the case where the request never reaches the
+handshake callback at all (a plain GET on the WS path).
 
 **Phase 3: Connection Acceptance**
 ```
@@ -122,34 +130,50 @@ Unmarshal JSON → WSPayload{Type, Topic, ID, Message, ...}
 Update LastSeen timestamp (for dead connection detection)
     ↓
 Pattern matching: Type
-    ├─ TypeSubscribe → handleSubscribe
+    ├─ TypeSubscribe → handleSubscribe        (Guards only, NO Interceptors)
+    │   ├─ Validate topic (non-empty, <= 255 chars)
     │   ├─ Match handler for topic
-    │   ├─ Run middleware chain
+    │   ├─ Run Guard chain (sees ConnID, Topic, Pattern, Operation)
     │   ├─ Register memorybroker subscription callback
-    │   └─ reply(conn, TypeAck, ID, "") ← ACK response
+    │   └─ reply TypeAck | TypeError with []WSTopicResult
     │
     ├─ TypePublish → handlePublish
+    │   ├─ Validate topic
     │   ├─ Match handler for topic
     │   ├─ Verify subscription exists
-    │   ├─ Dispatch handler (middleware + pipeline)
+    │   ├─ Guard → Interceptor → Pipe → Handler → ExceptionFilter
+    │   ├─ reply TypeResponse (handler return value, carries Topic)
     │   ├─ memorybroker.Publish(topic, Message) for fanout
-    │   └─ reply(conn, TypeAck, ID, "") ← ACK response
+    │   └─ reply TypeAck | TypeError with []WSTopicResult
     │
-    ├─ TypeUnsubscribe → handleUnsubscribe
-    │   └─ Unregister memorybroker callback (no ACK)
+    ├─ TypeUnsubscribe → handleUnsubscribe     (Guards only, NO Interceptors)
+    │   ├─ Run Guard chain
+    │   ├─ Unregister memorybroker callback
+    │   └─ reply TypeAck | TypeError with []WSTopicResult
     │
-    ├─ TypePing → reply(conn, TypePong, "", "") ← Heartbeat response
+    ├─ TypePing → reply(conn, TypePong, ID, "") ← echoes the ping id
     │
     ├─ TypePong → Record liveness (no response, LastSeen updated above)
     │
     └─ Other types → reply(conn, TypeError, ID, message) ← Error response
 ```
 
-**ACK Protocol (v2.0+, commit ccfaea3)**:
-- Subscribe, Publish carry request `ID`
-- Server responds with `TypeAck` message (same ID, empty message)
-- Enables client-side request/response correlation
-- Not mandatory for application logic, but improves protocol reliability
+**ACK Protocol**:
+- Subscribe, Unsubscribe and Publish all carry a request `ID` and are all acked
+- The reply echoes that `ID` and carries `[]WSTopicResult` — one entry per
+  requested topic, so a mixed batch reports each topic's outcome instead of
+  aborting at the first failure
+- `TypeAck` when every topic succeeded, `TypeError` when any did not
+- When the pipeline already answered with an exception frame (Guard denial,
+  handler panic) and that covers every requested topic, no second summary
+  frame is sent
+
+**Response vs Event** — two different frames, do not conflate them:
+- `TypeResponse` carries a handler's return value back to the **publisher**,
+  tagged with the request `ID` and the `Topic` it answers
+- `TypeEvent` carries a broker fan-out to **subscribers**, tagged with the
+  concrete `Topic` and the `Pattern` the connection subscribed with (so a
+  `chat.*` subscriber can route a `chat.123` event)
 
 ### 2.2 Outbound Message Broadcasting
 
@@ -163,10 +187,11 @@ For each subscriber connection:
     ├─ Call callback(userData)
     └─ Callback calls conn.TrySend(message) ← NON-BLOCKING
     ↓
-If send channel buffer full (32 messages):
-    ├─ TrySend() returns false
-    ├─ Message DROPPED silently
-    └─ No error/exception thrown
+If send channel buffer full (SendBufferSize, default 32):
+    ├─ TrySend() returns false and increments the connection's drop counter
+    ├─ First drop logs WSSlowConsumer and marks the conn a slow consumer
+    └─ Past MaxDroppedFrames the connection is evicted (WSSlowConsumerEvicted)
+       rather than silently losing more frames
 ```
 
 ---
@@ -177,10 +202,19 @@ If send channel buffer full (32 messages):
 
 ```go
 type WSPayload struct {
-    Type    WSPayloadType  // "subscribe", "publish", "unsubscribe", "ping", "pong", "ack", "event", "error"
-    ID      string         // Request/response correlation ID (v2.0+)
-    Topic   []string       // Topic name(s) - array for batch operations
-    Message any            // Message data (marshals to/from JSON)
+    Type    WSPayloadType  // see the constants below
+    ID      string         // request/response correlation ID
+    Topic   []string       // topic name(s) - array for batch operations
+    Pattern string         // on TypeEvent: the subscription that delivered it
+    Message any            // message data (marshals to/from JSON)
+}
+
+type WSTopicResult struct {
+    Topic   string  // the requested topic
+    Status  string  // "ok" | "rejected" | "failed"
+    Code    int     // WS close-style code when not ok
+    Error   string  // short error name
+    Message string  // human-readable detail
 }
 
 type WSPayloadType string
@@ -188,11 +222,12 @@ const (
     TypeSubscribe   WSPayloadType = "subscribe"
     TypeUnsubscribe WSPayloadType = "unsubscribe"
     TypePublish     WSPayloadType = "publish"
-    TypeEvent       WSPayloadType = "event"      // Fanout response
-    TypeAck         WSPayloadType = "ack"        // Confirmation (v2.0+)
+    TypeEvent       WSPayloadType = "event"      // broker fan-out to a subscriber
+    TypeResponse    WSPayloadType = "response"   // a handler's return value to the publisher
+    TypeAck         WSPayloadType = "ack"        // every topic in the request succeeded
     TypeError       WSPayloadType = "error"
-    TypePing        WSPayloadType = "ping"       // Server heartbeat (v2.0+)
-    TypePong        WSPayloadType = "pong"       // Client response (v2.0+)
+    TypePing        WSPayloadType = "ping"
+    TypePong        WSPayloadType = "pong"
 )
 ```
 
@@ -380,12 +415,15 @@ memorybroker.Subscribe("users.created", func(data any) {
 ### 6.3 Send Channel Semantics
 
 **Per-Connection Buffer**:
-- Size: 32 messages (fixed, `sendBufferSize`)
+- Size: `WSConfig.SendBufferSize` (default 32)
 - Behavior: Non-blocking `TrySend()`
-- Overflow: Messages DROPPED silently
-- No backpressure mechanism
+- Overflow: the frame is dropped, the drop is counted, and the first drop logs
+  `WSSlowConsumer`
+- Past `WSConfig.MaxDroppedFrames` (default 64) the connection is evicted
 
-**Implication**: Slow clients can miss messages.
+**Implication**: a slow client loses messages up to the drop budget and is then
+disconnected, rather than degrading silently and indefinitely. `App.WSStats()`
+exposes `Connections`, `Subscriptions`, `Dropped` and `SlowConsumers`.
 
 **Write-side bounds** (these are what stop a slow client becoming a leak):
 - `WSConfig.WriteTimeout` (default 10s) sets a deadline before every `websocket.JSON.Send`. Without it a peer that never reads blocks `Send` forever, and `close(done)` cannot free the goroutine because it is blocked inside `Send`, not in its `select`.
@@ -400,12 +438,13 @@ See [security-limits-and-defaults.md](security-limits-and-defaults.md) for every
 ### 7.1 Available Dependencies
 
 ```go
-func (c ChatController) ON_MESSAGE_CREATED(
-    wsCtx *ctx.WSContext,           // Full context
-    conn *websocket.Conn,           // Raw connection
-    payload ctx.WSPayload,          // Current message
-    next ctx.Next,                  // Middleware continuation
-    pub common.Publisher,           // Message publisher
+func (c ChatController) SUBSCRIBE_chat_ANY(
+    wsCtx *ctx.WSContext,           // full context: ConnID(), Topic(), Pattern(), Operation()
+    conn *websocket.Conn,           // raw connection
+    payload ctx.WSPayload,          // current message
+    topic ctx.WSTopic,              // the concrete topic being served, e.g. "chat.42"
+    next ctx.Next,                  // middleware continuation
+    pub common.Publisher,           // message publisher (fan-out from a handler)
 ) string {
     // All available
     return "handled"
@@ -553,7 +592,7 @@ Resources freed
 
 **Mechanism**:
 ```
-Server (pingLoop) sends TypePing every 30 seconds
+Server (pingLoop) sends TypePing every WSConfig.PingInterval (default 30s)
     ↓
 Client receives TypePing
     ↓
@@ -561,13 +600,24 @@ Client sends TypePong response
     ↓
 Server (readLoop) receives TypePong
     ↓
-Server updates conn.LastSeen timestamp
+Server updates conn.lastSeen timestamp (any inbound frame does this)
 ```
 
+A client may also drive the heartbeat itself: the server answers a client
+`ping` with a `pong` **echoing the ping's `ID`**, so a client can match a pong
+to the heartbeat it sent and time out on its own schedule.
+
 **Guarantees**:
-- If client stops responding, server detects within 60 seconds
+- If a client stops sending anything at all, the server reaps it within
+  `WSConfig.PongTimeout` (default 75s), swept every `WSConfig.ReapInterval`
+  (default 15s)
 - No application-level heartbeat needed (framework handles it)
 - Helps NAT/firewall keep TCP connection alive
+
+**Caveat**: this is an *application-level* JSON `ping`, not a WebSocket
+control frame (opcode 0x9). Browsers auto-answer protocol pings but will NOT
+answer this one — a non-ginject client must reply with `{"type":"pong"}` or it
+will be reaped. `ginject-sdk` does this for you.
 
 ### 11.2 Dead Connection Detection
 
@@ -602,6 +652,16 @@ Reason: Avoid holding lock during cleanup, prevent lock contention
 ---
 
 ## 12. Known Limitations & Gotchas
+
+### 12.0 Single-Process Fan-Out
+
+`memorybroker` is in-process. Two ginject instances behind a load balancer do
+NOT see each other's publishes. `App.UseBroker(b memorybroker.Broker)` (or
+`WSConfig.Broker`) swaps in a distributed implementation — the WebSocket layer
+itself needs no changes — but a Redis/NATS/Kafka broker still has to be
+written, and each has its own delivery semantics (at-most-once vs at-least-
+once, ordering, consumer groups). Until one is plugged in, treat WebSocket
+fan-out as single-instance.
 
 ### 12.1 Message Drop on Slow Client
 
