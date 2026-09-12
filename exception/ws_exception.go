@@ -8,6 +8,7 @@ const (
 	codeWSPolicyViolation = 1008
 	codeWSMessageTooBig   = 1009
 	codeWSInternalError   = 1011
+	codeWSTryAgainLater   = 1013
 
 	codeWSNotSubscribed = 4001
 	codeWSTopicNotFound = 4004
@@ -23,6 +24,7 @@ var wsCloseStatusText = map[int]string{
 	1009: "Message Too Big",
 	1010: "Mandatory Extension",
 	1011: "Internal Error",
+	1013: "Try Again Later",
 	4001: "Not Subscribed",
 	4004: "Topic Not Found",
 }
@@ -53,6 +55,14 @@ func MessageTooBigException(message string, opts ...any) Exception {
 
 func WSInternalErrorException(message string, opts ...any) Exception {
 	return NewException(message, codeWSInternalError, opts...)
+}
+
+func TryAgainLaterException(message string, opts ...any) Exception {
+	return NewException(message, codeWSTryAgainLater, opts...)
+}
+
+func SubscriptionLimitException(message string, opts ...any) Exception {
+	return NewException(message, codeWSPolicyViolation, opts...)
 }
 
 func NotSubscribedException(message string, opts ...any) Exception {

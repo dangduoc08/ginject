@@ -69,13 +69,19 @@ func (al *AccessLog) worker() {
 	for job := range al.flush {
 		total := sumDurations(job.entries)
 		stages := stageArgs(job.entries, total)
-		args := make([]any, 0, 10+len(stages))
+		args := make([]any, 0, 16+len(stages))
 		args = append(args,
 			"id", job.done.ID,
 			"transport", job.done.Transport,
 			"code", job.done.Code,
 			"operation", job.done.Operation,
 		)
+		if job.done.ConnID != "" {
+			args = append(args, "conn", job.done.ConnID)
+		}
+		if job.done.Status != "" {
+			args = append(args, "status", job.done.Status)
+		}
 		args = append(args, stages...)
 		args = append(args, "total", formatDuration(total))
 		al.logger.Info(job.done.Target, args...)

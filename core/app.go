@@ -78,6 +78,7 @@ const (
 	paramKey        = "github.com/dangduoc08/ginject/ctx/ctx.Param"
 	fileKey         = "github.com/dangduoc08/ginject/ctx/ctx.File"
 	wsPayloadKey    = "github.com/dangduoc08/ginject/ctx/ctx.WSPayload"
+	wsTopicKey      = "github.com/dangduoc08/ginject/ctx/ctx.WSTopic"
 	nextKey         = "/func()"
 	redirectKey     = "/func(string)"
 	publisherKey    = "github.com/dangduoc08/ginject/common/common.Publisher"
@@ -115,6 +116,7 @@ var knownWSDependencyKeys = map[string]int{
 	wsContextKey:                1,
 	wsConnectionKey:             1,
 	wsPayloadKey:                1,
+	wsTopicKey:                  1,
 	nextKey:                     1,
 	publisherKey:                1,
 	common.WSPayloadPipeableKey: 1,
@@ -160,28 +162,30 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.Init(w, r)
 
 	if app.isWSEnabled && app.ws.isWSPath(r.URL.Path) {
+		defer app.releaseCtx(c)
+
+		handshakeRan := false
 		app.ws.upgrade(w, r, websocket.Server{
 			Handshake: func(wsCfg *websocket.Config, r *http.Request) error {
-				defer app.releaseCtx(c)
+				handshakeRan = true
 
 				c.Request = r
 				c.Status(http.StatusSwitchingProtocols)
 				err := app.ws.handshake(c)
-				if app.event.HasListeners(trace.EventName) {
-					app.event.Emit(trace.EventName, trace.Event{
-						ID:        c.GetID(),
-						Stage:     trace.StageComplete,
-						Transport: trace.TransportHTTP,
-						Operation: c.Method,
-						Target:    c.URL.Path,
-						Code:      c.Code,
-						Duration:  time.Since(c.Timestamp),
-					})
+				status := trace.StatusOK
+				if err != nil {
+					status = trace.StatusRejected
 				}
+				app.emitWSHandshakeComplete(c, status)
 				return err
 			},
 			Handler: websocket.Handler(app.ws.handleRequest),
 		})
+
+		if !handshakeRan {
+			c.Status(http.StatusBadRequest)
+			app.emitWSHandshakeComplete(c, trace.StatusFailed)
+		}
 
 		return
 	}
@@ -206,23 +210,26 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 //  1. initProviders must run first — it builds injectedProviders and
 //     app.module (parsed from m), which everything below reads from.
-//  2. initWS must run right after that, and BEFORE initExceptionFilters/
+//  2. initMiddlewares must run before initWS: the WS handshake inherits the
+//     already-resolved global HTTP middleware chain from app.http.route so a
+//     handshake goes through the same auth as every other request.
+//  3. initWS must run right after that, and BEFORE initExceptionFilters/
 //     initGuards/initInterceptors/initMainHandlers — those functions write
 //     into app.ws.catchFnsByEvent / app.ws.eventMatcher whenever app.module
 //     has WS handlers. app.ws stays nil if EnableWS was never called, so
 //     every one of those call sites is guarded with app.ws != nil rather
 //     than assuming it's set.
-//  3. initDevtool must run last — it reads the fully-populated
+//  4. initDevtool must run last — it reads the fully-populated
 //     module/route state to build the devtool snapshot.
-//  4. callOnReady must run last after all initialization is complete.
+//  5. callOnReady must run last after all initialization is complete.
 //
 // Do not reorder these calls without re-checking every init* function for
 // an unguarded app.ws.* access.
 func (app *App) Create(m *Module) {
 	app.initLogger()
 	injectedProviders := app.initProviders(m)
-	app.initWS(injectedProviders)
 	app.initMiddlewares(injectedProviders)
+	app.initWS(injectedProviders)
 	app.initExceptionFilters(injectedProviders)
 	app.initGuards(injectedProviders)
 	app.initInterceptors(injectedProviders)
@@ -242,27 +249,77 @@ func (app *App) initWS(injectedProviders map[string]Provider) {
 	app.wsConfig.event = app.event
 	app.wsConfig.broker = &app.broker
 	app.wsConfig.shutdownChan = app.shutdownChan
+	app.wsConfig.inheritedHandlers = app.http.route.GlobalMiddlewares
+	wsNameByPattern := make(map[string]string, len(app.module.WSMainHandlers))
+	for _, mh := range app.module.WSMainHandlers {
+		wsNameByPattern[mh.EventName] = mh.Name
+	}
 	app.wsConfig.resolveAndCallHandler = func(f any, c *ctx.WSContext) []reflect.Value {
+		if !app.event.HasListeners(trace.EventName) {
+			var pipeElapsed time.Duration
+			var handlerCalled bool
+			return invokeWSHandlerByProviders(f, injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
+		}
+
+		start := time.Now()
 		var pipeElapsed time.Duration
 		var handlerCalled bool
+		defer func() {
+			if !handlerCalled {
+				return
+			}
+			app.ws.emitHandler(c, wsNameByPattern[c.Pattern()], time.Since(start)-pipeElapsed)
+		}()
 		return invokeWSHandlerByProviders(f, injectedProviders, c, app.event, &pipeElapsed, &handlerCalled)
 	}
 	app.wsConfig.newCtx = func() *ctx.WSContext { return app.wsCtxPool.Get().(*ctx.WSContext) }
 	app.wsConfig.releaseCtx = app.releaseWSCtx
 	app.ws = NewWS(app.wsConfig)
-	app.ws.emitComplete = func(c *ctx.WSContext, operation, target string) {
+	app.ws.emitComplete = func(c *ctx.WSContext, operation, target, status string, code int) {
 		if !app.event.HasListeners(trace.EventName) {
 			return
 		}
 		app.event.Emit(trace.EventName, trace.Event{
 			ID:        c.GetID(),
+			ConnID:    c.ConnID(),
 			Stage:     trace.StageComplete,
 			Transport: trace.TransportWS,
 			Operation: operation,
 			Target:    target,
+			Status:    status,
+			Code:      code,
 			Duration:  time.Since(c.Timestamp),
 		})
 	}
+	app.ws.emitHandler = func(c *ctx.WSContext, name string, duration time.Duration) {
+		if !app.event.HasListeners(trace.EventName) {
+			return
+		}
+		app.event.Emit(trace.EventName, trace.Event{
+			ID:        c.GetID(),
+			ConnID:    c.ConnID(),
+			Stage:     trace.StageHandler,
+			Name:      name,
+			Transport: trace.TransportWS,
+			Duration:  duration,
+		})
+	}
+}
+
+func (app *App) emitWSHandshakeComplete(c *ctx.HTTPContext, status string) {
+	if !app.event.HasListeners(trace.EventName) {
+		return
+	}
+	app.event.Emit(trace.EventName, trace.Event{
+		ID:        c.GetID(),
+		Stage:     trace.StageComplete,
+		Transport: trace.TransportHTTP,
+		Operation: trace.OperationHandshake,
+		Target:    c.URL.Path,
+		Status:    status,
+		Code:      c.Code,
+		Duration:  time.Since(c.Timestamp),
+	})
 }
 
 func (app *App) initAccessLog() {
@@ -431,7 +488,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 			if isWSGuard && app.ws != nil {
 				mw := traceWSHandler(app.event, trace.StageGuard, name, common.BuildWSGuardMiddleware(wsCanActivate))
 				for _, h := range app.module.WSMainHandlers {
-					app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
+					app.ws.eventMatcher.AddGuards(h.EventName, mw)
 				}
 			}
 		}
@@ -446,7 +503,7 @@ func (app *App) initGuards(injectedProviders map[string]Provider) {
 	if app.ws != nil {
 		for _, mg := range app.module.WSGuards {
 			mw := traceWSHandler(app.event, trace.StageGuard, mg.Name, common.BuildWSGuardMiddleware(mg.Handler.(common.WSCanActivate)))
-			app.ws.eventMatcher.AddMiddlewares(mg.EventName, mw)
+			app.ws.eventMatcher.AddGuards(mg.EventName, mw)
 		}
 	}
 }
@@ -532,7 +589,7 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 				for _, h := range app.module.WSMainHandlers {
 					mw := traceWSHandler(app.event, trace.StagePreInterceptor, name, common.BuildWSInterceptMiddleware(h.EventName, wsIntercept))
 					mw = tagWSInterceptorName(app.event, h.EventName, name, mw)
-					app.ws.eventMatcher.AddMiddlewares(h.EventName, mw)
+					app.ws.eventMatcher.AddInterceptors(h.EventName, mw)
 				}
 			}
 		}
@@ -550,7 +607,7 @@ func (app *App) initInterceptors(injectedProviders map[string]Provider) {
 		for _, mi := range app.module.WSInterceptors {
 			mw := traceWSHandler(app.event, trace.StagePreInterceptor, mi.Name, common.BuildWSInterceptMiddleware(mi.EventName, mi.Handler.(common.WSIntercept)))
 			mw = tagWSInterceptorName(app.event, mi.EventName, mi.Name, mw)
-			app.ws.eventMatcher.AddMiddlewares(mi.EventName, mw)
+			app.ws.eventMatcher.AddInterceptors(mi.EventName, mw)
 		}
 	}
 }
@@ -631,6 +688,25 @@ func (app *App) EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App
 	app.wsConfig = cfg
 
 	return app
+}
+
+func (app *App) UseBroker(b memorybroker.Broker) *App {
+	if b == nil {
+		return app
+	}
+
+	app.broker = b
+	globalInterfaceByKey.Store(publisherKey, common.Publisher(newPublisher(app.broker)))
+
+	return app
+}
+
+func (app *App) WSStats() WSStats {
+	if app.ws == nil {
+		return WSStats{}
+	}
+
+	return app.ws.Stats()
 }
 
 func (app *App) UseLogger(logger common.Logger) *App {

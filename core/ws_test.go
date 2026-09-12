@@ -3,7 +3,9 @@ package core
 import (
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
@@ -200,5 +202,161 @@ func TestWSHandleRequest_SendsConnectedPayloadAndRegisters(t *testing.T) {
 
 	if _, ok := ws.connmgr.Get(got.ID); ok {
 		t.Error(test.DiffMessage(ok, false, "the connection should be unregistered once handleRequest returns"))
+	}
+}
+
+func TestHeartbeat_PingLoopStopsWhenDone(t *testing.T) {
+	ws := NewWS(&WSConfig{logger: &countingLogger{}, PingInterval: 5 * time.Millisecond})
+	serverConn, _, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		pingLoop(conn, ws.connmgr, done, 5*time.Millisecond)
+		close(stopped)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	close(done)
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal(test.DiffMessage("running", "stopped", "the ping goroutine must exit when its connection ends, or every dead connection leaks a goroutine"))
+	}
+}
+
+func TestBroker_InjectedBrokerReceivesSubscribeAndPublish(t *testing.T) {
+	custom := newRecordingBroker()
+
+	ws := NewWS(&WSConfig{logger: &countingLogger{}, Broker: custom})
+	ws.newCtx = func() *ctx.WSContext { return ctx.NewWSContext() }
+	ws.releaseCtx = func(c *ctx.WSContext) { c.Reset() }
+	ws.resolveAndCallHandler = func(any, *ctx.WSContext) []reflect.Value { return nil }
+	ws.eventMatcher.AddInjectableHandler("chat.*", func() {})
+
+	serverConn, clientConn, cleanup := newTestWSConnPair(t)
+	defer cleanup()
+
+	conn := ws.connmgr.Register("conn-1", serverConn)
+	defer ws.connmgr.Unregister("conn-1")
+
+	handleSubscribe(conn, ws, WSPayload{ID: "s", Type: TypeSubscribe, Topic: []string{"chat.1"}})
+	drain(t, clientConn, 1)
+	handlePublish(conn, ws, WSPayload{ID: "p", Type: TypePublish, Topic: []string{"chat.1"}, Message: "x"})
+
+	subscribed, published := custom.snapshot()
+	if len(subscribed) != 1 || subscribed[0] != "chat.1" {
+		t.Error(test.DiffMessage(subscribed, []string{"chat.1"}, "subscribe must be delegated to the injected broker"))
+	}
+	if len(published) != 1 || published[0] != "chat.1" {
+		t.Error(test.DiffMessage(published, []string{"chat.1"}, "publish must be delegated to the injected broker"))
+	}
+}
+
+func TestNewWS_AppliesConfiguredLimits(t *testing.T) {
+	shutdown := make(chan struct{})
+	defer close(shutdown)
+
+	ws := NewWS(&WSConfig{
+		Path:            "ws",
+		MaxConnections:  7,
+		MaxPayloadBytes: 4096,
+		WriteTimeout:    3 * time.Second,
+		logger:          log.NewLog(nil),
+		shutdownChan:    shutdown,
+	})
+
+	if ws.maxPayloadBytes != 4096 {
+		t.Error(test.DiffMessage(ws.maxPayloadBytes, 4096, "MaxPayloadBytes must reach the connection"))
+	}
+	if ws.connmgr.maxConns != 7 {
+		t.Error(test.DiffMessage(ws.connmgr.maxConns, 7, "MaxConnections must reach the connection manager"))
+	}
+	if ws.connmgr.writeTimeout != 3*time.Second {
+		t.Error(test.DiffMessage(ws.connmgr.writeTimeout, 3*time.Second, "WriteTimeout must reach the connection manager"))
+	}
+}
+
+func TestNewWS_UsesSafeDefaultLimits(t *testing.T) {
+	shutdown := make(chan struct{})
+	defer close(shutdown)
+
+	ws := NewWS(&WSConfig{
+		Path:         "ws",
+		logger:       log.NewLog(nil),
+		shutdownChan: shutdown,
+	})
+
+	if ws.maxPayloadBytes != DefaultWSMaxPayloadBytes {
+		t.Error(test.DiffMessage(ws.maxPayloadBytes, DefaultWSMaxPayloadBytes, "an unset payload limit must fall back to the default, not to unlimited"))
+	}
+	if ws.connmgr.maxConns != DefaultWSMaxConnections {
+		t.Error(test.DiffMessage(ws.connmgr.maxConns, DefaultWSMaxConnections, "an unset connection limit must fall back to the default"))
+	}
+	if ws.connmgr.writeTimeout != DefaultWSWriteTimeout {
+		t.Error(test.DiffMessage(ws.connmgr.writeTimeout, DefaultWSWriteTimeout, "an unset write timeout must fall back to the default"))
+	}
+}
+
+func wslHandshakeCtx(t *testing.T, origin string) *ctx.HTTPContext {
+	t.Helper()
+
+	r := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	if origin != "" {
+		r.Header.Set("Origin", origin)
+	}
+	c := ctx.NewHTTPContext()
+	c.Init(httptest.NewRecorder(), r)
+
+	return c
+}
+
+func wslNewWS(t *testing.T, cfg *WSConfig) *WS {
+	t.Helper()
+
+	shutdown := make(chan struct{})
+	t.Cleanup(func() { close(shutdown) })
+
+	cfg.logger = log.NewLog(nil)
+	cfg.shutdownChan = shutdown
+
+	return NewWS(cfg)
+}
+
+func TestWSHandshake_AllowedOrigins_RejectsUnlisted(t *testing.T) {
+	ws := wslNewWS(t, &WSConfig{
+		Path:           "ws",
+		AllowedOrigins: []string{"https://app.example.com/"},
+	})
+
+	if err := ws.handshake(wslHandshakeCtx(t, "https://app.example.com")); err != nil {
+		t.Error(test.DiffMessage(err, nil, "a listed origin must be accepted, trailing slash ignored"))
+	}
+	if err := ws.handshake(wslHandshakeCtx(t, "https://evil.example")); err != errWSOriginRejected {
+		t.Error(test.DiffMessage(err, errWSOriginRejected, "an unlisted origin must be rejected before the upgrade completes"))
+	}
+}
+
+func TestWSHandshake_AllowedOrigins_AbsentOriginAllowed(t *testing.T) {
+	ws := wslNewWS(t, &WSConfig{
+		Path:           "ws",
+		AllowedOrigins: []string{"https://app.example.com"},
+	})
+
+	if err := ws.handshake(wslHandshakeCtx(t, "")); err != nil {
+		t.Error(test.DiffMessage(err, nil, "a non-browser client sending no Origin must not be blocked by the allowlist"))
+	}
+}
+
+func TestWSHandshake_NoAllowedOrigins_AcceptsAnyOrigin(t *testing.T) {
+	ws := wslNewWS(t, &WSConfig{Path: "ws"})
+
+	if err := ws.handshake(wslHandshakeCtx(t, "https://evil.example")); err != nil {
+		t.Error(test.DiffMessage(err, nil, "without AllowedOrigins the handshake must stay backward compatible"))
 	}
 }

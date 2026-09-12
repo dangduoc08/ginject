@@ -15,6 +15,7 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
 	"golang.org/x/net/websocket"
@@ -1147,4 +1148,565 @@ func TestInitDevtool_DoesNotSpawnAServerGoroutine(t *testing.T) {
 
 	t.Errorf("devtool must not leave a goroutine behind while its transport is unimplemented: %d before, %d after",
 		before, runtime.NumGoroutine())
+}
+
+type appTraceSink struct {
+	mu     sync.Mutex
+	events []trace.Event
+}
+
+func (s *appTraceSink) attach(app *App) {
+	app.event.On(trace.EventName, func(args ...any) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.events = append(s.events, args[0].(trace.Event))
+	})
+}
+
+func (s *appTraceSink) all() []trace.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]trace.Event, len(s.events))
+	copy(out, s.events)
+	return out
+}
+
+func (s *appTraceSink) completes() []trace.Event {
+	var out []trace.Event
+	for _, e := range s.all() {
+		if e.Stage == trace.StageComplete {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func (s *appTraceSink) waitForComplete(t testing.TB, operation string) trace.Event {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, e := range s.completes() {
+			if e.Operation == operation {
+				return e
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("no StageComplete trace event for operation %q; saw %+v", operation, s.completes())
+	return trace.Event{}
+}
+
+var handshakeOrder = struct {
+	mu    sync.Mutex
+	steps []string
+}{}
+
+func recordHandshakeStep(name string) {
+	handshakeOrder.mu.Lock()
+	defer handshakeOrder.mu.Unlock()
+	handshakeOrder.steps = append(handshakeOrder.steps, name)
+}
+
+func handshakeSteps() []string {
+	handshakeOrder.mu.Lock()
+	defer handshakeOrder.mu.Unlock()
+	return append([]string{}, handshakeOrder.steps...)
+}
+
+func resetHandshakeOrder() {
+	handshakeOrder.mu.Lock()
+	defer handshakeOrder.mu.Unlock()
+	handshakeOrder.steps = nil
+}
+
+type firstHandshakeMiddleware struct{}
+
+func (firstHandshakeMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) {
+	recordHandshakeStep("first")
+	next()
+}
+
+type denyingHandshakeMiddleware struct{}
+
+func (denyingHandshakeMiddleware) Use(_ *http.Request, w http.ResponseWriter, _ ctx.Next) {
+	recordHandshakeStep("second")
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+type thirdHandshakeMiddleware struct{}
+
+func (thirdHandshakeMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) {
+	recordHandshakeStep("third")
+	next()
+}
+
+type globalHandshakeMiddleware struct{}
+
+func (globalHandshakeMiddleware) Use(r *http.Request, _ http.ResponseWriter, next ctx.Next) {
+	handshakeGlobalRan.Store(true)
+	next()
+}
+
+var handshakeGlobalRan syncBool
+
+type syncBool struct {
+	mu sync.Mutex
+	v  bool
+}
+
+func (b *syncBool) Store(v bool) { b.mu.Lock(); b.v = v; b.mu.Unlock() }
+
+func (b *syncBool) Load() bool { b.mu.Lock(); defer b.mu.Unlock(); return b.v }
+
+func TestHandshake_RunsGlobalHTTPMiddlewaresBeforeUpgrade(t *testing.T) {
+	resetModuleGlobals()
+	handshakeGlobalRan.Store(false)
+
+	app := New()
+	app.BindGlobalMiddlewares(globalHandshakeMiddleware{})
+	app.EnableWS(&WSConfig{Path: "/ws"})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	conn, err := websocket.Dial(wsURLOf(server), "", server.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	if !handshakeGlobalRan.Load() {
+		t.Error(test.DiffMessage(false, true, "a WebSocket handshake is an HTTP request, so BindGlobalMiddlewares must run on it — otherwise the upgrade path silently skips global auth"))
+	}
+}
+
+func TestHandshake_MiddlewareOrderIsPreservedAndRejectionStopsTheChain(t *testing.T) {
+	resetModuleGlobals()
+	resetHandshakeOrder()
+
+	app := New()
+	app.EnableWS(&WSConfig{Path: "/ws"},
+		firstHandshakeMiddleware{},
+		denyingHandshakeMiddleware{},
+		thirdHandshakeMiddleware{},
+	)
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	if _, err := websocket.Dial(wsURLOf(server), "", server.URL); err == nil {
+		t.Fatal(test.DiffMessage(nil, "error", "a middleware that does not call next() must reject the handshake"))
+	}
+
+	order := handshakeSteps()
+	if len(order) != 2 || order[0] != "first" || order[1] != "second" {
+		t.Error(test.DiffMessage(order, []string{"first", "second"}, "middleware must run in declaration order and stop at the one that rejects"))
+	}
+}
+
+func TestHandshake_RejectionIsLoggedWithAFailureStatusNotA101(t *testing.T) {
+	resetModuleGlobals()
+	resetHandshakeOrder()
+
+	app := New()
+	sink := &appTraceSink{}
+	sink.attach(app)
+
+	app.EnableWS(&WSConfig{Path: "/ws"}, denyingHandshakeMiddleware{})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	_, _ = websocket.Dial(wsURLOf(server), "", server.URL)
+
+	e := sink.waitForComplete(t, trace.OperationHandshake)
+	if e.Status != trace.StatusRejected {
+		t.Error(test.DiffMessage(e.Status, trace.StatusRejected, "a rejected handshake must be distinguishable from a successful one in the access log"))
+	}
+	if e.Code == http.StatusSwitchingProtocols {
+		t.Error(test.DiffMessage(e.Code, "not 101", "a rejected handshake must not be logged as a successful 101 upgrade"))
+	}
+}
+
+func TestHandshake_SuccessIsLoggedAsHandshakeWithA101(t *testing.T) {
+	resetModuleGlobals()
+
+	app := New()
+	sink := &appTraceSink{}
+	sink.attach(app)
+
+	app.EnableWS(&WSConfig{Path: "/ws"})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	conn, err := websocket.Dial(wsURLOf(server), "", server.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	e := sink.waitForComplete(t, trace.OperationHandshake)
+	if e.Status != trace.StatusOK {
+		t.Error(test.DiffMessage(e.Status, trace.StatusOK, "a successful handshake must be logged as ok"))
+	}
+	if e.Code != http.StatusSwitchingProtocols {
+		t.Error(test.DiffMessage(e.Code, http.StatusSwitchingProtocols, "a successful handshake must be logged with the 101 it actually returned"))
+	}
+	if e.Transport != trace.TransportHTTP {
+		t.Error(test.DiffMessage(e.Transport, trace.TransportHTTP, "the handshake is still an HTTP request"))
+	}
+}
+
+func TestHandshake_MalformedUpgradeStillProducesAnAccessLogEntry(t *testing.T) {
+	resetModuleGlobals()
+
+	app := New()
+	sink := &appTraceSink{}
+	sink.attach(app)
+
+	app.EnableWS(&WSConfig{Path: "/ws"})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/ws")
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+
+	e := sink.waitForComplete(t, trace.OperationHandshake)
+	if e.Status != trace.StatusFailed {
+		t.Error(test.DiffMessage(e.Status, trace.StatusFailed, "a request that never completes the upgrade must still be logged, or failed handshakes are invisible in production"))
+	}
+}
+
+func TestHandshake_OriginRejectionIsReportedAsRejected(t *testing.T) {
+	resetModuleGlobals()
+
+	app := New()
+	sink := &appTraceSink{}
+	sink.attach(app)
+
+	app.EnableWS(&WSConfig{Path: "/ws", AllowedOrigins: []string{"https://app.example.com"}})
+	app.Create(ModuleBuilder().Build())
+
+	server := httptest.NewServer(app)
+	defer server.Close()
+
+	if _, err := websocket.Dial(wsURLOf(server), "", "https://evil.example"); err == nil {
+		t.Fatal(test.DiffMessage(nil, "error", "an unlisted Origin must not be upgraded"))
+	}
+
+	e := sink.waitForComplete(t, trace.OperationHandshake)
+	if e.Status != trace.StatusRejected {
+		t.Error(test.DiffMessage(e.Status, trace.StatusRejected, "an origin rejection must be logged as a rejection"))
+	}
+}
+
+type recordingBroker struct {
+	inner memorybroker.Broker
+
+	mu         sync.Mutex
+	subscribed []string
+	published  []string
+}
+
+func newRecordingBroker() *recordingBroker {
+	return &recordingBroker{inner: memorybroker.NewMemoryBroker()}
+}
+
+func (b *recordingBroker) Subscribe(topic string, h memorybroker.MessageHandler) (memorybroker.Subscription, error) {
+	b.mu.Lock()
+	b.subscribed = append(b.subscribed, topic)
+	b.mu.Unlock()
+	return b.inner.Subscribe(topic, h)
+}
+
+func (b *recordingBroker) Unsubscribe(sub memorybroker.Subscription) error {
+	return b.inner.Unsubscribe(sub)
+}
+
+func (b *recordingBroker) Publish(topic string, payload any) error {
+	b.mu.Lock()
+	b.published = append(b.published, topic)
+	b.mu.Unlock()
+	return b.inner.Publish(topic, payload)
+}
+
+func (b *recordingBroker) PublishAsync(topic string, payload any) error {
+	return b.inner.PublishAsync(topic, payload)
+}
+
+func (b *recordingBroker) Close() error { return b.inner.Close() }
+
+func (b *recordingBroker) snapshot() ([]string, []string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]string{}, b.subscribed...), append([]string{}, b.published...)
+}
+
+func TestBroker_CanBeReplacedWithoutTouchingTheWebSocketLayer(t *testing.T) {
+	resetModuleGlobals()
+
+	custom := newRecordingBroker()
+
+	app := New()
+	app.UseBroker(custom)
+	app.EnableWS(&WSConfig{Path: "/ws"})
+	app.Create(ModuleBuilder().Build())
+
+	if app.broker != memorybroker.Broker(custom) {
+		t.Fatal(test.DiffMessage("memorybroker", "custom", "UseBroker must replace the app broker; without this seam the WebSocket layer can never scale past one process"))
+	}
+	if *app.ws.connmgr.Broker != memorybroker.Broker(custom) {
+		t.Error(test.DiffMessage("memorybroker", "custom", "the WebSocket connection manager must fan out through the injected broker"))
+	}
+}
+
+func wsURLOf(s *httptest.Server) string {
+	return "ws" + strings.TrimPrefix(s.URL, "http") + "/ws"
+}
+
+type auditWSController struct {
+	common.WS
+	common.Guard
+}
+
+func (c auditWSController) NewController() Controller {
+	c.BindGuard(auditTenantGuard{})
+	return c
+}
+
+func (c auditWSController) SUBSCRIBE_chat_ANY(topic ctx.WSTopic) ctx.Map {
+	return ctx.Map{"echo": string(topic)}
+}
+
+type auditTenantGuard struct{}
+
+func (auditTenantGuard) CanActivate(c *ctx.WSContext) bool {
+	return c.Topic() != "chat.forbidden"
+}
+
+func dialAudit(t testing.TB, server *httptest.Server) *websocket.Conn {
+	t.Helper()
+
+	conn, err := websocket.Dial("ws"+server.URL[len("http"):]+"/ws", "", server.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	return conn
+}
+
+func expectFrame(t testing.TB, conn *websocket.Conn, want WSPayloadType) WSPayload {
+	t.Helper()
+
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var p WSPayload
+	if err := websocket.JSON.Receive(conn, &p); err != nil {
+		t.Fatalf("receive (wanted %v): %v", want, err)
+	}
+	if p.Type != want {
+		t.Fatalf("expected %v frame, got %v (%+v)", want, p.Type, p)
+	}
+	return p
+}
+
+func newAuditApp(t testing.TB) (*App, *httptest.Server, *appTraceSink) {
+	t.Helper()
+	resetModuleGlobals()
+
+	app := New()
+	sink := &appTraceSink{}
+	sink.attach(app)
+
+	app.EnableWS(&WSConfig{Path: "/ws", PingInterval: time.Hour})
+	app.Create(ModuleBuilder().Controllers(auditWSController{}).Build())
+
+	server := httptest.NewServer(app)
+	t.Cleanup(server.Close)
+
+	return app, server, sink
+}
+
+// TestIntegration_FullClientJourney drives the real HTTP server the way a
+// browser client would: handshake, connected frame, subscribe, publish, read
+// both the handler response and the broker fan-out, then unsubscribe.
+func TestIntegration_FullClientJourney(t *testing.T) {
+	app, server, sink := newAuditApp(t)
+
+	conn := dialAudit(t, server)
+	defer func() { _ = conn.Close() }()
+
+	connected := expectFrame(t, conn, TypeConnected)
+	if connected.ID == "" {
+		t.Fatal(test.DiffMessage("", "a connection id", "the server must hand the client its connection id"))
+	}
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "s1", Type: TypeSubscribe, Topic: []string{"chat.room1"}}); err != nil {
+		t.Fatal(err)
+	}
+	ack := expectFrame(t, conn, TypeAck)
+	if ack.ID != "s1" {
+		t.Error(test.DiffMessage(ack.ID, "s1", "the ack must echo the request id"))
+	}
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "p1", Type: TypePublish, Topic: []string{"chat.room1"}, Message: map[string]any{"text": "hi"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := expectFrame(t, conn, TypeResponse)
+	if m, ok := response.Message.(map[string]any); !ok || m["echo"] != "chat.room1" {
+		t.Error(test.DiffMessage(response.Message, map[string]any{"echo": "chat.room1"}, "the handler must receive the concrete topic and its answer must reach the publisher"))
+	}
+
+	fanOut := expectFrame(t, conn, TypeEvent)
+	if fanOut.Pattern != "chat.room1" {
+		t.Error(test.DiffMessage(fanOut.Pattern, "chat.room1", "the fan-out event must name the subscription that delivered it"))
+	}
+
+	expectFrame(t, conn, TypeAck)
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "u1", Type: TypeUnsubscribe, Topic: []string{"chat.room1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if unack := expectFrame(t, conn, TypeAck); unack.ID != "u1" {
+		t.Error(test.DiffMessage(unack.ID, "u1", "unsubscribe must be acked"))
+	}
+
+	waitFor(t, func() bool { return app.WSStats().Subscriptions == 0 })
+
+	var sawSubscribe, sawUnsubscribe, sawPublish, sawHandshake bool
+	for _, e := range sink.completes() {
+		switch e.Operation {
+		case trace.OperationHandshake:
+			sawHandshake = true
+		case trace.OperationSubscribe:
+			sawSubscribe = true
+		case trace.OperationUnsubscribe:
+			sawUnsubscribe = true
+		case trace.OperationPublish:
+			sawPublish = true
+		}
+	}
+	if !sawHandshake || !sawSubscribe || !sawUnsubscribe || !sawPublish {
+		t.Error(test.DiffMessage(
+			[]bool{sawHandshake, sawSubscribe, sawUnsubscribe, sawPublish},
+			[]bool{true, true, true, true},
+			"all four phases (handshake, subscribe, unsubscribe, publish) must produce access-log entries",
+		))
+	}
+}
+
+func TestIntegration_GuardDeniesPerTopicOverTheWire(t *testing.T) {
+	_, server, _ := newAuditApp(t)
+
+	conn := dialAudit(t, server)
+	defer func() { _ = conn.Close() }()
+	expectFrame(t, conn, TypeConnected)
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "s1", Type: TypeSubscribe, Topic: []string{"chat.forbidden"}}); err != nil {
+		t.Fatal(err)
+	}
+	expectFrame(t, conn, TypeError)
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "s2", Type: TypeSubscribe, Topic: []string{"chat.allowed"}}); err != nil {
+		t.Fatal(err)
+	}
+	expectFrame(t, conn, TypeAck)
+}
+
+func TestIntegration_PublishWithoutSubscribeIsRejected(t *testing.T) {
+	_, server, _ := newAuditApp(t)
+
+	conn := dialAudit(t, server)
+	defer func() { _ = conn.Close() }()
+	expectFrame(t, conn, TypeConnected)
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "p1", Type: TypePublish, Topic: []string{"chat.room1"}, Message: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	got := expectFrame(t, conn, TypeError)
+
+	results, ok := got.Message.([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("expected one per-topic result, got %+v", got.Message)
+	}
+	if m := results[0].(map[string]any); m["code"] != float64(4001) {
+		t.Error(test.DiffMessage(m["code"], 4001, "publishing to a topic the connection never subscribed to must be rejected as not-subscribed"))
+	}
+}
+
+func TestIntegration_DisconnectReleasesConnectionAndSubscriptions(t *testing.T) {
+	app, server, _ := newAuditApp(t)
+
+	conn := dialAudit(t, server)
+	expectFrame(t, conn, TypeConnected)
+
+	if err := websocket.JSON.Send(conn, WSPayload{ID: "s1", Type: TypeSubscribe, Topic: []string{"chat.a", "chat.b"}}); err != nil {
+		t.Fatal(err)
+	}
+	expectFrame(t, conn, TypeAck)
+
+	waitFor(t, func() bool {
+		s := app.WSStats()
+		return s.Connections == 1 && s.Subscriptions == 2
+	})
+
+	_ = conn.Close()
+
+	waitFor(t, func() bool {
+		s := app.WSStats()
+		return s.Connections == 0 && s.Subscriptions == 0
+	})
+}
+
+func TestIntegration_TwoClientsSeeEachOthersMessages(t *testing.T) {
+	_, server, _ := newAuditApp(t)
+
+	a := dialAudit(t, server)
+	defer func() { _ = a.Close() }()
+	b := dialAudit(t, server)
+	defer func() { _ = b.Close() }()
+
+	expectFrame(t, a, TypeConnected)
+	expectFrame(t, b, TypeConnected)
+
+	for _, c := range []*websocket.Conn{a, b} {
+		if err := websocket.JSON.Send(c, WSPayload{ID: "s", Type: TypeSubscribe, Topic: []string{"chat.shared"}}); err != nil {
+			t.Fatal(err)
+		}
+		expectFrame(t, c, TypeAck)
+	}
+
+	if err := websocket.JSON.Send(a, WSPayload{ID: "p", Type: TypePublish, Topic: []string{"chat.shared"}, Message: "from-a"}); err != nil {
+		t.Fatal(err)
+	}
+
+	event := expectFrame(t, b, TypeEvent)
+	if event.Message != "from-a" {
+		t.Error(test.DiffMessage(event.Message, "from-a", "the other subscriber must receive the published message"))
+	}
+	if len(event.Topic) != 1 || event.Topic[0] != "chat.shared" {
+		t.Error(test.DiffMessage(event.Topic, []string{"chat.shared"}, "the event must name the concrete topic"))
+	}
+}
+
+func waitFor(t testing.TB, cond func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("condition not met within 3s")
 }

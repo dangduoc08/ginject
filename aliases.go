@@ -34,6 +34,7 @@ type (
 	Header      = ctx.Header
 	Param       = ctx.Param
 	WSPayload   = ctx.WSPayload
+	WSTopic     = ctx.WSTopic
 	Next        = ctx.Next
 	Redirect    = ctx.Redirect
 )

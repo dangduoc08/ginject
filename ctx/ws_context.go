@@ -18,6 +18,11 @@ type WSContext struct {
 	payload   WSPayload
 	Timestamp time.Time
 
+	connID    string
+	topic     string
+	pattern   string
+	operation string
+
 	send func(data any)
 }
 
@@ -38,6 +43,10 @@ func (c *WSContext) Reset() {
 	c.Conn = nil
 	c.payload = nil
 	c.send = nil
+	c.connID = ""
+	c.topic = ""
+	c.pattern = ""
+	c.operation = ""
 }
 
 // SetSend wires the function Send delivers data through. ctx has no
@@ -62,6 +71,29 @@ func (c *WSContext) WSPayload() WSPayload {
 
 func (c *WSContext) SetWSPayload(p WSPayload) {
 	c.payload = p
+}
+
+func (c *WSContext) SetEvent(connID, pattern, topic, operation string) {
+	c.connID = connID
+	c.pattern = pattern
+	c.topic = topic
+	c.operation = operation
+}
+
+func (c *WSContext) ConnID() string {
+	return c.connID
+}
+
+func (c *WSContext) Topic() string {
+	return c.topic
+}
+
+func (c *WSContext) Pattern() string {
+	return c.pattern
+}
+
+func (c *WSContext) Operation() string {
+	return c.operation
 }
 
 func (c *WSContext) Context() context.Context {

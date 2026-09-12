@@ -551,6 +551,8 @@ func getWSDependency(k string, c *ctx.WSContext, pipeValue reflect.Value) any {
 		return c.Conn
 	case wsPayloadKey:
 		return c.WSPayload()
+	case wsTopicKey:
+		return ctx.WSTopic(c.Topic())
 	case nextKey:
 		return c.Next
 	case publisherKey:

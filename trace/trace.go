@@ -16,6 +16,20 @@ const (
 )
 
 const (
+	StatusOK       = "ok"
+	StatusRejected = "rejected"
+	StatusFailed   = "failed"
+)
+
+const (
+	OperationHandshake   = "handshake"
+	OperationSubscribe   = "subscribe"
+	OperationUnsubscribe = "unsubscribe"
+	OperationPublish     = "publish"
+	OperationClose       = "close"
+)
+
+const (
 	TransportHTTP = "HTTP"
 	TransportWS   = "WS"
 	TransportGQL  = "GQL"
@@ -30,5 +44,7 @@ type Event struct {
 	Duration  time.Duration
 	Operation string
 	Target    string
+	Status    string
+	ConnID    string
 	Code      int
 }

@@ -10,8 +10,9 @@ import (
 )
 
 type WSEventItem struct {
-	Handler     any
-	Middlewares []ctx.WSHandler
+	Handler      any
+	Middlewares  []ctx.WSHandler
+	Interceptors []ctx.WSHandler
 }
 
 type WSEvent struct {
@@ -53,6 +54,19 @@ func (m *WSEvent) AddMiddlewares(pattern string, middlewares ...ctx.WSHandler) {
 	}
 	item := m.wsEventItemByPattern[pattern]
 	item.Middlewares = append(item.Middlewares, middlewares...)
+	m.wsEventItemByPattern[pattern] = item
+}
+
+func (m *WSEvent) AddGuards(pattern string, guards ...ctx.WSHandler) {
+	m.AddMiddlewares(pattern, guards...)
+}
+
+func (m *WSEvent) AddInterceptors(pattern string, interceptors ...ctx.WSHandler) {
+	if _, existed := m.wsEventItemByPattern[pattern]; !existed {
+		m.index(pattern)
+	}
+	item := m.wsEventItemByPattern[pattern]
+	item.Interceptors = append(item.Interceptors, interceptors...)
 	m.wsEventItemByPattern[pattern] = item
 }
 
