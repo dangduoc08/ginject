@@ -4,9 +4,18 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 )
 
-var singletons = make(map[string]any)
+type singletonEntry struct {
+	once sync.Once
+	val  any
+}
+
+var (
+	singletonsMu sync.Mutex
+	singletons   = make(map[string]*singletonEntry)
+)
 
 func GetFuncName(handler any) string {
 	name := runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name()
@@ -180,17 +189,24 @@ func ParseWSFuncNameToEvent(fnName string) (string, bool) {
 func Construct(obj any, constructor string) any {
 	newObjValue := reflect.ValueOf(obj)
 	key := newObjValue.Type().String()
-	if newObj, ok := singletons[key]; ok {
-		return newObj
-	}
 
-	objConstructor := newObjValue.MethodByName(constructor)
-	if objConstructor.IsValid() {
-		obj = objConstructor.Call(nil)[0].Interface()
-		singletons[key] = obj
+	singletonsMu.Lock()
+	entry, ok := singletons[key]
+	if !ok {
+		entry = &singletonEntry{}
+		singletons[key] = entry
 	}
+	singletonsMu.Unlock()
 
-	return obj
+	entry.once.Do(func() {
+		if objConstructor := newObjValue.MethodByName(constructor); objConstructor.IsValid() {
+			entry.val = objConstructor.Call(nil)[0].Interface()
+		} else {
+			entry.val = obj
+		}
+	})
+
+	return entry.val
 }
 
 func ToWSEventName(s string) string {
