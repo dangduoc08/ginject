@@ -5,13 +5,13 @@ import (
 )
 
 const (
-	ContextPipeableKey    = "context"
-	BodyPipeableKey       = "body"
-	FormPipeableKey       = "form"
-	QueryPipeableKey      = "query"
-	HeaderPipeableKey     = "header"
-	ParamPipeableKey      = "param"
-	FilePipeableKey       = "file"
+	ContextPipeableKey   = "context"
+	BodyPipeableKey      = "body"
+	FormPipeableKey      = "form"
+	QueryPipeableKey     = "query"
+	HeaderPipeableKey    = "header"
+	ParamPipeableKey     = "param"
+	FilePipeableKey      = "file"
 	WSPayloadPipeableKey = "wsPayload"
 )
 

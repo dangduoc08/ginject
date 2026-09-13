@@ -89,7 +89,6 @@ func BenchmarkSSEReader(b *testing.B) {
 	}
 }
 
-// repeatReader returns a Reader that emits s exactly n times.
 type repeatReader struct {
 	data []byte
 	n    int

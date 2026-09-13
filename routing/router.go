@@ -12,7 +12,7 @@ import (
 	"github.com/dangduoc08/ginject/internal/str"
 )
 
-const SERVE = "SERVE" // Serving static files directive
+const SERVE = "SERVE"
 
 var OperationsMapHTTPMethods = map[string]string{
 	http.MethodGet:     http.MethodGet,
@@ -47,10 +47,6 @@ const (
 	GROUP
 )
 
-// RouterItem holds everything Match needs once the trie has resolved a
-// path: which method/version it was registered for, and the handler chain.
-// Several RouterItems can share the same trie leaf (same Index, same route)
-// when the same path is registered under different methods/versions.
 type RouterItem struct {
 	Method       string
 	Version      string
@@ -124,16 +120,11 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 
 	if caller == USE || caller == GROUP {
 
-		// USE never has handlerTotal == 0 case
-		// check line 179
 		item.Handlers = append(item.Handlers, handlers...)
 	}
 
 	if caller == FOR {
 
-		// handle case
-		// USE called first
-		// FOR called later
 		if handlerTotal == 0 && globalMiddlewareTotal > 0 {
 			item.Handlers = append(item.Handlers, r.GlobalMiddlewares...)
 			item.Handlers = append(item.Handlers, handlers...)
@@ -144,32 +135,23 @@ func (r *Router) push(method, route, version string, caller int, handlers ...ctx
 
 	if caller == ADD {
 
-		// ADD call first
-		// USE call later
 		if handlerTotal == 0 && globalMiddlewareTotal == 0 {
 
 			item.Handlers = append(item.Handlers, handlers...)
 			item.HandlerIndex = 0
 
-			// USE call first
-			// ADD call later
 		} else if handlerTotal == 0 && globalMiddlewareTotal > 0 {
 
-			// handler hasn't added yet
 			item.Handlers = append(item.Handlers, r.GlobalMiddlewares...)
 			item.Handlers = append(item.Handlers, handlers...)
 			item.HandlerIndex = globalMiddlewareTotal
 		} else if item.HandlerIndex > -1 {
-			// handler was added before
 
-			// remove the current
-			// append new one
 			item.Handlers = append(item.Handlers[:item.HandlerIndex], item.Handlers[item.HandlerIndex+1:]...)
 			item.Handlers = append(item.Handlers, handlers...)
 			item.HandlerIndex = handlerTotal - 1
 		} else if item.HandlerIndex < 0 {
 
-			// handler hasn't added yet
 			item.HandlerIndex = handlerTotal
 			item.Handlers = append(item.Handlers, handlers...)
 		}
@@ -240,9 +222,6 @@ func (r *Router) Group(prefix string, subRouters ...*Router) *Router {
 
 func (r *Router) Use(handlers ...ctx.HTTPHandler) *Router {
 
-	// use for global middlewares
-	// once no route matched
-	// this middlewares still need invoking
 	r.GlobalMiddlewares = append(r.GlobalMiddlewares, handlers...)
 
 	for route, items := range r.routerItemByPattern {
@@ -264,7 +243,6 @@ func (r *Router) For(methodInclusions []string, route string, version string) fu
 	}
 }
 
-// alway use latest add
 func (r *Router) Add(method, route, version string, handler ctx.HTTPHandler) *Router {
 	r.push(method, route, version, ADD, handler)
 

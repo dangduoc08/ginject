@@ -5,10 +5,6 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 )
 
-/**
-- Include default components
-*/
-
 var defaultException = exception.InternalServerErrorException("Unhandled exception has occurred")
 
 type globalHTTPExceptionFilter struct{}

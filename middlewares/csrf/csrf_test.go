@@ -58,8 +58,6 @@ func newCSRFContextWithHeader(method, headerName, headerToken, cookieToken strin
 	return c, rec
 }
 
-// --- loadCSRFOptions defaults ---
-
 func TestLoadCSRFOptions_Defaults(t *testing.T) {
 	opts := loadCSRFOptions(&CSRF{})
 	if opts.tokenLength != csrfDefaultTokenLength {
@@ -108,8 +106,6 @@ func TestLoadCSRFOptions_CustomValues(t *testing.T) {
 	}
 }
 
-// --- GenerateCSRFToken ---
-
 func TestGenerateCSRFToken_Length(t *testing.T) {
 	tok, err := GenerateCSRFToken(32)
 	if err != nil {
@@ -148,8 +144,6 @@ func TestGenerateCSRFToken_OnlyHexChars(t *testing.T) {
 	}
 }
 
-// --- CompareTokensSecurely ---
-
 func TestCompareTokensSecurely_Equal(t *testing.T) {
 	if !CompareTokensSecurely("abc", "abc") {
 		t.Error(test.DiffMessage(false, true, "equal tokens must match"))
@@ -173,8 +167,6 @@ func TestCompareTokensSecurely_OneEmpty(t *testing.T) {
 		t.Error(test.DiffMessage(true, false, "non-empty vs empty must not match"))
 	}
 }
-
-// --- Safe methods pass through ---
 
 func TestCSRF_SafeMethod_GET(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
@@ -206,8 +198,6 @@ func TestCSRF_SafeMethod_OPTIONS(t *testing.T) {
 	}
 }
 
-// --- Cookie generation ---
-
 func TestCSRF_SetsCookieWhenMissing(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, rec := newCSRFContext(http.MethodGet, "", "")
@@ -235,8 +225,6 @@ func TestCSRF_ReusesExistingCookie(t *testing.T) {
 	}
 }
 
-// --- Token stored in request context ---
-
 func TestCSRF_StoresTokenInContext(t *testing.T) {
 	mw := CSRF{ContextKey: "csrf_token"}.NewMiddleware()
 	c, _ := newCSRFContext(http.MethodGet, "", "mytoken")
@@ -247,8 +235,6 @@ func TestCSRF_StoresTokenInContext(t *testing.T) {
 		}
 	})
 }
-
-// --- State-changing methods: valid token ---
 
 func TestCSRF_POST_ValidHeader(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
@@ -310,8 +296,6 @@ func TestCSRF_DELETE_ValidHeader(t *testing.T) {
 	}
 }
 
-// --- State-changing methods: invalid / missing token ---
-
 func TestCSRF_POST_MissingToken_Panics(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()
 	c, _ := newCSRFContextWithHeader(http.MethodPost, csrfDefaultHeaderName, "", "tok")
@@ -356,16 +340,12 @@ func TestCSRF_POST_EmptyToken_Panics(t *testing.T) {
 	mw.Use(c.Request, c.ResponseWriter, noop)
 }
 
-// --- NewMiddleware pre-compilation ---
-
 func TestCSRF_NewMiddleware_ReturnsCompiledCSRF(t *testing.T) {
 	mw := CSRF{TokenLength: 16}.NewMiddleware()
 	if _, ok := mw.(compiledCSRF); !ok {
 		t.Error(test.DiffMessage(mw, "compiledCSRF", "NewMiddleware must return compiledCSRF"))
 	}
 }
-
-// --- Concurrency ---
 
 func TestCSRF_ConcurrentSafeRequests(t *testing.T) {
 	mw := CSRF{}.NewMiddleware()

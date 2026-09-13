@@ -11,18 +11,18 @@ import (
 const helmetDefaultCSP = "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"
 
 type Helmet struct {
-	ContentSecurityPolicy        string // "" = helmetDefaultCSP
-	CrossOriginEmbedderPolicy    string // "" = "require-corp"
-	CrossOriginOpenerPolicy      string // "" = "same-origin"
-	CrossOriginResourcePolicy    string // "" = "same-origin"
-	DNSPrefetchControl           string // "" = "off"
-	FrameOptions                 string // "" = "SAMEORIGIN"
-	HSTSMaxAge                   int    // 0 = 15552000 (180 days)
-	HSTSExcludeSubDomains        bool   // false = include subdomains
+	ContentSecurityPolicy        string
+	CrossOriginEmbedderPolicy    string
+	CrossOriginOpenerPolicy      string
+	CrossOriginResourcePolicy    string
+	DNSPrefetchControl           string
+	FrameOptions                 string
+	HSTSMaxAge                   int
+	HSTSExcludeSubDomains        bool
 	HSTSPreload                  bool
 	DisableHSTS                  bool
-	PermittedCrossDomainPolicies string // "" = "none"
-	ReferrerPolicy               string // "" = "no-referrer"
+	PermittedCrossDomainPolicies string
+	ReferrerPolicy               string
 }
 
 type helmetOptions struct {

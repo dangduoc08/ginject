@@ -19,8 +19,6 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-// helpers
-
 func newTestClient(srv *httptest.Server) *httpClient {
 	c := newHTTPClient(&HTTPClientModuleOptions{BaseURL: srv.URL})
 	return c
@@ -47,8 +45,6 @@ func statusServer(code int, body string) *httptest.Server {
 		_, _ = io.WriteString(w, body)
 	}))
 }
-
-// --- basic HTTP methods ---
 
 func TestGet_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +109,6 @@ func TestDelete(t *testing.T) {
 
 	c := newHTTPClient(&HTTPClientModuleOptions{
 		BaseURL: srv.URL,
-		// 204 is not in default 200-399 range? Yes it is (200 ≤ 204 < 400).
 	})
 	resp, err := c.Delete("/resource/1").Send()
 	if err != nil {
@@ -123,8 +118,6 @@ func TestDelete(t *testing.T) {
 		t.Error(test.DiffMessage(resp.StatusCode, 204, "status"))
 	}
 }
-
-// --- query params ---
 
 func TestQueryParams(t *testing.T) {
 	srv := echoServer()
@@ -146,8 +139,6 @@ func TestQueryParams(t *testing.T) {
 		t.Error(test.DiffMessage(q, "tags=go", "query param tags"))
 	}
 }
-
-// --- headers ---
 
 func TestCustomHeaders(t *testing.T) {
 	srv := echoServer()
@@ -193,8 +184,6 @@ func TestHeaderOverridesDefault(t *testing.T) {
 	}
 }
 
-// --- base URL ---
-
 func TestBaseURL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, r.URL.Path)
@@ -217,7 +206,7 @@ func TestFullURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newHTTPClient(nil) // no base URL
+	c := newHTTPClient(nil)
 	resp, err := c.Get(srv.URL + "/ping").Send()
 	if err != nil {
 		t.Fatal(err)
@@ -226,8 +215,6 @@ func TestFullURL(t *testing.T) {
 		t.Error(test.DiffMessage(resp.StatusCode, 200, "full url status"))
 	}
 }
-
-// --- middleware ---
 
 func TestMiddleware(t *testing.T) {
 	srv := statusServer(200, "ok")
@@ -276,8 +263,6 @@ func TestMiddlewareChainOrder(t *testing.T) {
 		t.Error(test.DiffMessage(order, []int{1, 2, 3}, "middleware order"))
 	}
 }
-
-// --- retry ---
 
 func TestRetry_On500(t *testing.T) {
 	var count int32
@@ -344,8 +329,6 @@ func TestRetry_PerRequest(t *testing.T) {
 	}
 }
 
-// --- validate status ---
-
 func TestValidateStatus_DefaultRejects4xx(t *testing.T) {
 	srv := statusServer(404, "not found")
 	defer srv.Close()
@@ -379,8 +362,6 @@ func TestValidateStatus_Custom(t *testing.T) {
 	}
 }
 
-// --- streaming ---
-
 func TestStream_BodyNotBuffered(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -406,8 +387,6 @@ func TestStream_BodyNotBuffered(t *testing.T) {
 		t.Error(test.DiffMessage(string(data), "streamed", "stream content"))
 	}
 }
-
-// --- SSE reader ---
 
 func TestSSEReader(t *testing.T) {
 	raw := "id:1\nevent:update\ndata:hello\ndata:world\n\nid:2\ndata:bye\n\n"
@@ -465,8 +444,6 @@ func TestSSEReader_RetryField(t *testing.T) {
 	}
 }
 
-// --- download ---
-
 func TestDownload(t *testing.T) {
 	content := "file content"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -509,8 +486,6 @@ func TestDownloadWithProgress(t *testing.T) {
 		t.Error("expected non-zero progress percent")
 	}
 }
-
-// --- hooks ---
 
 func TestHook_BeforeRequest(t *testing.T) {
 	srv := echoServer()
@@ -580,8 +555,6 @@ func TestHook_OnError(t *testing.T) {
 	}
 }
 
-// --- max response size ---
-
 func TestMaxResponseSize(t *testing.T) {
 	content := bytes.Repeat([]byte("A"), 1024)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -601,8 +574,6 @@ func TestMaxResponseSize(t *testing.T) {
 	}
 }
 
-// --- timeout ---
-
 func TestTimeout_RequestLevel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
@@ -617,8 +588,6 @@ func TestTimeout_RequestLevel(t *testing.T) {
 		t.Error("expected timeout error")
 	}
 }
-
-// --- SSRF protection ---
 
 func TestSSRF_HostNotAllowed(t *testing.T) {
 	srv := statusServer(200, "ok")
@@ -647,13 +616,11 @@ func TestSSRF_HostAllowed(t *testing.T) {
 	}
 }
 
-// --- HTTPS enforcement ---
-
 func TestRequireHTTPS_Rejects_HTTP(t *testing.T) {
 	srv := statusServer(200, "ok")
 	defer srv.Close()
 
-	c := newTestClient(srv) // srv is http://
+	c := newTestClient(srv)
 	c.RequireHTTPS(true)
 	_, err := c.Get("/").Send()
 	if err == nil {
@@ -663,8 +630,6 @@ func TestRequireHTTPS_Rejects_HTTP(t *testing.T) {
 		t.Error(test.DiffMessage(err.Error(), "HTTPS required", "error message"))
 	}
 }
-
-// --- cookie jar ---
 
 func TestEnableCookies(t *testing.T) {
 	var cookieHeader string
@@ -687,8 +652,6 @@ func TestEnableCookies(t *testing.T) {
 	}
 }
 
-// --- form body ---
-
 func TestForm_URLEncoded(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
@@ -705,8 +668,6 @@ func TestForm_URLEncoded(t *testing.T) {
 		t.Error(test.DiffMessage(got, want, "form field"))
 	}
 }
-
-// --- multipart ---
 
 func TestMultipart_File(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -734,8 +695,6 @@ func TestMultipart_File(t *testing.T) {
 	}
 }
 
-// --- JSON response binding ---
-
 func TestResponse_JSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -757,8 +716,6 @@ func TestResponse_JSON(t *testing.T) {
 	}
 }
 
-// --- context cancellation ---
-
 func TestContext_Cancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(500 * time.Millisecond)
@@ -775,8 +732,6 @@ func TestContext_Cancellation(t *testing.T) {
 		t.Error("expected cancellation error")
 	}
 }
-
-// --- timing ---
 
 func TestTiming_Populated(t *testing.T) {
 	srv := statusServer(200, "ok")
@@ -795,8 +750,6 @@ func TestTiming_Populated(t *testing.T) {
 	}
 }
 
-// --- module registration ---
-
 func TestModule_Register(t *testing.T) {
 	m := Register(&HTTPClientModuleOptions{IsGlobal: true})
 	if m == nil {
@@ -813,8 +766,6 @@ func TestModule_RegisterNilOpts(t *testing.T) {
 		t.Fatal("Register(nil) returned nil")
 	}
 }
-
-// --- error wrapping ---
 
 func TestError_Unwrap(t *testing.T) {
 	cause := errors.New("inner")
@@ -837,8 +788,6 @@ func TestError_Message_WithResponse(t *testing.T) {
 		t.Error(test.DiffMessage(err.Error(), "contains 404", "error message"))
 	}
 }
-
-// --- nil / empty inputs ---
 
 func TestGet_EmptyPath(t *testing.T) {
 	srv := statusServer(200, "ok")
@@ -865,8 +814,6 @@ func TestJSON_NilBody(t *testing.T) {
 	}
 	_ = resp
 }
-
-// --- concurrent safety ---
 
 func TestConcurrentRequests(t *testing.T) {
 	srv := statusServer(200, "ok")

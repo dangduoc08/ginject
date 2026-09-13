@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// Error wraps a failed HTTP request with the originating request and response.
 type Error struct {
 	Request  *http.Request
 	Response *Response

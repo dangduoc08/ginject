@@ -20,8 +20,6 @@ func tempDB(t *testing.T) (*DB, func()) {
 	return db, func() { _ = db.Close() }
 }
 
-// ---- record encoding ----
-
 func TestEncodeDecodeRecord_RoundTrip(t *testing.T) {
 	r := record{
 		rtype:     recInsert,
@@ -66,7 +64,7 @@ func TestDecodeRecord_Corrupt_TruncatedInput(t *testing.T) {
 func TestDecodeRecord_Corrupt_BadChecksum(t *testing.T) {
 	r := record{rtype: recInsert, table: "t", id: "1", payload: []byte(`{}`)}
 	data := encodeRecord(r)
-	data[5] ^= 0xFF // corrupt checksum byte
+	data[5] ^= 0xFF
 	_, _, err := decodeRecord(data)
 	if err != ErrCorrupt {
 		t.Error(test.DiffMessage(err, ErrCorrupt, "bad checksum must return ErrCorrupt"))
@@ -84,8 +82,6 @@ func TestEncodeDecodeRecord_EmptyPayload(t *testing.T) {
 		t.Error(test.DiffMessage(len(got.payload), 0, "empty payload"))
 	}
 }
-
-// ---- document payload ----
 
 func TestMarshalUnmarshalPayload_RoundTrip(t *testing.T) {
 	data := map[string]any{"name": "Alice", "age": float64(30)}
@@ -110,8 +106,6 @@ func TestMarshalUnmarshalPayload_RoundTrip(t *testing.T) {
 	}
 }
 
-// ---- tokenizer ----
-
 func TestTokenize_Basic(t *testing.T) {
 	tokens := tokenize("Hello World")
 	if len(tokens) != 2 {
@@ -124,7 +118,7 @@ func TestTokenize_Basic(t *testing.T) {
 
 func TestTokenize_ShortTokensDropped(t *testing.T) {
 	tokens := tokenize("a bb ccc")
-	// "a" (len=1) dropped, "bb" (len=2) kept, "ccc" kept
+
 	for _, tok := range tokens {
 		if len(tok) < 2 {
 			t.Error(test.DiffMessage(tok, "(len>=2)", "short token must be dropped"))
@@ -146,8 +140,6 @@ func TestTokenize_EmptyString(t *testing.T) {
 	}
 }
 
-// ---- validateTableName ----
-
 func TestValidateTableName_Valid(t *testing.T) {
 	cases := []string{"users", "blog_posts", "A1", "TABLE_123"}
 	for _, name := range cases {
@@ -165,8 +157,6 @@ func TestValidateTableName_Invalid(t *testing.T) {
 		}
 	}
 }
-
-// ---- CRUD ----
 
 func TestModel_Create_FindByID(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -271,8 +261,6 @@ func TestModel_DeleteByID_NotFound(t *testing.T) {
 		t.Error(test.DiffMessage(err, ErrNotFound, "delete missing doc must error"))
 	}
 }
-
-// ---- query ----
 
 func TestQuery_Find_All(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -383,8 +371,6 @@ func TestQuery_Where_NoMatch(t *testing.T) {
 	}
 }
 
-// ---- text search ----
-
 func TestModel_Search(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -435,8 +421,6 @@ func TestModel_Search_NoResults(t *testing.T) {
 	}
 }
 
-// ---- transactions ----
-
 func TestTx_Commit(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -477,8 +461,6 @@ func TestTx_Rollback_OnError(t *testing.T) {
 		return ErrTxAborted
 	})
 
-	// tx was rolled back — document should not be committed
-	// Note: in our design, rollback means the fn returned an error and commit is skipped
 	m := db.Model("users")
 	_, err := m.FindByID(savedID)
 	if err != ErrNotFound {
@@ -495,8 +477,6 @@ func TestTx_EmptyCommit(t *testing.T) {
 		t.Error(test.DiffMessage(err, nil, "empty tx must not error"))
 	}
 }
-
-// ---- persistence across Open ----
 
 func TestPersistence_AfterReopen(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "persist")
@@ -539,8 +519,6 @@ func TestPersistence_DeleteSurvivesReopen(t *testing.T) {
 	}
 }
 
-// ---- compaction ----
-
 func TestCompact_LiveRecordsPreserved(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -551,7 +529,7 @@ func TestCompact_LiveRecordsPreserved(t *testing.T) {
 		doc, _ := m.Create(map[string]any{"i": i})
 		ids = append(ids, doc.ID)
 	}
-	// delete half
+
 	for _, id := range ids[:5] {
 		_ = m.DeleteByID(id)
 	}
@@ -560,21 +538,18 @@ func TestCompact_LiveRecordsPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// deleted docs gone
 	for _, id := range ids[:5] {
 		if _, err := m.FindByID(id); err != ErrNotFound {
 			t.Error(test.DiffMessage(err, ErrNotFound, "deleted doc must not exist post-compact"))
 		}
 	}
-	// live docs still accessible
+
 	for _, id := range ids[5:] {
 		if _, err := m.FindByID(id); err != nil {
 			t.Error(test.DiffMessage(err, nil, "live doc must survive compact"))
 		}
 	}
 }
-
-// ---- hooks ----
 
 func TestHooks_Pre_Post(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -592,8 +567,6 @@ func TestHooks_Pre_Post(t *testing.T) {
 		t.Error(test.DiffMessage(len(postEvents), 1, "post hook must fire"))
 	}
 }
-
-// ---- watch ----
 
 func TestWatch_CreateEvent(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -628,8 +601,6 @@ func TestWatch_Unsubscribe(t *testing.T) {
 	}
 }
 
-// ---- flush & close ----
-
 func TestFlush_NoError(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -647,8 +618,6 @@ func TestClose_ErrClosed(t *testing.T) {
 		t.Error(test.DiffMessage(err, ErrClosed, "double close must return ErrClosed"))
 	}
 }
-
-// ---- security: path traversal in table name ----
 
 func TestModel_PathTraversal_Panics(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -671,8 +640,6 @@ func TestModel_EmptyTableName_Panics(t *testing.T) {
 	}()
 	_ = db.Model("")
 }
-
-// ---- concurrency ----
 
 func TestConcurrent_Creates(t *testing.T) {
 	db, cleanup := tempDB(t)
@@ -721,8 +688,6 @@ func TestConcurrent_ReadWrite(t *testing.T) {
 	wg.Wait()
 }
 
-// ---- segment file existence ----
-
 func TestSegmentFile_Created(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "db")
 	db, _ := Open(dir)
@@ -745,8 +710,6 @@ func TestSegmentFile_Created(t *testing.T) {
 	}
 }
 
-// ---- index update after secondary index schema ----
-
 func TestSecondaryIndex_UpdateRemovesOldEntry(t *testing.T) {
 	db, cleanup := tempDB(t)
 	defer cleanup()
@@ -757,7 +720,6 @@ func TestSecondaryIndex_UpdateRemovesOldEntry(t *testing.T) {
 	doc, _ := m.Create(map[string]any{"role": "user"})
 	_ = m.UpdateByID(doc.ID, map[string]any{"role": "admin"})
 
-	// old "user" entry must be gone
 	users, _ := m.Find().Where("role", OpEq, "user").Exec()
 	if len(users) != 0 {
 		t.Error(test.DiffMessage(len(users), 0, "old role entry must be removed"))

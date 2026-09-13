@@ -12,10 +12,6 @@ const (
 	productsTable   = "products"
 )
 
-// StoreService is a per-owner catalog: one Store per owner, each holding its
-// own Categories and Products. Every record persists to disk through the
-// storage module — it exists to demonstrate the framework's DI and routing,
-// not to be a real commerce backend.
 type StoreService struct {
 	Store dbstorage.StoreService
 }
@@ -53,8 +49,6 @@ func (svc StoreService) products() *dbstorage.Model {
 	return svc.Store.Model(productsTable)
 }
 
-// CreateStore provisions the single store owned by ownerID. It returns a
-// ConflictException if that owner already has a store.
 func (svc StoreService) CreateStore(ownerID, name string) (Store, error) {
 	existing, err := svc.stores().Find().Where("ownerId", dbstorage.OpEq, ownerID).Exec()
 	if err != nil {
@@ -75,8 +69,6 @@ func (svc StoreService) CreateStore(ownerID, name string) (Store, error) {
 	return storeFromDocument(doc), nil
 }
 
-// StoreByOwner returns the store owned by ownerID, or a NotFoundException
-// when that owner has none yet.
 func (svc StoreService) StoreByOwner(ownerID string) (Store, error) {
 	docs, err := svc.stores().Find().Where("ownerId", dbstorage.OpEq, ownerID).Exec()
 	if err != nil || len(docs) == 0 {
@@ -86,7 +78,6 @@ func (svc StoreService) StoreByOwner(ownerID string) (Store, error) {
 	return storeFromDocument(docs[0]), nil
 }
 
-// CreateCategory adds a new category to storeID's catalog.
 func (svc StoreService) CreateCategory(storeID, name string) (Category, error) {
 	if _, err := svc.stores().FindByID(storeID); err != nil {
 		return Category{}, exception.NotFoundException("store not found")
@@ -103,8 +94,6 @@ func (svc StoreService) CreateCategory(storeID, name string) (Category, error) {
 	return categoryFromDocument(doc), nil
 }
 
-// Categories returns a page of storeID's catalog, ordered however the
-// underlying store yields them.
 func (svc StoreService) Categories(storeID string, page, limit int) Page[Category] {
 	docs, err := svc.categories().Find().Where("storeId", dbstorage.OpEq, storeID).Exec()
 	if err != nil {
@@ -119,8 +108,6 @@ func (svc StoreService) Categories(storeID string, page, limit int) Page[Categor
 	return newPage(categories, page, limit, len(categories))
 }
 
-// Category returns categoryID from storeID's catalog, or a
-// NotFoundException when it doesn't belong to that store.
 func (svc StoreService) Category(storeID, categoryID string) (Category, error) {
 	doc, err := svc.categories().FindByID(categoryID)
 	if err != nil || doc.Data["storeId"] != storeID {
@@ -130,7 +117,6 @@ func (svc StoreService) Category(storeID, categoryID string) (Category, error) {
 	return categoryFromDocument(doc), nil
 }
 
-// UpdateCategory renames an existing category.
 func (svc StoreService) UpdateCategory(storeID, categoryID, name string) (Category, error) {
 	doc, err := svc.categories().FindByID(categoryID)
 	if err != nil || doc.Data["storeId"] != storeID {
@@ -147,7 +133,6 @@ func (svc StoreService) UpdateCategory(storeID, categoryID, name string) (Catego
 	return Category{ID: categoryID, StoreID: storeID, Name: name}, nil
 }
 
-// DeleteCategory removes a category and every product placed under it.
 func (svc StoreService) DeleteCategory(storeID, categoryID string) error {
 	doc, err := svc.categories().FindByID(categoryID)
 	if err != nil || doc.Data["storeId"] != storeID {
@@ -168,7 +153,6 @@ func (svc StoreService) DeleteCategory(storeID, categoryID string) error {
 	return nil
 }
 
-// CreateProduct adds a new product under categoryID in storeID's catalog.
 func (svc StoreService) CreateProduct(storeID, categoryID, name string, price float64) (Product, error) {
 	doc, err := svc.categories().FindByID(categoryID)
 	if err != nil || doc.Data["storeId"] != storeID {
@@ -188,8 +172,6 @@ func (svc StoreService) CreateProduct(storeID, categoryID, name string, price fl
 	return productFromDocument(created), nil
 }
 
-// Products returns a page of the products placed under categoryID in
-// storeID's catalog.
 func (svc StoreService) Products(storeID, categoryID string, page, limit int) Page[Product] {
 	docs, err := svc.products().
 		Find().
@@ -208,8 +190,6 @@ func (svc StoreService) Products(storeID, categoryID string, page, limit int) Pa
 	return newPage(products, page, limit, len(products))
 }
 
-// Product returns productID from categoryID in storeID's catalog, or a
-// NotFoundException when it doesn't belong to that category and store.
 func (svc StoreService) Product(storeID, categoryID, productID string) (Product, error) {
 	doc, err := svc.products().FindByID(productID)
 	if err != nil || doc.Data["storeId"] != storeID || doc.Data["categoryId"] != categoryID {
@@ -219,7 +199,6 @@ func (svc StoreService) Product(storeID, categoryID, productID string) (Product,
 	return productFromDocument(doc), nil
 }
 
-// UpdateProduct replaces the name and price of an existing product.
 func (svc StoreService) UpdateProduct(storeID, categoryID, productID, name string, price float64) (Product, error) {
 	doc, err := svc.products().FindByID(productID)
 	if err != nil || doc.Data["storeId"] != storeID || doc.Data["categoryId"] != categoryID {
@@ -238,7 +217,6 @@ func (svc StoreService) UpdateProduct(storeID, categoryID, productID, name strin
 	return Product{ID: productID, StoreID: storeID, CategoryID: categoryID, Name: name, Price: price}, nil
 }
 
-// DeleteProduct removes a product from a category's catalog.
 func (svc StoreService) DeleteProduct(storeID, categoryID, productID string) error {
 	doc, err := svc.products().FindByID(productID)
 	if err != nil || doc.Data["storeId"] != storeID || doc.Data["categoryId"] != categoryID {

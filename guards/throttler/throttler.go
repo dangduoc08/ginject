@@ -64,7 +64,7 @@ func (g Throttler) CanActivate(c *ctx.HTTPContext) bool {
 }
 
 type rateLimitResult struct {
-	isAllowed   bool
+	isAllowed bool
 	limit     int64
 	remaining int64
 	resetAt   int64
@@ -101,7 +101,7 @@ func (g Throttler) fixedWindow(bgCtx context.Context, key string) rateLimitResul
 
 	remaining := max(g.Limit-count, 0)
 	return rateLimitResult{
-		isAllowed:   count <= g.Limit,
+		isAllowed: count <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
@@ -139,14 +139,13 @@ func (g Throttler) slidingWindow(bgCtx context.Context, key string) rateLimitRes
 
 	remaining := max(g.Limit-weighted, 0)
 	return rateLimitResult{
-		isAllowed:   weighted <= g.Limit,
+		isAllowed: weighted <= g.Limit,
 		limit:     g.Limit,
 		remaining: remaining,
 		resetAt:   resetAt,
 	}
 }
 
-// token bucket state layout: [8 bytes float64 tokens][8 bytes int64 last_refill_ns]
 func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResult {
 	cacheKey := "rl:tb:" + key
 	refillRate := float64(g.Limit) / float64(g.TTL.Nanoseconds())
@@ -182,7 +181,7 @@ func (g Throttler) tokenBucket(bgCtx context.Context, key string) rateLimitResul
 	}
 
 	return rateLimitResult{
-		isAllowed:   isAllowed,
+		isAllowed: isAllowed,
 		limit:     g.Limit,
 		remaining: int64(math.Floor(tokens)),
 		resetAt:   resetAt,

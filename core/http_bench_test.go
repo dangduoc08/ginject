@@ -15,7 +15,7 @@ type benchPlainController struct {
 }
 
 func (c benchPlainController) NewController() Controller { return c }
-func (c benchPlainController) READ_bench() string         { return "ok" }
+func (c benchPlainController) READ_bench() string        { return "ok" }
 
 func benchHTTPContext(urlPath string) *ctx.HTTPContext {
 	c := ctx.NewHTTPContext()

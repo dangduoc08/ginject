@@ -82,8 +82,6 @@ func newCtx(remoteAddr string) *ctx.HTTPContext {
 	return c
 }
 
-// --- NewGuard defaults ---
-
 func TestNewThrottler_Defaults(t *testing.T) {
 	g := Throttler{}.NewGuard()
 	if g.Limit != 100 {
@@ -107,8 +105,6 @@ func TestNewThrottler_CustomBackend(t *testing.T) {
 		t.Error(test.DiffMessage(g.Backend, tc, "custom Backend must be used"))
 	}
 }
-
-// --- Fixed Window ---
 
 func TestFixedWindow_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(3, time.Minute, FixedWindow)
@@ -169,8 +165,6 @@ func TestFixedWindow_DifferentKeysAreIndependent(t *testing.T) {
 	}
 }
 
-// --- Sliding Window ---
-
 func TestSlidingWindow_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(3, time.Minute, SlidingWindow)
 	for i := 0; i < 3; i++ {
@@ -199,8 +193,6 @@ func TestSlidingWindow_ResetAtIsInFuture(t *testing.T) {
 		t.Error(test.DiffMessage(res.resetAt, ">now", "resetAt must be in the future"))
 	}
 }
-
-// --- Token Bucket ---
 
 func TestTokenBucket_AllowsUpToLimit(t *testing.T) {
 	g := newGuard(5, time.Minute, TokenBucket)
@@ -241,8 +233,6 @@ func TestTokenBucket_ResetAtIsSet(t *testing.T) {
 	}
 }
 
-// --- defaultThrottlerKeyFunc ---
-
 func TestDefaultKeyFunc_RemoteAddr(t *testing.T) {
 	c := newCtx("192.168.1.1:1234")
 	if key := defaultThrottlerKeyFunc(c); key != "192.168.1.1" {
@@ -281,8 +271,6 @@ func TestDefaultKeyFunc_InvalidRemoteAddr(t *testing.T) {
 		t.Error(test.DiffMessage(key, "not-an-addr", "unparseable RemoteAddr must be returned as-is"))
 	}
 }
-
-// --- Throttler ---
 
 func TestThrottler_SetsHeadersOnAllow(t *testing.T) {
 	g := newGuard(10, time.Minute, FixedWindow)
@@ -326,8 +314,6 @@ func TestThrottler_SetsRetryAfterOnExceed(t *testing.T) {
 	}
 }
 
-// --- Concurrent safety ---
-
 func TestFixedWindow_ConcurrentSafe(t *testing.T) {
 	g := newGuard(1000, time.Minute, FixedWindow)
 	var wg sync.WaitGroup
@@ -367,8 +353,6 @@ func TestSlidingWindow_ConcurrentSafe(t *testing.T) {
 	wg.Wait()
 }
 
-// --- check dispatch ---
-
 func TestCheck_DispatchesAllStrategies(t *testing.T) {
 	for _, s := range []Strategy{FixedWindow, SlidingWindow, TokenBucket} {
 		g := newGuard(5, time.Minute, s)
@@ -379,8 +363,6 @@ func TestCheck_DispatchesAllStrategies(t *testing.T) {
 		}
 	}
 }
-
-// --- cache.Cache compatibility ---
 
 func TestThrottler_WorksWithRealMemoryCache(t *testing.T) {
 	g := Throttler{

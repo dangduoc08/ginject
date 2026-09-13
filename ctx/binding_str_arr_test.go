@@ -21,7 +21,7 @@ type TestStrArrDTO struct {
 	Integer4 int32 `bind:"integers_1.3"`
 	Integer5 int64 `bind:"integers_1.4"`
 	Integer6 int   `bind:"integers_1.5"`
-	Integer7 int   `bind:"integers_1.100"` // test out range
+	Integer7 int   `bind:"integers_1.100"`
 	Integer8 int   `bind:"integers_1.6"`
 
 	Uinteger1 uint   `bind:"uinteger_1"`
@@ -30,14 +30,14 @@ type TestStrArrDTO struct {
 	Uinteger4 uint32 `bind:"uintegers_1.3"`
 	Uinteger5 uint64 `bind:"uintegers_1.4"`
 	Uinteger6 uint   `bind:"uintegers_1.5"`
-	Uinteger7 uint   `bind:"uintegers_1.100"` // test out range
+	Uinteger7 uint   `bind:"uintegers_1.100"`
 	Uinteger8 uint   `bind:"uintegers_1.6"`
 	Uinteger9 uint   `bind:"uintegers_1.7"`
 
 	Float1 float32 `bind:"float_1"`
 	Float2 float64 `bind:"floats_1.1"`
 	Float3 float32 `bind:"floats_1.5"`
-	Float4 float64 `bind:"floats_1.100"` // test out range
+	Float4 float64 `bind:"floats_1.100"`
 	Float5 float64 `bind:"floats_1.6"`
 	Float6 float64 `bind:"floats_1.7"`
 

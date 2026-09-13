@@ -115,10 +115,6 @@ func stageArgs(entries []trace.Event, total time.Duration) []any {
 	return args
 }
 
-// distributePercentages applies the Largest Remainder (Hamilton) method so
-// the returned integer percentages always sum to exactly 100, instead of
-// rounding each entry's share independently and letting the sum drift to
-// 99 or 101.
 func distributePercentages(entries []trace.Event, total time.Duration) []int {
 	n := len(entries)
 	percents := make([]int, n)

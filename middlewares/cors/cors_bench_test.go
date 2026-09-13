@@ -21,10 +21,6 @@ func newBenchContext(method, origin string) *ctx.HTTPContext {
 	return c
 }
 
-// benchUseCORS measures Use() in isolation: the request and broker are built
-// once and reused (CORS never mutates either), but the response recorder -
-// the only state CORS actually writes to - is fresh every iteration, exactly
-// like every real request gets its own response header map.
 func benchUseCORS(b *testing.B, cors CORS, method string) {
 	mw := cors.NewMiddleware()
 	c := newBenchContext(method, "https://example.com")

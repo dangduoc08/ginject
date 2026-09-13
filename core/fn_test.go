@@ -433,9 +433,6 @@ func TestGetFnArgsByType_MultipleParamsResolveInOrder(t *testing.T) {
 	}
 }
 
-// classifyArgType memoizes its result in a shared sync.Map keyed by
-// reflect.Type, so concurrent first-time classification of the same and
-// different handler signatures must not race or produce inconsistent keys.
 func TestGetFnArgsByType_ConcurrentCallsNoDataRace(t *testing.T) {
 	handlers := []any{
 		func(*ctx.HTTPContext) {},

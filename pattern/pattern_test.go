@@ -28,7 +28,7 @@ func TestNewPattern_Exact(t *testing.T) {
 	assertKind(t, "user.created", pattern.KindExact)
 	assertKind(t, "a.b.c.d", pattern.KindExact)
 	assertKind(t, "single", pattern.KindExact)
-	// ">" is no longer a wildcard token, so it parses as a literal segment.
+
 	assertKind(t, "user.>", pattern.KindExact)
 }
 
@@ -75,8 +75,6 @@ func TestMatch_GlobalStar(t *testing.T) {
 	assertMatch(t, "*", "a.b.c.d.e", true)
 }
 
-// SuffixWildcard is now greedy: a trailing "*" matches one or more remaining
-// segments, not just exactly one.
 func TestMatch_SuffixWildcard(t *testing.T) {
 	assertMatch(t, "user.*", "user.created", true)
 	assertMatch(t, "user.*", "user.deleted", true)
@@ -91,8 +89,6 @@ func TestMatch_SuffixWildcard(t *testing.T) {
 	assertMatch(t, "a.b.*", "a.c", false)
 }
 
-// A "*" that is not the pattern's last token keeps the original,
-// single-segment-only behavior.
 func TestMatch_Complex_MiddleWildcard(t *testing.T) {
 	assertMatch(t, "tenant.*.user.created", "tenant.1.user.created", true)
 	assertMatch(t, "tenant.*.user.created", "tenant.abc.user.created", true)
@@ -101,8 +97,6 @@ func TestMatch_Complex_MiddleWildcard(t *testing.T) {
 	assertMatch(t, "tenant.*.user.created", "tenant.user.created", false)
 }
 
-// When a pattern has a wildcard both mid-pattern and as the trailing token,
-// only the trailing one is greedy.
 func TestMatch_Complex_MiddleAndTrailingWildcard(t *testing.T) {
 	assertMatch(t, "tenant.*.user.*", "tenant.1.user.created", true)
 	assertMatch(t, "tenant.*.user.*", "tenant.1.user.profile.updated", true)

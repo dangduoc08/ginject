@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// SSEEvent represents a single Server-Sent Event.
 type SSEEvent struct {
 	ID    string
 	Event string
@@ -15,18 +14,14 @@ type SSEEvent struct {
 	Retry int
 }
 
-// SSEReader parses Server-Sent Events from a stream.
 type SSEReader struct {
 	scanner *bufio.Scanner
 }
 
-// NewSSEReader creates an SSEReader that reads events from r.
 func NewSSEReader(r io.Reader) *SSEReader {
 	return &SSEReader{scanner: bufio.NewScanner(r)}
 }
 
-// Next blocks until the next complete SSE event is available.
-// Returns (nil, false) when the stream ends or an error occurs.
 func (sr *SSEReader) Next() (*SSEEvent, bool) {
 	evt := &SSEEvent{}
 	var dataLines []string

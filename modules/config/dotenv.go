@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	newline      byte = 10 // '/n'
-	doubleQuotes byte = 34 // '"'
-	hash         byte = 35 // '#'
-	equal        byte = 61 // '='
+	newline      byte = 10
+	doubleQuotes byte = 34
+	hash         byte = 35
+	equal        byte = 61
 )
 
 type DotENV struct {

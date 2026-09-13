@@ -250,16 +250,12 @@ func TestTrieRemove_KeepsSharedPrefix(t *testing.T) {
 		t.Error(test.DiffMessage(matchedRaw, "/a/c/", "sibling path sharing a prefix must survive removal"))
 	}
 
-	wantLen := 2 // "a" and "c" remain; "b" is pruned
+	wantLen := 2
 	if got := tr.Len(); got != wantLen {
 		t.Error(test.DiffMessage(got, wantLen, "shared prefix node must not be pruned while a sibling still uses it"))
 	}
 }
 
-// Removing a glob-pattern child (a key containing '*' but not the bare "*"
-// catch-all) must also drop it from the fallback scan's candidate list, not
-// just from the Children map — otherwise Find could still attempt to match
-// against a stale, deleted node.
 func TestTrieRemove_PrunesGlobChild(t *testing.T) {
 	tr := NewTrie()
 	tr.Insert("/files/*.html/", "/files/*.html/", '/')
@@ -291,10 +287,10 @@ func TestTrieRemove_NoMatch_ReturnsFalse(t *testing.T) {
 	tr.Insert("/a/b/", "/a/b/", '/')
 
 	cases := []string{
-		"/x/y/",   // segment never inserted
-		"/a/",     // intermediate node, never a terminal node
-		"",        // empty input
-		"noslash", // no separator at all
+		"/x/y/",
+		"/a/",
+		"",
+		"noslash",
 	}
 
 	for _, c := range cases {

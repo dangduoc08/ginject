@@ -36,13 +36,6 @@ func main() {
 
 	app.EnableAccessLog()
 
-	// app.
-	// 	EnableVersioning(versioning.Versioning{
-	// 		Type: versioning.HeaderVersion,
-	// 		Key:  confs.ENV.APIVersionName,
-	// 	}).
-	// 	EnableDevtool()
-
 	app.Create(
 		core.ModuleBuilder().
 			Imports(benchmarks.Module, shop.Module, confs.ConfModule).

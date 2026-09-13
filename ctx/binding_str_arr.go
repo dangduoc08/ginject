@@ -9,46 +9,6 @@ import (
 	"github.com/dangduoc08/ginject/internal/slice"
 )
 
-/*
-Support types:
-
-  - Bool
-
-  - Int
-
-  - Int8
-
-  - Int16
-
-  - Int32
-
-  - Int64
-
-  - Uint
-
-  - Uint8
-
-  - Uint16
-
-  - Uint32
-
-  - Uint64
-
-  - Float32
-
-  - Float64
-
-  - Complex64
-
-  - Complex128
-
-  - String
-
-  - Interface
-
-  - Slice
-*/
-
 func BindStrArr(d map[string][]string, fls *[]FieldLevel, s any) (any, []FieldLevel) {
 	structureType := reflect.TypeOf(s)
 	newStructuredData := reflect.New(structureType)

@@ -121,7 +121,6 @@ func TestTap_CalledButDoesNotTransform(t *testing.T) {
 	}
 }
 
-
 func TestAggregate_NoOperators(t *testing.T) {
 	a := NewAggregation()
 	a.SetMainData("data")
@@ -375,4 +374,3 @@ func TestFilter_EmptyString(t *testing.T) {
 		t.Error(test.DiffMessage(result, "", "filter should handle empty string"))
 	}
 }
-

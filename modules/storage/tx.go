@@ -11,18 +11,15 @@ func nextTxID() uint64 {
 	return atomic.AddUint64(&txCounter, 1)
 }
 
-// txOp is a buffered operation within a transaction.
 type txOp struct {
 	r record
 }
 
-// Tx is an in-progress transaction. Obtain one via DB.Tx().
-// All operations are buffered in memory and written atomically to disk on commit.
 type Tx struct {
 	db          *DB
 	id          uint64
 	ops         []txOp
-	docsByTable map[string]map[string]Document // table → id → doc (for within-tx reads)
+	docsByTable map[string]map[string]Document
 }
 
 func newTx(db *DB) *Tx {
@@ -33,18 +30,15 @@ func newTx(db *DB) *Tx {
 	}
 }
 
-// TxModel is the transaction-scoped model for a specific table.
 type TxModel struct {
 	tx    *Tx
 	table string
 }
 
-// Model returns a transaction-scoped model for the given table.
 func (tx *Tx) Model(table string) *TxModel {
 	return &TxModel{tx: tx, table: table}
 }
 
-// Create buffers an insert within the transaction.
 func (tm *TxModel) Create(data map[string]any) (Document, error) {
 	id, err := newID()
 	if err != nil {
@@ -71,13 +65,12 @@ func (tm *TxModel) Create(data map[string]any) (Document, error) {
 	return doc, nil
 }
 
-// UpdateByID buffers an update within the transaction.
 func (tm *TxModel) UpdateByID(id string, data map[string]any) error {
 	if id == "" {
 		return ErrInvalidID
 	}
 	now := time.Now()
-	// try to find createdAt from buffered ops, else use now
+
 	createdAt := now
 	if docs, ok := tm.tx.docsByTable[tm.table]; ok {
 		if d, ok := docs[id]; ok {
@@ -99,7 +92,6 @@ func (tm *TxModel) UpdateByID(id string, data map[string]any) error {
 	return nil
 }
 
-// DeleteByID buffers a delete within the transaction.
 func (tm *TxModel) DeleteByID(id string) error {
 	if id == "" {
 		return ErrInvalidID
@@ -114,13 +106,11 @@ func (tm *TxModel) DeleteByID(id string) error {
 	return nil
 }
 
-// commit writes all buffered ops atomically to disk.
 func (tx *Tx) commit() error {
 	if len(tx.ops) == 0 {
 		return nil
 	}
 
-	// group ops by table
 	byTable := make(map[string][]record)
 	for _, op := range tx.ops {
 		byTable[op.r.table] = append(byTable[op.r.table], op.r)
@@ -134,14 +124,12 @@ func (tx *Tx) commit() error {
 
 		eng.mu.Lock()
 
-		// write TX_BEGIN
 		begin := record{rtype: recTxBegin, txID: tx.id, table: table, timestamp: time.Now().UnixNano()}
 		if _, err := eng.writeRecord(begin); err != nil {
 			eng.mu.Unlock()
 			return err
 		}
 
-		// write all ops
 		type writtenOp struct {
 			r   record
 			loc location
@@ -150,7 +138,7 @@ func (tx *Tx) commit() error {
 		for _, r := range recs {
 			loc, err := eng.writeRecord(r)
 			if err != nil {
-				// write rollback marker and abort
+
 				rb := record{rtype: recTxRollback, txID: tx.id, table: table, timestamp: time.Now().UnixNano()}
 				_, _ = eng.writeRecord(rb)
 				eng.mu.Unlock()
@@ -159,7 +147,6 @@ func (tx *Tx) commit() error {
 			written = append(written, writtenOp{r: r, loc: loc})
 		}
 
-		// write TX_COMMIT
 		commit := record{rtype: recTxCommit, txID: tx.id, table: table, timestamp: time.Now().UnixNano()}
 		if _, err := eng.writeRecord(commit); err != nil {
 			rb := record{rtype: recTxRollback, txID: tx.id, table: table, timestamp: time.Now().UnixNano()}
@@ -168,10 +155,8 @@ func (tx *Tx) commit() error {
 			return err
 		}
 
-		// sync to disk
 		_ = eng.current.f.Sync()
 
-		// apply to indexes
 		for _, op := range written {
 			switch op.r.rtype {
 			case recInsert, recUpdate:

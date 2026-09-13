@@ -28,10 +28,10 @@ var csrfSafeMethods = map[string]bool{
 }
 
 type CSRF struct {
-	TokenLength int    // default 32 bytes of entropy (64 hex chars)
-	CookieName  string // default "_csrf"
-	HeaderName  string // default "X-CSRF-Token"
-	ContextKey  string // default "csrf_token"; token is stored in request context under this key
+	TokenLength int
+	CookieName  string
+	HeaderName  string
+	ContextKey  string
 }
 
 type csrfOptions struct {

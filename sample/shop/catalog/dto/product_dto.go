@@ -8,17 +8,11 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 )
 
-// ProductDTO is the validated payload for creating or updating a product.
-//
-//	body: { "name": string, "price": number }
 type ProductDTO struct {
 	Name  string  `bind:"name"`
 	Price float64 `bind:"price"`
 }
 
-// Transform binds the request body into a ProductDTO and validates it,
-// panicking with a BadRequestException when the name is missing or the
-// price is not a positive number.
 func (productDTO ProductDTO) Transform(body ctx.Body, arg common.ArgumentMetadata) any {
 	bound, _ := body.Bind(productDTO)
 	dto := bound.(ProductDTO)

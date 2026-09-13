@@ -10,15 +10,11 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 )
 
-// newTestWSConnPair spins up a real HTTP server upgraded to WebSocket and
-// dials it, returning the server-side and client-side *websocket.Conn. The
-// server-side handler blocks until cleanup() closes it, so the connection
-// stays alive for the duration of the test.
 func newTestWSConnPair(t testing.TB) (server *websocket.Conn, client *websocket.Conn, cleanup func()) {
 	t.Helper()
 
@@ -80,11 +76,6 @@ func TestWSConnection_TrySend_ConcurrentSendsNoRace(t *testing.T) {
 	const perGoroutine = 8
 	total := goroutines * perGoroutine
 
-	// TrySend is non-blocking and may legitimately drop payloads under a
-	// burst this size (sendBufferSize is 32) — that's the contract, not a
-	// bug. What must hold under -race is: whatever TrySend *did* accept
-	// (returned true) is exactly what the client receives, with no panic
-	// and no data race, regardless of how many goroutines call it at once.
 	received := make(chan struct{}, total)
 	stopReceiving := make(chan struct{})
 	go func() {
@@ -139,9 +130,7 @@ func TestWSConnection_TrySend_DropsWhenBufferFull(t *testing.T) {
 	defer cleanup()
 
 	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
-	// No client-side reads happen in this test, so once the writer goroutine
-	// blocks on its own in-flight websocket.JSON.Send, the buffer fills up
-	// and TrySend must start returning false instead of blocking forever.
+
 	conn := connmgr.Register("conn-1", serverConn)
 	defer connmgr.Unregister("conn-1")
 
@@ -175,8 +164,6 @@ func TestWSConnmgr_UnregisterStopsWriterWithoutPanic(t *testing.T) {
 
 	connmgr.Unregister("conn-1")
 
-	// A send racing with (or arriving after) Unregister must not panic —
-	// done is closed, not send, precisely so this stays safe.
 	conn.TrySend(WSPayload{Type: TypeEvent, Message: "after-unregister"})
 }
 

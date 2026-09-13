@@ -191,8 +191,6 @@ func TestAccessLog_PercentagesSumToExactlyOneHundred(t *testing.T) {
 	ev := event.NewEvent()
 	NewAccessLog(&AccessLogConfig{Event: ev, Logger: logger})
 
-	// 1ms/1ms/1ms of a 3ms total is 33.33% each; naive independent rounding
-	// would floor every entry to 33% and sum to 99%.
 	ev.Emit(trace.EventName, trace.Event{ID: "req-1", Stage: trace.StageMiddleware, Name: "M1", Duration: 1 * time.Millisecond})
 	ev.Emit(trace.EventName, trace.Event{ID: "req-1", Stage: trace.StageGuard, Name: "G1", Duration: 1 * time.Millisecond})
 	ev.Emit(trace.EventName, trace.Event{ID: "req-1", Stage: trace.StageHandler, Name: "H1", Duration: 1 * time.Millisecond})
@@ -341,9 +339,6 @@ func TestDistributePercentages_LargestRemainderGetsPriority(t *testing.T) {
 	}
 	total := time.Duration(101)
 
-	// exact shares: 49.5049%, 29.7029%, 20.7921%
-	// floor shares: 49, 29, 20 (sum 98, needs +2)
-	// remainders:   .5049, .7029, .7921 -> entry[2] then entry[1] get the +1
 	want := []int{49, 30, 21}
 	got := distributePercentages(entries, total)
 	if !slices.Equal(got, want) {
@@ -362,8 +357,6 @@ func TestDistributePercentages_TiesBrokenByOriginalOrder(t *testing.T) {
 	}
 	total := time.Duration(3)
 
-	// exact shares are all 33.333...%, an exact three-way tie on the
-	// remainder; the deterministic tiebreak is the original entry order.
 	want := []int{34, 33, 33}
 	got := distributePercentages(entries, total)
 	if !slices.Equal(got, want) {
@@ -405,9 +398,7 @@ func TestDistributePercentages_OvershootSubtractsFromSmallestRemainderFirst(t *t
 		{Duration: 35},
 		{Duration: 26},
 	}
-	// total is deliberately inconsistent with the entries' real sum (101),
-	// forcing the exact shares to sum above 100 and exercising the
-	// subtract-from-smallest-remainder branch.
+
 	total := time.Duration(100)
 
 	want := []int{39, 35, 26}

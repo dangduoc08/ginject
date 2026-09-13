@@ -14,12 +14,12 @@ import (
 
 	"github.com/dangduoc08/ginject/accesslog"
 	"github.com/dangduoc08/ginject/aggregation"
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/common"
 	"github.com/dangduoc08/ginject/ctx"
 	"github.com/dangduoc08/ginject/devtool"
 	"github.com/dangduoc08/ginject/event"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/routing"
 	"github.com/dangduoc08/ginject/trace"
 	"github.com/dangduoc08/ginject/versioning"
@@ -79,9 +79,6 @@ const (
 	publisherKey    = "github.com/dangduoc08/ginject/common/common.Publisher"
 )
 
-// knownHTTPDependencyKeys is the set of dependency-type keys the framework
-// can resolve for a HTTP handler parameter (see getHTTPDependency); values
-// are unused and always 1.
 var knownHTTPDependencyKeys = map[string]int{
 	httpContextKey:            1,
 	requestKey:                1,
@@ -104,9 +101,6 @@ var knownHTTPDependencyKeys = map[string]int{
 	common.FilePipeableKey:    1,
 }
 
-// knownWSDependencyKeys is the set of dependency-type keys the framework
-// can resolve for a WS handler parameter (see getWSDependency); WS handlers
-// only get WS-relevant dependencies, not the HTTP-only ones above.
 var knownWSDependencyKeys = map[string]int{
 	wsContextKey:                1,
 	wsConnectionKey:             1,
@@ -641,7 +635,6 @@ func (app *App) Listen(port int) error {
 		}
 	}
 
-	// HTTP logs
 	var routeArr []string
 	for _, h := range app.module.HTTPMainHandlers {
 		routeArr = append(routeArr, h.Pattern)
@@ -664,7 +657,7 @@ func (app *App) Listen(port int) error {
 	}
 
 	if app.isWSEnabled {
-		// WS logs
+
 		for _, eventName := range app.module.WSMainHandlers {
 			app.Logger.Info(
 				"WebSocketEvent",

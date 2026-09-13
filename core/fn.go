@@ -40,7 +40,7 @@ type argClassification struct {
 	isPipeable bool
 }
 
-var argClassificationCache sync.Map // reflect.Type -> argClassification
+var argClassificationCache sync.Map
 
 func classifyArgType(argType reflect.Type) argClassification {
 	if cached, ok := argClassificationCache.Load(argType); ok {
@@ -132,11 +132,6 @@ func genFieldKey(t reflect.Type) string {
 	return t.PkgPath() + "/" + t.String()
 }
 
-// snapshotGlobalProviders copies the current contents of globalProviderByKey
-// into a plain map for the rare call sites that need a map[string]Provider
-// value rather than point lookups (dynamic module factories aren't called
-// often enough for this to matter, and their arguments are never pipeable
-// types, so the snapshot only needs to be internally consistent, not live).
 func snapshotGlobalProviders() map[string]Provider {
 	snapshot := make(map[string]Provider)
 	globalProviderByKey.Range(func(k, v any) bool {
@@ -179,9 +174,6 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 	componentValue := reflect.ValueOf(component)
 	newComponent := reflect.New(componentType)
 
-	// injected providers into components
-	// can be injected through global modules
-	// or through imported modules
 	componentName := path.Base(componentType.PkgPath()) + "." + componentType.Name()
 	for j := 0; j < componentType.NumField(); j++ {
 		componentField := componentType.Field(j)
@@ -200,11 +192,6 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 			))
 		}
 
-		// inject provider priorities
-		// local inject
-		// global inject
-		// inner packages
-		// resolve dependencies error
 		if componentFieldKey != "" && injectedProviders[componentFieldKey] != nil {
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(injectedProviders[componentFieldKey]))
 		} else if p, ok := globalProviderByKey.Load(componentFieldKey); componentFieldKey != "" && ok {
@@ -213,9 +200,6 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 			newComponent.Elem().Field(j).Set(reflect.ValueOf(iface))
 		} else if !isInjectedProvider(componentFieldType) {
 
-			// if module set state to provider
-			// this line will set state again to provider
-			// other wise state = nil
 			newComponent.Elem().Field(j).Set(componentValue.Field(j))
 		} else {
 			return reflect.ValueOf(nil), errors.New(
@@ -234,13 +218,6 @@ func injectDependencies(component any, kind string, injectedProviders map[string
 	return newComponent, nil
 }
 
-// buildFieldInjectionCallback returns the per-field callback passed to
-// common.InjectProvidersInto{HTTP,WS}{ExceptionFilters,Middlewares,Guards,Interceptors}.
-// Each bound guard/middleware/interceptor/exceptionFilter field is resolved
-// by the same provider priority as injectDependencies: local module
-// providers, then globalProviderByKey, then globalInterfaceByKey, then passthrough
-// for non-Provider fields, panicking if nothing resolves. kind only affects
-// panic wording (e.g. "guarder", "middleware function").
 func buildFieldInjectionCallback(kind string, injectedProviders map[string]Provider) func(int, reflect.Type, reflect.Value, reflect.Value) {
 	return func(i int, ownerType reflect.Type, ownerValue, newInstance reflect.Value) {
 		field := ownerType.Field(i)

@@ -7,12 +7,6 @@ import (
 	"strings"
 )
 
-// ensureGitignoreEntry adds the data directory to the project's .gitignore so
-// generated database files aren't committed by accident. It creates the
-// .gitignore if none exists and is a no-op if the entry is already present.
-// This is best-effort: it never prevents the module from registering, but
-// genuine failures (as opposed to "no .gitignore yet") are reported on
-// os.Stderr so the omission isn't silently hidden from the developer.
 func ensureGitignoreEntry(path string) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -68,14 +62,10 @@ func ensureGitignoreEntry(path string) {
 	}
 }
 
-// warnGitignore reports a failure to update the project's .gitignore for the
-// given data directory without aborting module registration.
 func warnGitignore(path string, err error) {
 	fmt.Fprintf(os.Stderr, "store: could not add %q to .gitignore: %v\n", path, err)
 }
 
-// findProjectRoot walks up from start looking for a .git directory or file
-// (worktrees use a file). Returns "" if none is found.
 func findProjectRoot(start string) string {
 	dir := start
 	for {

@@ -41,8 +41,6 @@ func TestWSEvent_MatchWildcardPattern(t *testing.T) {
 	}
 }
 
-// A trailing "*" is greedy: it matches one or more remaining segments, not
-// just exactly one.
 func TestWSEvent_MatchWildcardMultipleSegments(t *testing.T) {
 	r := wsevent.NewWSEvent()
 	r.Add("chat.to.*", wsevent.WSEventItem{Handler: "wildcard-handler"})
@@ -56,9 +54,6 @@ func TestWSEvent_MatchWildcardMultipleSegments(t *testing.T) {
 	}
 }
 
-// Two trailing-wildcard patterns registered at different depths ("chat.*"
-// and "chat.to.*") can both be reachable from the same topic; the most
-// specific (longest/deepest) registered prefix must win.
 func TestWSEvent_SuffixWildcard_MostSpecificPrefixWins(t *testing.T) {
 	r := wsevent.NewWSEvent()
 	r.Add("chat.*", wsevent.WSEventItem{Handler: "shallow-handler"})
@@ -130,10 +125,6 @@ func TestWSEvent_AddOverwritesPreviousValue(t *testing.T) {
 	}
 }
 
-// WSEvent is not safe for concurrent Add — callers must finish adding
-// (e.g. during app boot) before any concurrent Match (e.g. across WS
-// connection goroutines) begins. This test covers exactly that contract:
-// sequential Add, then concurrent Match.
 func TestWSEvent_ConcurrentMatchAfterAdd_NoDataRace(t *testing.T) {
 	r := wsevent.NewWSEvent()
 	for i := 0; i < 8; i++ {

@@ -6,7 +6,6 @@ import (
 	"os"
 )
 
-// Progress reports the current state of a streaming transfer.
 type Progress struct {
 	Total   int64
 	Current int64
@@ -53,8 +52,6 @@ func (p *progressReadCloser) Read(buf []byte) (n int, err error) {
 	return
 }
 
-// cancelReadCloser calls cancel when the stream is closed, propagating context
-// cancellation to the underlying transport after the caller is done reading.
 type cancelReadCloser struct {
 	io.ReadCloser
 	cancel context.CancelFunc

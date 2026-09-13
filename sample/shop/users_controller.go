@@ -9,9 +9,6 @@ import (
 	"github.com/dangduoc08/ginject/sample/shop/catalog"
 )
 
-// UsersController handles account registration. Every new account is
-// provisioned with its own Store, ready to manage categories and products.
-// It's the one controller that spans both the accounts and catalog modules.
 type UsersController struct {
 	common.HTTP
 
@@ -23,10 +20,6 @@ func (instance UsersController) NewController() core.Controller {
 	return instance
 }
 
-// CREATE_users registers a new account and provisions its store.
-//
-//	POST /users
-//	body: { "email": string, "name": string, "password": string }
 func (instance UsersController) CREATE_users(q accountsdto.QueryDTO, userDTO accountsdto.UserDTO) ginject.Map {
 	user, err := instance.UserService.Register(userDTO.Email, userDTO.Name, userDTO.Password)
 	if err != nil {

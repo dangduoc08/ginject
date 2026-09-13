@@ -8,18 +8,12 @@ import (
 	"github.com/dangduoc08/ginject/exception"
 )
 
-// UserDTO is the validated payload for account registration.
-//
-//	POST /users
-//	body: { "email": string, "name": string, "password": string }
 type UserDTO struct {
 	Email    string `bind:"email"`
 	Name     string `bind:"name"`
 	Password string `bind:"password"`
 }
 
-// Transform binds the request body into a UserDTO and validates it,
-// panicking with a BadRequestException when a field is missing or malformed.
 func (userDTO UserDTO) Transform(body ctx.Body, arg common.ArgumentMetadata) any {
 	bound, _ := body.Bind(userDTO)
 	dto := bound.(UserDTO)
@@ -46,8 +40,6 @@ type QueryDTO struct {
 	Password string `bind:"password"`
 }
 
-// Transform binds the request body into a UserDTO and validates it,
-// panicking with a BadRequestException when a field is missing or malformed.
 func (userDTO QueryDTO) Transform(body ctx.Query, arg common.ArgumentMetadata) any {
 	bound, _ := body.Bind(userDTO)
 	dto := bound.(QueryDTO)

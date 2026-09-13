@@ -198,7 +198,6 @@ func (devtoolBuilder *devtoolBuilder) Build() *Devtool {
 	devtoolBuilder.guardsByPattern = generateLayersByPattern(devtoolBuilder.moduleGuarders)
 	devtoolBuilder.interceptorsByPattern = generateLayersByPattern(devtoolBuilder.moduleInterceptors)
 
-	// Create HTTP Component
 	for _, moduleHandler := range devtoolBuilder.httpMainHandlers {
 		httpMethod := routing.OperationsMapHTTPMethods[moduleHandler.Method]
 
