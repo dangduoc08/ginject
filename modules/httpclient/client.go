@@ -26,9 +26,9 @@ type httpClient struct {
 	validateStatus  func(int) bool
 	validateHost    func(string) bool
 	tlsConfig       *tls.Config
-	isHTTPSRequired    bool
+	isHTTPSRequired bool
 	maxResponseSize int64
-	isDebugMode       bool
+	isDebugMode     bool
 	hasCookieJar    bool
 	underlying      *http.Client
 }
@@ -37,7 +37,7 @@ func newHTTPClient(opts *HTTPClientModuleOptions) *httpClient {
 	c := &httpClient{
 		defaultHeaders:  make(map[string]string),
 		validateStatus:  func(code int) bool { return code >= 200 && code < 400 },
-		maxResponseSize: 32 << 20, // 32 MB
+		maxResponseSize: 32 << 20,
 		retryInitial:    100 * time.Millisecond,
 		retryMax:        5 * time.Second,
 	}
@@ -222,8 +222,6 @@ func (c *httpClient) DownloadWithProgress(rawURL, filepath string, fn func(Progr
 	return saveToFile(r, filepath)
 }
 
-// buildFinalHandler returns the terminal Handler that executes the HTTP request
-// and reads the response body.
 func (c *httpClient) buildFinalHandler(tc *timingCollector, isStream bool, onProgress func(Progress)) Handler {
 	return func(req *http.Request) (*Response, error) {
 		c.mu.RLock()

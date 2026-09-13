@@ -43,7 +43,6 @@ func BenchmarkAggregate_AllOperators(b *testing.B) {
 	}
 }
 
-
 func BenchmarkSetOperators_Two(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -21,7 +21,6 @@ var ConfModule = config.Register(&config.ConfigModuleOptions{
 	Hooks: []config.ConfigHookFn{
 		func(c config.ConfigService) {
 
-			// transform to proper types
 			dto, _ := c.Transform(ConfModel{})
 
 			confDTO := dto.(ConfModel)
@@ -31,7 +30,6 @@ var ConfModule = config.Register(&config.ConfigModuleOptions{
 			}
 			ENV = confDTO
 
-			// re-assign to config struct
 			dtoConfigType := reflect.TypeOf(confDTO)
 			for i := 0; i < dtoConfigType.NumField(); i++ {
 				field := dtoConfigType.Field(i)

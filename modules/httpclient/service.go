@@ -4,8 +4,6 @@ import (
 	"github.com/dangduoc08/ginject/core"
 )
 
-// ClientService is the injectable DI provider wrapping a Client.
-// Embed it in controllers or providers to access HTTP client methods directly.
 type ClientService struct {
 	Backend Client
 }

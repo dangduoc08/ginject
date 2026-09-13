@@ -21,25 +21,16 @@ type record struct {
 	txID      uint64
 	table     string
 	id        string
-	timestamp int64  // unix nano
-	payload   []byte // JSON docPayload for insert/update; nil for delete/tx markers
+	timestamp int64
+	payload   []byte
 }
 
-// Wire layout (little-endian):
-//   [4] totalSize = number of bytes after this field
-//   [4] CRC32 of bytes [8:]
-//   [1] recType
-//   [8] txID
-//   [2] len(table); [N] table
-//   [2] len(id);    [N] id
-//   [8] timestamp
-//   [4] len(payload); [N] payload
 func encodeRecord(r record) []byte {
 	tbl := []byte(r.table)
 	id := []byte(r.id)
 
 	innerSize := 1 + 8 + 2 + len(tbl) + 2 + len(id) + 8 + 4 + len(r.payload)
-	buf := make([]byte, 8+innerSize) // 4(totalSize) + 4(crc) + inner
+	buf := make([]byte, 8+innerSize)
 
 	off := 8
 	buf[off] = byte(r.rtype)
@@ -60,14 +51,11 @@ func encodeRecord(r record) []byte {
 	off += 4
 	copy(buf[off:], r.payload)
 
-	// totalSize = crc(4) + inner
 	binary.LittleEndian.PutUint32(buf[0:], uint32(4+innerSize))
 	binary.LittleEndian.PutUint32(buf[4:], crc32.ChecksumIEEE(buf[8:]))
 	return buf
 }
 
-// decodeRecord parses the first complete record from data.
-// Returns the record and the total number of bytes consumed (including the 4-byte size prefix).
 func decodeRecord(data []byte) (record, int, error) {
 	if len(data) < 8 {
 		return record{}, 0, ErrCorrupt

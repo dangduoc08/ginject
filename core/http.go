@@ -50,7 +50,7 @@ func (http *HTTP) addMainHandler(moduleHandler common.HTTPLayer) {
 	if moduleHandler.Method == routing.SERVE {
 		r := moduleHandler.Route
 		lr := len(r)
-		lastWildcardSlashIndex := 0 // zero mean use config dir
+		lastWildcardSlashIndex := 0
 		if lr >= 2 && r[lr-2:] == "*/" {
 			lastWildcardSlashIndex = strings.Count(r, "/") - 1
 		}
@@ -88,7 +88,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 
 	if http.isVersioningEnabled {
 		if version == "" && isMatched {
-			// Invoke middlewares
+
 			for _, middleware := range http.route.GlobalMiddlewares {
 				if isNext {
 					isNext = false
@@ -118,11 +118,8 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 				isNext = false
 				if handler == nil {
 
-					// handler = nil / main handler
-					// meaning this is injectable handler
 					injectableHandler := http.route.InjectableHandlers[matchedRoute]
 
-					// data return from main handler
 					data := http.resolveAndCallHandler(matchedRoute, injectableHandler, c)
 
 					if aggregations, ok := c.Context().Value(WithValueKey(matchedRoute)).([]*aggregation.Aggregation); ok {
@@ -136,8 +133,6 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 
 							if aggregation.IsMainHandlerCalled {
 
-								// set data from main handler into
-								// first interceptor
 								if i == totalAggregations-1 {
 									if len(data) == 1 {
 										aggregatedData = data[0].Interface()
@@ -212,7 +207,7 @@ func (http *HTTP) handleRequest(c *ctx.HTTPContext) {
 			}
 		}
 	} else {
-		// Invoke middlewares
+
 		for _, middleware := range http.route.GlobalMiddlewares {
 			if isNext {
 				isNext = false

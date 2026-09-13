@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// to ensure constructor only run once
 var singletons = make(map[string]any)
 
 func GetFuncName(handler any) string {
@@ -27,8 +26,6 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 
 	for i, b := range subStr {
 
-		// when set j = i
-		// mean it's skip
 		if j >= 0 && i < j {
 			continue
 		}
@@ -61,9 +58,6 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 				subStr[i] != TokenOf &&
 				subStr[i] != TokenVersion {
 
-				// READ_ANY
-				// or OF_ANY
-				// mapped with condition line 54
 				if subStr[i] == TokenAny {
 					path += "*"
 					isAny = true
@@ -133,10 +127,8 @@ func ParseFuncNameToURL(fnName string) (string, string, string) {
 			continue
 		}
 
-		// ANY stand alone
 		if s == TokenAny && (i == len(subStr)-1 || subStr[i+1] == TokenOf) {
 
-			// ANY same as a static path
 			if route == "" {
 				route = "*/"
 				continue

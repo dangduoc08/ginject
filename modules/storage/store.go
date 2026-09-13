@@ -6,18 +6,15 @@ import (
 	"unicode"
 )
 
-// DB is the top-level handle for the embedded database.
-// Create one with Open; close with Close.
 type DB struct {
 	mu             sync.RWMutex
 	path           string
 	enginesByTable map[string]*engine
 	modelsByTable  map[string]*Model
 	hooks          *hookSet
-	isClosed         bool
+	isClosed       bool
 }
 
-// Open opens (or creates) the database rooted at path.
 func Open(path string) (*DB, error) {
 	db := &DB{
 		path:           path,
@@ -28,7 +25,6 @@ func Open(path string) (*DB, error) {
 	return db, nil
 }
 
-// Close flushes and closes all open segment files.
 func (db *DB) Close() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
@@ -42,7 +38,6 @@ func (db *DB) Close() error {
 	return nil
 }
 
-// Flush syncs the current segment file of every table to disk.
 func (db *DB) Flush() error {
 	db.mu.RLock()
 	engs := make([]*engine, 0, len(db.enginesByTable))
@@ -58,7 +53,6 @@ func (db *DB) Flush() error {
 	return nil
 }
 
-// Compact rewrites each table's segment files, removing deleted records.
 func (db *DB) Compact() error {
 	db.mu.RLock()
 	engs := make([]*engine, 0, len(db.enginesByTable))
@@ -74,7 +68,6 @@ func (db *DB) Compact() error {
 	return nil
 }
 
-// Model returns the Model for the given table, creating it if needed.
 func (db *DB) Model(table string) *Model {
 	if err := validateTableName(table); err != nil {
 		panic(err)
@@ -89,8 +82,6 @@ func (db *DB) Model(table string) *Model {
 	return m
 }
 
-// Tx executes fn inside a transaction. If fn returns an error, the transaction
-// is rolled back; otherwise it is committed.
 func (db *DB) Tx(fn func(*Tx) error) error {
 	tx := newTx(db)
 	if err := fn(tx); err != nil {
@@ -99,11 +90,8 @@ func (db *DB) Tx(fn func(*Tx) error) error {
 	return tx.commit()
 }
 
-// Use registers a middleware that wraps every hook invocation.
-// The middleware receives the HookCtx and a next() function.
 func (db *DB) Use(fn func(*HookCtx, func())) *DB {
-	// middlewares wrap the pre/post pipeline — store as global interceptor
-	// For simplicity, Use() registers a raw global hook that runs before all pre hooks.
+
 	db.hooks.mu.Lock()
 	db.hooks.preByEvent["*"] = append(db.hooks.preByEvent["*"], func(hc *HookCtx) {
 		fn(hc, func() {})
@@ -112,7 +100,6 @@ func (db *DB) Use(fn func(*HookCtx, func())) *DB {
 	return db
 }
 
-// Pre registers a hook to run before the given event ("create", "update", "delete", "find").
 func (db *DB) Pre(event string, fn func(*HookCtx)) *DB {
 	db.hooks.mu.Lock()
 	db.hooks.preByEvent[event] = append(db.hooks.preByEvent[event], fn)
@@ -120,7 +107,6 @@ func (db *DB) Pre(event string, fn func(*HookCtx)) *DB {
 	return db
 }
 
-// Post registers a hook to run after the given event.
 func (db *DB) Post(event string, fn func(*HookCtx)) *DB {
 	db.hooks.mu.Lock()
 	db.hooks.postByEvent[event] = append(db.hooks.postByEvent[event], fn)
@@ -128,7 +114,6 @@ func (db *DB) Post(event string, fn func(*HookCtx)) *DB {
 	return db
 }
 
-// getEngine returns the engine for a table, opening it if needed.
 func (db *DB) getEngine(table string) (*engine, error) {
 	db.mu.RLock()
 	if db.isClosed {
@@ -143,7 +128,7 @@ func (db *DB) getEngine(table string) (*engine, error) {
 
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	// double-check after upgrade
+
 	if eng, ok = db.enginesByTable[table]; ok {
 		return eng, nil
 	}

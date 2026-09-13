@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// EventType describes what happened to a document.
 type EventType string
 
 const (
@@ -15,25 +14,21 @@ const (
 	EventDelete EventType = "delete"
 )
 
-// Event is emitted to watchers after a document changes.
 type Event struct {
 	Type EventType
 	Doc  Document
 }
 
-// FieldSchema describes one field's indexing hints.
 type FieldSchema struct {
 	Name   string
-	Index  bool // build secondary index on this field
-	Search bool // build text search index on this field
+	Index  bool
+	Search bool
 }
 
-// ModelSchema declares which fields should be indexed.
 type ModelSchema struct {
 	Fields []FieldSchema
 }
 
-// HookCtx carries context for pre/post hooks.
 type HookCtx struct {
 	Event string
 	Table string
@@ -63,7 +58,6 @@ type watcher struct {
 	fn func(Event)
 }
 
-// Model is the per-table API: Create, FindByID, UpdateByID, DeleteByID, Find, Search, Watch, Schema.
 type Model struct {
 	db       *DB
 	table    string
@@ -75,8 +69,6 @@ func newModel(db *DB, table string) *Model {
 	return &Model{db: db, table: table}
 }
 
-// Schema registers field-level indexing hints and rebuilds secondary/text indexes
-// from existing data. Must be called before requests arrive for accurate queries.
 func (m *Model) Schema(s ModelSchema) *Model {
 	var indexed, search []string
 	for _, f := range s.Fields {
@@ -94,7 +86,7 @@ func (m *Model) Schema(s ModelSchema) *Model {
 	}
 	eng.mu.Lock()
 	eng.idx.setSchema(indexed, search)
-	// rebuild secondary + text from primary index
+
 	for id, loc := range eng.idx.locationByID {
 		seg := eng.segByID(loc.segID)
 		if seg == nil {
@@ -115,7 +107,6 @@ func (m *Model) Schema(s ModelSchema) *Model {
 	return m
 }
 
-// Create inserts a new document and returns it with a generated ID.
 func (m *Model) Create(data map[string]any) (Document, error) {
 	m.db.runHook(m.db.hooks, "pre", "create", m.table, "", data)
 
@@ -157,7 +148,6 @@ func (m *Model) Create(data map[string]any) (Document, error) {
 	return doc, nil
 }
 
-// FindByID retrieves a document by its ID.
 func (m *Model) FindByID(id string) (Document, error) {
 	if id == "" {
 		return Document{}, ErrInvalidID
@@ -184,7 +174,6 @@ func (m *Model) FindByID(id string) (Document, error) {
 	return doc, nil
 }
 
-// UpdateByID replaces the data of an existing document.
 func (m *Model) UpdateByID(id string, data map[string]any) error {
 	if id == "" {
 		return ErrInvalidID
@@ -201,7 +190,7 @@ func (m *Model) UpdateByID(id string, data map[string]any) error {
 		eng.mu.Unlock()
 		return ErrNotFound
 	}
-	// read old doc to preserve createdAt and gather old index data
+
 	oldDoc, err := eng.readDoc(id, oldLoc)
 	if err != nil {
 		eng.mu.Unlock()
@@ -235,7 +224,6 @@ func (m *Model) UpdateByID(id string, data map[string]any) error {
 	return nil
 }
 
-// DeleteByID removes a document by its ID.
 func (m *Model) DeleteByID(id string) error {
 	if id == "" {
 		return ErrInvalidID
@@ -277,12 +265,10 @@ func (m *Model) DeleteByID(id string) error {
 	return nil
 }
 
-// Find returns a Query builder for this model.
 func (m *Model) Find() *Query {
 	return newQuery(m)
 }
 
-// execQuery is called by Query.Exec() to run the query.
 func (m *Model) execQuery(q *Query) ([]Document, error) {
 	eng, err := m.db.getEngine(m.table)
 	if err != nil {
@@ -291,7 +277,6 @@ func (m *Model) execQuery(q *Query) ([]Document, error) {
 
 	eng.mu.RLock()
 
-	// Try secondary index for the first equality condition on an indexed field.
 	var candidateIDs []string
 	candidateSet := make(map[string]bool)
 	usedSecondary := false
@@ -337,7 +322,6 @@ func (m *Model) execQuery(q *Query) ([]Document, error) {
 	return results, nil
 }
 
-// Search performs a text search and returns all matching documents.
 func (m *Model) Search(text string) ([]Document, error) {
 	eng, err := m.db.getEngine(m.table)
 	if err != nil {
@@ -361,8 +345,6 @@ func (m *Model) Search(text string) ([]Document, error) {
 	return docs, nil
 }
 
-// Watch registers a listener for document change events on this model.
-// Returns an unsubscribe function.
 func (m *Model) Watch(fn func(Event)) func() {
 	id := atomic.AddUint64(&watcherCounter, 1)
 	w := &watcher{id: id, fn: fn}

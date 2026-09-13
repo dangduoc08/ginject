@@ -97,8 +97,6 @@ func (r *HTTP) GetPrefixes() []map[string]string {
 		prefixValue := str.Enclose(prefixConf.Value, '/')
 		prefixHandlers := prefixConf.Handlers
 
-		// if no handlers were binded
-		// then prefix will be applied for all handlers
 		if len(prefixHandlers) == 0 {
 			prefixes = append(prefixes, map[string]string{prefixValue: "*"})
 		} else {

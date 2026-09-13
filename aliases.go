@@ -22,7 +22,6 @@ type (
 	FieldLevel  = ctx.FieldLevel
 	Publisher   = common.Publisher
 
-	// decorators
 	HTTPContext = *ctx.HTTPContext
 	WSContext   = *ctx.WSContext
 	Request     = *http.Request

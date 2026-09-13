@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// Document is a stored record returned to callers.
 type Document struct {
 	ID        string
 	Data      map[string]any
@@ -15,11 +14,10 @@ type Document struct {
 	UpdatedAt time.Time
 }
 
-// docPayload is what we store as JSON in the record payload.
 type docPayload struct {
-	C int64          `json:"c"` // createdAt unix nano
-	U int64          `json:"u"` // updatedAt unix nano
-	D map[string]any `json:"d"` // user data
+	C int64          `json:"c"`
+	U int64          `json:"u"`
+	D map[string]any `json:"d"`
 }
 
 func marshalPayload(data map[string]any, createdAt, updatedAt time.Time) ([]byte, error) {

@@ -13,10 +13,6 @@ type benchPrefixTargetController struct{ common.HTTP }
 func (c benchPrefixTargetController) NewController() Controller      { return c }
 func (c benchPrefixTargetController) READ_benchprefixtarget() string { return "ok" }
 
-// seedGlobalPrefixesByControllerNoise populates globalPrefixesByController
-// with n entries that never match benchPrefixTargetController, simulating a
-// large real-world app where most registered controllers are unrelated to
-// the one being looked up.
 func seedGlobalPrefixesByControllerNoise(n int) {
 	noiseKey := genFieldKey(reflect.TypeOf(struct{ x int }{}))
 	for i := 0; i < n; i++ {
@@ -79,11 +75,6 @@ type benchModuleController4 struct{ common.HTTP }
 func (c benchModuleController4) NewController() Controller         { return c }
 func (c benchModuleController4) READ_benchmoduleresource4() string { return "ok" }
 
-// BenchmarkNewModule_FiveControllers exercises the full NewModule bootstrap
-// pipeline (provider hoisting, prefix registration, controller binding) for a
-// module with a realistic handful of controllers. mainModulePtr and friends
-// are package-level latches, so each iteration must reset them - only timing
-// the bootstrap itself, not the reset.
 func BenchmarkNewModule_FiveControllers(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()

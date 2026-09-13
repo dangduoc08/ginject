@@ -19,13 +19,6 @@ const (
 	sessionKeyPath = "session:"
 )
 
-// UserService is an account directory and session store. Accounts persist to
-// disk through the storage module; sessions live in the cache module behind a
-// bearer token, so they expire automatically after sessionTTL.
-//
-// It exists to demonstrate the framework's DI, persistence and caching
-// modules; SHA-256 password hashing is illustrative only and not suitable for
-// production use.
 type UserService struct {
 	Store dbstorage.StoreService
 	Cache cache.CacheService
@@ -45,8 +38,6 @@ func (svc UserService) users() *dbstorage.Model {
 	return svc.Store.Model(usersTable)
 }
 
-// Register creates a new account. It returns a ConflictException if the
-// email is already taken.
 func (svc UserService) Register(email, name, password string) (User, error) {
 	existing, err := svc.users().Find().Where("email", dbstorage.OpEq, email).Exec()
 	if err != nil {
@@ -68,9 +59,6 @@ func (svc UserService) Register(email, name, password string) (User, error) {
 	return userFromDocument(doc), nil
 }
 
-// Authenticate verifies an email/password pair and starts a new session,
-// returning the user and a bearer token. It returns an
-// UnauthorizedException when the credentials don't match.
 func (svc UserService) Authenticate(email, password string) (User, string, error) {
 	docs, err := svc.users().Find().Where("email", dbstorage.OpEq, email).Exec()
 	if err != nil || len(docs) == 0 {
@@ -95,13 +83,10 @@ func (svc UserService) Authenticate(email, password string) (User, string, error
 	return userFromDocument(doc), token, nil
 }
 
-// Logout ends the session identified by token. Unknown tokens are ignored,
-// so logout is idempotent.
 func (svc UserService) Logout(token string) {
 	_ = svc.Cache.Delete(context.Background(), sessionKey(token))
 }
 
-// UserBySession resolves a bearer token to the user that owns it.
 func (svc UserService) UserBySession(token string) (User, bool) {
 	userID, ok := svc.Cache.Get(context.Background(), sessionKey(token))
 	if !ok {

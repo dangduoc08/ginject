@@ -169,7 +169,7 @@ func BenchmarkIsDynamicModule(b *testing.B) {
 	s := "func(pkg.Provider) *core.Module"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		isDynamicModule(s) //nolint:errcheck
+		isDynamicModule(s)
 	}
 }
 

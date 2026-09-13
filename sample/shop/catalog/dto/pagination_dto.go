@@ -11,20 +11,11 @@ const (
 	maxLimit     = 100
 )
 
-// PaginationDTO is the validated query payload for list endpoints.
-//
-//	query: ?page=<int>&limit=<int>
-//
-// Missing or non-positive values fall back to defaults; limit is capped at
-// maxLimit so a caller can't force the server to scan unbounded pages.
 type PaginationDTO struct {
 	Page  int `bind:"page"`
 	Limit int `bind:"limit"`
 }
 
-// Transform binds the request query into a PaginationDTO and normalizes it —
-// unlike body DTOs, out-of-range pagination values are clamped rather than
-// rejected, since "page=0" or "limit=9999" has an obvious sane interpretation.
 func (paginationDTO PaginationDTO) Transform(query ctx.Query, arg common.ArgumentMetadata) any {
 	bound, _ := query.Bind(paginationDTO)
 	dto := bound.(PaginationDTO)
@@ -42,7 +33,6 @@ func (paginationDTO PaginationDTO) Transform(query ctx.Query, arg common.Argumen
 	return dto
 }
 
-// Skip returns the number of items to skip to reach this page.
 func (paginationDTO PaginationDTO) Skip() int {
 	return (paginationDTO.Page - 1) * paginationDTO.Limit
 }

@@ -24,8 +24,6 @@ func newTestContext(method, origin string) (*ctx.HTTPContext, *httptest.Response
 	return c, rec
 }
 
-// loadHelmetOptions tests
-
 func TestLoadHelmetOptions_DefaultCSP(t *testing.T) {
 	opts := loadHelmetOptions(&Helmet{})
 	if opts.contentSecurityPolicy != helmetDefaultCSP {
@@ -153,8 +151,6 @@ func TestLoadHelmetOptions_CustomCrossOriginPolicies(t *testing.T) {
 		t.Error(test.DiffMessage(opts.crossOriginResourcePolicy, "cross-origin", "custom CORP"))
 	}
 }
-
-// Use tests
 
 func TestHelmet_Use_CallsNext(t *testing.T) {
 	mw := Helmet{}.NewMiddleware()

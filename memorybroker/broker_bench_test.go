@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// BenchmarkPublish measures synchronous publish to a single exact-match topic
-// with 1000 subscribers pre-registered.
 func BenchmarkPublish(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -23,7 +21,6 @@ func BenchmarkPublish(b *testing.B) {
 	}
 }
 
-// BenchmarkPublishWildcard measures publish when 100 wildcard subscribers are registered.
 func BenchmarkPublishWildcard(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -40,8 +37,6 @@ func BenchmarkPublishWildcard(b *testing.B) {
 	}
 }
 
-// BenchmarkPublishMixed measures publish when exact, prefix, and global
-// subscribers are all active simultaneously.
 func BenchmarkPublishMixed(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -60,7 +55,6 @@ func BenchmarkPublishMixed(b *testing.B) {
 	}
 }
 
-// BenchmarkSubscribe measures the cost of subscribe followed by unsubscribe in a tight loop.
 func BenchmarkSubscribe(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -74,7 +68,6 @@ func BenchmarkSubscribe(b *testing.B) {
 	}
 }
 
-// BenchmarkPublishParallel measures throughput under concurrent publish load.
 func BenchmarkPublishParallel(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -95,7 +88,6 @@ func BenchmarkPublishParallel(b *testing.B) {
 	})
 }
 
-// BenchmarkPublishComplex measures publish against complex (middle-wildcard) patterns.
 func BenchmarkPublishComplex(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -113,7 +105,6 @@ func BenchmarkPublishComplex(b *testing.B) {
 	}
 }
 
-// BenchmarkPublishNoSubscribers measures publish to a topic with zero matching subscribers.
 func BenchmarkPublishNoSubscribers(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -128,8 +119,6 @@ func BenchmarkPublishNoSubscribers(b *testing.B) {
 	}
 }
 
-// BenchmarkSubscribe_OnClosedBroker measures the cost of Subscribe when the
-// broker is already closed and every call is rejected.
 func BenchmarkSubscribe_OnClosedBroker(b *testing.B) {
 	br := NewMemoryBroker()
 	_ = br.Close()
@@ -142,7 +131,6 @@ func BenchmarkSubscribe_OnClosedBroker(b *testing.B) {
 	}
 }
 
-// BenchmarkUnsubscribe_Nil measures the cost of the nil-Subscription no-op path.
 func BenchmarkUnsubscribe_Nil(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -154,8 +142,6 @@ func BenchmarkUnsubscribe_Nil(b *testing.B) {
 	}
 }
 
-// BenchmarkUnsubscribe_NilParallel measures the nil-Subscription no-op path
-// under concurrent contention, where lock-free fast paths matter most.
 func BenchmarkUnsubscribe_NilParallel(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()
@@ -169,7 +155,6 @@ func BenchmarkUnsubscribe_NilParallel(b *testing.B) {
 	})
 }
 
-// BenchmarkPublishManyTopics measures publish when subscriptions are spread across many topics.
 func BenchmarkPublishManyTopics(b *testing.B) {
 	br := NewMemoryBroker()
 	defer func() { _ = br.Close() }()

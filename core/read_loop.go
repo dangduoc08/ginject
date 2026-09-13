@@ -56,7 +56,7 @@ func readLoop(conn *WSConnection, ws *WS) {
 		case TypePing:
 			conn.TrySend(WSPayload{Type: TypePong})
 		case TypePong:
-			// liveness only; ws.connmgr.touch above already recorded it.
+
 		default:
 			reply(conn, TypeError, payload.ID, "unsupported type: "+string(payload.Type))
 		}

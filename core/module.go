@@ -17,14 +17,8 @@ var modulesInjectedFromMain []uintptr
 var staticModuleByDynamicPtr = make(map[uintptr]*Module)
 var globalPrefixesByController = make(map[string][]string)
 
-// globalProviderByKey and globalInterfaceByKey are read on every request
-// that resolves a pipeable handler parameter (see injectDependencies,
-// reached from getFnArgsByType), concurrently with other goroutines
-// potentially still calling App.Create/UseLogger. sync.Map gives them their
-// own internal synchronization instead of relying on moduleGlobalMu, which
-// would otherwise have to be taken on the hot request path.
-var globalProviderByKey sync.Map  // map[string]Provider
-var globalInterfaceByKey sync.Map // map[string]any
+var globalProviderByKey sync.Map
+var globalInterfaceByKey sync.Map
 var providerSingletonByKey map[string]Provider = make(map[string]Provider)
 var fieldNameByRole = map[string]string{
 	"http":            "HTTP",
@@ -50,43 +44,33 @@ type Module struct {
 	providers      []Provider
 	controllers    []Controller
 
-	IsGlobal bool
-	OnInit   func()
-	OnReady  func()
+	IsGlobal   bool
+	OnInit     func()
+	OnReady    func()
 	OnShutdown func()
 
-	// store HTTP module exception filters
 	HTTPExceptionFilters []common.HTTPLayer
 
-	// store HTTP module middlewares
 	HTTPMiddlewares []common.HTTPLayer
 
-	// store HTTP module guards
 	HTTPGuards []common.HTTPLayer
 
-	// store HTTP module interceptors
 	HTTPInterceptors []common.HTTPLayer
 
-	// store HTTP main handlers
 	HTTPMainHandlers []common.HTTPLayer
 
-	// store WS module guards
 	WSGuards []common.WSLayer
 
-	// store WS module interceptors
 	WSInterceptors []common.WSLayer
 
-	// store WS module exception filters
 	WSExceptionFilters []common.WSLayer
 
-	// store WS main handlers
 	WSMainHandlers []common.WSLayer
 }
 
 func (m *Module) injectGlobalProviders() {
 	for _, provider := range m.providers {
 
-		// generate a unique key for the provider
 		globalProviderByKey.Store(genProviderKey(provider), provider)
 	}
 }
@@ -154,7 +138,6 @@ func (m *Module) NewModule() *Module {
 
 	injectedProviders := m.injectProviders()
 
-	// only modules injected by main module are able to use controllers
 	if slices.Contains(modulesInjectedFromMain, reflect.ValueOf(m).Pointer()) {
 		m.injectControllers(injectedProviders)
 	}
@@ -173,22 +156,17 @@ func (m *Module) bootstrapMainModule() {
 	modulesInjectedFromMain = append(modulesInjectedFromMain, reflect.ValueOf(m).Pointer())
 	mainModulePtr = reflect.ValueOf(m).Pointer()
 
-	// main module's provider always injects globally
 	m.injectGlobalProviders()
 
-	// static modules which inject in main.go
 	for _, staticModule := range m.staticModules {
 		m.controllers = append(m.controllers, staticModule.controllers...)
 		m.providers = append(m.providers, staticModule.providers...)
 
-		// static modules which set as globally
-		// must be injected in main module
 		if staticModule.IsGlobal {
 			staticModule.injectGlobalProviders()
 		}
 	}
 
-	// dynamic modules which inject in main.go
 	for _, dynamicModule := range m.dynamicModules {
 		staticModule := createStaticModuleFromDynamicModule(dynamicModule)
 		staticModuleByDynamicPtr[reflect.ValueOf(dynamicModule).Pointer()] = staticModule
@@ -196,8 +174,6 @@ func (m *Module) bootstrapMainModule() {
 		m.controllers = append(m.controllers, staticModule.controllers...)
 		m.providers = append(m.providers, staticModule.providers...)
 
-		// dynamic modules which set as globally
-		// have to be injected in main module
 		if staticModule.IsGlobal {
 			staticModule.injectGlobalProviders()
 		}
@@ -235,8 +211,6 @@ func prependInjectedModules(m *Module, injectModules []*Module) {
 }
 
 func (m *Module) injectStaticModules() {
-	// no need to inject global here since globally static modules
-	// should already be injected from main to make them injectable
 
 	injectModules := make([]*Module, 0, len(m.staticModules))
 	for _, staticModule := range m.staticModules {
@@ -284,8 +258,6 @@ func (m *Module) injectProviders() map[string]Provider {
 		injectedProviders[genProviderKey(provider)] = provider
 	}
 
-	// sort injected providers at head of provider list
-	// to make it run NewProvider first
 	var hoisted []Provider
 	for _, provider := range m.providers {
 		componentType := reflect.TypeOf(provider)
@@ -306,7 +278,6 @@ func (m *Module) injectProviders() map[string]Provider {
 		m.providers = append(reordered, m.providers...)
 	}
 
-	// inject providers into providers
 	moduleGlobalMu.Lock()
 	defer moduleGlobalMu.Unlock()
 
@@ -364,7 +335,6 @@ func (m *Module) bindHTTPController(controller Controller, injectedProviders map
 	for j := 0; j < controllerType.NumMethod(); j++ {
 		methodName := controllerType.Method(j).Name
 
-		// for main handler
 		handler := controllerValue.Method(j).Interface()
 		http.AddHandlerToRouterMap(modulePrefixes, methodName, handler)
 	}
@@ -374,9 +344,6 @@ func (m *Module) bindHTTPController(controller Controller, injectedProviders map
 	m.bindHTTPGuards(controller, controllerType, controllerPath, &http, injectedProviders)
 	m.bindHTTPInterceptors(controller, controllerType, controllerPath, &http, injectedProviders)
 
-	// add main handler
-	// for mainhandler: name = mainHandlerName
-	// add for consistency with another layers
 	for pattern, handler := range http.RouterMap {
 		if err := isInjectableHandler(handler, injectedProviders, knownHTTPDependencyKeys); err != nil {
 			panic(color.FmtRed("%s", err.Error()))
@@ -495,7 +462,6 @@ func (m *Module) bindWSController(controller Controller, injectedProviders map[s
 	for j := 0; j < controllerType.NumMethod(); j++ {
 		methodName := controllerType.Method(j).Name
 
-		// for main handler
 		handler := controllerValue.Method(j).Interface()
 		ws.AddHandlerToEventMap(methodName, handler)
 	}
@@ -504,7 +470,6 @@ func (m *Module) bindWSController(controller Controller, injectedProviders map[s
 	m.bindWSInterceptors(controller, controllerType, &ws, injectedProviders)
 	m.bindWSExceptionFilters(controller, controllerType, &ws, injectedProviders)
 
-	// add ws main handler
 	for eventName, handler := range ws.EventMap {
 		if err := isInjectableHandler(handler, injectedProviders, knownWSDependencyKeys); err != nil {
 			panic(color.FmtRed("%s", err.Error()))

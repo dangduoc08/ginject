@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// Client builds and executes HTTP requests with a shared configuration.
 type Client interface {
 	Get(path string) RequestBuilder
 	Post(path string) RequestBuilder
@@ -18,7 +17,6 @@ type Client interface {
 	Head(path string) RequestBuilder
 	Options(path string) RequestBuilder
 
-	// Use appends middleware to the client's global chain.
 	Use(middlewares ...Middleware)
 
 	SetBaseURL(u string)
@@ -45,7 +43,6 @@ type Client interface {
 	DownloadWithProgress(rawURL, filepath string, fn func(Progress)) error
 }
 
-// RequestBuilder constructs and sends a single HTTP request.
 type RequestBuilder interface {
 	Context(ctx context.Context) RequestBuilder
 	Header(key, value string) RequestBuilder
@@ -54,16 +51,16 @@ type RequestBuilder interface {
 	JSON(v any) RequestBuilder
 	Form(v any) RequestBuilder
 	Body(r io.Reader) RequestBuilder
-	// File adds a file field to a multipart/form-data request.
+
 	File(field, filename string, r io.Reader) RequestBuilder
-	// Field adds a text field to a multipart/form-data request.
+
 	Field(key, value string) RequestBuilder
 	Timeout(d time.Duration) RequestBuilder
 	Retry(count int) RequestBuilder
 	RetryBackoff(initial, max time.Duration) RequestBuilder
-	// Stream keeps the response body open; caller must close Response.BodyStream.
+
 	Stream() RequestBuilder
-	// SSE is like Stream but signals that the response is a text/event-stream.
+
 	SSE() RequestBuilder
 	OnProgress(fn func(Progress)) RequestBuilder
 	Send() (*Response, error)

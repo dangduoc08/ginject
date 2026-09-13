@@ -2,10 +2,8 @@ package httpclient
 
 import "net/http"
 
-// Handler executes an HTTP request and returns a Response.
 type Handler func(*http.Request) (*Response, error)
 
-// Middleware wraps a Handler, adding pre/post processing.
 type Middleware func(Handler) Handler
 
 func buildChain(middlewares []Middleware, final Handler) Handler {

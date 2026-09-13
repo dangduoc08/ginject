@@ -30,8 +30,6 @@ func (aggregation *Aggregation) SetMainData(d any) *Aggregation {
 	return aggregation
 }
 
-// Use on app.go where it need to get error aggregation
-
 func (aggregation *Aggregation) setOperators(name string, op AggregationOperator) *Aggregation {
 	aggregation.operators = append(aggregation.operators, Operator{
 		Name:        name,

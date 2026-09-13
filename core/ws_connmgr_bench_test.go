@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 )
 
 func BenchmarkWSConnmgr_Get(b *testing.B) {

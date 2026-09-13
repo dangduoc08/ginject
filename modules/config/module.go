@@ -58,7 +58,6 @@ func loadDotENV(path string, isExpandVariables bool) map[string]any {
 		panic(err)
 	}
 
-	// prevent last index won't be appended into value
 	data = append(data, newline)
 	dotENV := &DotENV{
 		data:           data,
@@ -90,8 +89,6 @@ func mergeIntoOSENV(osENV map[string]any, isOverride bool, envs ...map[string]an
 	for _, env := range envs {
 		for key, value := range env {
 
-			// key already set in machine
-			// and not allow to override
 			if osENV[key] != nil && !isOverride {
 				continue
 			}

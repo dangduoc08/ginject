@@ -33,9 +33,6 @@ func generateHandlerID(str string) string {
 	return encoded[:12]
 }
 
-// TODO:
-// shouldn't handle context since ctx quite generic
-// need to handle ws payload
 func generateRequestPayload(pipe reflect.Type) (string, []*Schema) {
 	pipeableTypes := map[string]reflect.Type{
 		common.BodyPipeableKey:   reflect.TypeOf((*common.BodyPipeable)(nil)).Elem(),

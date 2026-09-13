@@ -27,20 +27,20 @@ type requestBuilder struct {
 	ctx         context.Context
 	headers     map[string]string
 	queryParams url.Values
-	// body
+
 	jsonBody    any
 	rawBody     io.Reader
 	bodyBytes   []byte
 	contentType string
-	// form / multipart
+
 	formFields url.Values
 	files      []multipartFile
-	// per-request overrides
+
 	retryCount   int
 	retryInitial time.Duration
 	retryMax     time.Duration
 	timeout      time.Duration
-	// streaming
+
 	isStream   bool
 	onProgress func(Progress)
 }
@@ -336,7 +336,6 @@ func (rb *requestBuilder) Send() (*Response, error) {
 		debugRequest(req)
 	}
 
-	// Per-request overrides take precedence.
 	if rb.retryCount > 0 {
 		retryCount = rb.retryCount
 	}
@@ -392,8 +391,6 @@ func (rb *requestBuilder) Send() (*Response, error) {
 		return nil, httpErr
 	}
 
-	// For streaming responses, bind cancel to the body close so the context
-	// is not cancelled before the caller finishes reading.
 	if rb.isStream && cancel != nil {
 		resp.BodyStream = &cancelReadCloser{ReadCloser: resp.BodyStream, cancel: cancel}
 		cancel = nil

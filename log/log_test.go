@@ -22,8 +22,6 @@ func newTestHandler(level slog.Level) (*PrettyHandler, *bytes.Buffer) {
 	return h, buf
 }
 
-// loadLogOptions tests
-
 func TestLoadLogOptions_NilInput(t *testing.T) {
 	opts := loadLogOptions(nil)
 	if opts == nil {
@@ -73,8 +71,6 @@ func TestLoadLogOptions_LevelMinusOneDefaultsToInfo(t *testing.T) {
 	}
 }
 
-// NewLog singleton test
-
 func TestNewLog_Singleton(t *testing.T) {
 	a := NewLog(nil)
 	b := NewLog(&LogOptions{LogFormat: JSONFormat})
@@ -82,8 +78,6 @@ func TestNewLog_Singleton(t *testing.T) {
 		t.Error(test.DiffMessage(b, a, "NewLog must return the same singleton"))
 	}
 }
-
-// logInstance method tests
 
 func newTestLogInstance(level slog.Level) (*logInstance, *bytes.Buffer) {
 	h, buf := newTestHandler(level)
@@ -134,8 +128,6 @@ func TestLogInstance_Debug_ForwardsArgs(t *testing.T) {
 		t.Error(test.DiffMessage(out, "contains key and value", "Debug should forward key/value args to the handler"))
 	}
 }
-
-// PrettyHandler.Handle tests
 
 func TestPrettyHandler_Handle_ContainsLevelInfo(t *testing.T) {
 	h, buf := newTestHandler(slog.LevelDebug)

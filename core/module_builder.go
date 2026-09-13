@@ -17,7 +17,7 @@ import (
 
 const maxModuleNameStackDepth = 32
 
-var moduleNameFileCache sync.Map // file path -> *parsedModuleFile
+var moduleNameFileCache sync.Map
 
 type parsedModuleFile struct {
 	fset *token.FileSet
@@ -35,19 +35,12 @@ func ModuleBuilder() *moduleBuilder {
 	return &moduleBuilder{}
 }
 
-// fix later
-// change to private fields
-// handle for devtool
 type WSMiddlewareLayer struct {
-	// controllerPath string
-	// handlerName    string
 	EventName string
 	Handlers  []func(*ctx.WSContext)
 }
 
 type WSCommonLayer struct {
-	// controllerPath string
-	// name           string
 	EventName string
 	Handler   any
 }

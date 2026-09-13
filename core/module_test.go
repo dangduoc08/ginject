@@ -14,11 +14,6 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-// NewModule leans on package-level state (mainModulePtr, globalProviderByKey,
-// providerSingletonByKey, staticModuleByDynamicPtr, globalPrefixesByController) that persists
-// across the whole test binary, plus common.InsertedRoutes/InsertedEvents.
-// Every test below must start from a clean slate or it will observe leftover
-// state from whichever test happened to run first in the package.
 func resetModuleGlobals() {
 	mainModulePtr = 0
 	modulesInjectedFromMain = nil
@@ -29,11 +24,6 @@ func resetModuleGlobals() {
 	common.InsertedRoutes = make(map[string]string)
 	common.InsertedEvents = make(map[string]string)
 }
-
-// ---------------------------------------------------------------------------
-// provider bootstrap: hoisting, singleton construction, global promotion,
-// dynamic module resolution
-// ---------------------------------------------------------------------------
 
 var mtConstructOrder []string
 
@@ -55,8 +45,6 @@ func TestNewModule_ProviderHoisting_DependencyConstructedBeforeDependent(t *test
 	resetModuleGlobals()
 	mtConstructOrder = nil
 
-	// declared out of dependency order on purpose: B depends on A but is
-	// listed first.
 	m := ModuleBuilder().
 		Providers(mtOrderedProviderB{}, mtOrderedProviderA{}).
 		Build()
@@ -133,7 +121,7 @@ func TestNewModule_DynamicModule_MissingGlobalDependencyPanics(t *testing.T) {
 }
 
 type mtUnexportedFieldProvider struct {
-	hidden mtLocalProvider //nolint:unused // exists only so reflection finds an unexported field
+	hidden mtLocalProvider //nolint:unused
 }
 
 func (p mtUnexportedFieldProvider) NewProvider() Provider { return p }
@@ -178,10 +166,6 @@ func TestNewModule_StaticModuleControllerDedup_AcrossSharedImport(t *testing.T) 
 	}
 }
 
-// ---------------------------------------------------------------------------
-// shared provider/guard fixtures for the HTTP/WS layer-injection tests
-// ---------------------------------------------------------------------------
-
 type mtLocalProvider struct{ Source string }
 
 func (p mtLocalProvider) NewProvider() Provider { p.Source = "local"; return p }
@@ -215,7 +199,7 @@ func (g mtPriorityGuard) CanActivate(_ *ctx.HTTPContext) bool {
 }
 
 type mtUnexportedFieldGuard struct {
-	hidden mtLocalProvider //nolint:unused // exists only so reflection finds an unexported field
+	hidden mtLocalProvider //nolint:unused
 }
 
 func (g mtUnexportedFieldGuard) CanActivate(_ *ctx.HTTPContext) bool { return true }
@@ -251,8 +235,7 @@ func (e mtExFilterOneField) Catch(_ *ctx.HTTPContext, _ *exception.Exception) {
 }
 
 func seedPriorityChainGlobals() {
-	// a stale/other-module global registration for the SAME type the module
-	// also declares locally - local must still win.
+
 	globalProviderByKey.Store(genFieldKey(reflect.TypeOf(mtLocalProvider{})), mtLocalProvider{Source: "stale-global"})
 	globalProviderByKey.Store(genFieldKey(reflect.TypeOf(mtGlobalOnlyProvider{})), mtGlobalOnlyProvider{Source: "global"})
 	globalInterfaceByKey.Store(genFieldKey(reflect.TypeOf(mtInterfaceOnlyProvider{})), mtInterfaceOnlyProvider{Source: "interface"})
@@ -273,10 +256,6 @@ func assertPriorityChainSeen(t *testing.T, label string) {
 		t.Error(test.DiffMessage(mtPriorityGuardSeen.Passthrough.Tag, "original", label+": non-Provider field must pass through the bound instance's original value"))
 	}
 }
-
-// ---------------------------------------------------------------------------
-// HTTP controller processing
-// ---------------------------------------------------------------------------
 
 type mtPrefixedController struct{ common.HTTP }
 
@@ -524,18 +503,6 @@ func (c mtExFilterMultiController1) NewController() Controller {
 }
 func (c mtExFilterMultiController1) READ_mtexfilterbugc1() string { return "ok" }
 
-// TestNewModule_HTTPExceptionFilter_TwoControllers_CorrectFieldIndex used to
-// pin a bug in module.go's HTTP exceptionFilter callback: it discarded its
-// own field-index parameter and instead reused the outer
-// `for i, controller := range m.controllers` loop variable to index into
-// the exceptionFilter's fields, so the 2nd+ controller in a module panicked
-// with "reflect: Field index out of range" whenever its exceptionFilter had
-// fewer fields than that controller's index. The HTTP/WS callbacks were
-// unified into buildFieldInjectionCallback (fn.go) during the module.go
-// refactor, which fixed this as a side effect - both layers now share the
-// WS side's (always correct) field-index handling. This test asserts the
-// fixed behavior; its WS counterpart just below asserts the same thing for
-// WS to guard against a regression re-introducing the split.
 func TestNewModule_HTTPExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing.T) {
 	resetModuleGlobals()
 
@@ -554,13 +521,9 @@ func TestNewModule_HTTPExceptionFilter_TwoControllers_CorrectFieldIndex(t *testi
 		if !ok {
 			t.Fatalf("unexpected HTTP exception filter handler type %T", ef.Handler)
 		}
-		handler(nil, nil) // must not panic
+		handler(nil, nil)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// WS controller processing
-// ---------------------------------------------------------------------------
 
 type mtWSMainController struct{ common.WS }
 
@@ -770,12 +733,6 @@ func (c mtWSExFilterController1) NewController() Controller {
 }
 func (c mtWSExFilterController1) SUBSCRIBE_mtwsexfilterc1() string { return "ok" }
 
-// TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex confirms
-// the WS exceptionFilter callback does NOT have the HTTP field-index bug
-// (see TestNewModule_HTTPExceptionFilter_TwoControllers_FieldIndexBug): a
-// 2nd controller with a 1-field exceptionFilter must inject correctly
-// instead of panicking. Any refactor that unifies the HTTP/WS exceptionFilter
-// callbacks into one helper must preserve THIS behavior, not the HTTP one.
 func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing.T) {
 	resetModuleGlobals()
 
@@ -794,17 +751,9 @@ func TestNewModule_WSExceptionFilter_TwoControllers_CorrectFieldIndex(t *testing
 		if !ok {
 			t.Fatalf("unexpected WS exception filter handler type %T", ef.Handler)
 		}
-		handler(nil, nil) // must not panic
+		handler(nil, nil)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// concurrency: NewModule mutates package-level state (mainModulePtr,
-// globalProviderByKey, providerSingletonByKey, staticModuleByDynamicPtr,
-// globalPrefixesByController) on top of the per-Module mutex, so two independent module
-// trees built and initialized concurrently (e.g. two apps in the same test
-// binary) must not corrupt that shared state.
-// ---------------------------------------------------------------------------
 
 type mtConcurrentProvider struct{}
 
@@ -834,10 +783,6 @@ func TestNewModule_ConcurrentInvocation_NoDataRace(t *testing.T) {
 	}
 	wg.Wait()
 }
-
-// ---------------------------------------------------------------------------
-// collectModules: recursive discovery of nested static and dynamic imports
-// ---------------------------------------------------------------------------
 
 func mtCollectDynamicChild() *Module {
 	return ModuleBuilder().Build()

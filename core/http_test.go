@@ -77,7 +77,6 @@ func TestServeContent_Wildcard_ServesFileUnderDir(t *testing.T) {
 	h := newHTTP()
 	c, w := newTestHTTPContextForServe("/static/css/app.css")
 
-	// route was registered as /static/*/, so the suffix starts at segment 2
 	h.serveContent(c, 2, dir)
 
 	if w.Code != http.StatusOK {

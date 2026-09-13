@@ -11,17 +11,8 @@ const (
 	TagBind = "bind"
 )
 
-/*
-Support types:
-
-	- Struct pointer
-
-*/
-
 func BindStruct(d map[string]any, fls *[]FieldLevel, s any, parentNS string, parentTag string) (any, []FieldLevel) {
 
-	// check struct pointer case
-	// when recursive will pass s as reflect.Type
 	var structureType reflect.Type
 	if sType, ok := s.(reflect.Type); ok {
 		structureType = sType

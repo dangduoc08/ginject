@@ -131,11 +131,6 @@ func TestModuleBuilderBuildFallsBackToFunctionNameWhenNoEnclosingVar(t *testing.
 	}
 }
 
-// Regression: an outer `var Outer = func() *core.Module {...}` closure that
-// imports another module built via a factory call in its own body (mirrors
-// sample/benchmarks/module.go's `Imports(httpclient.Register(nil))`) must not
-// have that nested module's Name misattributed to Outer, since the nested
-// call's frame is lexically inside Outer's closure body too.
 var testOuterModuleWithNestedFactoryImport = func() *Module {
 	return ModuleBuilder().Imports(testModuleFactory()).Build()
 }

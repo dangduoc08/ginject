@@ -23,11 +23,11 @@ var defaultAllowMethods = []string{
 }
 
 type CORS struct {
-	AllowOrigin any // string | []string | *regexp.Regexp
+	AllowOrigin any
 
-	AllowHeaders any // string | []string
+	AllowHeaders any
 
-	ExposeHeaders any // string | []string
+	ExposeHeaders any
 
 	AllowMethods []string
 
@@ -38,8 +38,6 @@ type CORS struct {
 	OptionsSuccessStatus int
 }
 
-// allowOrigin is always one of: "*" | map[string]bool | *regexp.Regexp,
-// regardless of what shape the user configured it in.
 type corsOptions struct {
 	optionsSuccessStatus int
 	isAllowCredentials   bool
@@ -93,7 +91,7 @@ func shouldVaryOrigin(allowOrigin any, allowCredentials bool) bool {
 
 func matchOrigin(allowOrigin any, requestOrigin string, allowCredentials bool) (string, bool) {
 	switch ao := allowOrigin.(type) {
-	case string: // always "*" after normalization
+	case string:
 		if allowCredentials {
 			if requestOrigin == "" || requestOrigin == "null" {
 				return "", false
@@ -126,8 +124,6 @@ func appendVary(vary, token string) string {
 	return vary + ", " + token
 }
 
-// mergeVary adds addition's tokens into any Vary header already present,
-// case-insensitively deduped, instead of overwriting it.
 func mergeVary(header http.Header, addition string) {
 	if addition == "" {
 		return

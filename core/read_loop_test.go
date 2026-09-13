@@ -18,12 +18,6 @@ import (
 	"github.com/dangduoc08/ginject/trace"
 )
 
-// newTestWSBare builds a *WS with newCtx/releaseCtx/resolveAndCallHandler
-// wired the same way app.go's Create does — dispatchWSEvent needs all three
-// to run a PUBLISH through its Middlewares/Handler — but no event patterns
-// pre-registered, so callers can register their own via
-// ws.eventMatcher.AddInjectableHandler/AddMiddlewares for scenarios that
-// need a specific handler or middleware.
 func newTestWSBare(t testing.TB) *WS {
 	t.Helper()
 
@@ -47,10 +41,6 @@ func newTestWSBare(t testing.TB) *WS {
 	return ws
 }
 
-// newTestWS builds a *WS with eventMatcher pre-populated as if the given
-// event patterns had been registered by real SUBSCRIBE_xxx controllers,
-// using a no-op handler. Only the pattern's presence matters for the
-// whitelist-only tests that use this helper.
 func newTestWS(t testing.TB, eventPatterns ...string) *WS {
 	t.Helper()
 
@@ -154,7 +144,6 @@ func TestHandlePublish_DeliversAfterSubscribe(t *testing.T) {
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
 
-	// Drain subscribe ACK
 	subscribeAck := recvWSPayload(t, clientConn)
 	if subscribeAck.Type != TypeAck {
 		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
@@ -162,7 +151,6 @@ func TestHandlePublish_DeliversAfterSubscribe(t *testing.T) {
 
 	handlePublish(conn, ws, WSPayload{ID: "req-2", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi"})
 
-	// Receive broker fan-out event
 	var p WSPayload
 	if err := websocket.JSON.Receive(clientConn, &p); err != nil {
 		t.Fatalf("receive: %v", err)
@@ -175,7 +163,6 @@ func TestHandlePublish_DeliversAfterSubscribe(t *testing.T) {
 		t.Error(test.DiffMessage(p, "event chat.to.user2 hi", "unexpected event payload delivered via broker"))
 	}
 
-	// Receive publish ACK
 	ack := recvWSPayload(t, clientConn)
 	if ack.Type != TypeAck {
 		t.Errorf("expected publish ack, got %v", ack.Type)
@@ -196,7 +183,6 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
 
-	// Drain subscribe ACK
 	subscribeAck := recvWSPayload(t, clientConn)
 	if subscribeAck.Type != TypeAck {
 		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
@@ -220,10 +206,6 @@ func TestDispatchWSEvent_HandlerReturnValueRepliesAsTypeEvent(t *testing.T) {
 	}
 }
 
-// Guard/Interceptor middlewares run on both subscribe and publish (only the
-// global handshake-time middlewares are subscribe/publish-exempt), so a
-// Guard that unconditionally denies blocks subscribe itself — there's no
-// way to reach publish's must-already-be-subscribed check at all.
 func TestHandleSubscribe_GuardDenialBlocksSubscribeAndRepliesError(t *testing.T) {
 	ws := newTestWSBare(t)
 	ws.eventMatcher.AddMiddlewares("chat.to.*", common.BuildWSGuardMiddleware(func(*ctx.WSContext) bool { return false }))
@@ -246,7 +228,6 @@ func TestHandleSubscribe_GuardDenialBlocksSubscribeAndRepliesError(t *testing.T)
 		t.Error("connection should not be registered as subscribed after a Guard denial")
 	}
 
-	// No further frames (no ack) should follow a Guard rejection.
 	if err := clientConn.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
@@ -268,7 +249,6 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
 
-	// Drain subscribe ACK
 	subscribeAck := recvWSPayload(t, clientConn)
 	if subscribeAck.Type != TypeAck {
 		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
@@ -283,8 +263,6 @@ func TestDispatchWSEvent_GuardDenialBlocksFanOutAndRepliesError(t *testing.T) {
 		t.Fatalf("expected a denied Guard to reply TypeError, got %v", got.Type)
 	}
 
-	// No further frames (no fan-out event, no publish ack) should follow a
-	// Guard rejection.
 	if err := clientConn.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
@@ -308,7 +286,6 @@ func TestDispatchWSEvent_HandlerPanicRepliesErrorAndConnectionSurvives(t *testin
 
 	handleSubscribe(conn, ws, WSPayload{ID: "req-1", Type: TypeSubscribe, Topic: []string{"chat.to.user2"}})
 
-	// Drain subscribe ACK
 	subscribeAck := recvWSPayload(t, clientConn)
 	if subscribeAck.Type != TypeAck {
 		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)
@@ -321,8 +298,6 @@ func TestDispatchWSEvent_HandlerPanicRepliesErrorAndConnectionSurvives(t *testin
 		t.Fatalf("expected a panicking handler to reply TypeError instead of crashing the caller, got %v", got.Type)
 	}
 
-	// A second publish on the same connection should still work normally,
-	// proving the panic didn't corrupt ws/conn state.
 	handlePublish(conn, ws, WSPayload{ID: "req-3", Type: TypePublish, Topic: []string{"chat.to.user2"}, Message: "hi again"})
 	got2 := recvWSPayload(t, clientConn)
 	if got2.Type != TypeError {
@@ -375,7 +350,6 @@ func TestReadLoop_DispatchesSubscribeAndUnsupportedType(t *testing.T) {
 		t.Error(test.DiffMessage(false, true, "readLoop should dispatch a subscribe message to handleSubscribe"))
 	}
 
-	// Drain subscribe ACK
 	subscribeAck := recvWSPayload(t, clientConn)
 	if subscribeAck.Type != TypeAck {
 		t.Fatalf("expected subscribe ack, got %v", subscribeAck.Type)

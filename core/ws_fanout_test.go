@@ -7,14 +7,11 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"github.com/dangduoc08/ginject/memorybroker"
 	"github.com/dangduoc08/ginject/internal/test"
 	"github.com/dangduoc08/ginject/log"
+	"github.com/dangduoc08/ginject/memorybroker"
 )
 
-// subscribeAndDrainAck registers conn's subscription to topic via a real
-// handleSubscribe call and drains the resulting ack frame from clientConn so
-// later assertions only have to reason about event frames.
 func subscribeAndDrainAck(t testing.TB, ws *WS, conn *WSConnection, clientConn *websocket.Conn, topic string) {
 	t.Helper()
 
@@ -24,8 +21,6 @@ func subscribeAndDrainAck(t testing.TB, ws *WS, conn *WSConnection, clientConn *
 	}
 }
 
-// expectNoFrame asserts clientConn receives nothing within a short window,
-// used to prove a subscriber that should NOT be fanned out to stays silent.
 func expectNoFrame(t testing.TB, clientConn *websocket.Conn) {
 	t.Helper()
 
@@ -44,11 +39,6 @@ func expectNoFrame(t testing.TB, clientConn *websocket.Conn) {
 	}
 }
 
-// TestHandlePublish_FansOutToOverlappingWildcardSubscriber covers the fan-out
-// requirement: publishing to a concrete topic (chat.456) must reach BOTH the
-// exact subscriber of chat.456 AND the subscriber of the overlapping wildcard
-// pattern chat.*, while a subscriber of an unrelated concrete topic
-// (chat.123) must not receive anything.
 func TestHandlePublish_FansOutToOverlappingWildcardSubscriber(t *testing.T) {
 	ws := newTestWS(t, "chat.*")
 
@@ -72,10 +62,6 @@ func TestHandlePublish_FansOutToOverlappingWildcardSubscriber(t *testing.T) {
 
 	handlePublish(exactConn, ws, WSPayload{ID: "pub-1", Type: TypePublish, Topic: []string{"chat.456"}, Message: "hello"})
 
-	// exactConn is both publisher and a subscriber of chat.456, so it sees
-	// the broker fan-out event before its own publish ack (see
-	// TestHandlePublish_DeliversAfterSubscribe for why the ordering is
-	// deterministic).
 	eventFrame := recvWSPayload(t, exactClient)
 	ackFrame := recvWSPayload(t, exactClient)
 	if eventFrame.Type != TypeEvent || eventFrame.Message != "hello" {
@@ -93,11 +79,6 @@ func TestHandlePublish_FansOutToOverlappingWildcardSubscriber(t *testing.T) {
 	expectNoFrame(t, otherClient)
 }
 
-// TestHandlePublish_LiteralWildcardTopicDoesNotExpand covers the other half
-// of the fan-out requirement: Publish treats its topic as an exact string,
-// never expanding it. Publishing the literal topic "chat.*" must reach only
-// subscribers of that literal topic, never subscribers of concrete topics
-// like chat.123 or chat.456 that happen to match the chat.* pattern.
 func TestHandlePublish_LiteralWildcardTopicDoesNotExpand(t *testing.T) {
 	ws := newTestWS(t, "chat.*")
 
@@ -128,12 +109,6 @@ func TestHandlePublish_LiteralWildcardTopicDoesNotExpand(t *testing.T) {
 	expectNoFrame(t, otherClient)
 }
 
-// TestWSConnmgr_ConcurrentSubscribeUnsubscribePublish_NoRace stresses the
-// broker-backed WSConnmgr with concurrent Subscribe, Unsubscribe, and
-// Publish calls across overlapping exact and wildcard topics. It asserts no
-// panic/deadlock; correctness of fan-out under this churn is covered by the
-// deterministic tests above, this one is a data-race and stability guard
-// (run with -race).
 func TestWSConnmgr_ConcurrentSubscribeUnsubscribePublish_NoRace(t *testing.T) {
 	connmgr := NewWSConnmgr(log.NewLog(nil), nil)
 	topics := []string{"chat.1", "chat.2", "chat.3", "chat.*"}

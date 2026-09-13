@@ -282,41 +282,41 @@ func TestBindStruct(t *testing.T) {
 }
 
 type PtrDTO struct {
-	PtrBool       *bool       `bind:"ptr_bool"`
-	PtrInt        *int        `bind:"ptr_int"`
-	PtrInt8       *int8       `bind:"ptr_int8"`
-	PtrInt16      *int16      `bind:"ptr_int16"`
-	PtrInt32      *int32      `bind:"ptr_int32"`
-	PtrInt64      *int64      `bind:"ptr_int64"`
-	PtrUint       *uint       `bind:"ptr_uint"`
-	PtrUint8      *uint8      `bind:"ptr_uint8"`
-	PtrUint16     *uint16     `bind:"ptr_uint16"`
-	PtrUint32     *uint32     `bind:"ptr_uint32"`
-	PtrUint64     *uint64     `bind:"ptr_uint64"`
-	PtrFloat32    *float32    `bind:"ptr_float32"`
-	PtrFloat64    *float64    `bind:"ptr_float64"`
-	PtrComplex64  *complex64  `bind:"ptr_complex64"`
-	PtrComplex128 *complex128 `bind:"ptr_complex128"`
-	PtrString     *string     `bind:"ptr_string"`
-	PtrStruct     *Address    `bind:"ptr_struct"`
-	PtrSlice      *[]string   `bind:"ptr_slice"`
+	PtrBool       *bool              `bind:"ptr_bool"`
+	PtrInt        *int               `bind:"ptr_int"`
+	PtrInt8       *int8              `bind:"ptr_int8"`
+	PtrInt16      *int16             `bind:"ptr_int16"`
+	PtrInt32      *int32             `bind:"ptr_int32"`
+	PtrInt64      *int64             `bind:"ptr_int64"`
+	PtrUint       *uint              `bind:"ptr_uint"`
+	PtrUint8      *uint8             `bind:"ptr_uint8"`
+	PtrUint16     *uint16            `bind:"ptr_uint16"`
+	PtrUint32     *uint32            `bind:"ptr_uint32"`
+	PtrUint64     *uint64            `bind:"ptr_uint64"`
+	PtrFloat32    *float32           `bind:"ptr_float32"`
+	PtrFloat64    *float64           `bind:"ptr_float64"`
+	PtrComplex64  *complex64         `bind:"ptr_complex64"`
+	PtrComplex128 *complex128        `bind:"ptr_complex128"`
+	PtrString     *string            `bind:"ptr_string"`
+	PtrStruct     *Address           `bind:"ptr_struct"`
+	PtrSlice      *[]string          `bind:"ptr_slice"`
 	PtrMap        *map[string]string `bind:"ptr_map"`
-	PtrMissing    *string     `bind:"ptr_missing"`
+	PtrMissing    *string            `bind:"ptr_missing"`
 }
 
-func boolPtr(v bool) *bool             { return &v }
-func intPtr(v int) *int                { return &v }
-func int8Ptr(v int8) *int8             { return &v }
-func int16Ptr(v int16) *int16          { return &v }
-func int32Ptr(v int32) *int32          { return &v }
-func int64Ptr(v int64) *int64          { return &v }
-func uintPtr(v uint) *uint             { return &v }
-func uint8Ptr(v uint8) *uint8          { return &v }
-func uint16Ptr(v uint16) *uint16       { return &v }
-func uint32Ptr(v uint32) *uint32       { return &v }
-func float32Ptr(v float32) *float32    { return &v }
-func float64Ptr(v float64) *float64    { return &v }
-func stringPtr(v string) *string       { return &v }
+func boolPtr(v bool) *bool          { return &v }
+func intPtr(v int) *int             { return &v }
+func int8Ptr(v int8) *int8          { return &v }
+func int16Ptr(v int16) *int16       { return &v }
+func int32Ptr(v int32) *int32       { return &v }
+func int64Ptr(v int64) *int64       { return &v }
+func uintPtr(v uint) *uint          { return &v }
+func uint8Ptr(v uint8) *uint8       { return &v }
+func uint16Ptr(v uint16) *uint16    { return &v }
+func uint32Ptr(v uint32) *uint32    { return &v }
+func float32Ptr(v float32) *float32 { return &v }
+func float64Ptr(v float64) *float64 { return &v }
+func stringPtr(v string) *string    { return &v }
 
 func TestBindStruct_Pointers(t *testing.T) {
 	testData := make(map[string]any)

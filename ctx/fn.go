@@ -312,20 +312,17 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 		return arr
 
 	case reflect.Slice:
-		// define dynamic mutli dimension slice
+
 		lv1ArrType := reflect.SliceOf(typ.Elem())
 		lv1Arr := reflect.MakeSlice(lv1ArrType, 0, 0)
 
-		// this slice use for hold each slice dimension
 		eachElemArr := []reflect.Value{
 			lv1Arr,
 		}
 
-		// detect dimension of slice
 		dimensions := strings.Count(lv1Arr.String(), "[]") - 1
 		flag := lv1ArrType
 
-		// fill slice dimension into map
 		for i := 0; i < dimensions; i++ {
 			childElemType := flag.Elem()
 			eachElemArr = append(eachElemArr, reflect.MakeSlice(childElemType, 0, 0))
@@ -336,11 +333,7 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 		declaredElem := eachElemArr[dimensions].Type().Elem()
 		declaredTyp := declaredElem.Kind()
 
-		// recursion loop
 		slice.Iter(arr, dimensions, func(el any, currentDimension int) {
-
-			// switch case is for actual kind from JSON
-			// we also need to check declared type
 
 			switch reflect.TypeOf(el).Kind() {
 			case reflect.Bool:
@@ -422,7 +415,6 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 
 	case reflect.Map:
 
-		// define dynamic slice map
 		mapType := reflect.SliceOf(typ.Elem())
 		mapStruct := reflect.MakeSlice(mapType, 0, len(arr))
 
@@ -439,7 +431,6 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 					parentTagWithIndex,
 				)
 
-				// set value to sub-map
 				mapStruct = reflect.Append(mapStruct, reflect.ValueOf(eachArrayValue))
 			}
 		}
@@ -447,7 +438,6 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 		return mapStruct.Interface()
 	case reflect.Struct:
 
-		// define dynamic slice struct
 		sliceType := reflect.SliceOf(typ.Elem())
 		sliceStruct := reflect.MakeSlice(sliceType, 0, len(arr))
 
@@ -464,7 +454,6 @@ func bindArray(arr []any, fls *[]FieldLevel, typ reflect.Type, parentNS string, 
 					parentTagWithIndex,
 				)
 
-				// set value to sub-struct
 				sliceStruct = reflect.Append(sliceStruct, reflect.ValueOf(eachArrayValue))
 			}
 		}
@@ -690,7 +679,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 	case reflect.Slice:
 
-		// define dynamic map slice
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
 		mapSlice := reflect.MakeMapWithSize(mapType, len(obj))
 
@@ -701,14 +689,13 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 				eachSliceValue := bindArray(arr, fls, typ.Elem(), parentNSWithKey, parentTagWithKey)
 
-				// set value to sub-slice
 				mapSlice.SetMapIndex(reflect.ValueOf(objKey), reflect.ValueOf(eachSliceValue))
 			}
 		}
 		return mapSlice.Interface()
 
 	case reflect.Map:
-		// define dynamic map slice
+
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
 		mapMap := reflect.MakeMapWithSize(mapType, len(obj))
 		subElem := typ.Elem().Elem()
@@ -865,7 +852,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 			case reflect.Slice:
 
-				// define dynamic map slice
 				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
 				mapSlice := reflect.MakeMapWithSize(mapType, len(subObj))
@@ -883,7 +869,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 			case reflect.Map:
 
-				// define dynamic map slice
 				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
 				mapMapMap := reflect.MakeMapWithSize(mapType, len(subObj))
@@ -901,7 +886,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 			case reflect.Struct:
 
-				// define dynamic map struct
 				subObj := objValue.(map[string]any)
 				mapType := reflect.MapOf(reflect.TypeOf(""), subElem)
 				mapStruct := reflect.MakeMapWithSize(mapType, len(subObj))
@@ -931,7 +915,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 
 	case reflect.Struct:
 
-		// define dynamic map struct
 		mapType := reflect.MapOf(reflect.TypeOf(""), typ.Elem())
 		mapStruct := reflect.MakeMapWithSize(mapType, len(obj))
 
@@ -948,7 +931,6 @@ func bindMap(obj map[string]any, fls *[]FieldLevel, typ reflect.Type, parentNS s
 					parentTagWithKey,
 				)
 
-				// set value to sub-struct
 				mapStruct.SetMapIndex(reflect.ValueOf(objKey), reflect.ValueOf(eachMapValue))
 			}
 		}

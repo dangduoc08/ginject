@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// TimingInfo records per-phase durations for a single HTTP request.
 type TimingInfo struct {
 	DNS   time.Duration
 	TCP   time.Duration
@@ -16,10 +15,8 @@ type TimingInfo struct {
 	Total time.Duration
 }
 
-// timingCollector uses atomic int64 (UnixNano) so that Happy-Eyeballs parallel
-// dial goroutines can write fields concurrently without a race.
 type timingCollector struct {
-	startNs     int64 // set once at creation, never changes
+	startNs     int64
 	dnsStartNs  int64
 	dnsDoneNs   int64
 	tcpStartNs  int64

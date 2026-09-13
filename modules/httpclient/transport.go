@@ -7,9 +7,9 @@ import (
 )
 
 type secureRoundTripper struct {
-	base         http.RoundTripper
+	base            http.RoundTripper
 	isHTTPSRequired bool
-	validateHost func(string) bool
+	validateHost    func(string) bool
 }
 
 func (t *secureRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -36,9 +36,9 @@ func buildTransport(tlsCfg *tls.Config, isHTTPSRequired bool, validateHost func(
 	}
 	if isHTTPSRequired || validateHost != nil {
 		return &secureRoundTripper{
-			base:         base,
+			base:            base,
 			isHTTPSRequired: isHTTPSRequired,
-			validateHost: validateHost,
+			validateHost:    validateHost,
 		}
 	}
 	return base

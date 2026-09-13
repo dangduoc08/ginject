@@ -9,20 +9,12 @@ import (
 	"github.com/dangduoc08/ginject/internal/test"
 )
 
-// ────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ────────────────────────────────────────────────────────────────────────────
-
 func newBroker(t *testing.T) Broker {
 	t.Helper()
 	b := NewMemoryBroker()
 	t.Cleanup(func() { _ = b.Close() })
 	return b
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Happy path
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestSubscribeAndPublish(t *testing.T) {
 	b := newBroker(t)
@@ -52,10 +44,6 @@ func TestSubscribeAndPublish(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Wildcard *
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestWildcardGlobal_ReceivesAllTopics(t *testing.T) {
 	b := newBroker(t)
 
@@ -74,10 +62,6 @@ func TestWildcardGlobal_ReceivesAllTopics(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Wildcard prefix.*
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestWildcardPrefix_ReceivesMatchingPrefix(t *testing.T) {
 	b := newBroker(t)
 
@@ -89,7 +73,7 @@ func TestWildcardPrefix_ReceivesMatchingPrefix(t *testing.T) {
 
 	_ = b.Publish("order.created", nil)
 	_ = b.Publish("order.shipped", nil)
-	_ = b.Publish("user.created", nil) // should NOT match
+	_ = b.Publish("user.created", nil)
 
 	if len(received) != 2 {
 		t.Error(test.DiffMessage(len(received), 2, "prefix wildcard should match only 'order.*' topics"))
@@ -112,17 +96,13 @@ func TestWildcardPrefix_DoesNotMatchUnrelatedTopics(t *testing.T) {
 
 	_ = b.Publish("bar.x", nil)
 	_ = b.Publish("foobar.x", nil)
-	_ = b.Publish("foo", nil) // no dot → no prefix match
+	_ = b.Publish("foo", nil)
 
 	if count != 0 {
 		t.Error(test.DiffMessage(count, 0, "prefix wildcard should not match unrelated topics"))
 	}
 }
 
-// With the trailing "*" now greedy, two suffix-wildcard subscriptions at
-// different depths ("chat.*" and "chat.room.*") can both match the same
-// published topic. Publish must fan out to every matching prefix bucket,
-// not just the deepest/most specific one.
 func TestWildcardPrefix_FansOutAcrossOverlappingDepths(t *testing.T) {
 	b := newBroker(t)
 
@@ -139,10 +119,6 @@ func TestWildcardPrefix_FansOutAcrossOverlappingDepths(t *testing.T) {
 		t.Error(test.DiffMessage(deep, 1, "chat.room.* should receive a publish to chat.room.5"))
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Unsubscribe
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestUnsubscribe_HandlerNotCalledAfter(t *testing.T) {
 	b := newBroker(t)
@@ -294,10 +270,6 @@ func TestUnsubscribe_ExactTopic_DoubleCall_NoError(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Close
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestClose_ReturnErrClosed(t *testing.T) {
 	b := NewMemoryBroker()
 	_ = b.Close()
@@ -325,10 +297,6 @@ func TestClose_Idempotent(t *testing.T) {
 		t.Error(test.DiffMessage(err, nil, "calling Close twice should not error"))
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// PublishAsync: fire-and-forget delivery + Close drains in-flight publishes
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestPublishAsync_DeliversAll(t *testing.T) {
 	b := newBroker(t)
@@ -374,7 +342,6 @@ func TestClose_DrainsInFlightAsyncPublishes(t *testing.T) {
 		_ = b.PublishAsync("drain.topic", i)
 	}
 
-	// Close must block until all in-flight async publishes finish.
 	_ = b.Close()
 
 	if count.Load() != msgs {
@@ -382,12 +349,6 @@ func TestClose_DrainsInFlightAsyncPublishes(t *testing.T) {
 	}
 }
 
-// TestClose_FromWithinPublishHandler_DoesNotDeadlock verifies that Close() is
-// safe to call synchronously from within a handler dispatched by the
-// synchronous Publish() — Publish is not tracked by the WaitGroup, so
-// Close()'s wg.Wait() has nothing of this call's to wait on, and the
-// snapshot-then-unlock-then-execute design means no lock is held during
-// handler execution either.
 func TestClose_FromWithinPublishHandler_DoesNotDeadlock(t *testing.T) {
 	b := NewMemoryBroker()
 	done := make(chan struct{})
@@ -408,16 +369,6 @@ func TestClose_FromWithinPublishHandler_DoesNotDeadlock(t *testing.T) {
 	}
 }
 
-// TestClose_FromWithinPublishAsyncHandler_Deadlocks pins a verified, structural
-// limitation: PublishAsync's goroutine calls wg.Done() only after the handler
-// returns, but Close() called from inside that same handler blocks in
-// wg.Wait() until wg.Done() runs — the goroutine is waiting on its own
-// completion. No implementation of "Close waits for every accepted
-// PublishAsync" can support this without either deadlocking or silently
-// excluding the caller's own in-flight publish (a weaker guarantee), so this
-// call pattern is unsupported by contract rather than special-cased in code.
-// If this test ever observes <-done instead of timing out, the limitation
-// has been fixed by design — update this test and the README together.
 func TestClose_FromWithinPublishAsyncHandler_Deadlocks(t *testing.T) {
 	b := NewMemoryBroker()
 	done := make(chan struct{})
@@ -439,10 +390,6 @@ func TestClose_FromWithinPublishAsyncHandler_Deadlocks(t *testing.T) {
 	}
 }
 
-// TestClose_DoesNotWaitForConcurrentSyncPublish documents that Close() is
-// only synchronized with in-flight PublishAsync goroutines (via wg) and with
-// its own map mutation (via rwMu) — it does not wait for a synchronous
-// Publish() call running on another goroutine to finish executing handlers.
 func TestClose_DoesNotWaitForConcurrentSyncPublish(t *testing.T) {
 	b := NewMemoryBroker()
 	handlerStarted := make(chan struct{})
@@ -494,10 +441,6 @@ func TestPublishAsync_RaceWithClose(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Validation errors
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestNilHandler_ReturnsError(t *testing.T) {
 	b := newBroker(t)
 
@@ -518,10 +461,6 @@ func TestEmptyTopic_ReturnsError(t *testing.T) {
 		t.Error(test.DiffMessage(err, ErrEmptyTopic, "empty topic in Publish"))
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Panic recovery
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestPanicRecovery_OtherHandlersStillReceive(t *testing.T) {
 	b := newBroker(t)
@@ -560,12 +499,8 @@ func TestPanicRecovery_PublishAsync_OtherHandlersStillReceive(t *testing.T) {
 	t.Errorf("handlers after the panicking one: got %d, want 2 — a panic in one PublishAsync handler must not stop the others or crash the goroutine", after.Load())
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Empty bucket cleanup
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestEmptyBucketCleanup_Exact(t *testing.T) {
-	// Use the internal broker type to inspect the maps directly.
+
 	b := NewMemoryBroker().(*MemoryBroker)
 	t.Cleanup(func() { _ = b.Close() })
 
@@ -625,16 +560,12 @@ func TestEmptyBucketCleanup_Global(t *testing.T) {
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Concurrent safety (run with -race)
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestConcurrentPublish(t *testing.T) {
 	b := newBroker(t)
 
 	var received atomic.Int64
 	_, _ = b.Subscribe("concurrent", func(_ *Message) { received.Add(1) })
-	_, _ = b.Subscribe("*", func(_ *Message) {}) // extra subscriber
+	_, _ = b.Subscribe("*", func(_ *Message) {})
 
 	const goroutines = 100
 	var wg sync.WaitGroup
@@ -673,13 +604,9 @@ func TestConcurrentSubscribeUnsubscribe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	// If we get here without the race detector firing, we're good.
+
 }
 
-// TestConcurrentPublishSubscribeUnsubscribeClose stresses Publish, Subscribe,
-// Unsubscribe, and Close all racing against each other on the same broker —
-// the scenario Close's mu-based synchronization with the rest of the API
-// exists to make safe.
 func TestConcurrentPublishSubscribeUnsubscribeClose(t *testing.T) {
 	for attempt := 0; attempt < 20; attempt++ {
 		b := NewMemoryBroker()
@@ -715,10 +642,6 @@ func TestConcurrentPublishSubscribeUnsubscribeClose(t *testing.T) {
 	}
 }
 
-// TestConcurrentSubscribe_NeverLeaksAfterClose guards against a Subscribe/Close
-// TOCTOU race: Subscribe must not be able to insert a subscription into the
-// broker's maps after Close has committed to closing, even when the two race.
-// Once Close returns, no subscription bucket should remain.
 func TestConcurrentSubscribe_NeverLeaksAfterClose(t *testing.T) {
 	for attempt := 0; attempt < 300; attempt++ {
 		b := NewMemoryBroker().(*MemoryBroker)
@@ -747,10 +670,6 @@ func TestConcurrentSubscribe_NeverLeaksAfterClose(t *testing.T) {
 	}
 }
 
-// TestHandlerReentrancy_SubscribeUnsubscribePublishPublishAsync_NoDeadlock
-// verifies a handler can call back into every broker method — except Close,
-// which has its own documented limitation — without deadlocking, confirming
-// no lock is held across handler execution.
 func TestHandlerReentrancy_SubscribeUnsubscribePublishPublishAsync_NoDeadlock(t *testing.T) {
 	b := newBroker(t)
 
@@ -789,10 +708,6 @@ func TestHandlerReentrancy_SubscribeUnsubscribePublishPublishAsync_NoDeadlock(t 
 	}
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Subscription fields
-// ────────────────────────────────────────────────────────────────────────────
-
 func TestSubscription_IDAndTopic(t *testing.T) {
 	b := newBroker(t)
 
@@ -808,10 +723,6 @@ func TestSubscription_IDAndTopic(t *testing.T) {
 		t.Error(test.DiffMessage(sub.Topic(), "my.topic", "Subscription.Topic() mismatch"))
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Multiple subscribers receive the same message
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestMultipleSubscribers_SameMessage(t *testing.T) {
 	b := newBroker(t)
@@ -833,10 +744,6 @@ func TestMultipleSubscribers_SameMessage(t *testing.T) {
 		}
 	}
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Topic pattern kinds
-// ────────────────────────────────────────────────────────────────────────────
 
 func TestSubscribe_SuffixWildcard_MatchesDeepTopics(t *testing.T) {
 	b := newBroker(t)

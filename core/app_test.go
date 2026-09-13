@@ -224,17 +224,6 @@ type raceGlobalMiddleware struct{ P raceGlobalProvider }
 
 func (mw raceGlobalMiddleware) Use(_ *http.Request, _ http.ResponseWriter, next ctx.Next) { next() }
 
-// TestConcurrentAppCreate_NoDataRace guards against a real, verified race:
-// App.initLogger/UseLogger write to the package-level globalInterfaceByKey
-// map with no lock, and injectDependencies (reached from every global
-// middleware/guard/interceptor/exceptionFilter binding, from every module
-// provider, and from every per-request pipeable-parameter resolution) reads
-// globalProviderByKey/globalInterfaceByKey. Apps built and Created
-// concurrently — a realistic scenario for parallel tests or multi-tenant
-// setups — must not race on that shared state. Deliberately no controller
-// here: this is about the provider-injection paths, not route registration
-// (which has its own, separate global-state reset story via
-// resetModuleGlobals/common.InsertedRoutes).
 func TestConcurrentAppCreate_NoDataRace(t *testing.T) {
 	resetModuleGlobals()
 
@@ -430,7 +419,7 @@ type tracePipeController struct {
 	common.HTTP
 }
 
-func (c tracePipeController) NewController() Controller { return c }
+func (c tracePipeController) NewController() Controller              { return c }
 func (c tracePipeController) READ_tracepipe(traceSlowPipeDTO) string { return "ok" }
 
 func TestTrace_PipeStageExcludedFromHandlerDuration(t *testing.T) {
@@ -536,7 +525,7 @@ type tracePipePanicController struct {
 	common.HTTP
 }
 
-func (c tracePipePanicController) NewController() Controller { return c }
+func (c tracePipePanicController) NewController() Controller                        { return c }
 func (c tracePipePanicController) READ_tracepipepanic(tracePanickingPipeDTO) string { return "ok" }
 
 func TestTrace_PipePanicStillEmitsPipeEventAndReachesExceptionFilter(t *testing.T) {

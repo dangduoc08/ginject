@@ -4,7 +4,6 @@ import (
 	"net/textproto"
 )
 
-// header keys
 const (
 	RequestID = "X-Request-Id"
 )

@@ -90,7 +90,6 @@ func handleWSGuard(c *ctx.WSContext, canActive bool) {
 		c.Next()
 	} else {
 
-		// TODO: handle later
 		panic(exception.ForbiddenException("Access denied"))
 	}
 }

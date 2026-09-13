@@ -6,22 +6,15 @@ import (
 	"unicode"
 )
 
-// tableIndex holds all in-memory indexes for one table.
-// The primary index is always populated. Secondary and text indexes
-// are populated only after Schema() is called on the corresponding Model.
 type tableIndex struct {
-	// locationByID: id → disk location
 	locationByID map[string]location
 
-	// secondaryByField: field → fieldValue → set of ids
 	secondaryByField map[string]map[string]map[string]bool
-	fieldValuesByID  map[string]map[string]string // id → field → value (for removal)
+	fieldValuesByID  map[string]map[string]string
 
-	// idsByTerm: term → set of ids
-	idsByTerm  map[string]map[string]bool
-	termsByID  map[string][]string // id → terms (for removal)
+	idsByTerm map[string]map[string]bool
+	termsByID map[string][]string
 
-	// schema hints
 	indexedFields map[string]bool
 	searchFields  map[string]bool
 }
@@ -38,8 +31,6 @@ func newTableIndex() *tableIndex {
 	}
 }
 
-// ---- primary index ----
-
 func (idx *tableIndex) setPrimary(id string, loc location) {
 	idx.locationByID[id] = loc
 }
@@ -53,7 +44,6 @@ func (idx *tableIndex) deletePrimary(id string) {
 	delete(idx.locationByID, id)
 }
 
-// allPrimaryIDs returns a snapshot of all live IDs.
 func (idx *tableIndex) allPrimaryIDs() []string {
 	ids := make([]string, 0, len(idx.locationByID))
 	for id := range idx.locationByID {
@@ -62,15 +52,11 @@ func (idx *tableIndex) allPrimaryIDs() []string {
 	return ids
 }
 
-// ---- secondary index ----
-
-// updateSecondary removes oldData entries and adds newData entries for id.
-// Pass nil for oldData when there is no previous version.
 func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]any) {
 	if len(idx.indexedFields) == 0 {
 		return
 	}
-	// remove old
+
 	if oldPrev, ok := idx.fieldValuesByID[id]; ok {
 		for field, val := range oldPrev {
 			if vals, ok := idx.secondaryByField[field]; ok {
@@ -84,7 +70,7 @@ func (idx *tableIndex) updateSecondary(id string, oldData, newData map[string]an
 		}
 		delete(idx.fieldValuesByID, id)
 	}
-	// add new
+
 	if len(newData) == 0 {
 		return
 	}
@@ -113,7 +99,6 @@ func (idx *tableIndex) removeSecondary(id string) {
 	idx.updateSecondary(id, nil, nil)
 }
 
-// lookupSecondary returns IDs matching field == value.
 func (idx *tableIndex) lookupSecondary(field, value string) []string {
 	vals, ok := idx.secondaryByField[field]
 	if !ok {
@@ -134,13 +119,11 @@ func (idx *tableIndex) hasSecondaryField(field string) bool {
 	return idx.indexedFields[field]
 }
 
-// ---- text index ----
-
 func (idx *tableIndex) updateText(id string, oldData, newData map[string]any) {
 	if len(idx.searchFields) == 0 {
 		return
 	}
-	// remove old terms
+
 	if terms, ok := idx.termsByID[id]; ok {
 		for _, term := range terms {
 			if set, ok := idx.idsByTerm[term]; ok {
@@ -178,13 +161,12 @@ func (idx *tableIndex) removeText(id string) {
 	idx.updateText(id, nil, nil)
 }
 
-// searchText returns IDs that match ALL terms in the query (AND semantics).
 func (idx *tableIndex) searchText(query string) []string {
 	terms := tokenize(query)
 	if len(terms) == 0 {
 		return nil
 	}
-	// start with the set for the first term
+
 	first := idx.idsByTerm[terms[0]]
 	if len(first) == 0 {
 		return nil
@@ -193,7 +175,7 @@ func (idx *tableIndex) searchText(query string) []string {
 	for id := range first {
 		result[id] = true
 	}
-	// intersect with remaining terms
+
 	for _, term := range terms[1:] {
 		set := idx.idsByTerm[term]
 		for id := range result {
@@ -212,8 +194,6 @@ func (idx *tableIndex) searchText(query string) []string {
 	return ids
 }
 
-// ---- schema ----
-
 func (idx *tableIndex) setSchema(indexedFields, searchFields []string) {
 	idx.indexedFields = make(map[string]bool, len(indexedFields))
 	for _, f := range indexedFields {
@@ -224,8 +204,6 @@ func (idx *tableIndex) setSchema(indexedFields, searchFields []string) {
 		idx.searchFields[f] = true
 	}
 }
-
-// ---- helpers ----
 
 func anyToString(v any) string {
 	if v == nil {
@@ -241,8 +219,6 @@ func anyToString(v any) string {
 	}
 }
 
-// tokenize lowercases text and splits on non-alphanumeric characters.
-// Tokens shorter than 2 chars are dropped.
 func tokenize(s string) []string {
 	s = strings.ToLower(s)
 	var tokens []string

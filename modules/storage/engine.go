@@ -10,13 +10,12 @@ import (
 	"sync"
 )
 
-const maxSegSize = 64 << 20 // 64 MB per segment
+const maxSegSize = 64 << 20
 
-// location describes where a record lives on disk.
 type location struct {
 	segID  int
 	offset int64
-	size   int // total bytes on disk (including 4-byte size prefix)
+	size   int
 }
 
 type segFile struct {
@@ -25,8 +24,6 @@ type segFile struct {
 	size int64
 }
 
-// engine manages append-only segment files for a single table.
-// mu protects the segment list, current segment pointer, and all indexes.
 type engine struct {
 	mu      sync.RWMutex
 	dir     string
@@ -108,19 +105,16 @@ func (e *engine) newSegment() error {
 	return nil
 }
 
-// rebuildIndex rebuilds the in-memory index by scanning all segments.
-// Phase 1: determine the final live set (accounting for transactions).
-// Phase 2: load each live record and build secondary/text indexes.
 func (e *engine) rebuildIndex() error {
 	type txEntry struct {
 		r   record
 		loc location
 	}
 	type txBuf struct {
-		latestByID map[string]txEntry // id → latest op entry within this tx
+		latestByID map[string]txEntry
 	}
 
-	primary := make(map[string]location) // live id → latest location
+	primary := make(map[string]location)
 	txs := make(map[uint64]*txBuf)
 
 	apply := func(r record, loc location) {
@@ -162,7 +156,6 @@ func (e *engine) rebuildIndex() error {
 		}
 	}
 
-	// Phase 2: build secondary and text indexes from live records
 	for id, loc := range primary {
 		seg := e.segByID(loc.segID)
 		if seg == nil {
@@ -184,8 +177,6 @@ func (e *engine) rebuildIndex() error {
 	return nil
 }
 
-// writeRecord appends a record to the current segment.
-// Caller must hold the write lock.
 func (e *engine) writeRecord(r record) (location, error) {
 	data := encodeRecord(r)
 	if e.current.size+int64(len(data)) > maxSegSize && e.current.size > 0 {
@@ -202,8 +193,6 @@ func (e *engine) writeRecord(r record) (location, error) {
 	return location{segID: e.current.id, offset: offset, size: len(data)}, nil
 }
 
-// readDoc reads and parses the document at the given location.
-// Caller must hold at least a read lock.
 func (e *engine) readDoc(id string, loc location) (Document, error) {
 	seg := e.segByID(loc.segID)
 	if seg == nil {
@@ -250,7 +239,7 @@ func scanSegFile(seg *segFile, fn func(offset int64, r record, size int) error) 
 	for off < len(data) {
 		r, n, err := decodeRecord(data[off:])
 		if err != nil {
-			// corrupted tail record — stop scanning this segment
+
 			break
 		}
 		if err := fn(int64(off), r, n); err != nil {
@@ -279,13 +268,10 @@ func (e *engine) close() {
 	}
 }
 
-// compact rewrites all live records to a fresh set of segment files.
-// Holds the write lock throughout; briefly blocks all reads and writes.
 func (e *engine) compact() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// collect final live state
 	primary := make(map[string]location)
 	for _, seg := range e.segs {
 		_ = scanSegFile(seg, func(off int64, r record, size int) error {
@@ -353,7 +339,6 @@ func (e *engine) compact() error {
 		curSeg.size += int64(len(data))
 	}
 
-	// move compacted segments into the table dir
 	for i, s := range newSegs {
 		_ = s.f.Close()
 		dest := filepath.Join(e.dir, fmt.Sprintf("seg_%07d.db", i))
@@ -371,7 +356,6 @@ func (e *engine) compact() error {
 	}
 	_ = os.RemoveAll(tmpDir)
 
-	// remove old segment files beyond the new count
 	for j := len(newSegs); j < len(e.segs); j++ {
 		_ = e.segs[j].f.Close()
 		_ = os.Remove(e.segs[j].f.Name())
@@ -389,7 +373,6 @@ func (e *engine) compact() error {
 		_ = e.newSegment()
 	}
 
-	// rebuild index from new segments
 	e.idx = newTableIndex()
 	_ = e.rebuildIndex()
 	return nil
