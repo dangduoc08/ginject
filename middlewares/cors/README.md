@@ -24,7 +24,7 @@
 - Automatic `Vary: Origin` header whenever the response depends on the request's origin, even when this particular origin was rejected (so caches never serve a CORS response to the wrong origin)
 - `Vary` is merged into, never overwrites, whatever other middleware already set, with case-insensitive de-duplication
 - Trailing `/` is trimmed consistently from every `AllowOrigin` shape (`string`, `[]string`) before comparison
-- Spec-compliant credentials handling: echoes the request origin instead of `*` when `IsAllowCredentials` is set
+- Credentials are only offered to origins you enumerate: pairing `IsAllowCredentials` with a wildcard `AllowOrigin` is rejected at config time rather than silently echoing the caller's origin back
 - Blocks the `null` origin when credentials are enabled
 - Preflight short-circuit: responds with the configured success status without calling `next`, unless `IsPreflightContinue` is set
 - All parsing/joining/normalization happens once, in `NewMiddleware`; per-request handling never allocates configuration state
@@ -77,6 +77,8 @@ Default: `"*"` (set by `NewMiddleware`/`Use` when left `nil`)
 Required: `false`
 
 Controls which origins are permitted. The literal string `"*"` allows every origin. Any other `string`, or a `[]string`, is matched exactly against the request's `Origin` header (trailing `/` is trimmed from configured origins before comparison, so `"https://app.example.com/"` and `"https://app.example.com"` are equivalent); a non-matching origin gets no CORS headers at all. A `*regexp.Regexp` is matched with `MatchString`. HTTP and WebSocket requests are checked with the exact same matching function.
+
+**A `*regexp.Regexp` must be anchored with `^` and `$`, or `NewMiddleware` panics at config time.** `MatchString` does a substring search, not a full match: an unanchored pattern like `` `https://.*\.trusted\.com` `` also matches `"https://evil.trusted.com.attacker.com"`, since that string contains the pattern as a prefix. Anchor it as `` `^https://.*\.trusted\.com$` `` (inline flags such as `(?i)` go after the `^`).
 
 ```go
 cors.CORS{AllowOrigin: []string{"https://app.example.com", "https://admin.example.com"}}
@@ -137,10 +139,19 @@ Default: `false`
 
 Required: `false`
 
-Sets `Access-Control-Allow-Credentials: true`. When combined with `AllowOrigin: "*"`, the actual request origin is echoed instead of `*`.
+Sets `Access-Control-Allow-Credentials: true`, and echoes the matching request origin in `Access-Control-Allow-Origin`.
+
+**Must be paired with an explicit origin list.** A wildcard `AllowOrigin` — whether written as `"*"` or left unset, which defaults to `"*"` — **panics at config time** when `IsAllowCredentials` is set. Browsers reject `*` on credentialed requests, and echoing the request origin back to satisfy them would hand every site on the internet credentialed access to authenticated responses.
 
 ```go
+// panics: wildcard origin + credentials
 cors.CORS{IsAllowCredentials: true}
+
+// correct
+cors.CORS{
+	AllowOrigin:        []string{"https://app.example.com"},
+	IsAllowCredentials: true,
+}
 ```
 
 ### IsPreflightContinue
@@ -203,7 +214,8 @@ Applies CORS headers to the current request and either calls `next` or short-cir
 - `Vary: Origin` is set whenever `AllowOrigin` is anything other than the bare wildcard `"*"` without credentials — including when this particular request's origin was rejected, since the response still varies by origin for other callers (`TestCORS_Use_VaryForSpecificStringOrigin`, `TestCORS_Use_VaryOriginSetEvenWhenOriginIsBlocked`, `TestCORS_Use_NoVaryForWildcard`).
 - `Vary` tokens are merged into any value already set by earlier middleware (never overwritten) and de-duplicated case-insensitively (`TestCORS_Use_VaryMergesWithExistingHeader`, `TestCORS_Use_VaryNoDuplicateWhenAlreadyPresent`).
 - `IsAllowCredentials` sets `Access-Control-Allow-Credentials: true` (`TestCORS_Use_Credentials`).
-- Wildcard `AllowOrigin` combined with `IsAllowCredentials` echoes the request origin instead of `*` and sets `Vary: Origin`, except when the request origin is `"null"`, which is never reflected (`TestCORS_Use_CredentialsWithWildcardEchosOrigin`, `TestCORS_Use_NullOriginWithCredentialsBlocked`).
+- Wildcard `AllowOrigin` combined with `IsAllowCredentials` panics at config time, including when `AllowOrigin` is left unset (`TestCORS_WildcardWithCredentials_PanicsAtConfigTime`, `TestLoadCORSOptions_WildcardWithCredentials_Panics`).
+- With an enumerated `AllowOrigin` plus `IsAllowCredentials`, a `"null"` or empty request origin never matches (`TestCORS_Use_NullOriginWithCredentialsBlocked`, `TestMatchOrigin_EnumeratedWithCredentials_RejectsNullAndEmpty`).
 - Wildcard `AllowOrigin` without `IsAllowCredentials` still sets `Access-Control-Allow-Origin: *` even for a `"null"` request origin (`TestCORS_Use_NullOriginWildcardNoCredentials`).
 - `Access-Control-Allow-Methods`, `Access-Control-Max-Age`, and `Access-Control-Allow-Headers` are only set on `OPTIONS` (preflight) requests, never on other methods (`TestCORS_Use_PreflightOnlyHeaders`).
 - A custom `AllowMethods` list is reflected in `Access-Control-Allow-Methods` on preflight (`TestCORS_Use_CustomAllowMethodsOnPreflight`).

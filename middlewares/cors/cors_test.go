@@ -228,13 +228,16 @@ func TestCORS_Use_RegexpOrigin(t *testing.T) {
 }
 
 func TestCORS_Use_Credentials(t *testing.T) {
-	cors := CORS{IsAllowCredentials: true}
+	cors := CORS{AllowOrigin: []string{"https://example.com"}, IsAllowCredentials: true}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
 	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Credentials")
 	if got != "true" {
 		t.Error(test.DiffMessage(got, "true", "credentials header"))
+	}
+	if origin := rec.Header().Get("Access-Control-Allow-Origin"); origin != "https://example.com" {
+		t.Error(test.DiffMessage(origin, "https://example.com", "an enumerated origin must be echoed back"))
 	}
 }
 
@@ -302,17 +305,39 @@ func TestCORS_Use_ExposeHeadersString(t *testing.T) {
 	}
 }
 
-func TestCORS_Use_CredentialsWithWildcardEchosOrigin(t *testing.T) {
-	cors := CORS{AllowOrigin: "*", IsAllowCredentials: true}
+func TestCORS_WildcardWithCredentials_PanicsAtConfigTime(t *testing.T) {
+	cases := []struct {
+		name string
+		cors CORS
+	}{
+		{"explicit wildcard", CORS{AllowOrigin: "*", IsAllowCredentials: true}},
+		{"unset origin defaults to wildcard", CORS{IsAllowCredentials: true}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error(test.DiffMessage(nil, "panic", "a wildcard origin combined with credentials must fail at config time, never echo the request origin back"))
+				}
+			}()
+
+			c.cors.NewMiddleware()
+		})
+	}
+}
+
+func TestCORS_WildcardWithoutCredentials_StillAllowed(t *testing.T) {
+	cors := CORS{AllowOrigin: "*"}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "https://example.com")
 	mw.Use(c.Request, c.ResponseWriter, noop)
-	got := rec.Header().Get("Access-Control-Allow-Origin")
-	if got != "https://example.com" {
-		t.Error(test.DiffMessage(got, "https://example.com", "credentials+wildcard should echo request origin"))
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Error(test.DiffMessage(got, "*", "a wildcard origin without credentials must stay allowed and emit literal *"))
 	}
-	if rec.Header().Get("Vary") == "" {
-		t.Error(test.DiffMessage("", "Vary", "Vary header required when echoing origin"))
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Error(test.DiffMessage(got, "", "credentials must not be advertised when not configured"))
 	}
 }
 
@@ -462,13 +487,13 @@ func TestCORS_Use_RegexpOriginNoMatch(t *testing.T) {
 }
 
 func TestCORS_Use_NullOriginWithCredentialsBlocked(t *testing.T) {
-	cors := CORS{AllowOrigin: "*", IsAllowCredentials: true}
+	cors := CORS{AllowOrigin: []string{"https://example.com"}, IsAllowCredentials: true}
 	mw := cors.NewMiddleware()
 	c, rec := newTestContext(http.MethodGet, "null")
 	mw.Use(c.Request, c.ResponseWriter, noop)
 	got := rec.Header().Get("Access-Control-Allow-Origin")
-	if got == "null" {
-		t.Error(test.DiffMessage(got, "", "null origin must not be reflected when credentials enabled"))
+	if got != "" {
+		t.Error(test.DiffMessage(got, "", "a null origin must never be allowed, credentials or not"))
 	}
 }
 
@@ -486,91 +511,135 @@ func TestCORS_Use_NullOriginWildcardNoCredentials(t *testing.T) {
 func TestMatchOrigin_WildcardNoCredentials(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: "*"})
 	for _, origin := range []string{"https://example.com", "https://evil.com", "null"} {
-		if _, ok := matchOrigin(opts.allowOrigin, origin, opts.isAllowCredentials); !ok {
+		if _, ok := matchOrigin(opts.allowOrigin, origin); !ok {
 			t.Error(test.DiffMessage(false, true, "wildcard without credentials should allow "+origin))
 		}
 	}
 }
 
-func TestMatchOrigin_WildcardWithCredentials_NormalOrigin(t *testing.T) {
-	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials); !ok {
-		t.Error(test.DiffMessage(false, true, "wildcard+credentials should allow normal origin"))
+func TestLoadCORSOptions_WildcardWithCredentials_Panics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error(test.DiffMessage(nil, "panic", "loadCORSOptions must reject a wildcard origin paired with credentials"))
+		}
+	}()
+
+	loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
+}
+
+func TestLoadCORSOptions_UnanchoredRegexp_Panics(t *testing.T) {
+	cases := []string{
+		`https://.*\.trusted\.com`,
+		`^https://.*\.trusted\.com`,
+		`https://.*\.trusted\.com$`,
+	}
+
+	for _, pattern := range cases {
+		t.Run(pattern, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error(test.DiffMessage(nil, "panic", "an AllowOrigin regexp missing ^ or $ must be rejected at config time"))
+				}
+			}()
+
+			loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(pattern)})
+		})
 	}
 }
 
-func TestMatchOrigin_WildcardWithCredentials_NullRejected(t *testing.T) {
-	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
-	if _, ok := matchOrigin(opts.allowOrigin, "null", opts.isAllowCredentials); ok {
-		t.Error(test.DiffMessage(true, false, "wildcard+credentials should reject null origin"))
+func TestLoadCORSOptions_AnchoredRegexp_DoesNotPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("a fully anchored regexp must not panic, got: %v", r)
+		}
+	}()
+
+	loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.trusted\.com$`)})
+}
+
+func TestMatchOrigin_UnanchoredRegexp_WouldHaveAllowedSuffixBypass(t *testing.T) {
+	unanchored := regexp.MustCompile(`https://.*\.trusted\.com`)
+	if _, ok := matchOrigin(unanchored, "https://evil.trusted.com.attacker.com"); !ok {
+		t.Fatal("this test documents why unanchored patterns are rejected: MatchString does a substring search")
+	}
+
+	anchored := regexp.MustCompile(`^https://.*\.trusted\.com$`)
+	if _, ok := matchOrigin(anchored, "https://evil.trusted.com.attacker.com"); ok {
+		t.Error(test.DiffMessage(true, false, "an anchored pattern must not match a domain-suffix bypass attempt"))
 	}
 }
 
-func TestMatchOrigin_WildcardWithCredentials_EmptyRejected(t *testing.T) {
-	opts := loadCORSOptions(&CORS{AllowOrigin: "*", IsAllowCredentials: true})
-	if _, ok := matchOrigin(opts.allowOrigin, "", opts.isAllowCredentials); ok {
-		t.Error(test.DiffMessage(true, false, "wildcard+credentials should reject empty origin"))
+func TestMatchOrigin_EnumeratedWithCredentials_RejectsNullAndEmpty(t *testing.T) {
+	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://example.com"}, IsAllowCredentials: true})
+
+	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com"); !ok {
+		t.Error(test.DiffMessage(false, true, "an enumerated origin must be allowed with credentials"))
+	}
+	for _, origin := range []string{"null", "", "https://evil.com"} {
+		if _, ok := matchOrigin(opts.allowOrigin, origin); ok {
+			t.Error(test.DiffMessage(true, false, "origin "+origin+" must not match an enumerated allowlist"))
+		}
 	}
 }
 
 func TestMatchOrigin_SpecificString_Allowed(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com", opts.isAllowCredentials); !ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com"); !ok {
 		t.Error(test.DiffMessage(false, true, "exact string match should be allowed"))
 	}
 }
 
 func TestMatchOrigin_SpecificString_Blocked(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com"})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com"); ok {
 		t.Error(test.DiffMessage(true, false, "non-matching string should be blocked"))
 	}
 }
 
 func TestMatchOrigin_SpecificString_TrailingSlashIgnored(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: "https://trusted.com/"})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com", opts.isAllowCredentials); !ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://trusted.com"); !ok {
 		t.Error(test.DiffMessage(false, true, "configured trailing slash should not prevent a bare-origin match"))
 	}
 }
 
 func TestMatchOrigin_Map_Allowed(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com", "https://b.com"}})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://a.com", opts.isAllowCredentials); !ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://a.com"); !ok {
 		t.Error(test.DiffMessage(false, true, "origin in list should be allowed"))
 	}
 }
 
 func TestMatchOrigin_Map_Blocked(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: []string{"https://a.com"}})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com"); ok {
 		t.Error(test.DiffMessage(true, false, "origin not in list should be blocked"))
 	}
 }
 
 func TestMatchOrigin_Map_EmptyListBlocksAll(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: []string{}})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com", opts.isAllowCredentials); ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://example.com"); ok {
 		t.Error(test.DiffMessage(true, false, "empty list should block all origins"))
 	}
 }
 
 func TestMatchOrigin_Regexp_Allowed(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.trusted\.com$`)})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://app.trusted.com", opts.isAllowCredentials); !ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://app.trusted.com"); !ok {
 		t.Error(test.DiffMessage(false, true, "regexp-matching origin should be allowed"))
 	}
 }
 
 func TestMatchOrigin_Regexp_Blocked(t *testing.T) {
 	opts := loadCORSOptions(&CORS{AllowOrigin: regexp.MustCompile(`^https://trusted\.com$`)})
-	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com", opts.isAllowCredentials); ok {
+	if _, ok := matchOrigin(opts.allowOrigin, "https://evil.com"); ok {
 		t.Error(test.DiffMessage(true, false, "non-matching regexp origin should be blocked"))
 	}
 }
 
 func TestMatchOrigin_UnrecognizedTypeBlocksAll(t *testing.T) {
-	if _, ok := matchOrigin(42, "https://example.com", false); ok {
+	if _, ok := matchOrigin(42, "https://example.com"); ok {
 		t.Error(test.DiffMessage(true, false, "an unrecognized AllowOrigin type should block all origins"))
 	}
 }
