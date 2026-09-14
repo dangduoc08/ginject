@@ -26,6 +26,17 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const (
+	DefaultMaxRequestBodyBytes = 10 << 20 // 10 MB
+
+	DefaultMaxHeaderBytes = 1 << 20 // 1 MB
+
+	DefaultReadHeaderTimeout = 2 * time.Second
+	DefaultReadTimeout       = 5 * time.Second
+	DefaultWriteTimeout      = 15 * time.Second
+	DefaultIdleTimeout       = 60 * time.Second
+)
+
 type App struct {
 	http      *HTTP
 	ctxPool   sync.Pool
@@ -55,6 +66,8 @@ type App struct {
 
 	Logger     common.Logger
 	LogOptions *log.LogOptions
+
+	maxRequestBodyBytes int64
 
 	readyOnce    sync.Once
 	shutdownOnce sync.Once
@@ -128,7 +141,8 @@ func New() *App {
 				return ctx.NewWSContext()
 			},
 		},
-		shutdownChan: make(chan struct{}),
+		shutdownChan:        make(chan struct{}),
+		maxRequestBodyBytes: DefaultMaxRequestBodyBytes,
 	}
 
 	globalInterfaceByKey.Store(publisherKey, common.Publisher(
@@ -141,6 +155,10 @@ func New() *App {
 }
 
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Body != nil && app.maxRequestBodyBytes > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, app.maxRequestBodyBytes)
+	}
+
 	c := app.ctxPool.Get().(*ctx.HTTPContext)
 	c.Init(w, r)
 
@@ -672,12 +690,12 @@ func (app *App) Listen(port int) error {
 		Addr:    addr,
 		Handler: app,
 
-		ReadHeaderTimeout: 2 * time.Second,
-		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: DefaultReadHeaderTimeout,
+		ReadTimeout:       DefaultReadTimeout,
+		WriteTimeout:      DefaultWriteTimeout,
+		IdleTimeout:       DefaultIdleTimeout,
 
-		MaxHeaderBytes: 1 << 20,
+		MaxHeaderBytes: DefaultMaxHeaderBytes,
 	}
 
 	logBoostrap(port)
