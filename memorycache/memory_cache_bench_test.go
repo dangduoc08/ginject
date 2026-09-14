@@ -3,6 +3,7 @@ package memorycache
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -133,4 +134,75 @@ func BenchmarkHashKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		hashKey(key)
 	}
+}
+
+func BenchmarkGetSetParallel(b *testing.B) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	ctx := context.Background()
+	keys := make([]string, 4096)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("key-%d", i)
+		_ = mc.Set(ctx, keys[i], []byte("value-payload"), time.Hour)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			k := keys[i&4095]
+			if i&7 == 0 {
+				_ = mc.Set(ctx, k, []byte("value-payload"), time.Hour)
+			} else {
+				mc.Get(ctx, k)
+			}
+			i++
+		}
+	})
+}
+
+func BenchmarkGetParallel(b *testing.B) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	ctx := context.Background()
+	keys := make([]string, 4096)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("key-%d", i)
+		_ = mc.Set(ctx, keys[i], []byte("value-payload"), time.Hour)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			mc.Get(ctx, keys[i&4095])
+			i++
+		}
+	})
+}
+
+func BenchmarkGetParallel_LongKeys(b *testing.B) {
+	mc := NewMemoryCache()
+	defer mc.Stop()
+
+	ctx := context.Background()
+	keys := make([]string, 4096)
+	for i := range keys {
+		keys[i] = "tenant:acme-corp:user:session:" + strconv.Itoa(i) + ":profile-cache-entry"
+		_ = mc.Set(ctx, keys[i], []byte("value-payload"), time.Hour)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		i := 0
+		for pb.Next() {
+			mc.Get(ctx, keys[i&4095])
+			i++
+		}
+	})
 }
