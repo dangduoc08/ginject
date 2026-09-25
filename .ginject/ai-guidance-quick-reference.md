@@ -10,7 +10,7 @@
 Feature Request
   │
   ├─ "I need an HTTP endpoint"
-  │   ├─ Embed common.REST in controller
+  │   ├─ Embed common.HTTP in controller
   │   ├─ Create method: READ/CREATE/UPDATE/MODIFY/DELETE_BY_params
   │   ├─ Add parameters to method signature (injected types)
   │   ├─ Register controller in ModuleBuilder().Controllers(...)
@@ -207,10 +207,9 @@ Error Scenario
   │   └─ Exception filter writes 404 Not Found
   │
   ├─ "Request timeout (handler takes too long)"
-  │   ├─ httpCtx.SetDeadline(5 * time.Second)
-  │   ├─ Framework checks before invoking handler
-  │   ├─ Panics with exception.RequestTimeoutException
-  │   └─ Exception filter writes 408 Request Timeout
+  │   ├─ NOT built in — there is no httpCtx.SetDeadline()/IsDeadlineExceeded(), no automatic 408
+  │   ├─ Only server-level ReadTimeout/WriteTimeout exist (fixed, core.App.Listen()), unrelated to handler duration
+  │   └─ To bound a slow handler yourself: wrap the slow call in your own context.WithTimeout and panic(exception.RequestTimeoutException(...)) on ctx.Err()
   │
   ├─ "Internal server error (unexpected panic)"
   │   ├─ Panic with exception.InternalServerErrorException
@@ -324,9 +323,26 @@ Pattern Question
   │   └─ NO - breaks dependency injection
   │       Result: defeats pooling, lifecycle management
   │
-  └─ "Should I have circular dependencies?"
-      └─ NO - causes infinite recursion at app.Create()
-          Result: stack overflow, unrecoverable panic
+  ├─ "Should I have circular dependencies?"
+  │   └─ NO - causes infinite recursion at app.Create()
+  │       Result: stack overflow, unrecoverable panic
+  │
+  ├─ "Should I bind the same Middleware/Guard/Interceptor/ExceptionFilter type twice with different config?"
+  │   └─ NO - common.Construct caches by Go type name only, process-wide
+  │       Result: second bind silently reuses the FIRST instance's config, no error
+  │       Fix: give each configuration its own Go type (see anti-patterns-gotchas.md §10.1)
+  │
+  ├─ "Should I write cors.CORS{IsAllowCredentials: true} without an origin list?"
+  │   └─ NO - AllowOrigin defaults to wildcard, and wildcard+credentials panics at app.Create()
+  │       Fix: cors.CORS{AllowOrigin: []string{...}, IsAllowCredentials: true}
+  │
+  ├─ "Should I use an unanchored regexp for cors.CORS{AllowOrigin: ...}?"
+  │   └─ NO - MatchString does substring search; panics at app.Create() if not anchored
+  │       Fix: always wrap as ^...$ , e.g. regexp.MustCompile(`^https://.*\.trusted\.com$`)
+  │
+  └─ "Should I assume request bodies are unlimited or add app.SetMaxBodySize(...)?"
+      └─ NO - fixed 10MB cap (DefaultMaxRequestBodyBytes), no such setter exists
+          Result: SetMaxBodySize won't compile; bodies over 10MB panic 413 from ctx.Body()
 ```
 
 ---

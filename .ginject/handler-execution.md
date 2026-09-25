@@ -277,19 +277,9 @@ defer func() {
 invokeHTTPHandlerByProviders(...) // If this panics, recover catches it
 ```
 
-### 4.2 Timeout Checking (Before Handler Invocation)
+### 4.2 No Per-Request Timeout Check
 
-**Function**: Check `c.IsDeadlineExceeded()` before calling handler
-
-**Pseudo-Code**:
-```
-if c.IsDeadlineExceeded() {
-    panic(exception.RequestTimeoutException("request exceeded deadline"))
-}
-
-// Then call handler
-invokeHTTPHandlerByProviders(...)
-```
+There is no deadline check before handler invocation — `ctx.HTTPContext.IsDeadlineExceeded()` does not exist (verified absent from `ctx/http_context.go`), and no code in `core/fn.go`'s handler-invocation path references it or `exception.RequestTimeoutException` at all. A handler runs to completion regardless of how long it takes; only the underlying `http.Server`'s connection-level timeouts (`ReadTimeout`/`WriteTimeout`, set once in `core.App.Listen()`) provide any time bound, and those act on the connection, not the handler goroutine.
 
 ### 4.3 Common Handler Errors
 

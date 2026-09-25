@@ -361,7 +361,7 @@ Reference: request-pipeline.md#3-guard-layer (authorization)
 
 **Last Updated**: August 2026 (memorybroker corrections: dropped stale sharding/worker-pool claims, synced to the simplified Subscribe/Unsubscribe/Publish/PublishAsync/Close API)  
 **Coverage**: Ginject pre-v1.0 (6.2/10 production readiness)  
-**Source**: Complete source code analysis + ARCHITECTURE_REVIEW_AND_ROADMAP.md
+**Source**: Complete source code analysis (direct reads of `.go` files, not a separate roadmap doc — `ARCHITECTURE_REVIEW_AND_ROADMAP.md` referenced by earlier versions of this doc does not exist in this repository)
 
 **To Update This Knowledge Base**:
 1. Verify against current source code in /Users/tadangduoc/Projects/ginject

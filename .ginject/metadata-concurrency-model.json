@@ -123,8 +123,8 @@
     "prevention": "keep pipeline stages lock-free and non-blocking; never call Close() synchronously from a PublishAsync-dispatched handler"
   },
   "cancellation_handling": {
-    "http_requests": "context deadline via SetDeadline()",
+    "http_requests": "No per-request ctx.HTTPContext.SetDeadline()/Deadline/IsDeadlineExceeded() exists — do not invent them (verified absent from ctx/http_context.go). Timeouts are server-level only: http.Server's ReadHeaderTimeout(2s)/ReadTimeout(5s)/WriteTimeout(15s)/IdleTimeout(60s), set once in core.App.Listen() via the Default* constants, not per-request or configurable.",
     "ws_connections": "no context.Context, use heartbeat + timeout",
-    "graceful_shutdown": "no built-in support, must implement application-level"
+    "graceful_shutdown": "Built in: SIGINT/SIGTERM triggers serveWithGracefulShutdown (core/app.go) -> callOnShutdown() (each Module's OnShutdown() in tree order, guarded by shutdownOnce so it runs exactly once even if app.Stop() is also called) -> stdlib http.Server.Shutdown(ctx) with a 30s timeout. No WebSocket-specific shutdown handling (no close-frame/status-code logic) — open WS connections are simply dropped when the server stops."
   }
 }

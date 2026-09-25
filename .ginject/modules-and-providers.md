@@ -19,24 +19,32 @@
 
 ```go
 type Module struct {
-    providers              []Provider
-    controllers            []Controller
-    exports                []string
-    imports                []*Module
-    
-    HTTPMainHandlers       []HTTPMainHandler
-    HTTPExceptionFilters   []HTTPExceptionFilter
-    HTTPGuards             []HTTPGuard
-    HTTPInterceptors       []HTTPInterceptor
-    HTTPMiddlewares        []HTTPMiddleware
-    
-    WSHandlers             []WSHandler
-    WSExceptionFilters     []WSExceptionFilter
-    WSGuards               []WSGuard
-    WSInterceptors         []WSInterceptor
-    WSMiddlewares          []WSMiddleware
+    id             string
+    Name           string
+    providers      []Provider
+    controllers    []Controller
+    staticModules  []*Module
+    dynamicModules []any
+
+    IsGlobal   bool
+    OnInit     func()
+    OnReady    func()
+    OnShutdown func()
+
+    HTTPExceptionFilters []common.HTTPLayer
+    HTTPMiddlewares      []common.HTTPLayer
+    HTTPGuards           []common.HTTPLayer
+    HTTPInterceptors     []common.HTTPLayer
+    HTTPMainHandlers     []common.HTTPLayer
+
+    WSGuards           []common.WSLayer
+    WSInterceptors     []common.WSLayer
+    WSExceptionFilters []common.WSLayer
+    WSMainHandlers     []common.WSLayer
 }
 ```
+
+**No `exports []string` field or `Export(...)` method exists anywhere** — there is no explicit export mechanism; anything registered as a `Provider`/`Controller` on a module is available per the normal import-tree resolution rules. `IsGlobal`, `OnInit`, `OnReady`, `OnShutdown` are set directly on the built `*Module` (e.g. `module.IsGlobal = true`), not via builder methods.
 
 ### 1.3 Module Tree
 
@@ -261,7 +269,7 @@ type UserRepository struct {
 
 ```go
 type UserController struct {
-    common.REST
+    common.HTTP
     UserService UserService  // Framework injects provider
 }
 

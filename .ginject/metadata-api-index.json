@@ -35,14 +35,14 @@
             },
             {
               "name": "EnableWS",
-              "signature": "EnableWS(config *WSConfig)",
-              "purpose": "Enable WebSocket support"
-            },
-            {
-              "name": "SetMaxBodySize",
-              "signature": "SetMaxBodySize(bytes int64)",
-              "purpose": "Set max HTTP request body size"
+              "signature": "EnableWS(cfg *WSConfig, middlewares ...common.MiddlewareFn) *App",
+              "purpose": "Enable WebSocket support; returns App for chaining"
             }
+          ],
+          "notes": [
+            "No public setter exists to change the request body cap at runtime. maxRequestBodyBytes defaults to DefaultMaxRequestBodyBytes (10MB) in New() and is fixed for the life of the App. Do NOT invent a SetMaxBodySize-style method — it does not exist.",
+            "ServeHTTP unconditionally wraps r.Body in http.MaxBytesReader(w, r.Body, app.maxRequestBodyBytes) before dispatching, independent of ctx.Init. Exceeding it surfaces as a 413 exception.RequestEntityTooLargeException from ctx.Body(), not a raw panic (see ctx.HTTPContext notes).",
+            "Listen() builds http.Server with DefaultReadHeaderTimeout=2s, DefaultReadTimeout=5s, DefaultWriteTimeout=15s, DefaultIdleTimeout=60s, DefaultMaxHeaderBytes=1MB — all hardcoded, no setters."
           ]
         },
         "Module": {
@@ -53,8 +53,10 @@
             "imports []*Module",
             "HTTPMainHandlers []HTTPMainHandler",
             "WSHandlers []WSHandler",
-            "OnReady func() - Called after app.Create() completes (v2.0+)",
-            "OnShutdown func() - Called on app shutdown (SIGINT/SIGTERM) (v2.0+)"
+            "IsGlobal bool - makes providers available to every module without an explicit import",
+            "OnInit func() - called during app.Create()'s module walk",
+            "OnReady func() - called once after app.Create() fully completes, in module-tree order",
+            "OnShutdown func() - called on graceful shutdown (SIGINT/SIGTERM, or app.Stop()), same module-tree order as OnReady (NOT reversed/LIFO)"
           ]
         },
         "ModuleBuilder": {
@@ -93,14 +95,14 @@
           "description": "HTTP request context (pooled)",
           "methods": [
             "Init(ResponseWriter, *Request)",
-            "InitWithMaxBodySize(ResponseWriter, *Request, int64)",
-            "Status(code int) *HTTPContext",
-            "SetDeadline(duration time.Duration) *HTTPContext",
-            "IsDeadlineExceeded() bool",
-            "Text(data string) void",
-            "JSON(data any) void",
-            "GetID() string"
-          ]
+            "Status(code int) *HTTPContext - sets c.Code; chain with JSON/Text",
+            "Text(data string, args ...any)",
+            "JSON(data ...any)",
+            "JSONP(data ...any)",
+            "GetID() string",
+            "Body() Body - lazily parses JSON body; on http.MaxBytesError panics exception.RequestEntityTooLargeException (413), not a raw error"
+          ],
+          "notes": "No SetDeadline()/IsDeadlineExceeded()/Deadline field exist on HTTPContext — do not invent per-request deadline APIs. See metadata-concurrency-model.json's cancellation_handling for the real (server-level-only) timeout model."
         },
         "WSContext": {
           "description": "WebSocket request context (pooled)",
@@ -135,17 +137,25 @@
     },
     "common": {
       "responsibility": "Pipeline interfaces and embedded controller types",
+      "notes": [
+        "Guarder, Interceptable, and ExceptionFilterable are declared as `any`, NOT compile-time Go interfaces. Shape is checked at bind time via reflection (MethodByName) against the func-type aliases below. A bound value missing the method panics with a *ShapeError (GuardShapeError / InterceptorShapeError / ExceptionFilterShapeError).",
+        "MiddlewareFn IS a real interface (requires a Use method) — different from the other three."
+      ],
       "interfaces": {
-        "MiddlewareFn": "func(*http.Request, http.ResponseWriter, ctx.Next)",
-        "Guarder": "interface { CanActivate(*ctx.HTTPContext) bool }",
-        "Interceptable": "interface { Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any }",
-        "ExceptionFilterable": "interface { Catch(*exception.Exception, *ctx.HTTPContext) }",
-        "Logger": "interface { Log(level string, data any); LogStructured(...) }",
-        "Publisher": "interface { Publish(topic string, data any) error }"
+        "MiddlewareFn": "interface { Use(*http.Request, http.ResponseWriter, ctx.Next) } — real interface; Use = func(*http.Request, http.ResponseWriter, ctx.Next) is the matching func alias",
+        "Guarder": "any; checked against HTTPCanActivate = func(*ctx.HTTPContext) bool via method name \"CanActivate\"",
+        "Interceptable": "any; checked against HTTPIntercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any via method name \"Intercept\"",
+        "ExceptionFilterable": "any; checked against HTTPCatch = func(*ctx.HTTPContext, *exception.Exception) via method name \"Catch\" — NOTE: HTTPContext is the FIRST parameter, Exception is SECOND",
+        "Logger": "interface { Debug(msg string, args ...any); Info(...); Warn(...); Error(...); Fatal(...) } — no Log()/LogStructured() methods exist",
+        "Publisher": "interface { Publish(topic string, payload ...any) error } — payload is variadic, not a single `data any`"
       },
       "embedded_types": {
-        "REST": "Embed in controller to enable HTTP routing",
-        "WS": "Embed in controller to enable WebSocket routing"
+        "HTTP": "Embed in controller to enable HTTP routing (there is NO common.REST type — do not generate it)",
+        "WS": "Embed in controller to enable WebSocket routing",
+        "Middleware": "Separate embeddable type providing BindMiddleware(MiddlewareFn, ...any) *Middleware — not a field on HTTP/WS",
+        "Guard": "Separate embeddable type providing BindGuard(Guarder, ...any) *Guard",
+        "Interceptor": "Separate embeddable type providing BindInterceptor(Interceptable, ...any) *Interceptor",
+        "ExceptionFilter": "Separate embeddable type providing BindExceptionFilter(ExceptionFilterable, ...any) *ExceptionFilter"
       }
     },
     "routing": {
@@ -176,56 +186,68 @@
         "CREATE_OF_COMMENTS": "POST /comments",
         "DELETE_BY_ID_VERSION_2": "DELETE /v2/:id",
         "READ_ANY": "GET /*"
-      }
+      },
+      "notes": [
+        "Router.Match signature is func (r *Router) Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.HTTPHandler) — NOT (path, method) (RouterItem, bool). Do not invent a RouterItem-returning shape."
+      ]
     },
     "exception": {
       "responsibility": "Exception types and error handling",
       "Exception": {
         "methods": [
+          "Error() string",
+          "Unwrap() error",
           "GetCode() int",
           "GetMessage() string",
-          "GetStatusText() string",
-          "GetStackTrace() string",
-          "SetStackTrace(trace string)"
-        ]
+          "GetStatusText() string"
+        ],
+        "notes": "No GetStackTrace()/SetStackTrace() and no stack-trace field exist. Exception{message, error, code} is the entire struct."
       },
-      "built_in_exceptions": [
-        "BadRequestException (400)",
-        "UnauthorizedException (401)",
-        "ForbiddenException (403)",
-        "NotFoundException (404)",
-        "ConflictException (409)",
-        "InternalServerErrorException (500)",
-        "RequestTimeoutException (408)",
-        "NotImplementedException (501)",
-        "ServiceUnavailableException (503)"
+      "built_in_exceptions_http": [
+        "BadRequestException (400)", "UnauthorizedException (401)", "ForbiddenException (403)",
+        "NotFoundException (404)", "MethodNotAllowedException (405)", "NotAcceptableException (406)",
+        "RequestTimeoutException (408)", "ConflictException (409)", "GoneException (410)",
+        "PreconditionFailedException (412)", "RequestEntityTooLargeException (413)",
+        "UnsupportedMediaTypeException (415)", "MisdirectedRequestException (421)",
+        "UnprocessableEntityException (422)", "TeapotException (418)", "TooManyRequestsException (429)",
+        "InternalServerErrorException (500)", "NotImplementedException (501)", "BadGatewayException (502)",
+        "ServiceUnavailableException (503)", "GatewayTimeoutException (504)", "HTTPVersionNotSupportedException (505)"
+      ],
+      "built_in_exceptions_ws": [
+        "GoingAwayException", "ProtocolErrorException", "UnsupportedDataException", "InvalidPayloadException",
+        "PolicyViolationException", "MessageTooBigException", "WSInternalErrorException",
+        "NotSubscribedException", "TopicNotFoundException"
       ]
     },
     "event": {
-      "responsibility": "Event emission and tracing",
+      "responsibility": "Event emission (Node.js EventEmitter-style)",
       "public_types": {
         "Event": {
           "methods": [
-            "On(name string, fn func(any)) void",
-            "Emit(name string, data any) void",
-            "HasListeners(name string) bool"
-          ]
+            "On(eventName string, fn func(args ...any))",
+            "Once(eventName string, fn func(args ...any))",
+            "Off(eventName string, fn func(args ...any))",
+            "Emit(eventName string, args ...any)",
+            "RemoveAllListeners(eventName string)",
+            "ListenerCount(eventName string) int",
+            "HasListeners(eventName string) bool",
+            "EventNames() []string",
+            "SetMaxListeners(n int)",
+            "Reset()"
+          ],
+          "notes": "On/Once/Off/Emit all take variadic ...any, not a single `data any`/`fn func(any)` — a listener written as func(data any) does not satisfy func(args ...any) and will not compile."
         }
       }
     },
     "trace": {
       "responsibility": "Request tracing and observability",
+      "event_name_constant": "trace.EventName = \"trace\" (NOT \"ginject:trace\")",
       "trace_stages": [
-        "handshake",
-        "middleware",
-        "guard",
-        "interceptor",
-        "pipe",
-        "handler",
-        "filter",
-        "complete"
+        "middleware", "guard", "pre_interceptor", "post_interceptor",
+        "exception_filter", "pipe", "handler", "complete"
       ],
-      "transports": ["http", "ws"]
+      "notes": "No \"handshake\" stage exists. Interceptor is split into pre_interceptor/post_interceptor (two constants), not one combined \"interceptor\". Exception filter stage string is \"exception_filter\", not \"filter\".",
+      "transports": ["HTTP", "WS", "GQL", "RPC"]
     },
     "memorybroker": {
       "responsibility": "Lightweight in-process topic-based pub/sub broker (no queue groups, no persistence, no ack/retry)",
@@ -284,13 +306,15 @@
       ]
     },
     "memorycache": {
-      "responsibility": "In-memory LFU cache with optional file-based persistence",
+      "responsibility": "In-memory sharded byte cache with TTL, no persistence",
       "public_types": {
         "MemoryCache": {
-          "description": "In-memory cache with sharded architecture and persistence",
+          "description": "In-memory cache, 256 shards, each an independently-locked map",
           "constructors": [
-            "NewMemoryCache() *MemoryCache - Create cache (persistence disabled)",
-            "NewMemoryCacheWithConfig(cfg PersistenceConfig) *MemoryCache - Create with persistence"
+            "NewMemoryCache(opts ...Option) *MemoryCache - the only constructor; no persistence variant exists"
+          ],
+          "options": [
+            "WithMaxEntries(n int) Option - caps total entries (default DefaultMaxEntries=100000); n<=0 means unlimited"
           ],
           "methods": [
             "Get(ctx, key string) ([]byte, bool)",
@@ -299,33 +323,21 @@
             "Delete(ctx, key string) error",
             "Keys(ctx) []string",
             "TTL(ctx, key string) (time.Duration, bool)",
-            "Stop() - Flush and close (calls OnShutdown)"
-          ]
-        },
-        "PersistenceConfig": {
-          "description": "Configuration for file-based persistence",
-          "fields": [
-            "Enabled bool - Enable/disable persistence",
-            "FilePath string - Path to persistence file",
-            "FlushInterval time.Duration - Periodic flush interval (0 = manual)"
+            "Stop() - stops the background sweep goroutine; no flush, no persistence. NOT idempotent: calling it twice closes an already-closed channel and panics."
           ]
         }
       },
-      "persistence_features": [
-        "JSON format for human debuggability",
-        "Atomic writes (temp file → rename)",
-        "Automatic expiration filtering on save/load",
-        "TTL preservation across restarts",
-        "Dirty-state tracking with atomic operations",
-        "Periodic background flushing (configurable)",
-        "Graceful handling of missing/corrupt files"
+      "notes": [
+        "No file-based persistence anywhere in this package. Do NOT invent PersistenceConfig / NewMemoryCacheWithConfig — they do not exist and never have in current source.",
+        "hashKey uses hash/maphash with a random per-process seed (not FNV-1a) — shard placement is stable within a process but not reproducible across restarts.",
+        "Eviction (admitLocked) is NOT LFU: on insert past the cap it samples up to 8 entries, deletes any already expired, and evicts whichever sampled entry has the soonest non-zero TTL (falls back to the first sampled entry if none have a deadline). It is an approximate cap, not an exact one."
       ],
       "key_characteristics": [
         "Sharded (256 shards) for concurrent R/W",
-        "LFU eviction on cleanup",
-        "Automatic background sweep every 5s/256 shards",
-        "Thread-safe all operations",
-        "Context-based API (conforms to cache interface)"
+        "Approximate sampling-based eviction when WithMaxEntries cap is hit (see notes — not LFU)",
+        "Automatic background sweep every 5s/256 shards, stopped by Stop()",
+        "Thread-safe all operations except Stop() double-call (see notes)",
+        "Context-based API (conforms to modules/cache.Cache)"
       ]
     }
   },

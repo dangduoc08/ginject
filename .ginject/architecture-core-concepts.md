@@ -299,24 +299,23 @@ type HTTPContext struct {
     ParamValues []string       // Values of dynamic path params
     
     Next Next                  // Middleware chain continuation
-    Code int                   // HTTP status code
+    Code int                   // HTTP status code (defaults to http.StatusOK)
     Timestamp time.Time        // Request start time
-    Deadline time.Time         // Request deadline (if timeout set)
 }
 ```
 
+**No `Deadline` field, `SetDeadline()`, or `IsDeadlineExceeded()` method exist on `HTTPContext`** — verified absent from `ctx/http_context.go`. Do not generate code that calls them. There is no per-request deadline API in this framework; the only timeouts are server-level (`http.Server.ReadTimeout`/`WriteTimeout`/etc., fixed in `core.App.Listen()` — see invariant #8 below).
+
 **Lifecycle**:
 1. Allocated from pool via `app.ctxPool.Get()`
-2. Initialized via `c.Init(w, r)` or `c.InitWithMaxBodySize(w, r, limit)`
+2. Initialized via `c.Init(w, r)`
 3. Used throughout request processing
 4. Reset via `c.Reset()` which clears all fields
 5. Returned to pool via `app.ctxPool.Put(c)` for reuse
 
 **Operations**:
-- `SetDeadline(duration)` — sets timeout for handler
-- `IsDeadlineExceeded()` — checks if deadline passed
-- `Status(code)` — set HTTP status code
-- `Text(data)` / `JSON(data)` / `JSONP(data)` — write response
+- `Status(code) *HTTPContext` — sets `c.Code`; chainable, call before `JSON`/`Text` since they write using whatever `Code` was last set
+- `Text(data string, args ...any)` / `JSON(data ...any)` / `JSONP(data ...any)` — write response using the current `Code`
 - `Redirect(url)` — HTTP redirect
 
 ### 3.2 WSContext Structure
@@ -563,4 +562,14 @@ type ExceptionFilterable interface {
    - Each HTTP request is independent (no shared mutable state)
    - Each WS connection is single-threaded (readLoop + writeLoop)
    - Global state is read-only after app.Create()
+
+8. **Request Body Size**:
+   - Every request body is capped at `DefaultMaxRequestBodyBytes` (10MB) by default, enforced via `http.MaxBytesReader` in `App.ServeHTTP` (core/app.go)
+   - There is currently NO public setter to change this at runtime — the field (`app.maxRequestBodyBytes`) is only set at construction
+   - Exceeding the cap surfaces as a 413 `exception.RequestEntityTooLargeException` from `ctx.Body()`, not a raw panic (ctx/http_body.go)
+
+9. **Cross-Cutting Concern Singletons** (Guard/Middleware/Interceptor/ExceptionFilter):
+   - See [package-reference.md](package-reference.md), package `common`, section "`common.Construct` — Singleton-By-Type-Name Caveat" for full detail
+   - Any bound instance (global or per-controller) is deduplicated by **Go type name only** via `common.Construct`, regardless of the field values on the struct literal passed in
+   - Binding the same struct type twice with different configuration silently reuses whichever instance was constructed first — this is NOT per-Provider-style fresh-per-injection behavior
 

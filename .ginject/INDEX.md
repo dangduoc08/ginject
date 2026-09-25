@@ -173,7 +173,7 @@ myapp/
 2. [ai-guidance-quick-reference.md](ai-guidance-quick-reference.md#decision-tree-how-do-i-implement-this-feature)
 
 **Steps**:
-1. Embed `common.REST` in controller
+1. Embed `common.HTTP` in controller
 2. Create method: `READ()` / `CREATE()` / etc.
 3. Add parameters (injected automatically)
 4. Register in `ModuleBuilder().Controllers(...)`
@@ -295,20 +295,24 @@ All `metadata-*.json` files contain structured data for AI parsing:
 
 ## Version & Updates
 
-**Knowledge Base Version**: 1.0  
+**Knowledge Base Version**: 1.1  
 **Ginject Version**: Pre-v1.0 (production readiness: 6.2/10)  
-**Last Updated**: August 2026 (memorybroker API/architecture corrections)  
+**Last Updated**: 2026-09-25 (major correctness pass — see "2026-09-25 Correction Pass" below)  
 **Coverage**: 20+ packages, 100+ public APIs, complete lifecycle documentation
+
+### 2026-09-25 Correction Pass
+
+A source-verified audit found and fixed a large number of fabricated/stale APIs across nearly every doc in this knowledge base — the most severe being: `common.REST` (doesn't exist; real type is `common.HTTP`), `App.SetMaxBodySize`/`ctx.HTTPContext.InitWithMaxBodySize`/`SetDeadline`/`IsDeadlineExceeded` (all fabricated, no per-request deadline API exists), `memorycache.PersistenceConfig`/`NewMemoryCacheWithConfig` (fabricated — memorycache has no persistence), `Guarder`/`Interceptable`/`ExceptionFilterable` declared as compile-time interfaces (they're actually `any`, checked via reflection), `ExceptionFilterable.Catch`'s parameter order (real order is `(*ctx.HTTPContext, *exception.Exception)`, not the reverse), and `routing.Router.Match`'s signature. `package-reference.md` was rewritten from scratch (58 individual findings). New coverage added: the `common.Construct` singleton-by-type-name caveat for Middleware/Guard/Interceptor/ExceptionFilter (a real, previously undocumented footgun), the HTTP request body size cap (10MB, no setter), CORS's two config-time panic conditions, and `Module.OnShutdown`'s actual (non-LIFO) call order. If you're reading this after a long gap, spot-check anything load-bearing against source before trusting it — this file's own history shows confident-looking fabrications can persist for a long time undetected.
 
 ---
 
 ## Related Documentation
 
 **In Repository**:
-- `CLAUDE.md` — Framework overview for developers
-- `ARCHITECTURE_REVIEW_AND_ROADMAP.md` — Production readiness assessment
-- `IMPLEMENTATION_PLAN.md` — v1.0 roadmap
-- `BUILDING_WITH_GINJECT.md` — Integration guide for code generation
+- `CLAUDE.md` — Framework overview for developers (note: as of 2026-09-25 it still shows `ExceptionFilterable: Catch(*exception.Exception, *ctx.HTTPContext)` with the parameter order reversed from actual source — see this KB's `common` package reference before trusting it)
+- `modules/storage/README.md`, `middlewares/cors/README.md`, `modules/config/README.md` — per-package docs not duplicated here
+
+**`ARCHITECTURE_REVIEW_AND_ROADMAP.md`, `IMPLEMENTATION_PLAN.md`, and `BUILDING_WITH_GINJECT.md` do not exist anywhere in this repository** — these were referenced by earlier versions of this doc but were never real files (verified 2026-09-25). Do not tell a user to consult them.
 
 **External**:
 - Go stdlib `net/http` — HTTP fundamentals

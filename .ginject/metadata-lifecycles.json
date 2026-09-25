@@ -39,8 +39,14 @@
       {
         "from": "RUNNING",
         "to": "STOPPED",
-        "action": "SIGINT or app.Stop() called",
-        "effects": ["Graceful WS shutdown (code 1000)", "HTTP server stops", "Resources cleaned up"]
+        "action": "SIGINT/SIGTERM (serveWithGracefulShutdown) or app.Stop() called",
+        "critical": true,
+        "effects": [
+          "callOnShutdown() runs exactly once (guarded by app.shutdownOnce), regardless of which path triggered it",
+          "Each module's OnShutdown() (if set) is called, in the SAME order as OnReady — a single pre-order walk of collectModules(), NOT reversed/LIFO",
+          "stdlib http.Server.Shutdown(ctx) runs with a 30s timeout (context.WithTimeout in core/app.go)",
+          "No WebSocket-specific close-frame/status-code logic exists anywhere in shutdown — do not invent a 'graceful WS shutdown (code 1000)' step; open WS connections are simply dropped when the server stops"
+        ]
       }
     ],
     "immutable_after_create": [
@@ -69,15 +75,15 @@
         "from": "POOLED",
         "to": "INITIALIZED",
         "stage": "ServeHTTP()",
-        "action": "c.Init(w, r) or c.InitWithMaxBodySize(w, r, limit)",
-        "effects": ["Timestamp set", "Request ID generated", "ResponseWriter/Request set", "Body size limit applied if configured"]
+        "action": "r.Body = http.MaxBytesReader(w, r.Body, app.maxRequestBodyBytes); c.Init(w, r)",
+        "effects": ["Body wrapped in MaxBytesReader BEFORE Init (fixed 10MB default, no per-call variant — InitWithMaxBodySize does not exist)", "Timestamp set", "Request ID generated", "ResponseWriter/Request set"]
       },
       {
         "from": "INITIALIZED",
         "to": "ROUTED",
         "stage": "handleRequest()",
-        "action": "routing.Router.Match(path, method)",
-        "effects": ["RouterItem found or 404", "Handler chain resolved"]
+        "action": "routing.Router.Match(method, route, version string) (bool, string, map[string][]int, []string, []ctx.HTTPHandler)",
+        "effects": ["matched bool + pattern + param keys/values + handler chain returned as a tuple, NOT a RouterItem struct", "404 if matched is false"]
       },
       {
         "from": "ROUTED",
@@ -244,7 +250,7 @@
     "implementation": {
       "declaration": "Module has OnReady and OnShutdown fields (func())",
       "example": "module.OnReady = func() { /* ... */ }",
-      "call_order": "OnReady called for each module in tree order, OnShutdown called in reverse order (LIFO)"
+      "call_order": "Both OnReady and OnShutdown are called for each module in the SAME order — a single pre-order walk of collectModules(). OnShutdown is NOT reversed/LIFO relative to OnReady; this is a common but incorrect assumption to avoid documenting."
     }
   },
   "provider_lifecycle": {

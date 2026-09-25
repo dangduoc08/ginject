@@ -175,6 +175,12 @@
       "active_websocket_connections": "10K-100K per server",
       "limit_factor": "memory (goroutine stack + send channel buffer)"
     },
+    "http_server_fixed_limits": {
+      "note": "core.App has no per-handler timeout and no configurable body cap — all fixed at New()/Listen() time, no public setters",
+      "max_request_body_bytes": "DefaultMaxRequestBodyBytes = 10MB, enforced via http.MaxBytesReader in ServeHTTP; exceeding it panics a 413 from ctx.Body(), not a raw error",
+      "read_header_timeout": "2s", "read_timeout": "5s", "write_timeout": "15s", "idle_timeout": "60s",
+      "caveat": "these bound the connection, not handler execution time — a slow handler is not interrupted by any of them"
+    },
     "bottleneck": "typically handler I/O, not framework",
     "framework_overhead": "< 5% for simple handlers"
   },

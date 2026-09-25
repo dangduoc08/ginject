@@ -260,11 +260,11 @@ If both versioned and unversioned routes exist:
 
 ### 8.1 Controller Discovery
 
-**Requirement**: Embed `common.REST` or `common.WS`
+**Requirement**: Embed `common.HTTP` or `common.WS`
 
 ```go
 type UserController struct {
-    common.REST  // Makes this an HTTP controller
+    common.HTTP  // Makes this an HTTP controller
     UserService  // Dependency to inject
 }
 

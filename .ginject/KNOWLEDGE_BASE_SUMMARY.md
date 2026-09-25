@@ -1,10 +1,10 @@
 # Ginject AI Knowledge Base — Update Summary
 
-**Last Updated**: August 28, 2026  
-**Status**: ✅ CURRENT — World-Class AI-Friendly Documentation  
+**Last Updated**: 2026-09-25  
+**Status**: ✅ CURRENT — re-verified against source after a major correction pass  
 **Total Lines**: 6,500+ lines of comprehensive documentation  
 **Files Created**: 15 files (11 markdown + 4 JSON)
-**Latest Updates**: `memorybroker` corrected — removed stale references to `Once`/`SubscribeQueue`/`Off`/`Topics`/`Clear`/`Stats` (dropped from the public API), removed fabricated "256 shards"/"worker pool" claims (it's a single `sync.RWMutex` over 4 maps, no sharding), added `ErrForeignSubscription` and the verified `Close()`-from-`PublishAsync`-handler deadlock anti-pattern
+**Latest Updates**: See [INDEX.md](INDEX.md)'s "2026-09-25 Correction Pass" for the full list — in short, `package-reference.md` was rewritten from scratch after 58 fabricated/stale API findings, and several fabrications repeated across multiple files (`common.REST`, per-request deadline APIs, `memorycache` persistence) were purged everywhere. Prior entry: `memorybroker` corrected — removed stale references to `Once`/`SubscribeQueue`/`Off`/`Topics`/`Clear`/`Stats` (dropped from the public API), removed fabricated "256 shards"/"worker pool" claims (it's a single `sync.RWMutex` over 4 maps, no sharding), added `ErrForeignSubscription` and the verified `Close()`-from-`PublishAsync`-handler deadlock anti-pattern
 
 ---
 
@@ -242,10 +242,10 @@ ginject/
 │   └── metadata-lifecycles.json        ← State machines
 │
 ├── CLAUDE.md                           ← Developer guide
-├── ARCHITECTURE_REVIEW_AND_ROADMAP.md  ← Roadmap
-├── IMPLEMENTATION_PLAN.md              ← v1.0 plan
 └── ... (source code)
 ```
+
+Note: `ARCHITECTURE_REVIEW_AND_ROADMAP.md`, `IMPLEMENTATION_PLAN.md`, and `BUILDING_WITH_GINJECT.md` do not exist in this repository (verified 2026-09-25) despite being referenced by earlier versions of this file — do not point anyone to them.
 
 ---
 

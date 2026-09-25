@@ -178,6 +178,14 @@ moduleTree := core.ModuleBuilder().
 | Module A ready before B | No import order guarantees |
 | All modules same readiness level | Each has own OnInit/OnReady |
 
+### Shutdown: `OnShutdown` (the counterpart this doc's title implies, documented here for completeness)
+
+`core.Module.OnShutdown func()` fires on SIGINT/SIGTERM (via `serveWithGracefulShutdown`) or a direct `app.Stop()` call — both funnel into `callOnShutdown()`, guarded by `app.shutdownOnce` so it runs exactly once regardless of which path triggered it (`core/app.go`).
+
+**Common misconception to avoid generating**: `OnShutdown` is called in the **same** module-tree order as `OnReady` — a single pre-order walk of `collectModules()`. It is **NOT** reversed/LIFO relative to `OnReady`, even though that would be the intuitive symmetric-teardown assumption.
+
+After all modules' `OnShutdown()` return, the stdlib `http.Server.Shutdown(ctx)` runs with a 30-second timeout. There is no WebSocket-specific shutdown handling (no close-frame/status-code logic) — open WS connections are simply dropped when the server stops.
+
 ---
 
 ## Message Safety

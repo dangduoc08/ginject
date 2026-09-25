@@ -69,10 +69,22 @@
 
 ### 2.1 Middleware Interface
 
+`MiddlewareFn` is an **interface**, not a func type — a bare func literal does NOT satisfy it (common/middleware.go):
 ```go
-type MiddlewareFn func(*http.Request, http.ResponseWriter, ctx.Next)
+type Use = func(*http.Request, http.ResponseWriter, ctx.Next)
 
-type Next = func()
+type MiddlewareFn interface {
+    Use(*http.Request, http.ResponseWriter, ctx.Next)
+}
+```
+
+Bind calls must pass a **struct value implementing `Use`** — the framework resolves it via `reflect` at bind time, not a plain func:
+```go
+type LogMiddleware struct{}
+
+func (m LogMiddleware) Use(r *http.Request, w http.ResponseWriter, next ctx.Next) {
+    next()
+}
 ```
 
 **Responsibilities**:
@@ -86,27 +98,23 @@ type Next = func()
 
 **Global** (applies to all routes):
 ```go
-app.BindGlobalMiddlewares(func(r *http.Request, w http.ResponseWriter, next ctx.Next) {
-    // Runs for every request
-    next()
-})
+app.BindGlobalMiddlewares(LogMiddleware{})
 ```
 
 **Module-Scoped** (applies to this module's routes):
 ```go
 type UserController struct {
-    common.REST
+    common.HTTP
     common.Middleware
 }
 
 func (c UserController) NewController() Controller {
-    c.BindMiddleware(func(r *http.Request, w http.ResponseWriter, next ctx.Next) {
-        // Runs only for UserController routes
-        next()
-    }, c.READ_BY_ID)  // Can specify specific handlers
+    c.BindMiddleware(LogMiddleware{}, c.READ_BY_ID)  // Can specify specific handlers
     return c
 }
 ```
+
+**Optional `NewMiddleware()` constructor** — if the bound type defines `NewMiddleware() MiddlewareFn`, the framework calls it once (via `common.Construct`) instead of using the literal directly — the standard place to precompute/validate config once instead of per-request (e.g. `middlewares/cors.CORS.NewMiddleware()` compiles its options once). **Caveat**: `Construct` caches by Go type name only, process-wide — binding two differently-configured instances of the same type anywhere in the app silently collapses to whichever was constructed first. Same applies to Guard/Interceptor/ExceptionFilter below. Full detail: [package-reference.md](package-reference.md), package `common`.
 
 ### 2.3 Middleware Execution Order
 
@@ -129,11 +137,11 @@ func (c UserController) NewController() Controller {
 
 ### 3.1 Guard Interface
 
+`Guarder` is declared as `type Guarder any` (common/guard.go) — there is NO compile-time interface. The framework checks the shape via reflection (`reflect.ValueOf(x).MethodByName("CanActivate")`) and requires it to match this func type exactly:
 ```go
-type Guarder interface {
-    CanActivate(*ctx.HTTPContext) bool
-}
+type HTTPCanActivate = func(*ctx.HTTPContext) bool
 ```
+A bound value that has no `CanActivate` method matching this signature fails at bind time with `common.GuardShapeError`.
 
 **Responsibilities**:
 - Inspect request (auth, permissions, etc.)
@@ -163,18 +171,22 @@ if panic:
 
 ### 3.3 Guard Registration
 
-**Route-Specific**:
+`Guarder` is an interface — bind a struct implementing `CanActivate`, not a bare func:
+
 ```go
+type AuthGuard struct{}
+
+func (g AuthGuard) CanActivate(httpCtx *ctx.HTTPContext) bool {
+    return isAuthorized(httpCtx)
+}
+
 type UserController struct {
-    common.REST
+    common.HTTP
     common.Guard
 }
 
 func (c UserController) NewController() Controller {
-    c.BindGuard(func(httpCtx *ctx.HTTPContext) bool {
-        // Check auth, permissions, etc.
-        return isAuthorized(httpCtx)
-    }, c.READ_BY_ID)  // Protect specific handler
+    c.BindGuard(AuthGuard{}, c.READ_BY_ID)  // Protect specific handler
     return c
 }
 ```
@@ -191,10 +203,9 @@ func (c UserController) NewController() Controller {
 
 ### 4.1 Interceptor Interface
 
+`Interceptable` is declared as `type Interceptable any` (common/interceptor.go) — checked via reflection against this func shape, not a compile-time interface:
 ```go
-type Interceptable interface {
-    Intercept(*ctx.HTTPContext, *aggregation.Aggregation) any
-}
+type HTTPIntercept = func(*ctx.HTTPContext, *aggregation.Aggregation) any
 ```
 
 **Responsibilities**:
@@ -236,32 +247,31 @@ type Aggregation struct {
 
 ### 4.4 Interceptor Registration
 
+`Interceptable` is an interface — bind a struct implementing `Intercept`, not a bare func:
+
 ```go
+type TimestampInterceptor struct{}
+
+func (i TimestampInterceptor) Intercept(httpCtx *ctx.HTTPContext, agg *aggregation.Aggregation) any {
+    if agg.Data == nil {
+        return nil // pre-handler phase
+    }
+    if agg.Exception != nil {
+        return nil // log exception, post-handler phase
+    }
+    return map[string]any{
+        "data":      agg.Data,
+        "timestamp": time.Now(),
+    }
+}
+
 type UserController struct {
-    common.REST
+    common.HTTP
     common.Interceptor
 }
 
 func (c UserController) NewController() Controller {
-    c.BindInterceptor(func(httpCtx *ctx.HTTPContext, agg *aggregation.Aggregation) any {
-        // Pre-handler phase
-        if agg.Data == nil {
-            // Transform request
-            return nil
-        }
-        
-        // Post-handler phase
-        if agg.Exception != nil {
-            // Log exception
-            return nil
-        }
-        
-        // Transform response
-        return map[string]any{
-            "data": agg.Data,
-            "timestamp": time.Now(),
-        }
-    }, c.READ_BY_ID)
+    c.BindInterceptor(TimestampInterceptor{}, c.READ_BY_ID)
     return c
 }
 ```
@@ -281,10 +291,9 @@ func (c UserController) NewController() Controller {
 
 ### 5.1 Exception Filter Interface
 
+`ExceptionFilterable` is declared as `type ExceptionFilterable any` (common/exception_filter.go) — checked via reflection against this func shape. Note the parameter order: `*ctx.HTTPContext` comes FIRST, `*exception.Exception` SECOND (common/http_exception_filter.go):
 ```go
-type ExceptionFilterable interface {
-    Catch(*exception.Exception, *ctx.HTTPContext)
-}
+type HTTPCatch = func(*ctx.HTTPContext, *exception.Exception)
 ```
 
 **Responsibilities**:
@@ -304,7 +313,7 @@ common.NormalizeRecovered(panicValue) → *exception.Exception
     ↓
 Exception filter chain called
     ↓
-Filter.Catch(exception, httpCtx) → writes response
+Filter.Catch(httpCtx, exception) → writes response
 ```
 
 ### 5.3 Filter Execution Order
@@ -330,21 +339,26 @@ app.BindGlobalExceptionFilters(globalHTTPExceptionFilter{})
 ```
 
 **Route-Specific Filter**:
+
+`ExceptionFilterable` is `any` — bind a struct implementing `Catch(*ctx.HTTPContext, *exception.Exception)`, not a bare func, and note `httpCtx` comes first:
+
 ```go
+type UserErrorFilter struct{}
+
+func (f UserErrorFilter) Catch(httpCtx *ctx.HTTPContext, ex *exception.Exception) {
+    httpCtx.Status(ex.GetCode())
+    httpCtx.JSON(map[string]any{
+        "error": ex.GetMessage(),
+    })
+}
+
 type UserController struct {
-    common.REST
+    common.HTTP
     common.ExceptionFilter
 }
 
 func (c UserController) NewController() Controller {
-    c.BindExceptionFilter(func(ex *exception.Exception, httpCtx *ctx.HTTPContext) {
-        // Handle exception
-        httpCtx.Status(ex.GetCode())
-        httpCtx.JSON(map[string]any{
-            "error": ex.GetMessage(),
-            "trace": ex.GetStackTrace(),
-        })
-    }, c.READ_BY_ID)
+    c.BindExceptionFilter(UserErrorFilter{}, c.READ_BY_ID)
     return c
 }
 ```
@@ -355,16 +369,17 @@ func (c UserController) NewController() Controller {
 ```go
 type globalHTTPExceptionFilter struct {}
 
-func (f globalHTTPExceptionFilter) Catch(ex *exception.Exception, c *ctx.HTTPContext) {
+func (f globalHTTPExceptionFilter) Catch(c *ctx.HTTPContext, ex *exception.Exception) {
     // If no custom filter handles exception, this catches it
-    statusCode, statusText := ex.GetHTTPStatus()
-    c.JSON(statusCode, map[string]any{
-        "code":    statusCode,
-        "error":   statusText,
+    c.Status(ex.GetCode()).JSON(map[string]any{
+        "code":    ex.GetCode(),
+        "error":   ex.GetStatusText(),
         "message": ex.GetMessage(),
     })
 }
 ```
+
+Note: `c.JSON`/`c.Text`/`c.JSONP` write using whatever status was last set via `c.Status(code)` (default: Go's zero value until set) — call `Status` before `JSON`, not as a combined call; both are chainable since `Status` returns `*HTTPContext`.
 
 ---
 
@@ -424,15 +439,16 @@ Status 403 Forbidden written
 
 ### 7.3 Timeout Handling
 
+**There is no per-request deadline API.** `ctx.HTTPContext` has no `SetDeadline`/`IsDeadlineExceeded`/`Deadline` field (verified absent from `ctx/http_context.go`) — do not generate handler code that calls them. The only timeouts are set once, server-wide, in `core.App.Listen()`:
+
 ```
-c.SetDeadline(5 * time.Second)
-    ↓
-Before handler: c.IsDeadlineExceeded() checked
-    ↓
-If true: panic(RequestTimeoutException())
-    ↓
-Exception filter handles: Status 408 Request Timeout
+DefaultReadHeaderTimeout = 2s
+DefaultReadTimeout       = 5s
+DefaultWriteTimeout      = 15s
+DefaultIdleTimeout       = 60s
 ```
+
+These apply to the underlying `http.Server` connection, not to individual handler execution — there's no built-in way to cap how long a single handler is allowed to run. If a handler needs a deadline (e.g. for a slow downstream call), it must create its own `context.WithTimeout` internally.
 
 ---
 

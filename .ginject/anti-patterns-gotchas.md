@@ -693,3 +693,81 @@ brokerB.Unsubscribe(subA)  // returns ErrForeignSubscription, no-op on both brok
 
 **Rule**: A cross-broker `Unsubscribe` call is safe (rejected with a typed error), but almost always indicates a wiring bug — the caller has the wrong `Broker` reference.
 
+## 10. Cross-Cutting Concern Singleton Gotchas
+
+### 10.1 GOTCHA: Binding the Same Middleware/Guard/Interceptor/Filter Type Twice With Different Config
+
+**WRONG**:
+```go
+// Controller A
+c.BindMiddleware(cors.CORS{AllowOrigin: []string{"https://a.example.com"}})
+
+// Controller B — different config, SAME Go type
+c.BindMiddleware(cors.CORS{AllowOrigin: []string{"https://b.example.com"}})
+```
+
+**Why It's Wrong**: `common.Construct` (the mechanism behind every `BindMiddleware`/`BindGuard`/`BindInterceptor`/`BindExceptionFilter`, global or per-controller, HTTP and WS) caches by **Go type name only** (`reflect.TypeOf(obj).String()`), via a per-key `sync.Once`, process-wide. Whichever `cors.CORS{...}` literal is constructed first wins — controller B silently gets controller A's `AllowOrigin`, with no error, no warning. This applies to any type bound this way, not just `cors.CORS`, and applies even to types with no `New*()` constructor at all (the bare struct literal is still cached by type name).
+
+**RIGHT**: Give each configuration its own Go type:
+```go
+type PublicCORS struct{ cors.CORS }
+func (c PublicCORS) NewMiddleware() common.MiddlewareFn { return cors.CORS(c).NewMiddleware() }
+
+type InternalCORS struct{ cors.CORS }
+func (c InternalCORS) NewMiddleware() common.MiddlewareFn { return cors.CORS(c).NewMiddleware() }
+```
+Or avoid binding two differently-configured instances of the same underlying type anywhere in the same process.
+
+**Rule**: Never assume a bound Middleware/Guard/Interceptor/ExceptionFilter gets a fresh instance per bind-site. It's a singleton keyed by type name — the opposite of `Provider`'s per-injection semantics.
+
+## 11. HTTP Body Size Gotchas
+
+### 11.1 GOTCHA: Assuming Request Bodies Are Unbounded
+
+**WRONG** (generating an upload handler without checking the cap):
+```go
+func (c UploadController) CREATE(body ctx.Body) any {
+    // Assumes any size body reaches here — it doesn't.
+}
+```
+
+**Why It's Wrong**: Every request body is wrapped in `http.MaxBytesReader` at a fixed `DefaultMaxRequestBodyBytes` (10MB), set once in `core.App.New()`. **There is no public setter** — do not generate `app.SetMaxBodySize(...)`, it does not exist. A body over 10MB causes `ctx.Body()` to panic `exception.RequestEntityTooLargeException` (413) instead of parsing.
+
+**RIGHT**: Document the 10MB ceiling to callers of the API; if a larger limit is genuinely needed, it currently requires modifying `core/app.go`'s `maxRequestBodyBytes` field handling — there's no config-time API for it yet.
+
+**Rule**: Any handler that accepts uploads must account for the fixed 10MB cap and the 413 it produces; don't assume a configurable or unlimited body size.
+
+## 12. CORS Configuration Gotchas
+
+### 12.1 GOTCHA: Wildcard Origin With Credentials
+
+**WRONG**:
+```go
+cors.CORS{IsAllowCredentials: true}   // AllowOrigin unset defaults to wildcard "*"
+```
+
+**Why It's Wrong**: `middlewares/cors.CORS.NewMiddleware()` panics at config time (during `app.Create()`, not on first request) when `AllowOrigin` is wildcard (explicit `"*"` or left unset) combined with `IsAllowCredentials: true`. This is deliberate — browsers reject `*` on credentialed requests, and echoing the caller's origin back to satisfy that would grant every site on the internet credentialed access.
+
+**RIGHT**:
+```go
+cors.CORS{AllowOrigin: []string{"https://app.example.com"}, IsAllowCredentials: true}
+```
+
+**Rule**: Never generate `cors.CORS{IsAllowCredentials: true}` without an explicit `AllowOrigin` list or anchored regexp.
+
+### 12.2 GOTCHA: Unanchored Regexp `AllowOrigin`
+
+**WRONG**:
+```go
+cors.CORS{AllowOrigin: regexp.MustCompile(`https://.*\.trusted\.com`)}   // missing ^ and $
+```
+
+**Why It's Wrong**: `NewMiddleware()` also panics if a `*regexp.Regexp` `AllowOrigin` isn't anchored with `^` and `$`. Without both anchors, matching is a substring search: `https://.*\.trusted\.com` also matches `"https://evil.trusted.com.attacker.com"` — a real domain-suffix bypass, not a hypothetical one.
+
+**RIGHT**:
+```go
+cors.CORS{AllowOrigin: regexp.MustCompile(`^https://.*\.trusted\.com$`)}
+```
+
+**Rule**: Any regexp `AllowOrigin` must start with `^` and end with `$`.
+
