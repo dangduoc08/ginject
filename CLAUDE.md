@@ -42,10 +42,44 @@ These are the strictest rules in this file. They apply to every agent and subage
 
 ## Working rules
 
+- **Go version:** the repo is on Go 1.27.3 (`go.mod`; CI reads it via `go-version-file`). Use current idioms: `for range n`, `sync.WaitGroup.Go`, `b.Loop`, and the `slices`/`maps`/`strings` helpers. `go fix -diff ./...` lists the places modernizers would change.
+
 - **Keep the existing code conventions.** They are the owner's style. Don't modernise or restyle code you aren't changing.
+- **Where functions live in a package:**
+  - Exported API goes in files named after their topic: `str.go`, `trie.go`, `router.go`.
+  - An unexported helper used by two or more files goes in `fn.go`, with its tests in `fn_test.go`.
+  - An unexported helper used by only one file stays in that file, placed after the function that calls it.
+  - A package with a single code file has no `fn.go`. Everything stays in that file.
+  - When a second file starts using a helper, move the helper and its tests to `fn.go`/`fn_test.go`.
+- **Names are the documentation**, because there are no comments.
+  - Use descriptive parameter names (`kind`, not `t`).
+  - Don't shadow builtins (`close`, `len`, `new`) or the package's own name. In package `str`, a string parameter is `s`, following the standard library.
+  - Fix typos in identifiers.
+  - Package names may describe a future scope rather than the current content. For example `internal/crypto` (hashing will join UUID) and `internal/ds` (more data structures will come), plus `Trie.Raw` (the original route string), are owner decisions (D-021).
 - **No comments in Go code you write.** This covers doc comments, inline comments and test comments. Let names carry the meaning, and put rationale in the report. Don't strip comments that already exist, including in code ported from master.
-- **Tests:** follow the helper used in the package's existing tests. On main that is `t.Error(utils.ErrorMessage(actual, expected, "desc"))`. Master's `internal/test.DiffMessage` replaces it only once decision D-002 is made.
+- **Tests:** use the helper that the package's existing tests already use (D-002).
+  - Packages ported from master use `t.Error(test.DiffMessage(actual, expected, "desc"))` from `internal/test`.
+  - Packages not yet ported keep `utils.ErrorMessage`.
+  - Exception: `internal/test`'s own tests use `t.Errorf`, because `DiffMessage` can't assert on its own output.
 - **Concurrency claims need evidence.** Run `-race`, write a concurrent test, or record goroutine counts before and after. "Should be safe" is not evidence.
+- **Performance depends on the path.** Correctness and race-freedom always come first.
+  - **Hot path:** code that runs on every request, such as route lookup and the trie, `ctx` creation, binding, the middleware/guard/interceptor/filter pipeline, response writing, and per-request logging.
+    - Optimise for speed. Minimise allocations, and keep `fmt`, reflection, regexp and `defer` out. Do that work once at `Create()` time instead.
+    - The owner must still be able to understand every optimisation, and the reading guide explains each one.
+    - **Take every measurable gain, however small.** Small costs add up across the pipeline: ten functions at 14 ns each is 140 ns per request. A gain counts if it is stable across repeated runs or removes an alloc, and it needs no per-function threshold. This also applies to warm code that a client can trigger.
+    - Every fast path needs a test proving it equals the slow path, for example over random inputs.
+    - Defer only when the code will certainly be deleted or rewritten in a planned step. Record each deferral in PORT.md with a target number.
+    - P4 measures the whole request end to end, so the cumulative cost stays visible.
+  - **Cold path:** everything else, such as bootstrap, `Create()`, startup logging, error formatting and rarely called helpers.
+    - Write for readability and ownership first. Only avoid obvious waste, like compiling a regexp on every call.
+  - **Heavy techniques need the owner's approval for each use, before the code is written.** These are `unsafe`, `sync.Pool`, hand-managed buffers and restructuring code to make it inline. Bring a benchmark showing the gain and explain the constraint the technique brings.
+  - **Type A vs type B.**
+    - **Type A** is free (no readability cost, no extra branch) and applies everywhere, whatever the path: no regexp compiled per call, no needless alloc or copy, no `Sprintf` for plain concatenation.
+    - **Type B** costs something: a fast path, `unsafe`, `sync.Pool`, manual buffers. It applies only on proven hot code, or on warm code a client can trigger.
+    - If the class is undetermined, do type A now and log type B in `.claude/roadmap/ROADMAP.md`.
+  - For input a client controls, bound the work with limits first.
+  - Propose every optimisation before writing it, with expected numbers. Never optimise first and explain afterwards.
+  - Benchmarks use `for b.Loop() { ... }` and call `b.ReportAllocs()`. Since Go 1.26, `b.Loop` keeps the results alive without blocking inlining, so no sink variable is needed. `b.RunParallel` is the exception and still needs a package-level sink.
 - **Performance claims need numbers.** Run `go test -bench . -benchmem -count 5` before and after, on the same machine, and report both.
 - **Done means `make check` passes.** Report its real output. Never claim a pass you didn't run.
 - **Verify before you write docs.** The code is the source of truth. Master's docs (`git show master:CLAUDE.md`, `master:.ginject/`) describe master, not main. Use them as hints, never as facts about main.
@@ -71,7 +105,18 @@ This section describes the code that is on this branch now. Update it in the sam
   - Operations (`common.RESTOperations`): `READ`, `CREATE`, `UPDATE`, `MODIFY`, `DELETE`, `PREFLIGHT`, `SERVE`.
   - Tokens: `BY`, `AND`, `OF`, `ANY`, `FILE`, `VERSION`.
   - Routes are stored in a trie (`routing/`).
+- **Internal helpers (`internal/`, ported in P1):**
+  - The packages are `color`, `crypto` (`UUID`), `num`, `slice`, `str`, `test` (`DiffMessage`) and `ds` (the route trie).
+  - Code outside the module can't import them.
+  - Nothing calls them yet. Callers move off the exported `utils` package as their own packages are ported, and `utils` is deleted at the end of P3 (D-002).
+  - `ds.Trie` has no locking. `Insert` while `Find` runs is a data race (proven with `-race`), so the trie must be fully built before serving.
 - **Devtool:** `app.EnableDevtool()`, served over gRPC (`devtool/`). It is planned to be replaced by REST/SSE/WebSocket, see PORT.md.
+
+## Planning files
+
+- `.claude/decisions.md` is **permanent**. Every owner decision goes here (D-001, …).
+- `.claude/roadmap/ROADMAP.md` is **permanent**. It holds product work (devtool, WS, adapters), the performance audit backlog for undetermined functions, and recurring audits.
+- `.claude/port/` is **temporary**. It holds the port plan and reading guides, and is deleted at P14 after its durable knowledge has moved into package READMEs or this file.
 
 ## Subagents and commands
 
@@ -81,7 +126,7 @@ This section describes the code that is on this branch now. Update it in the sam
   - `doc-verifier`: read-only claim check.
 - **Commands** (`.claude/commands/`):
   - `/port <step>`: port one PORT.md step from master.
-  - `/commit`
-  - `/check-staged`
+  - `/pair-review <package>`: review a package with the owner across six lenses, all backed by probes: performance (a hot/warm/cold map the owner confirms), concurrency, security, correctness and errors, resources, and readability and conventions. Exported packages also get an API-surface lens.
+  - `/commit`: runs `make check` first and warns when staged files also have unstaged edits. It summarises the staged diff (behaviour change, API change, and which D-xxx it implements) and recommends `go-reviewer` for unreviewed Go code. It then proposes Conventional Commit messages and commits only after the owner confirms.
   - `/sync-docs`
 - A hook runs gofmt after every Go file edit.

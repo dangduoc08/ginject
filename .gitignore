@@ -31,3 +31,6 @@ go.work
 node_modules
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Vietnamese docs (personal reading copies)
+*.vi.md

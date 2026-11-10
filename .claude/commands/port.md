@@ -23,7 +23,17 @@ Bring step $ARGUMENTS of `.claude/port/PORT.md` from `master` onto `main`, so th
    
    Don't write any code before every divergence in scope is decided.
 
-4. **Port.** Bring files with `git show master:<path>` and apply the decisions. Port the tests with the code. Keep existing comments in ported code, and add none. Re-prove each in-scope known bug with a throwaway probe test. Report it, and don't fix it unless the owner decided to.
+4. **Port.** Bring files with `git show master:<path>` and apply the decisions. Port the tests with the code. Keep existing comments in ported code, and add none. Re-prove each in-scope known bug with a throwaway probe test.
+
+4b. **Review and fix with the owner, one package at a time.** Ported code is a starting point, not a finished result. Go through the step's packages in reading order, and run `/pair-review <package>` on each one. The hot/cold map comes first; then the items below. For each package:
+   - **Score** its code, tests and benchmarks out of 10, with concrete strengths and weaknesses. Back every weakness with a probe, coverage numbers or benchmark output. Never guess.
+   - **Propose fixes.** Ask the owner in Vietnamese with AskUserQuestion, one question per behaviour change, and show before/after code in the preview. Fixes to tests and benchmarks that don't change behaviour can be grouped into one question.
+   - **Apply** only what the owner approved:
+     - record each behaviour change in `decisions.md`;
+     - add a regression test for every fixed bug;
+     - re-run the benchmarks and show the numbers before and after.
+   - **Defer** a finding to a later step only when that later step has the context it needs, for example a caller that hasn't been ported yet. Write each deferred finding into PORT.md under the step that will handle it.
+   - Move on to the next package only after the owner says the current one is done.
 
 5. **Evidence.**
    - `make check`
@@ -31,7 +41,7 @@ Bring step $ARGUMENTS of `.claude/port/PORT.md` from `master` onto `main`, so th
    - a concurrent test for any shared state in scope
    - for request-path code, `go test -bench . -benchmem -count 5` on main before the port and after, compared side by side
 
-6. **Review.** Run the `go-reviewer` subagent on the working-tree diff. Fix critical findings. List the rest.
+6. **Review.** Run the `go-reviewer` subagent on the working-tree diff. Fix critical findings. List the rest. Then run the step gate from PORT.md "Definition of done" 4b (dependencies and binary, devtool readiness, ecosystem compatibility) and report each lens.
 
 7. **Reading guide.** Write `.claude/port/$ARGUMENTS-reading-guide.md` with:
    - the files in call order, each with one line on what it does;
@@ -39,6 +49,12 @@ Bring step $ARGUMENTS of `.claude/port/PORT.md` from `master` onto `main`, so th
    - the decisions applied, the bugs re-proven, and the benchmark table.
    
    If the step is larger than about 300 lines of non-test library code, split the guide into ordered chunks of about 300 lines.
+
+   Also write a faithful Vietnamese translation next to it: `.claude/port/$ARGUMENTS-reading-guide.vi.md`.
+   - It has the same structure, sections, tables and numbers as the English guide. Translate it; don't summarise it or add to it.
+   - Keep code, identifiers, file paths, commands and benchmark output exactly as they are.
+   - When the English guide changes, update the `.vi.md` in the same change.
+   - `*.vi.md` is gitignored. It is the owner's local reading copy and is never committed.
 
 8. **Hand over.**
    - Update CLAUDE.md "Architecture" for what changed.

@@ -8,7 +8,7 @@ You write tests for ginject. Read `CLAUDE.md` and `.claude/decisions.md` first. 
 
 Rules:
 - Edit only `*_test.go` files. If the code looks wrong, report it, and don't fix it.
-- Use the assertion helper the package's existing tests use. On main that is `t.Error(utils.ErrorMessage(actual, expected, "desc"))`, unless decision D-002 says otherwise.
+- Use the assertion helper the package's existing tests already use (D-002). Packages ported from master use `test.DiffMessage` from `internal/test`. Packages not yet ported use `utils.ErrorMessage`.
 - Don't write comments in the code you write.
 - Cover:
   - the happy path;
@@ -16,7 +16,8 @@ Rules:
   - boundaries;
   - malformed input;
   - concurrent access under `-race` for any shared state. For this framework, include many concurrent requests through `app.ServeHTTP` where relevant.
-- Benchmarks use realistic sizes and call `b.ReportAllocs()`.
+- Benchmarks use realistic sizes, `for b.Loop()` and `b.ReportAllocs()`. `b.RunParallel` keeps a package-level sink.
+- Use Go 1.27 idioms: `for range n` and `wg.Go(func(){...})`.
 - Match the style of the existing tests in the same package.
 
 Finish by running `go test -race -cover ./<pkg>/...` and `make check`. Report the tests added, coverage before and after, and the real command output.

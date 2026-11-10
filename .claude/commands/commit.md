@@ -15,6 +15,15 @@ If $ARGUMENTS is provided, use it as the commit message directly.
 
 1. Run `git diff --staged` to read all staged changes. If nothing is staged, tell the user and stop.
 
+1b. **Pre-commit check** (replaces the old `/check-staged`):
+   - Run `make check` and report its real result. If it fails, stop and show the failure. Don't propose a commit.
+   - **Unstaged changes:** `make check` runs on the working tree, but only the staged set is committed. If any staged file also has unstaged edits (`git status --short` shows `MM`/`AM`), warn the owner, because the check didn't run on exactly what will be committed. The pre-commit hook re-tests the staged snapshot only.
+   - Summarise the staged diff in 1–3 lines, in the owner's language:
+     - **Behaviour change vs HEAD:** YES or NO. If YES, say what changed.
+     - **Exported API change:** YES or NO.
+     - **Decisions covered:** the `D-xxx` entries this diff implements, or "none".
+   - If the staged set contains Go code that `go-reviewer` hasn't reviewed in this session, recommend running it first, and ask before proceeding.
+
 2. If $ARGUMENTS is provided, skip to step 5 using $ARGUMENTS as the message for a single commit covering all staged changes.
 
 3. Group the staged changes into logical commit units:
