@@ -10,6 +10,7 @@ linters:
     - bodyclose
     - copyloopvar
     - misspell
+    - predeclared
   settings:
     staticcheck:
       checks:

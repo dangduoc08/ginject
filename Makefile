@@ -40,8 +40,19 @@ lint: ## Run linter
 vuln: ## Run govulncheck
 	govulncheck ./...
 
+PORTED_DIRS := internal log pattern trace
+
+.PHONY: conventions
+conventions: ## Fail if ported packages break the mechanical conventions in CLAUDE.md
+	@for dir in $(PORTED_DIRS); do [ -d "$$dir" ] || { echo "PORTED_DIRS: $$dir does not exist"; exit 1; }; done
+	@go fix -embedlit=false -diff $(addprefix ./,$(addsuffix /...,$(PORTED_DIRS))) || { echo "Go idioms: go fix wants the changes above"; exit 1; }
+	@out="$$(grep -rnE '^[[:space:]]*(type[[:space:]]+)?[A-Za-z0-9_]*(Config|Opts|Cfg)(\[[^]]*\])?[[:space:]]+struct|^func[^"]*[(,][[:space:]]*(cfg|config|conf)[[:space:]]+\*?[A-Za-z0-9_.]+' --include='*.go' $(PORTED_DIRS))"; \
+	if [ -n "$$out" ]; then echo "D-032: constructor settings are opts *XxxOptions:"; echo "$$out"; exit 1; fi
+	@out="$$(grep -rnE '(^|[^A-Za-z0-9_])[tb]\.((Fatalf|Errorf)\(|(Fatal|Error)\(("|fmt\.Sprint))' --include='*_test.go' $(PORTED_DIRS) | grep -v '^internal/test/')"; \
+	if [ -n "$$out" ]; then echo "D-002: use test.DiffMessage in ported tests:"; echo "$$out"; exit 1; fi
+
 .PHONY: check
-check: fmt-check vet lint test tidy-check ## Definition of done for every change
+check: fmt-check vet lint conventions test tidy-check ## Definition of done for every change
 
 .PHONY: protoc
 protoc: ## Generate protocol buffer
