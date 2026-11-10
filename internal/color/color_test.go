@@ -133,3 +133,15 @@ func TestFmtColorsNeverFullReset(t *testing.T) {
 		}
 	}
 }
+
+func TestCodesNotUsedByFmt(t *testing.T) {
+	codes := map[string][2]string{
+		"Reset": {Reset, "\x1b[0m"},
+		"Gray":  {Gray, "\x1b[90m"},
+	}
+	for name, c := range codes {
+		if c[0] != c[1] {
+			t.Error(test.DiffMessage(c[0], c[1], name))
+		}
+	}
+}
