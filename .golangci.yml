@@ -9,6 +9,7 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
+    - misspell
   settings:
     staticcheck:
       checks:
