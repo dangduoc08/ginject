@@ -1,0 +1,60 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go list:*)",
+      "Bash(go doc:*)",
+      "Bash(go run:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go mod download:*)",
+      "Bash(go version:*)",
+      "Bash(go env:*)",
+      "Bash(gofmt:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(govulncheck:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git grep:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git restore --staged:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)"
+    ],
+    "ask": [
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(git rebase:*)",
+      "Read(./**/.env)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/gofmt.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
