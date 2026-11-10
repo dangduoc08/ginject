@@ -6,21 +6,18 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/dangduoc08/ginject/common"
 )
 
 type logFormat int
-
-type LogTransport struct {
-	Filename string
-	Level    slog.Level
-}
 
 type LogOptions struct {
 	AddSource  bool
 	Level      slog.Level
 	LogFormat  logFormat
 	TimeFormat string
-	Transports []*LogTransport
+	MaskFields []string
 }
 
 type logInstance struct {
@@ -28,18 +25,14 @@ type logInstance struct {
 }
 
 const (
-	labelDebug = "DEBUG"
-	labelInfo  = "INFO"
-	labelWarn  = "WARN"
-	labelError = "ERROR"
-	labelFatal = "FATAL"
-
 	DebugLevel = slog.LevelDebug
 	InfoLevel  = slog.LevelInfo
 	WarnLevel  = slog.LevelWarn
 	ErrorLevel = slog.LevelError
 	FatalLevel = slog.Level(12)
+)
 
+const (
 	TextFormat logFormat = iota + 1
 	JSONFormat
 	PrettyFormat
@@ -52,16 +45,12 @@ var levelLabel = map[slog.Level]string{
 	ErrorLevel: labelError,
 	FatalLevel: labelFatal,
 }
-var singleInstance *logInstance
+var singleInstance common.Logger
 var once sync.Once
 
 func loadLogOptions(opts *LogOptions) *LogOptions {
 	if opts == nil {
 		opts = &LogOptions{}
-	}
-
-	if opts.Level == -1 {
-		opts.Level = InfoLevel
 	}
 
 	if opts.LogFormat == 0 {
@@ -75,52 +64,54 @@ func loadLogOptions(opts *LogOptions) *LogOptions {
 	return opts
 }
 
-func NewLog(opts *LogOptions) *logInstance {
+func NewLog(opts *LogOptions) common.Logger {
 	once.Do(func() {
 		logOpts := loadLogOptions(opts)
 
 		slogOptions := slog.HandlerOptions{
-			AddSource: logOpts.AddSource,
-			Level:     logOpts.Level,
-			ReplaceAttr: func(groups []string, attr slog.Attr) slog.Attr {
-				if attr.Key == slog.LevelKey {
-					level := attr.Value.Any().(slog.Level)
-					label, ok := levelLabel[level]
-					if !ok {
-						label = level.String()
-					}
-					attr.Value = slog.StringValue(label)
-				}
-
-				return attr
-			},
+			AddSource:   logOpts.AddSource,
+			Level:       logOpts.Level,
+			ReplaceAttr: replaceLevelLabel,
 		}
 
+		var handler slog.Handler
 		switch logOpts.LogFormat {
 		case TextFormat:
-			logHandler := slog.NewTextHandler(os.Stdout, &slogOptions)
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
-
+			handler = slog.NewTextHandler(os.Stdout, &slogOptions)
 		case JSONFormat:
-			logHandler := slog.NewJSONHandler(os.Stdout, &slogOptions)
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
-
+			handler = slog.NewJSONHandler(os.Stdout, &slogOptions)
 		default:
-			logHandler := NewPrettyHandler(os.Stdout, &PrettyHandlerOptions{
+			handler = newPrettyHandler(os.Stdout, &prettyHandlerOptions{
 				TimeFormat:     logOpts.TimeFormat,
 				HandlerOptions: slogOptions,
 			})
-			singleInstance = &logInstance{
-				slog: slog.New(logHandler),
-			}
 		}
+
+		base := &logInstance{slog: slog.New(handler)}
+		singleInstance = WrapLogger(base, logOpts.MaskFields)
 	})
 
 	return singleInstance
+}
+
+func replaceLevelLabel(groups []string, attr slog.Attr) slog.Attr {
+	if len(groups) > 0 || attr.Key != slog.LevelKey {
+		return attr
+	}
+	level, ok := attr.Value.Any().(slog.Level)
+	if !ok {
+		return attr
+	}
+	label, ok := levelLabel[level]
+	if !ok {
+		label = level.String()
+	}
+	attr.Value = slog.StringValue(label)
+	return attr
+}
+
+func (instance *logInstance) enabled(level slog.Level) bool {
+	return instance.slog.Enabled(context.Background(), level)
 }
 
 func (instance *logInstance) Debug(msg string, args ...any) {
