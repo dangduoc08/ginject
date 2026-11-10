@@ -15,14 +15,33 @@ upgrade: ## Upgrade dependencies
 .PHONY: tidy
 tidy: ## Go mod tidy
 	go mod tidy
-	
+
+.PHONY: tidy-check
+tidy-check: ## Fail if go.mod/go.sum are not tidy
+	go mod tidy -diff
+
+.PHONY: fmt-check
+fmt-check: ## Fail if any Go file is not gofmt-formatted
+	@out="$$(gofmt -l $$(git ls-files '*.go'))"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+
+.PHONY: vet
+vet: ## Run go vet
+	go vet ./...
+
 .PHONY: test
 test: ## Run tests
-	go test ./... -cover
+	go test ./... -cover -race
 
 .PHONY: lint
 lint: ## Run linter
-	golangci-lint run
+	golangci-lint run ./...
+
+.PHONY: vuln
+vuln: ## Run govulncheck
+	govulncheck ./...
+
+.PHONY: check
+check: fmt-check vet lint test tidy-check ## Definition of done for every change
 
 .PHONY: protoc
 protoc: ## Generate protocol buffer
