@@ -85,8 +85,8 @@ func encloseSlow(s string, sep byte) string {
 	return b.String()
 }
 
-func isASCIISpace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
+func isASCIISpace(char byte) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\v' || char == '\f' || char == '\r'
 }
 
 func RemoveDup(s, pattern string) string {

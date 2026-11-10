@@ -1,8 +1,11 @@
 package crypto
 
-import "testing"
+import (
+	"sync/atomic"
+	"testing"
+)
 
-var parallelSink string
+var parallelSink atomic.Pointer[string]
 
 func BenchmarkUUID(b *testing.B) {
 	b.ReportAllocs()
@@ -18,6 +21,6 @@ func BenchmarkUUID_Parallel(b *testing.B) {
 		for pb.Next() {
 			local = UUID()
 		}
-		parallelSink = local
+		parallelSink.Store(&local)
 	})
 }
