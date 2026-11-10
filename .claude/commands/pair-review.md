@@ -60,6 +60,7 @@ For each hot function:
 - **Goroutines:** every goroutine needs a stop path, through context, a closed channel or shutdown. Look for channel sends that can block forever. Check with the `goroutineleak` profile (Go 1.27) where goroutines exist.
 - **Evidence:** a concurrent test under `-race` for each piece of shared state, plus a probe for each suspected race.
 - If the package has no shared state, say so with the grep that proves it, for example no package-level mutable `var`, `go func`, or `sync.*`.
+- **Raise every concurrency finding with the owner** through AskUserQuestion, including ones that are "safe by convention" (for example "only written before `Listen`"). State the convention, who could break it, and how to enforce it. Never settle one silently as ✅ or as a note in the guide.
 
 ### 3d. Security (mandatory)
 
@@ -79,7 +80,8 @@ For each hot function:
   - no ignored errors (`_ = err`, or `v, _ :=` on parse);
   - errors are wrapped with `%w` so `errors.Is`/`errors.As` work;
   - request-path panics are recovered with the correct status;
-  - bootstrap panics follow `"<category>: <detail>"`.
+  - bootstrap panics follow `"<category>: <detail>"`;
+  - every message follows CLAUDE.md "Messages and errors" (D-028): one prefix per package, no colour in returned errors, diagnostics through the logger rather than stderr, and client messages that never contain internal error text.
 - **Resources:**
   - no map, cache or slice that only grows;
   - files, bodies and connections are closed;

@@ -256,3 +256,192 @@ Format: `D-<n>`, then status (open / decided), context, options, decision, date.
   
   Don't re-propose these.
 - `misspell` is enabled in `.golangci.yml`.
+
+## D-022 `exception` and `aggregation` move from P2 to P3
+
+- **Status:** decided 2026-11-10 (P2 survey).
+- **Context:** both packages already exist on main with an API that differs from master's and is tied to `ctx`:
+  - `aggregation`: `AggregationOperator = func(*ctx.Context, any) any` with `Map/Consume/Error/First/Of`, against master's `func(any) any` with `Transform/Tap/Filter`;
+  - `exception`: `NewException(response any, code string)` with `GetHTTPStatus/GetResponse`, against master's `NewException(message string, code int)` with `GetCode/GetMessage/GetStatusText`, plus WS exceptions.
+  
+  Their callers on main are in `common`, `core` and `ctx` (the red zone), so porting them alone would break the build.
+- **Decision:** P2 ports only `pattern`, `trace`, `event` and `log`. `exception` and `aggregation` are ported in P3 together with their callers, and their API divergences are asked then.
+
+## D-023 `log.NewLog` returns `common.Logger`
+
+- **Status:** decided 2026-11-10 (P2).
+- **Context:** main's `NewLog` returns `*logInstance`, an unexported type. master's returns the `common.Logger` interface, which `WrapLogger` (masking) needs. main's callers (`core/app.go:128`, `sample`) still compile with either.
+- **Decision:** take master's: `func NewLog(opts *LogOptions) common.Logger`. `common.Logger` is identical on main and master, so `log` can import main's `common` without touching the red zone.
+
+## D-024 Pretty log format follows master
+
+- **Status:** decided 2026-11-10 (P2).
+- **Context:** the actual outputs of main's and master's `PrettyHandler` were compared on the same records.
+  - **master:** structs and maps are rendered as a tree (maps sorted by key), values are column-aligned, and strings are unquoted.
+  - **main:** one-line `%v`, quoted strings, no alignment.
+- **Decision:** take master's format. master's handler shows an empty value for `error` attrs (`errors.New("boom")` prints nothing), and that bug is fixed separately during `/pair-review log`.
+
+## D-025 Log tags and masking are ported
+
+- **Status:** decided 2026-11-10 (P2).
+- **Context:** master adds two features that main lacks, which is why main prints passwords:
+  - the struct tag `log:"-"` hides a field; `log:"name"` renames it;
+  - `LogOptions.MaskFields` together with `WrapLogger` replaces matching keys or paths with `[REDACTED]`, using `pattern` syntax such as `password` or `user.*`.
+- **Decision:** port both. `log_tag.go` uses `unsafe` to read unexported tagged fields. That is a heavy technique, and it needs the owner's explicit approval during `/pair-review log`.
+
+## D-026 `trace`: unused transports removed
+
+- **Status:** decided 2026-11-10 (P2, `/pair-review trace`).
+- **Decision:** remove `TransportGQL` and `TransportRPC`, which have no user in master (D-008). Add them back with a GraphQL or RPC transport.
+
+## D-027 `event`: framework-internal, lock-free reads
+
+- **Status:** decided 2026-11-10 (P2, `/pair-review event`).
+- **Context:**
+  - master's `core` calls `HasListeners` on every pipeline stage of every request, even with tracing off. That is about 10–15 calls per request, and `Emit` runs on every stage when access log or devtool is on.
+  - Both took `RWMutex` locks, and `Emit` took the write lock. At 12 CPUs in parallel, `HasListeners` cost 66.6 ns and `Emit` 159.4 ns.
+  - 7 of the 11 methods had no caller.
+- **Owner's intent (2026-11-10):** `event` exists mainly to measure the duration of each pipeline layer (middleware, guard, interceptor, pipe, handler) and to notify subscribers such as access log and devtool when a request finishes. The user-facing pub/sub is the message broker (R-2), which is exported. `event` stays simple and internal, so the two never overlap.
+- **Decision:**
+  - **Location:** moved to `internal/event`, so code outside the module can't import it. It had no caller on main yet. At P3, decide how master's exported `accesslog.AccessLogConfig.Event *event.Event` field is handled.
+  - **Role:** framework-internal infrastructure. Only `NewEvent`, `On`, `Emit` and `HasListeners` remain. `Reset`, `SetMaxListeners`, `Once`, `Off`, `RemoveAllListeners`, `ListenerCount` and `EventNames` were removed (D-008). Unsubscribe comes back with devtool (R-1), which needs it for SSE clients that come and go.
+  - **Copy-on-write:** listeners live in `atomic.Pointer[listenerMap]`. `HasListeners` and `Emit` read without locking and without copying. `On` (cold) copies the map under `writeMu`.
+    - Emit iterates the snapshot taken when it started, and an `On` during an `Emit` is not seen by that `Emit` (tested).
+    - The leak warning is fixed at 10 listeners per event (`maxListenersPerEvent`).
+  - **Zero value usable:** `var e event.Event` works, because a nil snapshot means no listeners. master's zero value panicked in `On`.
+- **Result, 12 CPUs:**
+  - `HasListeners` parallel: 66.6 → 0.9 ns, or 3.6 ns when another event has a listener (re-measured in P2 with a sink, so the call isn't eliminated). It is inlinable now.
+  - `Emit` with 1 listener, parallel: 159.4 → 11.5 ns.
+  - `On`: 444 → 317 ns.
+  - The remaining 16 B alloc per `Emit` comes from the caller boxing its argument into `...any` (P3).
+
+## D-028 Message and error conventions
+
+- **Status:** decided 2026-11-10 (before continuing P2).
+- **Context:** master mixes at least four styles:
+  - two prefixes in one package (`memorybroker:` and `broker:`);
+  - prefixes that don't match the package (`EventEmitter:`), or no prefix at all (`%v is not defined`);
+  - bootstrap panics that are sometimes coloured and sometimes not;
+  - 4 direct `os.Stderr` writes that bypass the logger, so JSON format and masking are lost;
+  - inconsistent client messages (`"Access denied"`, `"Too Many Requests"`);
+  - internal error text sent to clients (`BadRequestException(err.Error())`).
+- **Decision:** four kinds of message, each with its own rule. They are written in CLAUDE.md, under "Messages and errors".
+  1. **Bootstrap panics** (dev terminal, at `Create()`): `"<category>: <detail>"`, red via `color.FmtRed`. The category comes from the fixed list and applies to every package.
+  2. **Returned errors** (user code):
+     - lowercase, no trailing punctuation, no colour;
+     - the prefix is exactly the package name;
+     - wrap with `%w`;
+     - export a sentinel `ErrXxx` for each condition callers check.
+  3. **Runtime diagnostics** (operators): always through `common.Logger`, never `fmt` to stderr. `msg` is a fixed PascalCase event name (`EventListenerPanic`), and details go in key-value attrs.
+  4. **Client-facing messages** (exceptions, HTTP): sentence case with no trailing period, and never internal error text. A 4xx states what the client got wrong, in our own words. A 5xx says "Internal server error" and the details go to the log, keyed by request ID. The JSON shape is decided at P3 with `exception`.
+- **Applied now:** `internal/event` uses `event:` prefixes without colour: `event: possible listener leak: …` and `event: listener panic recovered: …`. It still writes to stderr until `core` gives it a logger at P3. Other packages are fixed when they are ported.
+
+## D-029 `pattern`: in-place matching, no allocs
+
+- **Status:** decided 2026-11-10 (P2, `/pair-review pattern`).
+- **Context:**
+  - `Match` is hot when `MaskFields` is set (once per log attr), and at R-2 (once per publish and per WS message).
+  - Complex patterns ran `strings.Split(topic, ".")` on every call, costing 1 alloc. A 10 KB client topic cost 41 µs and 40 KB.
+  - The suffix-wildcard branch built `simplePrefix+"."` on every call.
+- **Decision:**
+  - `matchSegments` walks the topic with `strings.Cut` and stops at the first mismatch. A test checks it against a split-based reference over 300k random complex patterns.
+  - The suffix branch checks the `.` byte and the prefix directly, without concatenating.
+  - `KindComplex` is the `default` case, so the unreachable `return false` is gone.
+  - `IsGlobal` was removed (unused, D-008). The package stays public; the owner chose not to move it to `internal/`.
+- **Result:**
+  - complex 3-segment match: 101 → 53 ns, 1 → 0 allocs;
+  - hostile 10 KB topic: 41,117 → 20 ns, 40 KB → 0;
+  - suffix wildcard: 25–36 → 4–9 ns.
+- **Unchanged on purpose (inherited from master):**
+  - an empty trailing segment counts for a complex pattern but not for a suffix wildcard: `*.*` matches `b.`, while `b.*` doesn't.
+  - Recorded for R-2: the broker should reject topics with empty segments.
+
+## D-030 Pattern syntax is glob-style: `*` is one segment, `**` is one or more
+
+- **Status:** decided 2026-11-10 (P2). This replaces master's single `*`.
+- **Context:**
+  - master's trailing `*` matched one or more segments while a middle `*` matched exactly one, so "exactly one trailing segment" couldn't be written: `chat.*` also matched `chat.room1.typing`.
+  - Every major broker uses two symbols: NATS `*`/`>`, MQTT `+`/`#`, RabbitMQ `*`/`#`. Glob and `.gitignore` use `*`/`**`, which web developers already know.
+- **Decision:**
+  - `*` matches **exactly one** segment, in any position.
+  - `**` matches **one or more** segments, and only as the last segment. `chat.**` does not match `chat` (like `.gitignore` `foo/**`, and NATS `>`).
+  - `**` alone matches everything. `*` alone matches single-segment topics only.
+  - `**` anywhere but last, and `*` inside a segment (`a*b`), are literals.
+  - The syntax is ginject's own contract and never the backend's.
+- **Adapters (R-3):** each adapter translates to the closest native superset and then filters locally with `pattern.Match`, so semantics are identical on every backend.
+
+  | Backend | One segment | One or more at the end | Translation |
+  |---|---|---|---|
+  | NATS | `*` | `>` | exact 1:1 |
+  | RabbitMQ | `*` | `#` (zero or more) | filter out the zero-segment match |
+  | MQTT | `+` | `#` (zero or more); separator `/` | map `.` to `/`, then filter |
+  | Redis PSUBSCRIBE | `*` also matches `.` | — | subscribe a superset, then filter |
+
+  The cost: Redis, MQTT and RabbitMQ may deliver extra messages that the adapter drops.
+- **Required at R-2:** restrict segment characters to `A-Z a-z 0-9 _ -`, and reject empty segments, so every topic valid in memory is valid on every backend (NATS reserves `* >` and spaces, MQTT `+ # /`, Redis `* ? [ ] \`).
+- **`MaskFields` follows the same syntax:** `user.*` covers one level and `user.**` covers all levels.
+- **Found while migrating:** a wildcard rule only masked leaves, so `password.*` matching a map-valued `password.person` left its children visible. This is fixed in `/pair-review log`: a rule that matches a node masks that node's whole subtree.
+
+## D-031 `log` review: locking, limits, masking and handler fixes
+
+- **Status:** decided 2026-11-10 (P2, `/pair-review log`).
+- **Concurrency:**
+  - **C1:** `prettyHandler` formats into a buffer from a `sync.Pool`, outside the lock, and locks only around `writer.Write`. Buffers above 64 KB are not returned to the pool. Measured with a prototype at 12 CPUs in parallel: 1.75 → 0.77 µs per record. Approved use of `sync.Pool`.
+  - **C2:** writes stay synchronous, like `slog`, `zap`, `zerolog` and `logrus`. A slow writer blocks every logging goroutine; this is documented. An opt-in async writer is on the ROADMAP.
+  - **C3:** `NewLog` keeps master's `sync.Once` singleton. A second call returns the first logger and ignores its options; this is documented.
+- **Bounds (B4):** `maxDepth = 16` and `maxNodes = 1000` per record, in both the pretty tree and masking, for maps, slices, structs and anything nested in them (including `LogValuer` results). A `slog.Group` or self-referencing `LogValuer` passed directly as a top-level argument is not bounded yet, like stdlib slog (B-11). Past the depth the value prints `[MAX_DEPTH]`; past the node count, `… (N more)`. Fixed limits, not derived from RAM: a 100k-key map one level deep allocated 37 MB, so width matters more than depth, and container memory limits can change at runtime.
+- **Pretty output:**
+  - **B1:** a value implementing `error` prints `Error()`, and a `fmt.Stringer` prints `String()`, instead of the dereferenced struct.
+  - **S1:** control bytes (< 0x20 and 0x7f) in the message, keys and every string value are escaped (`\n`, `\x1b`, …). Colours added by the framework are unaffected. A clean string costs one byte scan.
+  - **B5:** `PrettyHandler`/`NewPrettyHandler` become unexported. The handler no longer embeds `slog.TextHandler`; it implements `Enabled`, `WithAttrs` and `WithGroup` itself and honours `AddSource`.
+- **Masking:**
+  - One rule for every pattern: each rule is matched with `pattern.Match` against every suffix of the attribute path, at every node. A matching node is replaced whole by `[REDACTED]`. This replaces master's two behaviours (exact rules matched by suffix, wildcard rules from the root and only at leaves).
+  - Matching is case-insensitive, so the rule `password` covers the struct field `Password`.
+  - Slices are traversed; their elements share the slice's path (`users` → `users.password`).
+  - `slog.Attr` arguments, including `slog.Group`, are masked by their key and count as one argument.
+  - **P1:** `transform` copies the args only when a value changes, and with no rules it builds no paths. `WrapLogger` can't return `next` unchanged, because it also turns tagged structs into maps for the JSON/Text handlers and custom loggers.
+  - **P2:** masking runs only when the level is enabled.
+- **After `go-reviewer` (2026-11-10):**
+  - `slog.LogValuer` and `slog.Value` values are resolved before masking, at any depth, and the result is masked. At the top level an unchanged value is passed on as it was. Nested inside a map, struct or slice, a resolved value is always turned into plain Go values (a group becomes `map[string]any`), because the JSON handler prints a nested `slog.Value` as `{}` and the pretty handler would otherwise expand the original type field by field (second `go-reviewer` pass). The depth count carries through each `LogValuer` hop.
+  - Empty-key groups inside a resolved `LogValuer` count against the node budget and the depth (third `go-reviewer` pass: an inline self-referencing group overflowed the stack).
+  - Fourth `go-reviewer` pass (convention sweep): `slog.Attr` and `[]slog.Attr` nested as values, including a `slog.Value` that holds one, are masked like groups (they printed `password=…` in Text and Pretty, because `slog.Attr` is a `fmt.Stringer`); map children are sorted with `slices.SortFunc` instead of `sort.Slice` (access-log record: 42 → 35 allocs); single-letter parameters renamed; the shared constants moved to `fn.go` (D-034). `TextFormat`/`JSONFormat`/`PrettyFormat` now have their own `iota` block, so their values are 1, 2, 3 instead of 11, 12, 13; only the names are API (owner accepted, 2026-11-11).
+  - Three fuzz targets guard the contract (B-9): a masked secret never reaches the Text, JSON or Pretty output; client text can't add lines or raw control bytes to the pretty output; `matchesSuffix` equals its slow reference.
+  - The README gains a "What is supported" table. Inputs outside it are not part of the contract, and `log` is frozen for P2.
+  - `format` collects up to 8 attributes in a stack array (approved hand-managed buffer); more than 8 falls back to `make`. 1 → 0 allocs per typical record.
+  - `slog.Group` attributes are flattened with a key prefix in the pretty format; an empty-key group is inlined and an empty group dropped.
+  - Bug fixes: a user attribute named `level` panicked the JSON/Text `ReplaceAttr` (inherited from master); `*Colored` lost its colour; escaped keys broke column alignment.
+- **Removed:** the `unsafe` read of unexported fields with a `log` tag (R1), so tags on unexported fields are ignored; `LogOptions.Transports` and `LogTransport`, which nothing used; the `Level == -1` override.
+- **Structure:** ANSI codes come from `internal/color`. `Color`/`Colored` move to `log_color.go`. Helpers used by more than one file (`kv`, `dereference`, `taggedFields`, `stringerType`, `errorType`) go to `fn.go`, so `log_tag.go` is gone and its tests are now `fn_test.go`. The tree builders stay in `log_handler.go`, their only caller, so there is no `log_tree.go`.
+
+## D-032 Constructor settings are `opts *XxxOptions`
+
+- **Status:** decided 2026-11-11.
+- **Context:** main and master mix three styles: `Options` (`LogOptions`, `ExceptionOptions`, every `*ModuleOptions`, the middleware `*Options`), `Config` (`AccessLogConfig`, `WSConfig`, `HTTPConfig`, `retryConfig`) and `Opts` (`CacheOpts`).
+- **Decision:**
+  - The settings struct of a constructor is `XxxOptions`; for a module it is `XxxModuleOptions`.
+  - The parameter is named `opts`, passed as a pointer, and `nil` means defaults: `NewLog(opts *LogOptions)`.
+  - `Config`/`cfg` is reserved for the config module (`.env` loading), so it is never confused with `ConfigModule`/`ConfigService`. `Opts` is not used.
+- **Retro-apply:** P1 and P2 code already follows it (`make conventions` checks it). Others are applied when each package is ported: `AccessLogConfig` → `AccessLogOptions` and `common.HTTPConfig` → `HTTPOptions` (P3), `WSConfig` → `WSOptions` (R-2), `CacheOpts` → `CacheModuleOptions` (cache module), `retryConfig` → `retryOptions` (httpclient).
+
+## D-033 Ported code is kept in line with rule changes
+
+- **Status:** decided 2026-11-11.
+- **Context:** the port runs over many steps while CLAUDE.md keeps changing. D-032 and the embedded-field literal rule both arrived after P1 and P2 were written, so early steps could drift from later rules.
+- **Decision:** three layers.
+  1. **Mechanical checks in `make check`.** The `predeclared` linter (no shadowed builtins) and `make conventions` over `PORTED_DIRS`: `go fix -embedlit=false` must propose nothing, D-032 names (`XxxConfig`/`Opts`/`cfg`) are rejected, and ported tests use `test.DiffMessage` (D-002). Each step adds its packages to `PORTED_DIRS`.
+  2. **Retro-apply.** Every rule change gets a D-xxx with a Retro-apply line. Affected ported packages are fixed in the same change or tracked in PORT.md "Convention sweep".
+  3. **Convention sweep at each step gate** (DoD 4b): `go-reviewer` checks every ported package, not only the diff. A final sweep runs when the port is finished.
+- **Retro-apply (this decision and D-032):** `make conventions` passes on `internal`, `log`, `pattern` and `trace`; `predeclared` reports nothing. Nothing to track.
+
+## D-034 `fn.go` holds every shared unexported identifier
+
+- **Status:** decided 2026-11-11.
+- **Context:** the placement rule named helper functions only. `log` kept `maxDepth`/`maxNodes`/`maxDepthPlaceholder` in `log_handler.go` and the `label*` constants in `log.go`, while other files used them.
+- **Decision:** the `fn.go` rule covers unexported functions, constants, variables and types used by two or more files of a package.
+- **Retro-apply:** `log` fixed in P2. Every other ported package has a single code file, so nothing else is affected.
+
+## D-035 Every `b.RunParallel` benchmark has an atomic sink
+
+- **Status:** decided 2026-11-11.
+- **Decision:** CLAUDE.md's rule stands for every `RunParallel` benchmark, even when the call has side effects: each goroutine counts locally and adds to a package-level `atomic` value at the end. A plain package-level variable written from every goroutine is a data race under `-race`.
+- **Retro-apply:** `internal/crypto` (`BenchmarkUUID_Parallel` raced; now `atomic.Pointer[string]`), `internal/event` (`Emit` parallel) and `log` (`Handle` parallel) fixed in P2.

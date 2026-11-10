@@ -41,7 +41,7 @@ Bring step $ARGUMENTS of `.claude/port/PORT.md` from `master` onto `main`, so th
    - a concurrent test for any shared state in scope
    - for request-path code, `go test -bench . -benchmem -count 5` on main before the port and after, compared side by side
 
-6. **Review.** Run the `go-reviewer` subagent on the working-tree diff. Fix critical findings. List the rest. Then run the step gate from PORT.md "Definition of done" 4b (dependencies and binary, devtool readiness, ecosystem compatibility) and report each lens.
+6. **Review.** Run the `go-reviewer` subagent on the working-tree diff. Fix critical findings. List the rest. Then run the step gate from PORT.md "Definition of done" 4b (dependencies and binary, devtool readiness, ecosystem compatibility) and report each lens, including the convention sweep across every ported package.
 
 7. **Reading guide.** Write `.claude/port/$ARGUMENTS-reading-guide.md` with:
    - the files in call order, each with one line on what it does;
